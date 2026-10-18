@@ -23,6 +23,9 @@
 {{end}}
 {{with .JSONLD}}<script type="application/ld+json">{{.}}</script>{{end}}
 <link rel="icon" href="{{.Site.Static "favicon.svg"}}" type="image/svg+xml">
+<link rel="icon" href="{{.Site.Static "brand/favicon-32.png"}}" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="{{.Site.Static "brand/apple-touch-icon.png"}}">
+<link rel="manifest" href="/manifest.webmanifest">
 <script src="{{.Site.Static "theme-init.js"}}"></script>
 <link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
 <script src="{{.Site.Static "site.js"}}" defer></script>

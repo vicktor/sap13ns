@@ -28,7 +28,14 @@ getent group sap13ns-web >/dev/null || groupadd --system sap13ns-web
 install -d -o sap13ns -g sap13ns -m 0750 /var/lib/sap13ns /var/lib/sap13ns/uploads /var/lib/sap13ns/plugins
 install -d -o sap13ns -g sap13ns -m 0700 /var/lib/sap13ns/backups
 install -d -o root -g sap13ns -m 0750 /etc/sap13ns
-if id www-data >/dev/null 2>&1; then usermod -aG sap13ns-web www-data; fi
+if id www-data >/dev/null 2>&1; then
+    usermod -aG sap13ns-web www-data
+    # Earlier installs put nginx in the sap13ns group, which can read the env
+    # file and the data directory.
+    if id -nG www-data | tr ' ' '\n' | grep -qx sap13ns; then
+        gpasswd -d www-data sap13ns >/dev/null && echo "    removed www-data from the sap13ns group (restart nginx)"
+    fi
+fi
 
 echo "==> binary"
 install -o root -g root -m 0755 "$bin" /usr/local/bin/sap13ns
@@ -57,6 +64,10 @@ if [ ! -e "$env" ]; then
     echo "    wrote $env (keep a copy of SAP13NS_SECRET_KEY somewhere safe)"
 else
     echo "    $env exists, left unchanged"
+    if ! grep -q '^SAP13NS_SOCKET_GROUP=' "$env"; then
+        printf '\n# nginx reaches the socket through this group only.\nSAP13NS_SOCKET_GROUP=sap13ns-web\n' >> "$env"
+        echo "    added SAP13NS_SOCKET_GROUP=sap13ns-web to $env"
+    fi
 fi
 
 echo "==> systemd"

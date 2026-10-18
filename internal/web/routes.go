@@ -35,6 +35,7 @@ func (s *Server) routes() *http.ServeMux {
 	}
 	mux.HandleFunc("GET /sitemap.xml", c(s.handleSitemap))
 	mux.HandleFunc("GET /robots.txt", s.handleRobots)
+	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /og/{file}", s.handleOGImage)
 	mux.HandleFunc("GET /llms.txt", c(s.handleLLMs))
 	mux.HandleFunc("GET /llms-full.txt", c(s.handleLLMsFull))
