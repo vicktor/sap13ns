@@ -7,7 +7,7 @@
 {{/* shared/widget: one widget. Data: dict "W" WidgetView "Page" PageData. */}}
 {{define "shared/widget"}}
 {{$w := .W}}
-<section class="widget widget-{{if hasPrefix $w.Kind "plugin:"}}plugin{{else}}{{$w.Kind}}{{end}}" aria-label="{{or $w.Title $w.Kind}}">
+<section class="widget widget-{{if hasPrefix $w.Kind "plugin:"}}plugin{{else}}{{$w.Kind}}{{end}}"{{with $w.Title}} aria-label="{{.}}"{{end}}>
   {{if $w.Title}}<h2 class="widget-title">{{$w.Title}}</h2>{{end}}
   {{if eq $w.Kind "recent_posts"}}
     <ul class="widget-posts">{{range $w.Posts}}<li><a href="{{.URL}}">{{if .Image}}<img src="{{.Image.Thumb}}" alt="" width="64" height="64" loading="lazy">{{end}}<span>{{.Title}}{{if .HasDate}}<time datetime="{{isoDate .Published}}">{{shortDate .Published}}</time>{{end}}</span></a></li>{{end}}</ul>
