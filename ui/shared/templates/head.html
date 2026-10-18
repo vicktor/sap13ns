@@ -29,7 +29,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <script src="{{.Site.Static "theme-init.js"}}"></script>
 <link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
-{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
+{{with .Site.PreviewTheme}}<meta name="sap-preview-theme" content="{{.}}">
+{{end}}{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
 {{end}}{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
 {{end}}<script src="{{.Site.Static "site.js"}}" defer></script>
 {{range .PluginJS}}<script src="{{.}}" defer></script>

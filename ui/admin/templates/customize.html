@@ -196,12 +196,12 @@
         {{range $th.Options}}
         <div class="field">
           {{if eq .Type "bool"}}
-          <label class="check"><input type="checkbox" class="input" role="switch" name="options.{{.Key}}" data-type="boolstr"{{if eq (index $v .Key) "true"}} checked{{end}}> {{.Label}}</label>
+          <label class="check"><input type="checkbox" class="input" role="switch" name="options.{{.Key}}" data-type="boolstr"{{if eq (index $v .Key) "true"}} checked{{end}}> {{themeT $th .Label}}</label>
           {{else}}
-          <label for="cz-opt-{{.Key}}">{{.Label}}</label>
+          <label for="cz-opt-{{.Key}}">{{themeT $th .Label}}</label>
           {{if eq .Type "select"}}
           <select class="select w-full" id="cz-opt-{{.Key}}" name="options.{{.Key}}">
-            {{$cur := index $v .Key}}{{range .Choices}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{.Label}}</option>{{end}}
+            {{$cur := index $v .Key}}{{range .Choices}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{themeT $th .Label}}</option>{{end}}
           </select>
           {{else if eq .Type "textarea"}}
           <textarea class="textarea" id="cz-opt-{{.Key}}" name="options.{{.Key}}" rows="3" maxlength="2000">{{index $v .Key}}</textarea>
@@ -209,7 +209,7 @@
           <input class="input" id="cz-opt-{{.Key}}" name="options.{{.Key}}" type="text" value="{{index $v .Key}}" maxlength="2000">
           {{end}}
           {{end}}
-          {{with .Help}}<p class="hint">{{.}}</p>{{end}}
+          {{with .Help}}<p class="hint">{{themeT $th .}}</p>{{end}}
         </div>
         {{end}}
       </div>

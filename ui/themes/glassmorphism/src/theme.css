@@ -483,8 +483,7 @@ body::after {
 .prose pre code { background: none; border: 0; padding: 0; color: inherit; }
 .prose blockquote { position: relative; border: 0; padding: 1.1rem 1.4rem 1.1rem 1.6rem; border-radius: calc(1.1rem * var(--sap-radius-scale, 1)); background: var(--inset); box-shadow: inset 0 0 0 1px var(--border); color: var(--foreground); font-style: italic; font-size: 1.08em; }
 .prose blockquote::before { content: ""; position: absolute; left: 0.55rem; top: 0.9rem; bottom: 0.9rem; width: 3px; border-radius: calc(3px * var(--sap-radius-scale, 1)); background: linear-gradient(var(--primary), var(--primary-2)); }
-.prose table { width: max-content; max-width: 100%; border-radius: calc(1rem * var(--sap-radius-scale, 1)); box-shadow: inset 0 0 0 1px var(--border); }
-@media (min-width: 700px) { .prose table { display: table; width: 100%; } }
+.prose table { border-radius: calc(1rem * var(--sap-radius-scale, 1)); box-shadow: inset 0 0 0 1px var(--border); }
 .prose thead th { background: color-mix(in srgb, var(--primary) 8%, transparent); }
 .prose th, .prose td { padding: 0.65em 0.95em; }
 .prose tbody tr:last-child td { border-bottom: 0; }

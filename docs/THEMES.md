@@ -61,7 +61,7 @@ Themes come from two places, in this order:
 - **Overriding.** An extra theme with the same slug as a built-in one replaces it.
 - **Failures.** A theme whose manifest or templates do not parse is skipped and logged ("theme failed to load"), and the other themes still load. The server refuses to start only when no theme loads at all.
 - **Fallback.** If the active theme is missing, visitors get `apple`, then `dashboard`, then any theme that loaded.
-- **Preview and activate.** **Appearance → Themes** lists every theme. Users with the appearance capability can add `?preview_theme=<slug>` to any public URL to see another theme before activating it. Add `&scheme=dark` or `&scheme=light` to force a colour scheme for that view.
+- **Preview and activate.** **Appearance → Themes** lists every theme. Users with the appearance capability can add `?preview_theme=<slug>` to any public URL to see another theme before activating it. Pagination, internal links and the search form keep the preview. Add `&scheme=dark` or `&scheme=light` to force a colour scheme for that view.
 
 ## theme.json
 
@@ -189,11 +189,12 @@ A minimal `layout.html`:
 | `shared/featured-image` | PostView | the post's image with its caption |
 | `shared/content` | PostView | the rendered body, in `.prose` |
 | `shared/share` | PostView | share links, without third-party scripts |
-| `shared/post-nav` | PageData | previous and next post |
+| `shared/post-nav` | PageData | previous and next post; only the links that exist, the next one stays in the second column |
 | `shared/post-list` | `dict "Posts" "Layout" "H"` | posts as a `list`, `grid` or `bento` mosaic |
 | `shared/pagination` | `*Pagination` (may be nil) | page links |
 | `shared/archive-header` | PageData | the title of an archive or a search |
-| `shared/search-form` | PageData | the search form |
+| `shared/search-form` | PageData | the search form; its field gets an id unique in the page, so it can appear more than once |
+| `shared/search-count` | PageData | "12 results for “q”" for screen readers (a visually hidden status); show your own count beside it with `aria-hidden="true"` |
 | `shared/no-results` | PageData | an empty listing |
 | `shared/not-found` | PageData | the default 404 body |
 | `shared/comments` | PageData | the comments and the comment form |
@@ -213,7 +214,7 @@ Every page template gets a **PageData** (`.`).
 | `.Kind` | `home`, `single`, `page`, `archive`, `search`, `404` or `ask` |
 | `.Title`, `.Heading`, `.Description` | the page's title, its visible heading and its description |
 | `.IsFront` | the front page (latest posts or a static front page) |
-| `.Posts`, `.Pagination` | listings: home, archives and search |
+| `.Posts`, `.Pagination`, `.Total` | listings: home, archives and search; `.Total` counts the posts of every page |
 | `.Post` | single posts and pages |
 | `.Prev`, `.Next` | the neighbouring posts of a single post |
 | `.Comments`, `.CommentForm` | used through `shared/comments` |
@@ -221,6 +222,7 @@ Every page template gets a **PageData** (`.`).
 | `.Query` | the search terms |
 | `.Translations` | this page in every site language (`.Code`, `.Name`, `.URL`, `.Current`) |
 | `.Area "<id>"` | the widgets of an area |
+| `.ElementID "<prefix>"` | an id unique in the page (`prefix`, then `prefix-2`…), for a partial used more than once |
 | `.Preview` | a draft shown to its editor |
 | `.BlocksHeader`, `.BlocksFooter` | page builder regions, nil when not built |
 
@@ -232,7 +234,7 @@ Every page template gets a **PageData** (`.`).
 | `.URL`, `.Home`, `.Search` | the absolute home URL, and the home and search paths in this language |
 | `.Menu "<id>"` | a menu location's links (`.Label`, `.URL`, `.Active`, `.External`) |
 | `.Options` | the theme options (`index .Site.Options "<key>"`) |
-| `.Categories`, `.Tags`, `.Pages`, `.Archives`, `.Stats` | lists and counts for navigation and widgets |
+| `.Categories`, `.Tags`, `.Pages`, `.Archives`, `.Stats` | lists and counts for navigation and widgets; a term or month has `.Current` on its own archive (use `aria-current="page"`) |
 | `.FeedRSS`, `.FeedAtom`, `.FeedJSON` | feed URLs |
 | `.FooterText` | the customiser's footer line, empty when not set |
 | `.Viewer` | the signed-in user, nil for visitors |
@@ -247,7 +249,7 @@ Every page template gets a **PageData** (`.`).
 | Function | Example |
 |---|---|
 | `T` | `{{T "Read more"}}`, `{{T "%d comments" .CommentCount}}`: a string in the page language |
-| `plural` | `{{plural .Count "%d post" "%d posts"}}` |
+| `plural` | `{{plural .Count "%d post" "%d posts"}}`; more arguments follow the count: `{{plural .Total "%d result for “%s”" "%d results for “%s”" .Query}}` |
 | `link` | `{{link "/search"}}`: a site path with the page's language prefix |
 | `lang` | the page language |
 | `date`, `shortDate`, `dateTime`, `ago`, `monthName`, `isoDate` | localised dates in the site's time zone; `isoDate` is RFC 3339 for `datetime` attributes |
@@ -264,6 +266,7 @@ Source strings are English. Pass every visible string through `T`.
 
 - **The core catalogue** (`ui/i18n/<lang>.json`) translates the strings of the core and of the shared templates.
 - **A theme's own strings** go in `i18n/<lang>.json` inside the theme: a flat map from the English string to its translation. It is checked before the core catalogue, and `%s`/`%d` arguments work as in `T`.
+- **Manifest strings** (the description, option labels, help and choices, menu and widget area labels in `theme.json`) are shown translated in the admin, from the theme's `i18n/<lang>.json` or the core catalogue. `make i18n` checks those of the built-in themes.
 - **Links** to site paths go through `link`, so a page in English keeps its visitor in `/en/`.
 
 ## CSS and design tokens
@@ -353,7 +356,7 @@ media-src 'self' https:; font-src 'self'; connect-src 'self'; frame-src 'none'; 
 
 - **No inline scripts.** No `<script>` blocks with code, and no `onclick` or other event attributes. (`<script type="application/ld+json">` from `shared/head` is data, not code.)
 - **No inline styles.** No `<style>` elements and no `style=""` attributes. Every look is a class in `theme.css`.
-- **No JavaScript of its own.** The core's `site.js` handles the colour toggle, the small-screen menu (it toggles `.is-open` on the element a `shared/nav-toggle` controls, and `nav-open` on `<html>`), the language switch and comment replies.
+- **No JavaScript of its own.** The core's `site.js` handles the colour toggle, the small-screen menu (it toggles `.is-open` on the element a `shared/nav-toggle` controls, and `nav-open` on `<html>`; Escape, a click outside, following a menu link or growing to the width where the toggle is hidden close it), the language switch and comment replies.
 - **No external fonts or stylesheets.** Fonts and styles are same-origin. Images and media may be external (`https:`).
 
 ## Accessibility
@@ -364,7 +367,8 @@ Themes are expected to meet WCAG 2.2 AA.
 - **Landmarks.** One `<header>`, one `<main>`, one `<footer>`, and `<nav>` elements with an `aria-label` (such as `{{T "Main menu"}}`).
 - **Headings.** One `<h1>` per page, then headings in order.
 - **Focus.** Every link, button and field shows a visible `:focus-visible` style in both modes. Never remove outlines without a replacement.
-- **Reduced motion.** Animations and transitions that move things run only under `@media (prefers-reduced-motion: no-preference)`, or are switched off under `reduce`.
+- **Reduced motion.** Animations and transitions that move things run only under `@media (prefers-reduced-motion: no-preference)`, or are switched off under `reduce`. The shared stylesheet also cuts every animation to one near-instant run under `reduce`.
+- **Tables.** Post tables come wrapped in `<div class="table-scroll">`, which scrolls sideways on narrow screens. Keep the table itself `display: table`.
 - **Controls.** Use the shared toggles: they carry their labels, `aria-expanded` and `aria-controls`. Icons from `icon` are hidden from screen readers, so an icon-only link needs an `aria-label`.
 - **Language.** `<html lang="{{.Site.Lang}}">`.
 

@@ -132,6 +132,8 @@ func (v *tmplVisitor) command(c *parse.CommandNode, piped bool) {
 			}
 		} else if templateTables[id.Ident] {
 			v.e.Dynamic = append(v.e.Dynamic, DynamicSite{Loc: v.loc(c), Expr: c.String(), Kind: DynTable})
+		} else if templateThemeFuncs[id.Ident] {
+			v.e.Dynamic = append(v.e.Dynamic, DynamicSite{Loc: v.loc(c), Expr: c.String(), Kind: DynTheme})
 		}
 	}
 	for _, a := range c.Args {

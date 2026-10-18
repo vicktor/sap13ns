@@ -322,6 +322,10 @@ func (g *goScanner) call(pkg *goPkg, gf *goFile, call *ast.CallExpr, stack []ast
 	if !extract {
 		return
 	}
+	if themeCall(call) {
+		g.e.Dynamic = append(g.e.Dynamic, DynamicSite{Loc: loc, Expr: exprString(call), Kind: DynTheme})
+		return
+	}
 	if vals, ok := g.table(pkg, gf, arg, stack); ok {
 		for _, v := range vals {
 			g.e.addTable(v.s, v.loc)

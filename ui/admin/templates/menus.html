@@ -53,7 +53,7 @@
     {{range $d.Theme.Menus}}
     {{$loc := .ID}}
     <section class="card" id="menu-{{.ID}}">
-      <header><h2>{{.Label}}</h2><p class="mono text-xs">{{.ID}}</p></header>
+      <header><h2>{{themeT $d.Theme .Label}}</h2><p class="mono text-xs">{{.ID}}</p></header>
       <section>
         {{with index $d.Menus $loc}}
         <ol class="menu-items">
@@ -86,6 +86,6 @@
 {{if .Lang}}<input type="hidden" name="lang" value="{{.Lang}}">{{end}}
 <div class="field">
   <label>{{T "Location"}}</label>
-  <select class="select w-full" name="location">{{range .Theme.Menus}}<option value="{{.ID}}">{{.Label}}</option>{{end}}</select>
+  <select class="select w-full" name="location">{{range .Theme.Menus}}<option value="{{.ID}}">{{themeT $.Theme .Label}}</option>{{end}}</select>
 </div>
 {{end}}

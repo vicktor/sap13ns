@@ -15,7 +15,9 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
@@ -58,6 +60,29 @@ func (ids headingIDs) Generate(value []byte, _ ast.NodeKind) []byte {
 
 func (ids headingIDs) Put(value []byte) { ids[string(value)] = true }
 
+// tableScroll renders every GFM table inside <div class="table-scroll">. The
+// wrapper scrolls sideways when a table is wider than the column, so the
+// table itself keeps display: table, and with it its row and column
+// semantics for screen readers (a table set to display: block loses them in
+// some browsers). It replaces the table extension's renderer for the table
+// element only; rows and cells are still rendered by the extension.
+type tableScroll struct{}
+
+func (tableScroll) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(east.KindTable, func(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			_, _ = w.WriteString(`<div class="table-scroll"><table`)
+			if n.Attributes() != nil {
+				html.RenderAttributes(w, n, extension.TableAttributeFilter)
+			}
+			_, _ = w.WriteString(">\n")
+		} else {
+			_, _ = w.WriteString("</table></div>\n")
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
 var md = goldmark.New(
 	goldmark.WithExtensions(extension.GFM, extension.Footnote),
 	goldmark.WithParserOptions(
@@ -66,7 +91,9 @@ var md = goldmark.New(
 	),
 	// html.WithUnsafe() is deliberately NOT enabled: raw HTML in Markdown is
 	// dropped and dangerous URLs (javascript:, vbscript:, data:) are removed.
-	goldmark.WithRendererOptions(html.WithXHTML()),
+	goldmark.WithRendererOptions(html.WithXHTML(),
+		// Before the table extension (500), so that it wins for tables.
+		renderer.WithNodeRenderers(util.Prioritized(tableScroll{}, 400))),
 )
 
 var (
@@ -84,7 +111,7 @@ func ContentPolicy() *bluemonday.Policy {
 	contentPolicyOnce.Do(func() {
 		p := bluemonday.UGCPolicy()
 		p.AllowAttrs("id").Matching(regexp.MustCompile(`^[a-zA-Z0-9_:-]{1,120}$`)).OnElements("h1", "h2", "h3", "h4", "h5", "h6", "li", "sup")
-		p.AllowAttrs("class").Matching(regexp.MustCompile(`^(language-[a-zA-Z0-9_+-]{1,40}|footnote-ref|footnote-backref|footnotes|task-list-item|contains-task-list)$`)).Globally()
+		p.AllowAttrs("class").Matching(regexp.MustCompile(`^(language-[a-zA-Z0-9_+-]{1,40}|footnote-ref|footnote-backref|footnotes|task-list-item|contains-task-list|table-scroll)$`)).Globally()
 		p.AllowAttrs("loading").Matching(regexp.MustCompile(`^lazy$`)).OnElements("img")
 		p.AllowAttrs("decoding").Matching(regexp.MustCompile(`^async$`)).OnElements("img")
 		p.AllowAttrs("role").Matching(regexp.MustCompile(`^(doc-noteref|doc-backlink|doc-endnotes)$`)).Globally()

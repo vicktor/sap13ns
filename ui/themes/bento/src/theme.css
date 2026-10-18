@@ -432,7 +432,8 @@ a.chip:hover { background: var(--foreground); color: var(--background); }
 .prose pre { padding: 1.15rem 1.35rem; border: 0; border-radius: calc(1rem * var(--sap-radius-scale, 1)); background: var(--code-bg); color: var(--code-fg); font-size: 0.85em; }
 .dark .prose pre { border: 1px solid var(--border); }
 .prose :not(pre) > code { padding: 0.15em 0.45em; border-radius: calc(0.4em * var(--sap-radius-scale, 1)); background: var(--muted); font-size: 0.86em; }
-.prose table { width: max-content; max-width: 100%; border: 1px solid var(--border); border-radius: calc(1rem * var(--sap-radius-scale, 1)); border-collapse: separate; border-spacing: 0; font-size: 0.95em; font-variant-numeric: tabular-nums; }
+/* Auto width: as wide as its content, at most the column (then .table-scroll scrolls). */
+.prose table { width: auto; border: 1px solid var(--border); border-radius: calc(1rem * var(--sap-radius-scale, 1)); border-collapse: separate; border-spacing: 0; font-size: 0.95em; font-variant-numeric: tabular-nums; }
 .prose th { background: var(--muted); font-size: 0.8em; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
 .prose th, .prose td { padding: 0.7em 1.4em 0.7em 1em; }
 .prose tr:last-child td { border-bottom: 0; }
@@ -459,7 +460,6 @@ a.chip:hover { background: var(--foreground); color: var(--background); }
 
 .post-nav { gap: var(--gap); }
 .reading-side .post-nav { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); grid-column: 1 / -1; }
-.reading-side .post-nav > span:empty { display: none; }
 .reading-side .post-nav-next { grid-column: auto; align-items: flex-start; text-align: left; }
 .post-nav a { gap: 0.45rem; padding: 1.15rem 1.25rem 1.25rem; border: 1px solid var(--tile-border); border-radius: var(--tile-radius); background: var(--card); }
 .post-nav a:hover { border-color: var(--tile-border); }

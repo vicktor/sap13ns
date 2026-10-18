@@ -70,7 +70,7 @@
 <section class="tile t-cats side-tile" aria-labelledby="tile-cats-title">
   <h2 id="tile-cats-title" class="tile-label">{{icon "folder"}}<span>{{T "Categories"}}</span></h2>
   {{with .Site.Categories}}
-  <ul class="term-list">{{range $i, $c := .}}{{if lt $i 7}}<li><a href="{{$c.URL}}"><span>{{$c.Name}}</span><span class="count">{{$c.Count}}</span></a></li>{{end}}{{end}}</ul>
+  <ul class="term-list">{{range $i, $c := .}}{{if lt $i 7}}<li><a href="{{$c.URL}}"{{if $c.Current}} aria-current="page"{{end}}><span>{{$c.Name}}</span><span class="count">{{$c.Count}}</span></a></li>{{end}}{{end}}</ul>
   {{else}}<p class="tile-note">{{T "No categories yet."}}</p>{{end}}
   <span class="tile-deco" aria-hidden="true">{{icon "folder"}}</span>
 </section>
@@ -81,7 +81,7 @@
 <section class="tile tile-sand t-tags side-tile" aria-labelledby="tile-tags-title">
   <h2 id="tile-tags-title" class="tile-label">{{icon "hash"}}<span>{{T "Popular tags"}}</span></h2>
   {{with .Site.Tags}}
-  <ul class="tag-cloud">{{range $i, $t := .}}{{if lt $i 18}}<li><a href="{{$t.URL}}" rel="tag">#{{$t.Name}}</a></li>{{end}}{{end}}</ul>
+  <ul class="tag-cloud">{{range $i, $t := .}}{{if lt $i 18}}<li><a href="{{$t.URL}}" rel="tag"{{if $t.Current}} aria-current="page"{{end}}>#{{$t.Name}}</a></li>{{end}}{{end}}</ul>
   {{else}}<p class="tile-note">{{T "No tags yet."}}</p>{{end}}
   <span class="tile-deco" aria-hidden="true">{{icon "hash"}}</span>
 </section>
@@ -92,7 +92,7 @@
 <section class="tile t-arch side-tile" aria-labelledby="tile-arch-title">
   <h2 id="tile-arch-title" class="tile-label">{{icon "archive"}}<span>{{T "Archives"}}</span></h2>
   {{with .Site.Archives}}
-  <ul class="term-list">{{range $i, $a := .}}{{if lt $i 6}}<li><a href="{{$a.URL}}"><span>{{$a.Label}}</span><span class="count">{{$a.Count}}</span></a></li>{{end}}{{end}}</ul>
+  <ul class="term-list">{{range $i, $a := .}}{{if lt $i 6}}<li><a href="{{$a.URL}}"{{if $a.Current}} aria-current="page"{{end}}><span>{{$a.Label}}</span><span class="count">{{$a.Count}}</span></a></li>{{end}}{{end}}</ul>
   {{else}}<p class="tile-note">{{T "Nothing archived yet."}}</p>{{end}}
   <span class="tile-deco" aria-hidden="true">{{icon "calendar"}}</span>
 </section>

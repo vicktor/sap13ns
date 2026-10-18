@@ -11,7 +11,7 @@
   {{range $d.Theme.WidgetAreas}}
   {{$area := .ID}}
   <section class="card" id="area-{{.ID}}">
-    <header><h2>{{.Label}}</h2>{{with .Description}}<p>{{.}}</p>{{end}}</header>
+    <header><h2>{{themeT $d.Theme .Label}}</h2>{{with .Description}}<p>{{themeT $d.Theme .}}</p>{{end}}</header>
     <section class="stack">
       {{range (index $d.Widgets $area)}}
       <details class="widget-item" id="widget-{{.ID}}">

@@ -10,6 +10,9 @@
 //
 //   - templates (ui/**/*.html): {{T "..."}}, (T "..." args) and
 //     plural N "%d one" "%d many";
+//   - theme manifests (ui/themes/*/theme.json), which admin templates show
+//     through {{themeT $theme .Label}}: descriptions, option labels, help
+//     and choices, menu and widget area labels (themes.go);
 //   - Go files (internal/** and cmd/**, tests excluded): s.t("..."),
 //     s.tr(r, "..."), catalogs.T(lang, "...") and calls to local translators,
 //     that is variables and parameters of type func(string, ...any) string;
@@ -246,6 +249,9 @@ func (e *Extractor) ScanRepo(root string) error {
 		return nil
 	})
 	if err != nil {
+		return err
+	}
+	if err := e.scanThemes(root); err != nil {
 		return err
 	}
 	g := newGoScanner(e, root)

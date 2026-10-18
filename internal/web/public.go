@@ -136,13 +136,47 @@ func writeCached(w http.ResponseWriter, r *http.Request, e *cache.Entry, state s
 
 func (s *Server) activeTheme(r *http.Request) *theme.Theme {
 	slug := s.settings().ActiveTheme
-	// Administrators can preview another theme; in development anyone can.
-	if q := r.URL.Query().Get("preview_theme"); q != "" {
-		if u := currentUser(r); s.cfg.Dev || (u != nil && auth.Can(u.Role, auth.CapAppearance)) {
-			slug = q
-		}
+	if q := s.previewSlug(r); q != "" {
+		slug = q
 	}
 	return s.themes.Active(slug)
+}
+
+// previewSlug is the ?preview_theme= of a request that may preview another
+// theme: administrators can, and in development anyone can. Such pages never
+// reach the page cache, which skips requests with a session and any query
+// parameter outside cacheableParams.
+func (s *Server) previewSlug(r *http.Request) string {
+	q := r.URL.Query().Get("preview_theme")
+	if q == "" {
+		return ""
+	}
+	if u := currentUser(r); s.cfg.Dev || (u != nil && auth.Can(u.Role, auth.CapAppearance)) {
+		return q
+	}
+	return ""
+}
+
+// previewing returns th's slug when the request previews it (previewSlug
+// named an installed theme), so that its links can keep the preview.
+func (s *Server) previewing(r *http.Request, th *theme.Theme) string {
+	if q := s.previewSlug(r); q != "" && q == th.Slug {
+		return q
+	}
+	return ""
+}
+
+// pageQuery returns the query that every page of a listing keeps: the search
+// terms and an administrator's theme preview.
+func pageQuery(pd *PageData) url.Values {
+	query := url.Values{}
+	if pd.Query != "" {
+		query.Set("q", pd.Query)
+	}
+	if pd.Site.PreviewTheme != "" {
+		query.Set("preview_theme", pd.Site.PreviewTheme)
+	}
+	return query
 }
 
 func (s *Server) basePage(r *http.Request, kind string) (*theme.Theme, *PageData, error) {
@@ -254,13 +288,19 @@ func (s *Server) listing(w http.ResponseWriter, r *http.Request, kind string, q 
 		return
 	}
 	pd.Posts = s.postViews(posts, currentUser(r))
-	query := url.Values{}
-	if pd.Query != "" {
-		query.Set("q", pd.Query)
-	}
-	pd.Pagination = newPagination(s.here(r), query, page, per, total)
+	pd.Pagination = newPagination(s.here(r), pageQuery(pd), page, per, total)
+	pd.Total = total
 	if pd.Archive != nil {
 		pd.Archive.Count = total
+	}
+	// The window title says how many results a search found, so that screen
+	// readers announce it when the page loads.
+	if kind == "search" && pd.Query != "" {
+		if total == 1 {
+			pd.Title = s.tr(r, "%d result for “%s”", total, pd.Query)
+		} else {
+			pd.Title = s.tr(r, "%d results for “%s”", total, pd.Query)
+		}
 	}
 	if page > 1 {
 		pd.Canonical = s.cfg.AbsURL(s.here(r) + "?page=" + strconv.Itoa(page))
@@ -579,7 +619,8 @@ func (s *Server) handleDateArchive(w http.ResponseWriter, r *http.Request) {
 	pd.Archive = &ArchiveView{Kind: "date", Title: title, Count: total}
 	pd.Title, pd.Heading = title, title
 	pd.Posts = s.postViews(posts, currentUser(r))
-	pd.Pagination = newPagination(s.here(r), nil, page, per, total)
+	pd.Pagination = newPagination(s.here(r), pageQuery(pd), page, per, total)
+	pd.Total = total
 	s.renderPage(w, r, th, "archive", pd, http.StatusOK)
 }
 
@@ -765,11 +806,11 @@ func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData,
 				}
 				v.Posts = s.postViews(posts, nil)
 			case "categories":
-				v.Terms = d.categories
+				v.Terms = pd.Site.Categories // the current one flagged (siteView)
 			case "tags":
-				v.Terms = d.tags
+				v.Terms = pd.Site.Tags
 			case "archives":
-				v.Archives = d.archives
+				v.Archives = pd.Site.Archives
 			case "feeds":
 				v.Links = []FeedLink{{Title: "RSS", URL: pd.Site.FeedRSS}, {Title: "Atom", URL: pd.Site.FeedAtom}, {Title: "JSON Feed", URL: pd.Site.FeedJSON}}
 			case "search":

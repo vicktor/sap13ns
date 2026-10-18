@@ -384,9 +384,11 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		DesignURL: "/admin/appearance/themes/" + th.Slug + "/customize"}
 	st.Menus, st.Areas = []theme.MenuLocation{}, []theme.WidgetArea{}
 	for _, m := range th.Menus {
+		m.Label = s.themeText(th, m.Label)
 		st.Menus = append(st.Menus, m)
 	}
 	for _, a := range th.WidgetAreas {
+		a.Label, a.Description = s.themeText(th, a.Label), s.themeText(th, a.Description)
 		st.Areas = append(st.Areas, a)
 	}
 	for _, l := range s.extraLangs() {

@@ -12,7 +12,7 @@
     </svg>
     <header>
       <h2>{{.Name}} {{if eq .Slug $d.Active}}<span class="badge" data-variant="success">{{T "Active"}}</span>{{end}}</h2>
-      <p>{{.Description}}</p>
+      <p>{{themeT . .Description}}</p>
     </header>
     <section class="theme-meta muted text-xs">
       <span>v{{.Version}}</span>{{with .Author}} · <span>{{.}}</span>{{end}}{{if .Builtin}} · <span>{{T "Built-in"}}</span>{{end}}

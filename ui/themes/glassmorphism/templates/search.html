@@ -7,7 +7,7 @@
     <p class="intro-kind">{{icon "search"}} {{T "Search"}}</p>
     <h1>{{if .Query}}{{.Heading}}{{else}}{{T "What are you looking for?"}}{{end}}</h1>
     {{template "shared/search-form" .}}
-    {{with .Pagination}}<p class="intro-meta">{{plural .Total "%d result" "%d results"}}</p>{{else}}{{if .Posts}}<p class="intro-meta">{{plural (len .Posts) "%d result" "%d results"}}</p>{{end}}{{end}}
+    {{if .Query}}<p class="intro-meta" aria-hidden="true">{{plural .Total "%d result" "%d results"}}</p>{{template "shared/search-count" .}}{{end}}
   </div>
 </section>
 {{if or .Posts .Query}}
@@ -17,7 +17,7 @@
       {{template "grid" (dict "Posts" .Posts)}}
       {{template "pager" .Pagination}}
     {{else}}
-      {{/* Not shared/no-results: it repeats the search form above (duplicate id). */}}
+      {{/* Not shared/no-results: it would repeat the search form above. */}}
       <div class="glass empty-card">
         <section class="no-results">
           <h2>{{T "Nothing found for “%s”" .Query}}</h2>

@@ -21,6 +21,7 @@ import (
 	"sap13ns/internal/i18n"
 	"sap13ns/internal/icons"
 	"sap13ns/internal/store"
+	"sap13ns/internal/theme"
 )
 
 // Version is set at build time with -ldflags "-X sap13ns/internal/web.Version=...".
@@ -47,11 +48,13 @@ func (s *Server) langFuncs(lang string) template.FuncMap {
 		},
 		"ago":       func(tm time.Time) string { return s.i18n.Ago(lang, tm, time.Now()) },
 		"monthName": func(m int) string { return i18n.MonthName(lang, time.Month(m)) },
-		"plural": func(n int, one, many string) string {
+		// plural N "%d post" "%d posts" [args...]: the count is the first
+		// argument of the translation, then args.
+		"plural": func(n int, one, many string, args ...any) string {
 			if n == 1 {
-				return t(one, n)
+				return t(one, append([]any{n}, args...)...)
 			}
-			return t(many, n)
+			return t(many, append([]any{n}, args...)...)
 		},
 		"roleLabel":   func(role string) string { return t(roleLabels[role]) },
 		"statusLabel": func(st string) string { return t(statusLabels[st]) },
@@ -154,16 +157,31 @@ func (s *Server) funcMap() template.FuncMap {
 	m["dateTime"] = s.dateTime
 	m["ago"] = func(t time.Time) string { return s.i18n.Ago(s.lang(), t, time.Now()) }
 	m["monthName"] = func(n int) string { return i18n.MonthName(s.lang(), time.Month(n)) }
-	m["plural"] = func(n int, one, many string) string {
+	m["plural"] = func(n int, one, many string, args ...any) string {
 		if n == 1 {
-			return s.t(one, n)
+			return s.t(one, append([]any{n}, args...)...)
 		}
-		return s.t(many, n)
+		return s.t(many, append([]any{n}, args...)...)
 	}
+	// themeT translates a string of a theme's manifest (theme.json: its
+	// description, option labels and help, menus and widget areas) for the
+	// admin: the theme's own i18n/<lang>.json first, then the UI catalog.
+	m["themeT"] = s.themeText
 	m["roleLabel"] = func(role string) string { return s.t(roleLabels[role]) }
 	m["statusLabel"] = func(st string) string { return s.t(statusLabels[st]) }
 	m["link"] = func(p string) string { return p }
 	return m
+}
+
+// themeText translates a string of th's manifest into the admin language:
+// the theme's own catalog first, then the UI catalog (see themeT).
+func (s *Server) themeText(th *theme.Theme, key string) string {
+	if th != nil {
+		if v, ok := th.Text(s.lang(), key); ok {
+			return v
+		}
+	}
+	return s.t(key)
 }
 
 // planViews lists the network's hosting plans. Until billing is configured it

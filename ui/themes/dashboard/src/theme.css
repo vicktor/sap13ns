@@ -395,9 +395,7 @@ a.chip-accent:hover { background: color-mix(in oklch, var(--primary) 14%, var(--
 .prose :not(pre) > code { padding: 0.1em 0.375em; border: 1px solid var(--border); border-radius: calc(0.3rem * var(--sap-radius-scale, 1)); background: var(--muted); font-family: var(--mono); font-size: 0.84em; }
 .prose pre { padding: 1rem 1.125rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--code-bg); font-family: var(--mono); font-size: 0.8125rem; line-height: 1.7; }
 .prose pre code { font-family: inherit; }
-.prose table { border: 1px solid var(--border); border-radius: var(--r-md); border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
-.prose table { width: max-content; max-width: 100%; }
-@media (min-width: 640px) { .prose table { display: table; width: 100%; overflow: hidden; } }
+.prose table { overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-md); border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
 .prose th { background: var(--muted); color: var(--muted-foreground); font: 500 0.6875rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
 .prose :is(th, td) { padding: 0.55rem 0.875rem; border-bottom: 1px solid var(--border); }
 .prose tbody tr:last-child td { border-bottom: 0; }
@@ -451,7 +449,6 @@ a.chip-accent:hover { background: color-mix(in oklch, var(--primary) 14%, var(--
   .doc-layout > .doc, .doc-layout > .doc-comments { grid-column: 1; }
   .doc-rail { grid-column: 2; grid-row: 1 / span 2; }
   .doc-rail .post-nav { grid-template-columns: 1fr; }
-  .doc-rail .post-nav > span:empty { display: none; }
   .doc-rail .post-nav-next { grid-column: auto; align-items: flex-start; text-align: left; }
 }
 @media (min-width: 1280px) and (min-height: 50rem) {

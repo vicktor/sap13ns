@@ -12,11 +12,11 @@
   {{if eq $w.Kind "recent_posts"}}
     <ul class="widget-posts">{{range $w.Posts}}<li><a href="{{.URL}}">{{if .Image}}<img src="{{.Image.Thumb}}" alt="" width="64" height="64" loading="lazy">{{end}}<span>{{.Title}}{{if .HasDate}}<time datetime="{{isoDate .Published}}">{{shortDate .Published}}</time>{{end}}</span></a></li>{{end}}</ul>
   {{else if eq $w.Kind "categories"}}
-    <ul class="widget-terms">{{range $w.Terms}}<li><a href="{{.URL}}">{{.Name}}</a> <span class="widget-count">{{.Count}}</span></li>{{end}}</ul>
+    <ul class="widget-terms">{{range $w.Terms}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Name}}</a> <span class="widget-count">{{.Count}}</span></li>{{end}}</ul>
   {{else if eq $w.Kind "tags"}}
-    <p class="widget-tags">{{range $w.Terms}}<a href="{{.URL}}">#{{.Name}}</a> {{end}}</p>
+    <p class="widget-tags">{{range $w.Terms}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>#{{.Name}}</a> {{end}}</p>
   {{else if eq $w.Kind "archives"}}
-    <ul class="widget-archives">{{range $w.Archives}}<li><a href="{{.URL}}">{{.Label}}</a> <span class="widget-count">{{.Count}}</span></li>{{end}}</ul>
+    <ul class="widget-archives">{{range $w.Archives}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a> <span class="widget-count">{{.Count}}</span></li>{{end}}</ul>
   {{else if eq $w.Kind "search"}}
     {{template "shared/search-form" .Page}}
   {{else if eq $w.Kind "feeds"}}

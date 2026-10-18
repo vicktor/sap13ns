@@ -34,11 +34,13 @@
 {{/* shared/content: rendered body. Data: *PostView. */}}
 {{define "shared/content"}}<div class="prose entry-content">{{.Content}}</div>{{end}}
 
-{{/* shared/post-nav: previous / next post. Data: PageData. */}}
+{{/* shared/post-nav: previous / next post. Only the links that exist are
+     rendered; .post-nav-next keeps to the second column on its own.
+     Data: PageData. */}}
 {{define "shared/post-nav"}}
 {{if or .Prev .Next}}
 <nav class="post-nav" aria-label="{{T "More posts"}}">
-  {{with .Prev}}<a class="post-nav-prev" href="{{.URL}}" rel="prev"><small>{{icon "arrow-left"}} {{T "Previous"}}</small><span>{{.Title}}</span></a>{{else}}<span></span>{{end}}
+  {{with .Prev}}<a class="post-nav-prev" href="{{.URL}}" rel="prev"><small>{{icon "arrow-left"}} {{T "Previous"}}</small><span>{{.Title}}</span></a>{{end}}
   {{with .Next}}<a class="post-nav-next" href="{{.URL}}" rel="next"><small>{{T "Next"}} {{icon "arrow-right"}}</small><span>{{.Title}}</span></a>{{end}}
 </nav>
 {{end}}
@@ -50,7 +52,7 @@
   <span>{{T "Share"}}</span>
   <a href="https://bsky.app/intent/compose?text={{.Title}}%20{{.AbsURL}}" rel="noopener nofollow" target="_blank">Bluesky</a>
   <a href="https://www.linkedin.com/sharing/share-offsite/?url={{.AbsURL}}" rel="noopener nofollow" target="_blank">LinkedIn</a>
-  <a href="mailto:?subject={{.Title}}&amp;body={{.AbsURL}}">E-mail</a>
+  <a href="mailto:?subject={{.Title}}&amp;body={{.AbsURL}}">{{T "E-mail"}}</a>
   <button type="button" data-copy-url="{{.AbsURL}}">{{icon "link"}}<span>{{T "Copy link"}}</span></button>
 </div>
 {{end}}
@@ -78,6 +80,7 @@
   <p class="archive-meta">{{plural .Count "%d post" "%d posts"}}{{with .FeedURL}} · <a href="{{.}}">{{icon "rss"}} {{T "Subscribe"}}</a>{{end}}</p>
   {{else}}
   <h1>{{.Heading}}</h1>
+  {{if .Query}}<p class="archive-meta" aria-hidden="true">{{plural .Total "%d result" "%d results"}}</p>{{template "shared/search-count" .}}{{end}}
   {{end}}
 </header>
 {{end}}
@@ -93,14 +96,22 @@
 </section>
 {{end}}
 
-{{/* shared/search-form. Data: PageData. */}}
-{{define "shared/search-form"}}
+{{/* shared/search-form. A page can show it more than once (header, search
+     widget, 404 or search page), so its field takes an id unique in the page.
+     Data: PageData. */}}
+{{define "shared/search-form"}}{{$id := .ElementID "search-q"}}
 <form class="search-form" method="get" action="{{link "/search"}}" role="search">
-  <label class="sr-only" for="search-q-{{.Kind}}">{{T "Search"}}</label>
-  <input id="search-q-{{.Kind}}" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
+  <label class="sr-only" for="{{$id}}">{{T "Search"}}</label>
+  <input id="{{$id}}" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
   <button type="submit" aria-label="{{T "Search"}}">{{icon "search"}}</button>
 </form>
 {{end}}
+
+{{/* shared/search-count: how many posts a search found, "12 results for
+     “q”", as a status message for screen readers; themes show their own
+     shorter count beside it, hidden from them. Renders nothing without a
+     query. Data: PageData. */}}
+{{define "shared/search-count"}}{{if .Query}}<p class="sr-only" role="status">{{plural .Total "%d result for “%s”" "%d results for “%s”" .Query}}</p>{{end}}{{end}}
 
 {{/* shared/no-results: empty listing. Data: PageData. */}}
 {{define "shared/no-results"}}

@@ -372,6 +372,13 @@ func (t *Theme) forLang(page, lang string) (*template.Template, error) {
 	return set, nil
 }
 
+// Text returns the theme's own translation of key into lang, from its
+// i18n/<lang>.json (themes uploaded at runtime ship their own catalogs).
+func (t *Theme) Text(lang, key string) (string, bool) {
+	v, ok := t.i18n[lang][key]
+	return v, ok && v != ""
+}
+
 // StaticURL returns a cache-busted URL for a theme static file.
 func (t *Theme) StaticURL(file string) string {
 	h, ok := t.static[file]

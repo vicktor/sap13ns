@@ -4,7 +4,7 @@
     <p class="tile-label">{{icon "search"}}<span>{{T "Search"}}</span></p>
     <h1>{{if .Query}}{{.Heading}}{{else}}{{T "What are you looking for?"}}{{end}}</h1>
     {{template "shared/search-form" .}}
-    {{if .Query}}<p class="head-meta">{{with .Pagination}}{{plural .Total "%d result" "%d results"}}{{else}}{{plural (len .Posts) "%d result" "%d results"}}{{end}}</p>{{end}}
+    {{if .Query}}<p class="head-meta" aria-hidden="true">{{plural .Total "%d result" "%d results"}}</p>{{template "shared/search-count" .}}{{end}}
   </header>
   {{if .Posts}}{{template "post-grid" (dict "Posts" .Posts "H" 2)}}
   {{else if .Query}}

@@ -171,3 +171,40 @@ func TestTemplateFallback(t *testing.T) {
 		t.Errorf("warnings %v", e.Warnings)
 	}
 }
+
+func TestThemeManifests(t *testing.T) {
+	// The admin shows manifest strings through themeT: they are keys, the
+	// theme's name and the option values are not.
+	root := writeTree(t, map[string]string{
+		"go.mod": "module example.test/site\n\ngo 1.24\n",
+		"ui/themes/paper/theme.json": `{
+  "name": "Paper",
+  "description": "A quiet theme.",
+  "menus": [{"id": "primary", "label": "Main menu"}],
+  "widget_areas": [{"id": "side", "label": "Sidebar", "description": "Beside posts."}],
+  "options": [{"key": "tone", "label": "Tone", "type": "select", "default": "warm", "help": "Paper colour.",
+    "choices": [{"value": "warm", "label": "Warm"}, {"value": "cold", "label": "Cold"}]}]
+}`,
+		"ui/admin/themes.html": `{{range .Themes}}<p>{{themeT . .Description}}</p>{{end}}`,
+	})
+	e := NewExtractor()
+	if err := e.ScanRepo(root); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"A quiet theme.", "Main menu", "Sidebar", "Beside posts.", "Tone", "Paper colour.", "Warm", "Cold"} {
+		if _, ok := e.Keys[k]; !ok {
+			t.Errorf("key %q not found", k)
+		}
+	}
+	for _, k := range []string{"Paper", "warm", "primary", "side", "tone"} {
+		if _, ok := e.Keys[k]; ok {
+			t.Errorf("%q is not a key", k)
+		}
+	}
+	if loc := e.Keys["Warm"][0]; loc.File != "ui/themes/paper/theme.json" || loc.Line != 7 {
+		t.Errorf("location %v", loc)
+	}
+	if len(e.Dynamic) != 1 || e.Dynamic[0].Kind != DynTheme {
+		t.Errorf("dynamic sites %v", e.Dynamic)
+	}
+}

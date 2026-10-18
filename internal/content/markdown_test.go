@@ -33,6 +33,20 @@ func TestHeadingIDs(t *testing.T) {
 	}
 }
 
+func TestTableScroll(t *testing.T) {
+	// A table is wrapped in a scroller instead of being set to display:
+	// block (which drops its semantics), and the sanitizer keeps the wrapper.
+	out := string(RenderPlain("| Plan | Price |\n|:--|--:|\n| Pro | 5 € |\n\nAfter."))
+	if !strings.HasPrefix(out, `<div class="table-scroll"><table>`) || !strings.Contains(out, "</table></div>") ||
+		!strings.Contains(out, `<th align="right">Price</th>`) || !strings.Contains(out, "<p>After.</p>") {
+		t.Errorf("table: %s", out)
+	}
+	// Authors cannot use the class themselves: raw HTML is dropped.
+	if out := string(RenderPlain(`<div class="table-scroll">x</div>`)); strings.Contains(out, "<div") {
+		t.Errorf("raw wrapper kept: %s", out)
+	}
+}
+
 func TestPluginPolicy(t *testing.T) {
 	in := `<nav aria-label="Contents" role="navigation"><a href="/x">in</a> <a href="https://e.org" rel="noopener external" target="_blank">out</a> <a href="tel:+34600000000">call</a> <a href="https://e.org" target="_top" rel="evil">bad</a> <kbd>K</kbd></nav><span data-icon="info"></span>`
 	kept := string(SanitizePluginHTML(in, nil))

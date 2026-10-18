@@ -41,7 +41,7 @@
 <nav class="side-section" aria-label="{{T "Categories"}}">
   <p class="side-label">{{T "Categories"}}</p>
   <ul class="side-menu side-terms">
-    {{range .}}<li><a href="{{.URL}}"{{if and $.Archive (eq $.Archive.Kind "category") (eq $.Archive.Title .Name)}} aria-current="page"{{end}}>{{icon "hash"}}<span>{{.Name}}</span><span class="side-count">{{.Count}}</span></a></li>{{end}}
+    {{range .}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{icon "hash"}}<span>{{.Name}}</span><span class="side-count">{{.Count}}</span></a></li>{{end}}
   </ul>
 </nav>
 {{end}}{{end}}

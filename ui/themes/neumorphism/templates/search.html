@@ -4,7 +4,7 @@
     <div class="nm-plaque-copy nm-search-head">
       <h1>{{if .Query}}{{.Heading}}{{else}}{{T "Search"}}{{end}}</h1>
       {{template "shared/search-form" .}}
-      {{if .Pagination}}<p class="nm-muted">{{plural .Pagination.Total "%d result" "%d results"}}</p>{{else if .Posts}}<p class="nm-muted">{{plural (len .Posts) "%d result" "%d results"}}</p>{{end}}
+      {{if .Query}}<p class="nm-muted" aria-hidden="true">{{plural .Total "%d result" "%d results"}}</p>{{template "shared/search-count" .}}{{end}}
     </div>
     <span class="nm-plaque-icon" aria-hidden="true"><span>{{icon "search"}}</span></span>
   </div>

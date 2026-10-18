@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,6 +73,7 @@ type TermView struct {
 	URL         string
 	Count       int
 	Description string
+	Current     bool // the page shown is this term's archive (SiteView lists only)
 }
 
 type ImageView struct {
@@ -219,9 +221,10 @@ type MenuLink struct {
 }
 
 type ArchiveLink struct {
-	Label string
-	URL   string
-	Count int
+	Label   string
+	URL     string
+	Count   int
+	Current bool // the page shown is this month's archive
 }
 
 type Viewer struct {
@@ -264,8 +267,11 @@ type SiteView struct {
 	FeedAtom          string
 	FeedJSON          string
 	Custom            *CustomView // theme customiser (customize.go)
-	theme             *theme.Theme
-	server            *Server
+	// PreviewTheme is the theme slug of an administrator's ?preview_theme=
+	// preview (empty otherwise), kept in pagination and internal links.
+	PreviewTheme string
+	theme        *theme.Theme
+	server       *Server
 }
 
 // Asset returns the cache-busted URL of a file in the active theme's static/.
@@ -418,11 +424,15 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		Home:       s.langPath(lang, "/"),
 		FooterText: text.FooterText, Year: time.Now().In(s.loc()).Year(), Theme: th.Slug,
 		Options: th.OptionValues(opts), Menus: map[string][]MenuLink{},
-		Categories: d.categories, Tags: d.tags, Pages: markActive(d.pages, here), Archives: d.archives, Stats: d.stats,
+		Pages: markActive(d.pages, here), Stats: d.stats,
+		Categories:        markCurrent(d.categories, here, func(t *TermView) *bool { return &t.Current }, func(t *TermView) string { return t.URL }),
+		Tags:              markCurrent(d.tags, here, func(t *TermView) *bool { return &t.Current }, func(t *TermView) string { return t.URL }),
+		Archives:          markCurrent(d.archives, here, func(a *ArchiveLink) *bool { return &a.Current }, func(a *ArchiveLink) string { return a.URL }),
 		AllowRegistration: st.AllowRegistration,
 		FeedRSS:           s.langPath(lang, "/feed.xml"), FeedAtom: s.langPath(lang, "/feed.atom"), FeedJSON: s.langPath(lang, "/feed.json"),
-		Search: s.langPath(lang, "/search"),
-		theme:  th, server: s,
+		Search:       s.langPath(lang, "/search"),
+		PreviewTheme: s.previewing(r, th),
+		theme:        th, server: s,
 	}
 	// A language's own menu replaces the shared one for the same location.
 	for key, items := range d.menus {
@@ -450,6 +460,20 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 	}
 	s.applyCustom(r, th, sv)
 	return sv
+}
+
+// markCurrent flags the link to path (current returns the flag of a link,
+// url its address). The site data is cached and shared between requests, so
+// the slice is copied, and only when one of its links is the current page.
+func markCurrent[T any](links []T, path string, current func(*T) *bool, url func(*T) string) []T {
+	for i := range links {
+		if url(&links[i]) == path {
+			out := slices.Clone(links)
+			*current(&out[i]) = true
+			return out
+		}
+	}
+	return links
 }
 
 func markActive(links []MenuLink, path string) []MenuLink {
@@ -589,6 +613,7 @@ type PageData struct {
 	Post        *PostView
 	Archive     *ArchiveView
 	Pagination  *Pagination
+	Total       int // posts in the whole listing, every page included (home, archives, search)
 	Query       string
 	Comments    []*CommentView
 	CommentForm *CommentForm
@@ -611,6 +636,7 @@ type PageData struct {
 	PluginJS  []string
 	// postInfo is Post as plugins see it (head.meta and widgets).
 	postInfo *plugin.PostInfo
+	ids      map[string]int // ElementID
 }
 
 // LangLink points to a page in one of the site languages.
@@ -640,6 +666,21 @@ type PlanView struct {
 
 // Area returns the widgets placed in a theme area.
 func (p *PageData) Area(id string) []WidgetView { return p.Widgets[id] }
+
+// ElementID returns an id unique in this page: prefix the first time,
+// then prefix-2, prefix-3… A partial rendered more than once on a page (the
+// search form of the header, of a widget and of the 404 page) labels its
+// fields with it: {{$id := .ElementID "search-q"}}.
+func (p *PageData) ElementID(prefix string) string {
+	if p.ids == nil {
+		p.ids = map[string]int{}
+	}
+	p.ids[prefix]++
+	if n := p.ids[prefix]; n > 1 {
+		return prefix + "-" + strconv.Itoa(n)
+	}
+	return prefix
+}
 
 // DocTitle builds the <title> content.
 func (p *PageData) DocTitle() string {

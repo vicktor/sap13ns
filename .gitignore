@@ -10,3 +10,6 @@
 /plugins/**/*.zip
 /plugins/**/*.sha256
 /sap13ns
+
+# Agent worktrees (Claude Code)
+/.claude/worktrees/

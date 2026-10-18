@@ -63,7 +63,11 @@
   .prose img, .prose video { max-width: 100%; height: auto; border-radius: var(--radius); }
   .prose figure figcaption, .featured-image figcaption { margin-top: 0.6em; color: var(--muted-foreground); font-size: 0.875rem; text-align: center; }
   .prose hr { margin: 2.5em auto; width: 30%; border: 0; border-top: 1px solid var(--border); }
-  .prose table { width: 100%; border-collapse: collapse; font-size: 0.95em; display: block; overflow-x: auto; }
+  /* Tables come wrapped in .table-scroll (internal/content), which scrolls
+     sideways on narrow screens: the table keeps display: table and, with
+     it, its semantics for screen readers. */
+  .prose .table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  .prose table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
   .prose th, .prose td { padding: 0.55em 0.8em; border-bottom: 1px solid var(--border); text-align: left; }
   .prose th { font-weight: 600; }
   .prose .footnotes { font-size: 0.9em; color: var(--muted-foreground); }
@@ -173,6 +177,7 @@
   .widget ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
   .widget a { color: inherit; text-decoration: none; }
   .widget a:hover { color: var(--primary); }
+  .widget a[aria-current="page"] { color: var(--primary); font-weight: 600; }
   .widget-posts a { display: flex; align-items: center; gap: 0.75rem; }
   .widget-posts img { width: 3rem; height: 3rem; object-fit: cover; border-radius: calc(var(--radius) - 4px); flex: none; }
   .widget-posts span { display: flex; flex-direction: column; font-weight: 550; line-height: 1.35; }
@@ -183,7 +188,8 @@
   .widget-html { line-height: 1.6; }
   .widget-html p + p { margin-top: 0.6em; }
   .subscribe p { color: var(--muted-foreground); font-size: 0.925rem; margin-bottom: 0.75rem; }
-  .subscribe-links { flex-direction: row !important; flex-wrap: wrap; gap: 0.5rem !important; }
+  /* .widget .subscribe-links outranks .widget ul (a column) inside widgets. */
+  .subscribe-links, .widget .subscribe-links { display: flex; flex-direction: row; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; margin: 0; }
   .subscribe-links a { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); border: 1px solid var(--border); font-size: 0.85rem; }
   .subscribe-links svg { width: 0.9rem; height: 0.9rem; color: oklch(0.7 0.17 50); }
 
@@ -320,8 +326,11 @@
     .sap-posts-bento > .sap-post:nth-last-child(2):nth-child(6n + 5), .sap-posts-bento > .sap-post:last-child:nth-child(6n + 6) { grid-column: span 2; }
   }
 
+  /* Animations end at once, and infinite ones run a single time instead of
+     looping at that speed. These !important rules live in a layer, so they
+     also beat a theme's own (unlayered) !important. */
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   }
 }
 
