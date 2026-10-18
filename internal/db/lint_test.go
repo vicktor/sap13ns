@@ -69,10 +69,10 @@ func TestSessionSQLPatterns(t *testing.T) {
 	}
 }
 
-// sqlDirs hold every query and migration that runs on a site's connection.
+// Every query and migration that runs on a shared connection.
 var (
-	sqlPackages   = []string{"../store", "../analytics"}
-	migrationDirs = []string{"migrations"}
+	sqlPackages   = []string{"../store", "../analytics", "../network"}
+	migrationDirs = []string{"migrations", "../network/migrations"}
 )
 
 // 6. No SQL that runs on a shared connection changes session state.
