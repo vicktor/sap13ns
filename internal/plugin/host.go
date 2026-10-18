@@ -669,15 +669,23 @@ func (h *Host) SaveSettings(ctx context.Context, id string, values map[string]st
 		v, ok := values[s.Key]
 		if !ok {
 			// Keys that were not submitted keep their stored value (or
-			// their default, when nothing was stored).
+			// their default, when nothing was stored), and an e-mail
+			// recipient keeps its mark only while the key is still an
+			// e-mail setting.
 			if old, stored := p.Record.Settings[s.Key]; stored {
 				clean[s.Key] = old
+			}
+			if m := p.Record.Settings[emailMark+s.Key]; s.Type == "email" && m != "" {
+				clean[emailMark+s.Key] = m
 			}
 			continue
 		}
 		v, err := h.cleanSetting(s, v)
 		if err != nil {
 			return err
+		}
+		if s.Type == "email" && v != "" {
+			clean[emailMark+s.Key] = "1"
 		}
 		if s.Type == "secret" && v != "" {
 			enc, err := h.sealSecret(id, s.Key, v)

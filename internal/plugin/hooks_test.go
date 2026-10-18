@@ -202,6 +202,17 @@ func TestHooks(t *testing.T) {
 		if !hasLog(h.Get("hooks"), "refused recipient victim@example.org") {
 			t.Fatal("refused recipient not logged")
 		}
+		// A value stored without the e-mail mark (saved while the key had
+		// another type, before an update redeclared it) is no recipient.
+		if err := st.SavePluginSettings(ctx, "hooks", map[string]string{"copy_to": "copy@example.test"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Load(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if res := submit(map[string]string{"email": "v@example.test", "to": "copy@example.test"}); res.OK {
+			t.Fatalf("unmarked recipient: %+v", res)
+		}
 		if err := h.SaveSettings(ctx, "hooks", map[string]string{"copy_to": "copy@example.test"}); err != nil {
 			t.Fatal(err)
 		}

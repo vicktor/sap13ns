@@ -18,7 +18,7 @@ make check                                   # vet + Go and JS tests + every plu
 ```
 
 - **Asset outputs:** `npm run build` writes `ui/themes/*/static/theme.css`, `ui/static/admin.css`, `ui/static/vendor/basecoat/` and `internal/icons/lucide/`. These outputs are committed, because the binary embeds them and production never runs Node. Re-run the build after changing templates (Tailwind scans them for classes) or `scripts/icons.txt`. An icon must be listed there before `{{icon "name"}}` can use it.
-- **Database tests:** they use `SAP13NS_TEST_DATABASE_URL` (default `postgres:///sap13ns_test?host=/tmp`). They drop and recreate the `public` schema, and are skipped when the database is unreachable (`internal/testutil`). They take a lock, so don't run them in parallel with each other.
+- **Database tests:** they use `SAP13NS_TEST_DATABASE_URL` (default `postgres:///sap13ns_test?host=/tmp`). They drop and recreate the `public` schema, and are skipped when the database is unreachable (`internal/testutil`). A PostgreSQL advisory lock serialises them, also across packages.
 - **Dev mode:** `SAP13NS_DEV=true` serves `ui/` from disk, so template and asset edits show up without a rebuild. Go changes still need a rebuild and restart.
 - **Separate Go modules:** `pluginsdk/` and each official plugin under `plugins/<id>/` are their own modules, so `./...` at the root skips them. Build a plugin with `make` inside its directory (`GOOS=wasip1 GOARCH=wasm … -buildmode=c-shared`); test it with `go test ./...` there.
 

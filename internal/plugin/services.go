@@ -125,16 +125,23 @@ type mailRequest struct {
 // mailRecipients are the addresses an administrator saved in the plugin's
 // settings of type "email": the only ones besides the site administrator a
 // plugin may write to.
+// emailMark prefixes the stored marker of an address an administrator saved
+// into an e-mail setting. Setting keys start with a letter, so it cannot
+// collide with one, and SettingValues never passes it to the plugin.
+const emailMark = "@email:"
+
 func mailRecipients(p *Plugin) []string {
-	// Only addresses an administrator saved count, never manifest defaults
-	// (which validateSettingDecl refuses anyway): a package must not be able
-	// to choose its own recipients.
+	// Only addresses an administrator saved as e-mail settings count: never
+	// manifest defaults (validateSettingDecl refuses them anyway), and never
+	// a value saved while the key had another type, which a later version
+	// could redeclare as "email". A package must not choose its recipients.
 	if p.Record == nil {
 		return nil
 	}
 	var out []string
 	for _, s := range p.Settings {
-		if v := strings.TrimSpace(p.Record.Settings[s.Key]); s.Type == "email" && v != "" && validEmail(v) {
+		v := strings.TrimSpace(p.Record.Settings[s.Key])
+		if s.Type == "email" && v != "" && validEmail(v) && p.Record.Settings[emailMark+s.Key] != "" {
 			out = append(out, strings.ToLower(v))
 		}
 	}

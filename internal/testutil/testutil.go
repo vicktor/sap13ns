@@ -2,7 +2,8 @@
 //
 // Tests use SAP13NS_TEST_DATABASE_URL (default: the local socket database
 // sap13ns_test) and are skipped when it is unreachable. The schema is dropped
-// and recreated, so never point it at real data.
+// and recreated, so never point it at real data. A PostgreSQL advisory lock
+// serialises tests across packages, which go test runs in parallel processes.
 package testutil
 
 import (
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"sap13ns/internal/db"
@@ -20,6 +22,9 @@ import (
 )
 
 var mu sync.Mutex
+
+// lockKey is the advisory lock held while a test uses the database.
+const lockKey = 0x5a913e5
 
 func URL() string {
 	if u := os.Getenv("SAP13NS_TEST_DATABASE_URL"); u != "" {
@@ -35,6 +40,14 @@ func Store(t testing.TB) *store.Store {
 	mu.Lock()
 	t.Cleanup(mu.Unlock)
 	ctx := context.Background()
+	lock, err := pgx.Connect(ctx, URL())
+	if err != nil {
+		t.Skipf("test database unavailable: %v", err)
+	}
+	t.Cleanup(func() { lock.Close(context.Background()) }) // releases the lock
+	if _, err := lock.Exec(ctx, `SELECT pg_advisory_lock($1)`, lockKey); err != nil {
+		t.Fatal(err)
+	}
 	pool, err := db.Open(ctx, URL(), 4)
 	if err != nil {
 		t.Skipf("test database unavailable: %v", err)
