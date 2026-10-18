@@ -237,7 +237,7 @@ The payload objects below use these shapes:
   - **The strictest verdict of all plugins wins.** `pending` holds the comment for moderation; `spam` stores it as spam.
   - **A failed check holds the comment.** Errors, timeouts, unknown verdicts and plugins paused after repeated failures count as `pending`. A broken antispam plugin then sends comments to moderation instead of letting them through.
   - **The budget is shared.** All plugins together get 2 seconds. Plugins that do not get a turn are skipped, logged and count as `pending`.
-  - **The reason is private.** It is written to the plugin's activity log and the server log, and never shown to the visitor.
+  - **The reason is private.** It is written to the plugin's activity log and the server log, and stored with the comment, so the moderation queue shows which plugin flagged it and why. It is never shown to the visitor. Control characters become spaces, and it is cut to 300 bytes.
 
 ### form.submit
 

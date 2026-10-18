@@ -584,6 +584,12 @@ func TestPluginsEndToEnd(t *testing.T) {
 		if err != nil || len(list) != 1 || list[0].Content != want {
 			t.Fatalf("%s comments: %v %+v", status, err, list)
 		}
+		if held := list[0].HeldBy + "/" + list[0].HeldReason; (status == "pending") != (held == "hooks/held by hooks") {
+			t.Errorf("%s comment held as %q", status, held)
+		}
+	}
+	if body := e.do("GET", "/admin/comments?status=pending", nil, "", e.cookie).Body.String(); !strings.Contains(body, "hooks: held by hooks") {
+		t.Error("the moderation queue does not say which plugin held the comment")
 	}
 
 	// Disable, then uninstall with its data.

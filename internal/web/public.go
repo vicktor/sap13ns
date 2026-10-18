@@ -712,6 +712,7 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 		}
 		if v.Verdict != plugin.VerdictOK {
 			s.log.Info("comment held by plugin", "plugin", v.Plugin, "verdict", v.Verdict, "reason", v.Reason, "post", p.ID)
+			in.HeldBy, in.HeldReason = v.Plugin, v.Reason
 		}
 	}
 	id, err := s.store.CreateComment(ctx, in)

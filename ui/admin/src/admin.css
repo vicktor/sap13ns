@@ -255,6 +255,7 @@
 .comment-head { @apply flex flex-wrap items-center gap-2 text-sm; }
 .comment-head .avatar-initials { @apply size-7; }
 .comment-body { @apply mt-2 text-sm leading-relaxed [&_p+p]:mt-2; }
+.comment-held { @apply mt-1 flex items-start gap-1.5 text-sm text-muted-foreground [&_svg]:mt-0.5 [&_svg]:shrink-0; }
 .dash-wide .comment-list > li { @apply flex-col px-0; }
 
 /* --------------------------------------------------------------- editor */

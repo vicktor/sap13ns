@@ -23,6 +23,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/tetratelabs/wazero"
@@ -1427,11 +1428,12 @@ func (h *Host) CheckComment(ctx context.Context, in CommentInput) CommentVerdict
 			hold(p, "not checked: unknown verdict")
 			continue
 		}
+		reason := oneLine(resp.Reason, 300) // stored with the comment
 		if resp.Verdict != VerdictOK {
-			p.addLog("info", fmt.Sprintf("comment.check: %s by %q: %s", resp.Verdict, truncate(in.Author, 60), truncate(resp.Reason, 300)))
+			p.addLog("info", fmt.Sprintf("comment.check: %s by %q: %s", resp.Verdict, truncate(in.Author, 60), reason))
 		}
 		if rank > verdictRank[out.Verdict] {
-			out = CommentVerdict{Verdict: resp.Verdict, Reason: truncate(resp.Reason, 300), Plugin: p.ID}
+			out = CommentVerdict{Verdict: resp.Verdict, Reason: reason, Plugin: p.ID}
 		}
 	}
 	return out
@@ -1489,6 +1491,18 @@ func (h *Host) CSPSources() map[string][]string {
 		out[k] = slices.Clone(v)
 	}
 	return out
+}
+
+// oneLine makes a plugin's free text safe to store and show on one line:
+// control characters (NUL included, which PostgreSQL rejects) become
+// spaces, and it is cut to n bytes.
+func oneLine(s string, n int) string {
+	return truncate(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s), n)
 }
 
 func truncate(s string, n int) string {

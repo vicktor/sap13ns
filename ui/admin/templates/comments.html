@@ -38,6 +38,7 @@
           {{template "status-badge" .Status}}
         </div>
         <p class="muted text-sm">{{T "on"}} <a href="/blog/{{.PostSlug}}#comment-{{.ID}}" target="_blank" rel="noopener">{{.PostTitle}}</a> · <time datetime="{{isoDate .CreatedAt}}">{{dateTime .CreatedAt}}</time>{{if .ParentID}} · {{T "reply"}}{{end}}</p>
+        {{if and .HeldBy (ne .Status "approved")}}<p class="comment-held">{{icon "shield" "size-3.5"}}<span>{{if .HeldReason}}{{T "Flagged by %s: %s" .HeldBy .HeldReason}}{{else}}{{T "Flagged by %s" .HeldBy}}{{end}}</span></p>{{end}}
         <div class="comment-body">{{paragraphs .Content}}</div>
         <div class="row-actions">
           {{if ne .Status "approved"}}<button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/approve" data-variant="secondary">{{icon "check"}}{{T "Approve"}}</button>{{end}}

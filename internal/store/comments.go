@@ -21,6 +21,8 @@ type Comment struct {
 	IP          netip.Addr `db:"ip"`
 	UserAgent   string     `db:"user_agent"`
 	CreatedAt   time.Time  `db:"created_at"`
+	HeldBy      string     `db:"held_by"`     // comment.check plugin that held it or marked it as spam
+	HeldReason  string     `db:"held_reason"` // its reason
 	PostTitle   string     `db:"post_title"`
 	PostSlug    string     `db:"post_slug"`
 
@@ -28,7 +30,7 @@ type Comment struct {
 }
 
 const commentSelect = `SELECT c.id, c.post_id, c.parent_id, c.user_id, c.author_name, c.author_email, c.author_url, c.content,
-	c.status, coalesce(c.ip, '0.0.0.0'::inet) AS ip, c.user_agent, c.created_at, p.title AS post_title, p.slug AS post_slug
+	c.status, coalesce(c.ip, '0.0.0.0'::inet) AS ip, c.user_agent, c.created_at, c.held_by, c.held_reason, p.title AS post_title, p.slug AS post_slug
 	FROM comments c JOIN posts p ON p.id = c.post_id`
 
 type NewComment struct {
@@ -43,13 +45,16 @@ type NewComment struct {
 	IP          netip.Addr
 	UserAgent   string
 	CreatedAt   *time.Time // imports keep the original date; nil means now
+	HeldBy      string     // see Comment
+	HeldReason  string
 }
 
 func (s *Store) CreateComment(ctx context.Context, c NewComment) (int64, error) {
 	var id int64
-	err := s.DB.QueryRow(ctx, `INSERT INTO comments (post_id, parent_id, user_id, author_name, author_email, author_url, content, status, ip, user_agent, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, coalesce($11, now())) RETURNING id`,
-		c.PostID, c.ParentID, c.UserID, c.AuthorName, c.AuthorEmail, c.AuthorURL, c.Content, c.Status, ipArg(c.IP), c.UserAgent, c.CreatedAt).Scan(&id)
+	err := s.DB.QueryRow(ctx, `INSERT INTO comments (post_id, parent_id, user_id, author_name, author_email, author_url, content, status, ip, user_agent, created_at, held_by, held_reason)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, coalesce($11, now()), $12, $13) RETURNING id`,
+		c.PostID, c.ParentID, c.UserID, c.AuthorName, c.AuthorEmail, c.AuthorURL, c.Content, c.Status, ipArg(c.IP), c.UserAgent, c.CreatedAt,
+		c.HeldBy, c.HeldReason).Scan(&id)
 	return id, mapErr(err)
 }
 

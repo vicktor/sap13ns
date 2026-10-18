@@ -646,3 +646,12 @@ func TestAllowedMeta(t *testing.T) {
 		}
 	}
 }
+
+func TestOneLine(t *testing.T) {
+	if got := oneLine("a\x00b\nc\u0085d", 300); got != "a b c d" {
+		t.Errorf("oneLine = %q", got)
+	}
+	if got := oneLine("ñññ", 3); got != "ñ" {
+		t.Errorf("oneLine cut = %q", got)
+	}
+}
