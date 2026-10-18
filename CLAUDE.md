@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-sap13ns is a lightweight WordPress-style CMS. It ships as one Go binary (CGO off) with the whole UI embedded, and it runs on PostgreSQL behind nginx. README.md describes the features, docs/DEPLOY.md the production setup, and docs/SECURITY.md the security model that changes must keep.
+sap13ns is a lightweight WordPress-style CMS. It ships as one Go binary (CGO off) with the whole UI embedded, and it runs on PostgreSQL behind nginx. README.md describes the features, docs/DEPLOY.md the production setup, docs/PLUGINS.md the plugin contract (manifest, hooks, host functions, permissions, scanner), and docs/SECURITY.md the security model that changes must keep.
 
 ## Commands
 

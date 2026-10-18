@@ -12,6 +12,8 @@
 <p align="center">
   <a href="https://sap13ns.site">sap13ns.site</a> ·
   <a href="docs/DEPLOY.md">Deploy</a> ·
+  <a href="docs/PLUGINS.md">Plugins</a> ·
+  <a href="docs/SECURITY.md">Security</a> ·
   <a href="docs/RELEASES.md">Releases</a> ·
   <a href="LICENSE">CPAL-1.0</a>
 </p>
@@ -92,6 +94,13 @@ Themes are Go templates plus static files. They can be previewed before you swit
   - every request is metered and written to the audit log;
   - long tasks run as background jobs.
 
+### Site assistant (optional)
+- **A chatbot for visitors** that answers from your own posts and pages and cites them. It streams its answers, and a no-JavaScript page at `/ask` works too.
+- **Search:** hybrid PostgreSQL full-text and [pgvector](https://github.com/pgvector/pgvector) search over Markdown-aware passages, merged with reciprocal rank fusion and favouring the visitor's language. Without pgvector it falls back to full-text search.
+- **Indexing:** drafts, scheduled and private posts are never indexed, and any post can be hidden from the assistant with one switch in the editor. The index updates as you publish.
+- **Limits:** per-IP and daily or monthly budgets, with known bots refused.
+- **MCP:** a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint (`/mcp`, tools `search_posts` and `get_post`) lets external AI agents search the same index, optionally behind a bearer token.
+
 ### Users and security
 - **Roles:** administrator, editor, author, contributor and subscriber, with capability checks on every admin route.
 - **Passwords:** hashed with Argon2id. Logins are rate-limited and locked out after failures; changing a password closes the user's other sessions.
@@ -106,12 +115,29 @@ Themes are Go templates plus static files. They can be previewed before you swit
 Plugins are WebAssembly modules run by [wazero](https://wazero.io) inside a sandbox:
 - no filesystem, no sockets, and no environment;
 - memory caps, per-call timeouts, a concurrency limit, and an automatic pause after repeated failures;
-- **capability permissions:** private key-value storage, read-only access to published posts, and HTTP to named hosts only (SSRF-guarded);
-- **approval** pins the module's SHA-256 and the permissions it was granted. If either changes, the plugin is disabled until reviewed again;
-- **hooks:** content filters, shortcodes, widgets, head tags, asynchronous events and an hourly cron;
+- **capability permissions:**
+  - private key-value storage and read-only access to published posts;
+  - HTTP to named hosts only (SSRF-guarded);
+  - e-mail to the administrator or configured addresses only;
+  - commenter data, scripts and CSP additions, each flagged as high risk;
+- **hooks:** content filters, shortcodes, widgets, head tags and JSON-LD, forms, comment checks, asynchronous events and an hourly cron;
 - **output** is sanitised before it reaches a page.
 
-Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the standard toolchain (`GOOS=wasip1 GOARCH=wasm`).
+**Installing:**
+1. Upload a `.zip` package in Admin → Plugins.
+2. The package is unpacked safely, then scanned: manifest, WebAssembly imports and exports, embedded strings, assets, and a sandboxed dry run of every hook. Critical findings block it, and high-risk ones need an explicit confirmation.
+3. It is installed **disabled**. Enabling it pins the module's and assets' SHA-256 and the permissions granted. If any of them changes, the plugin stops until it is reviewed again.
+
+Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the standard toolchain (`GOOS=wasip1 GOARCH=wasm`). `sap13ns plugin new` starts a project from the [skeleton](plugins/skeleton), and `sap13ns plugin pack` builds, scans and packages it. See [docs/PLUGINS.md](docs/PLUGINS.md) for the full contract.
+
+**Official plugins:**
+
+| Plugin | What it does |
+|---|---|
+| [toc](plugins/toc) | Table of contents |
+| [callouts](plugins/callouts) | Callouts and GitHub-style alerts |
+| [external-links](plugins/external-links) | External and affiliate links |
+| [announcement](plugins/announcement) | Announcement bar |
 
 ### Operations
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
@@ -175,7 +201,9 @@ sap13ns user create      Create a user
 sap13ns user reset-password
 sap13ns backup create|list|verify|restore|prune
 sap13ns update           Install the latest signed release (-check, -yes, -force)
-sap13ns plugin hash      Print the SHA-256 of a plugin module
+sap13ns plugin new|pack|check   Start, package and scan a plugin
+sap13ns plugin list|install     List or install the site's plugins
+sap13ns assistant reindex|status
 sap13ns version
 ```
 
@@ -208,8 +236,7 @@ docs               operator and developer documentation
 
 In active development:
 
-- **Plugins:** upload from the admin with an automatic security scan, install disabled, on/off switch. Also a plugin starter kit (`sap13ns plugin new`) and ten official plugins: table of contents, callouts, privacy-friendly embeds, Schema.org data, auto-posting to social networks, related posts, an announcement bar, external and affiliate links, comment antispam, and contact forms.
-- **Site assistant:** a chatbot for visitors that answers from your own posts using PostgreSQL + pgvector hybrid search, with cited sources and a per-post opt-out, plus a read-only MCP endpoint for external AI agents.
+- **More official plugins:** privacy-friendly embeds, Schema.org data, auto-posting to social networks, related posts, comment antispam and contact forms.
 - **Theme builder:**
   - a visual customiser for colours, fonts, radius, density, header, footer and home layout, with live preview;
   - a block-based template builder.
