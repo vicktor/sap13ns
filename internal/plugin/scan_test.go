@@ -96,6 +96,10 @@ func TestScanRules(t *testing.T) {
 	badSig := with(ok, wImport{"sap13ns", "kv_get", nil, nil})
 	withCustom := ok
 	withCustom.custom = map[string][]byte{"producers": []byte("fetch http://169.254.169.254/latest/meta-data/")}
+	hugeTable := respond(okHTML)
+	hugeTable.tables = []uint64{1 << 27} // about 1 GiB when instantiated
+	manyTables := respond(okHTML)
+	manyTables.tables = []uint64{1, 1, 1, 1, 1}
 
 	elf := append([]byte("\x7fELF\x02\x01\x01\x00"), make([]byte, 56)...)
 	pe := append([]byte("MZ"), make([]byte, 0x3a)...)
@@ -121,6 +125,8 @@ func TestScanRules(t *testing.T) {
 		sev      string
 	}{
 		{"no manifest", "", ok.bytes(), nil, ScanOptions{}, "manifest.missing", SevCritical},
+		{"huge table", manifestFor(""), hugeTable.bytes(), nil, ScanOptions{}, "wasm.tables", SevCritical},
+		{"many tables", manifestFor(""), manyTables.bytes(), nil, ScanOptions{}, "wasm.tables", SevCritical},
 		{"broken manifest", `{"abi": 1, "id":`, ok.bytes(), nil, ScanOptions{}, "manifest.invalid", SevCritical},
 		{"invalid manifest", manifestFor(`"hooks": ["shortcode"], "shortcodes": ["no spaces"]`), ok.bytes(), nil, ScanOptions{}, "manifest.invalid", SevCritical},
 		{"other ABI", strings.Replace(manifestFor(""), `"abi": 1`, `"abi": 2`, 1), ok.bytes(), nil, ScanOptions{}, "manifest.abi", SevCritical},
@@ -304,5 +310,19 @@ func TestScanFixtures(t *testing.T) {
 			}
 			t.Log(dumpReport(rep))
 		})
+	}
+}
+
+func TestTablesNormalModule(t *testing.T) {
+	m := respond(okHTML)
+	m.tables = []uint64{8000} // a Go program: about one entry per function
+	parts, err := parseWasm(m.bytes())
+	if err != nil || len(parts.tables) != 1 || parts.tables[0] != 8000 || parts.checkTables() != nil {
+		t.Fatalf("tables %v err %v", parts, err)
+	}
+	imp := respond(okHTML)
+	imp.impMem = true
+	if parts, err := parseWasm(imp.bytes()); err != nil || len(parts.tables) != 0 {
+		t.Fatalf("imports: %v %v", parts, err)
 	}
 }

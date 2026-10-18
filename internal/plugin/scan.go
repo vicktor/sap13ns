@@ -213,6 +213,13 @@ func (h *Host) ScanDir(ctx context.Context, dir string, opts ScanOptions) *Repor
 	}
 	h.scanBlocklist(rep, assets)
 
+	// Before compiling: the dry run would allocate the tables.
+	if parts, err := parseWasm(wasm); err == nil {
+		if err := parts.checkTables(); err != nil {
+			rep.add(SevCritical, "wasm.tables", m.Wasm, "the module %v", err)
+			return rep.finish()
+		}
+	}
 	compiled, err := h.rt.CompileModule(ctx, wasm)
 	if err != nil {
 		rep.add(SevCritical, "wasm.compile", m.Wasm, "the module does not compile: %v", err)

@@ -33,8 +33,9 @@ type wModule struct {
 	funcs   []wFunc
 	data    []byte // placed at offset 2048
 	custom  map[string][]byte
-	noMem   bool // no memory at all
-	impMem  bool // import the memory (env.memory) instead of defining it
+	noMem   bool     // no memory at all
+	impMem  bool     // import the memory (env.memory) instead of defining it
+	tables  []uint64 // funcref tables with these minimum sizes
 }
 
 func uleb(v uint64) []byte { return binary.AppendUvarint(nil, v) }
@@ -103,6 +104,13 @@ func (m wModule) bytes() []byte {
 		out = append(out, wSection(2, wVec(imports))...)
 	}
 	out = append(out, wSection(3, wVec(funcs))...)
+	if len(m.tables) > 0 {
+		var tables [][]byte
+		for _, n := range m.tables {
+			tables = append(tables, append([]byte{0x70, 0x00}, uleb(n)...))
+		}
+		out = append(out, wSection(4, wVec(tables))...)
+	}
 	if !m.noMem && !m.impMem {
 		out = append(out, wSection(5, wVec([][]byte{{0x00, 0x02}}))...) // 2 pages, no maximum
 	}

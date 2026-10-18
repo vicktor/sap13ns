@@ -519,7 +519,14 @@ func (h *Host) compile(ctx context.Context, sha string, wasm []byte) (wazero.Com
 	if ok {
 		return c, nil
 	}
-	c, err := h.rt.CompileModule(ctx, wasm)
+	parts, err := parseWasm(wasm)
+	if err == nil {
+		err = parts.checkTables()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("compile: %w", err)
+	}
+	c, err = h.rt.CompileModule(ctx, wasm)
 	if err != nil {
 		return nil, fmt.Errorf("compile: %w", err)
 	}
