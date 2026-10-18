@@ -379,6 +379,29 @@
 .log-list .lvl { @apply uppercase; }
 .log-list li[data-level="error"] { color: var(--destructive); }
 .log-list li[data-level="warn"] { color: var(--warning); }
+.plugin-upload-form { @apply flex flex-col gap-3 sm:flex-row sm:items-end; }
+.plugin-upload-form .field { @apply min-w-0; }
+.plugin-upload-form .check { @apply sm:pb-2; }
+/* On/off switch built from a submit button or a link, so it works without JS. */
+.plugin-switch { @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-input transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring; }
+.plugin-switch::after { content: ""; @apply absolute left-0.5 size-4 rounded-full bg-background shadow-sm transition-transform; }
+.plugin-switch[aria-checked="true"] { @apply bg-primary; }
+.plugin-switch[aria-checked="true"]::after { @apply translate-x-4; }
+.plugin-switch[aria-disabled="true"] { @apply cursor-not-allowed opacity-50; }
+.scan-summary { @apply flex flex-wrap items-center gap-2; }
+.finding-list { @apply mt-3 flex flex-col gap-2; }
+.finding-list li { @apply flex items-start gap-2.5 rounded-lg border p-3 text-sm [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0; }
+.finding-list li > div { @apply min-w-0; }
+.finding-list .sev { @apply mr-1 text-xs font-medium uppercase; }
+.finding-list .rule { @apply text-muted-foreground mt-0.5 font-mono text-xs break-all; }
+.finding-list li[data-severity="critical"] { border-color: color-mix(in oklch, var(--destructive) 50%, transparent); }
+.finding-list li[data-severity="critical"] > svg, .finding-list li[data-severity="critical"] .sev { color: var(--destructive); }
+.finding-list li[data-severity="high"] > svg, .finding-list li[data-severity="high"] .sev { color: var(--destructive); }
+.finding-list li[data-severity="medium"] > svg, .finding-list li[data-severity="medium"] .sev { color: var(--warning); }
+.finding-list li[data-severity="info"] > svg { color: var(--info); }
+.asset-list { @apply flex flex-col gap-1; }
+.perm-list .risk { color: var(--destructive); @apply font-medium; }
+.confirm-risk { @apply rounded-lg border p-3; border-color: color-mix(in oklch, var(--destructive) 40%, transparent); }
 
 /* ---------------------------------------------------------------- users */
 .role-help { @apply rounded-lg bg-muted/60 p-3 text-sm; }
@@ -479,6 +502,7 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 
 /* Visual editor: surface, opaque blocks and popovers. */
 @import "./editor.css";
+
 
 /* Analytics */
 .stats-chart svg { @apply h-auto w-full overflow-visible; }

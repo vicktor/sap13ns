@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -288,6 +289,8 @@ type widgetsData struct {
 	Kinds   []widgetKind
 	Labels  map[string]string
 	Langs   []LangLink // every site language, when there is more than one
+
+	Fields map[string][]plugin.SettingDecl // config fields of plugin widget kinds
 }
 
 func (s *Server) widgetKinds() []widgetKind {
@@ -318,7 +321,7 @@ func (s *Server) adminWidgets(w http.ResponseWriter, r *http.Request) {
 	for _, k := range kinds {
 		labels[k.Kind] = k.Label
 	}
-	s.renderAdmin(w, r, "widgets", s.t("Widgets"), "widgets", widgetsData{Theme: s.themes.Active(s.settings().ActiveTheme), Widgets: widgets, Kinds: kinds, Labels: labels, Langs: s.adminLangs()})
+	s.renderAdmin(w, r, "widgets", s.t("Widgets"), "widgets", widgetsData{Theme: s.themes.Active(s.settings().ActiveTheme), Widgets: widgets, Kinds: kinds, Labels: labels, Langs: s.adminLangs(), Fields: s.pluginWidgetFields(kinds)})
 }
 
 func (s *Server) validWidgetKind(kind string) bool {
@@ -369,7 +372,12 @@ func (s *Server) adminWidgetAdd(w http.ResponseWriter, r *http.Request) {
 	if tooLong(title, 100) {
 		title = truncateStr(title, 100)
 	}
-	if err := s.store.AddWidget(r.Context(), area, s.widgetLang(r), kind, title, widgetConfig(r, kind)); err != nil {
+	cfg, err := s.widgetConfigFor(r, kind)
+	if err != nil {
+		s.redirect(w, r, "/admin/appearance/widgets#area-"+area, "error", err.Error())
+		return
+	}
+	if err := s.store.AddWidget(r.Context(), area, s.widgetLang(r), kind, title, cfg); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
@@ -389,7 +397,12 @@ func (s *Server) adminWidgetUpdate(w http.ResponseWriter, r *http.Request) {
 		title = truncateStr(title, 100)
 	}
 	kind := r.FormValue("kind")
-	if err := s.store.UpdateWidget(r.Context(), id, s.widgetLang(r), title, widgetConfig(r, kind)); err != nil {
+	cfg, err := s.widgetConfigFor(r, kind)
+	if err != nil {
+		s.redirect(w, r, fmt.Sprintf("/admin/appearance/widgets#widget-%d", id), "error", err.Error())
+		return
+	}
+	if err := s.store.UpdateWidget(r.Context(), id, s.widgetLang(r), title, cfg); err != nil {
 		s.serverError(w, r, err)
 		return
 	}

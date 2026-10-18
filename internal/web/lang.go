@@ -119,7 +119,7 @@ func postPath(typ, slug string) string {
 // prefixOnly lists routes that never take a language prefix.
 var prefixOnly = []string{"/admin", "/login", "/logout", "/register", "/forgot-password", "/reset-password",
 	"/setup", "/static/", "/themes/", "/uploads/", "/healthz", "/robots.txt", "/sitemap.xml", "/og/",
-	"/api/", "/mcp", "/manifest.webmanifest"}
+	"/api/", "/mcp", "/manifest.webmanifest", "/plugin-assets/", "/plugin-forms/"}
 
 // withLang detects a /<lang>/ prefix for an extra language, records it and
 // strips it from the path before routing.

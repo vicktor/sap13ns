@@ -8,21 +8,22 @@
     <p>{{$p.Description}}</p>
   </div>
   <div class="page-actions">
-    {{if eq $p.Status "enabled"}}
+    {{if or (eq $p.Status "enabled") $p.Enabled}}
     <form method="post" action="/admin/plugins/{{$p.ID}}/disable">{{.CSRFField}}<button class="btn" data-variant="outline" type="submit">{{icon "ban"}}{{T "Disable"}}</button></form>
     {{end}}
   </div>
 </div>
 
 {{if $p.Err}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "This plugin cannot be loaded"}}</h2><section><p class="mono">{{$p.Err}}</p></section></div>{{end}}
+{{if and $p.Record $p.Record.ReviewRequired}}<div class="alert" data-variant="info">{{icon "info"}}<h2>{{T "Waiting for review"}}</h2><section><p>{{T "The network operator must review this plugin before it can be enabled."}}</p></section></div>{{end}}
 
 <div class="split">
   <div class="stack">
     {{if and (ne $p.Status "enabled") (ne $p.Status "invalid") (ne $p.Status "error")}}
-    <section class="card review">
+    <section class="card review" id="review">
       <header>
         <h2>{{icon "shield-check"}} {{if eq $p.Status "modified"}}{{T "Review the new version"}}{{else}}{{T "Review and enable"}}{{end}}</h2>
-        <p>{{T "Enabling pins this exact build. If the file changes, the plugin is stopped until you approve it again."}}</p>
+        <p>{{T "Enabling pins this exact build, its assets and its permissions. If any of them changes, the plugin is stopped until you approve it again."}}</p>
       </header>
       <section>
         <h3 class="text-sm font-medium mb-2">{{T "Requested permissions"}}</h3>
@@ -31,29 +32,56 @@
           {{range $d.Perms}}
           <li data-risk="{{.Risk}}">
             {{if eq .Risk "high"}}{{icon "triangle-alert"}}{{else if eq .Risk "medium"}}{{icon "circle-alert"}}{{else}}{{icon "circle-check"}}{{end}}
-            <span><code>{{.Name}}</code>
-            {{if eq .Name "kv"}}{{T "Store its own small key-value data."}}
-            {{else if eq .Name "posts:read"}}{{T "Read published posts (never drafts or private data)."}}
-            {{else if eq .Name "http:*"}}{{T "Make HTTPS requests to any public address."}}
-            {{else if hasPrefix .Name "http:"}}{{T "Make HTTPS requests to this host only."}}{{end}}</span>
+            <span><code>{{.Name}}</code> {{.Help}}{{if eq .Risk "high"}} <strong class="risk">{{T "High risk."}}</strong>{{end}}</span>
             {{if .Granted}}<span class="badge" data-variant="outline">{{T "previously granted"}}</span>{{end}}
           </li>
           {{end}}
         </ul>
         {{else}}<p class="muted text-sm">{{T "No permissions: it can only transform the content it receives."}}</p>{{end}}
+        {{if $d.Assets}}
+        <h3 class="text-sm font-medium mt-4 mb-2">{{T "Files added to every public page"}}</h3>
+        <ul class="asset-list mono text-xs">{{range $d.Assets}}<li>{{.}}</li>{{end}}</ul>
+        {{end}}
         <dl class="meta-list mt-4">
           <div><dt>SHA-256</dt><dd class="mono break-all text-xs">{{$p.SHA256}}</dd></div>
+          {{with $p.AssetsSHA256}}<div><dt>{{T "Assets SHA-256"}}</dt><dd class="mono break-all text-xs">{{.}}</dd></div>{{end}}
         </dl>
+        {{with $d.Report}}<div class="mt-4">{{template "scan-report-summary" .}}</div>{{end}}
       </section>
       <footer>
-        <form method="post" action="/admin/plugins/{{$p.ID}}/approve">
+        {{if and $d.Report (eq $d.Report.Verdict "blocked") (not $d.ReportStale)}}
+        <p class="text-sm text-destructive">{{T "The scanner found critical problems; this plugin cannot be enabled."}}</p>
+        {{else}}
+        <form method="post" action="/admin/plugins/{{$p.ID}}/approve" class="stack">
           {{.CSRFField}}
           <input type="hidden" name="sha256" value="{{$p.SHA256}}">
-          <button class="btn" type="submit" data-confirm="{{T "Enable this plugin with the permissions listed?"}}">{{icon "check"}}{{T "Enable plugin"}}</button>
+          {{if $d.NeedsConfirm}}
+          <label class="check text-sm confirm-risk"><input type="checkbox" class="input" name="confirm_risk" value="1" required>
+            {{T "I reviewed the scan report and the high-risk permissions, and I trust this plugin."}}</label>
+          {{end}}
+          {{if or (not $d.Report) $d.ReportStale}}<p class="hint">{{T "This build has not been scanned yet; it is scanned when you enable it."}}</p>{{end}}
+          <div><button class="btn" type="submit" data-confirm="{{T "Enable this plugin with the permissions listed?"}}">{{icon "check"}}{{T "Enable plugin"}}</button></div>
         </form>
+        {{end}}
       </footer>
     </section>
     {{end}}
+
+    <section class="card" id="report">
+      <header>
+        <h2>{{icon "scan-eye"}} {{T "Scan report"}}</h2>
+        <p>{{T "Checks of the manifest, the WebAssembly module, embedded strings, assets and a sandboxed dry run of every hook."}}</p>
+      </header>
+      <section>
+        {{with $d.Report}}
+        {{if $d.ReportStale}}<div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "Outdated report"}}</h2><section><p>{{T "The files changed after this scan. Scan again to check the current build."}}</p></section></div>{{end}}
+        {{template "scan-report" .}}
+        {{else}}<p class="muted text-sm">{{T "This plugin has not been scanned yet."}}</p>{{end}}
+      </section>
+      <footer>
+        <form method="post" action="/admin/plugins/{{$p.ID}}/scan">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Scan again"}}</button></form>
+      </footer>
+    </section>
 
     {{if and $p.Settings $p.Record}}
     <section class="card" id="settings">
@@ -62,23 +90,7 @@
         <form method="post" action="/admin/plugins/{{$p.ID}}/settings" class="form" data-unsaved>
           {{.CSRFField}}
           {{range $p.Settings}}
-          <div class="field">
-            {{if eq .Type "bool"}}
-            <label class="check"><input type="checkbox" class="input" role="switch" name="set_{{.Key}}" value="true"{{if eq (index $d.Values .Key) "true"}} checked{{end}}> {{.Label}}</label>
-            {{else}}
-            <label for="set_{{.Key}}">{{.Label}}{{if .Required}} *{{end}}</label>
-            {{if eq .Type "select"}}
-            <select class="select w-full" id="set_{{.Key}}" name="set_{{.Key}}">{{$cur := index $d.Values .Key}}{{range .Choices}}<option{{if eq . $cur}} selected{{end}}>{{.}}</option>{{end}}</select>
-            {{else if eq .Type "textarea"}}
-            <textarea class="textarea" id="set_{{.Key}}" name="set_{{.Key}}" rows="4" maxlength="4000">{{index $d.Values .Key}}</textarea>
-            {{else if eq .Type "secret"}}
-            <input class="input" id="set_{{.Key}}" name="set_{{.Key}}" type="password" autocomplete="off" placeholder="{{if index $p.Record.Settings .Key}}{{T "•••••• (stored — leave empty to keep)"}}{{end}}" maxlength="4000">
-            {{else}}
-            <input class="input" id="set_{{.Key}}" name="set_{{.Key}}" type="{{if eq .Type "number"}}number{{else if eq .Type "url"}}url{{else}}text{{end}}" value="{{index $d.Values .Key}}" maxlength="4000"{{if .Required}} required{{end}}>
-            {{end}}
-            {{end}}
-            {{with .Help}}<p class="hint">{{.}}</p>{{end}}
-          </div>
+          {{template "setting-field" (dict "S" . "Name" (print "set_" .Key) "ID" (print "set_" .Key) "Value" (index $d.Values .Key) "Stored" (index $p.Record.Settings .Key))}}
           {{end}}
           <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button></div>
         </form>
@@ -94,6 +106,19 @@
         {{else}}<p class="muted text-sm">{{T "Nothing logged yet."}}</p>{{end}}
       </section>
     </section>
+
+    {{if and (not $p.Enabled) (ne $p.Status "enabled")}}
+    <section class="card danger-zone" id="uninstall">
+      <header><h2>{{icon "trash-2"}} {{T "Uninstall"}}</h2><p>{{T "Removes the plugin's files. Its settings and stored data are kept unless you delete them too."}}</p></header>
+      <section>
+        <form method="post" action="/admin/plugins/{{$p.ID}}/uninstall" class="stack">
+          {{.CSRFField}}
+          <label class="check text-sm"><input type="checkbox" class="input" name="delete_data" value="1"> {{T "Also delete its settings and stored data"}}</label>
+          <div><button class="btn" data-variant="destructive" type="submit" data-confirm="{{T "Uninstall this plugin?"}}">{{icon "trash-2"}}{{T "Uninstall"}}</button></div>
+        </form>
+      </section>
+    </section>
+    {{end}}
   </div>
 
   <section class="card">
@@ -106,10 +131,16 @@
         {{if $p.License}}<div><dt>{{T "License"}}</dt><dd>{{$p.License}}</dd></div>{{end}}
         {{if $p.Homepage}}<div><dt>{{T "Website"}}</dt><dd><a href="{{$p.Homepage}}" rel="noopener nofollow" target="_blank">{{$p.Homepage}}</a></dd></div>{{end}}
         <div><dt>{{T "Status"}}</dt><dd>{{$p.Status}}</dd></div>
+        {{with $p.Record}}
+        <div><dt>{{T "Installed from"}}</dt><dd>{{if eq .Source "upload"}}{{T "Upload"}}{{else if eq .Source "cli"}}{{T "Command line"}}{{else}}{{T "Plugins folder"}}{{end}}</dd></div>
+        {{if .UploadedByName}}<div><dt>{{T "Uploaded by"}}</dt><dd>{{.UploadedByName}}</dd></div>{{end}}
+        {{with .UploadedAt}}<div><dt>{{T "Uploaded"}}</dt><dd>{{dateTime .}}</dd></div>{{end}}
+        {{end}}
         {{if $p.Hooks}}<div><dt>{{T "Hooks"}}</dt><dd>{{join $p.Hooks ", "}}</dd></div>{{end}}
         {{if $p.Events}}<div><dt>{{T "Events"}}</dt><dd>{{join $p.Events ", "}}</dd></div>{{end}}
         {{if $p.Shortcodes}}<div><dt>{{T "Shortcodes"}}</dt><dd class="mono">{{range $p.Shortcodes}}[{{.}}] {{end}}</dd></div>{{end}}
         {{if $p.Widgets}}<div><dt>{{T "Widgets"}}</dt><dd>{{range $i, $w := $p.Widgets}}{{if $i}}, {{end}}{{$w.Title}}{{end}}</dd></div>{{end}}
+        {{if $p.Forms}}<div><dt>{{T "Forms"}}</dt><dd class="mono">{{range $i, $f := $p.Forms}}{{if $i}}, {{end}}{{$f.ID}}{{end}}</dd></div>{{end}}
         <div><dt>{{T "Folder"}}</dt><dd class="mono break-all text-xs">{{$p.Dir}}</dd></div>
       </dl>
     </section>

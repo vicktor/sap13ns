@@ -22,14 +22,17 @@
 {{range .Meta}}{{if .Property}}<meta property="{{.Property}}" content="{{.Content}}">{{else}}<meta name="{{.Name}}" content="{{.Content}}">{{end}}
 {{end}}
 {{with .JSONLD}}<script type="application/ld+json">{{.}}</script>{{end}}
-<link rel="icon" href="{{.Site.Static "favicon.svg"}}" type="image/svg+xml">
+{{range .PluginLD}}<script type="application/ld+json">{{.}}</script>
+{{end}}<link rel="icon" href="{{.Site.Static "favicon.svg"}}" type="image/svg+xml">
 <link rel="icon" href="{{.Site.Static "brand/favicon-32.png"}}" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="{{.Site.Static "brand/apple-touch-icon.png"}}">
 <link rel="manifest" href="/manifest.webmanifest">
 <script src="{{.Site.Static "theme-init.js"}}"></script>
 <link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
-<script src="{{.Site.Static "site.js"}}" defer></script>
-{{end}}
+{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
+{{end}}<script src="{{.Site.Static "site.js"}}" defer></script>
+{{range .PluginJS}}<script src="{{.}}" defer></script>
+{{end}}{{end}}
 
 {{/* shared/theme-toggle: light/dark switch. Themes style .theme-toggle. */}}
 {{define "shared/theme-toggle"}}

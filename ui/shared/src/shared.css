@@ -152,6 +152,16 @@
   .comment-replying button { margin-left: 0.5rem; text-decoration: underline; cursor: pointer; }
   .comment-as, .comments-closed { color: var(--muted-foreground); font-size: 0.9rem; }
 
+  /* Plugin forms: rendered by the host, styled like the comment form. */
+  .plugin-form-wrap { display: flex; flex-direction: column; gap: 1rem; margin-block: 1.5rem; }
+  .plugin-form-title { font-size: 1.1rem; font-weight: 650; }
+  .plugin-form :is(input[type=tel], input[type=number], select) { width: 100%; padding: 0.7rem 0.85rem; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--input, var(--border)); background: var(--background); color: inherit; font: inherit; }
+  .plugin-form select:focus { outline: 2px solid var(--ring); outline-offset: 1px; border-color: transparent; }
+  .plugin-form .plugin-form-check { display: flex; align-items: center; gap: 0.5rem; font-weight: 400; }
+  .plugin-form-req { color: var(--destructive); }
+  .plugin-form-field.has-error :is(input, textarea, select) { border-color: var(--destructive); }
+  .plugin-form-error { display: block; margin-top: 0.35rem; font-size: 0.85rem; color: var(--destructive); }
+
   /* Widgets. */
   .widget-area { display: flex; flex-direction: column; gap: 2rem; }
   .widget-title { margin-bottom: 0.85rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-foreground); }

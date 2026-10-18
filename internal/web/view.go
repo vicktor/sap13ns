@@ -48,6 +48,15 @@ func (s *Server) PostInfo(p *store.Post) plugin.PostInfo {
 		} else {
 			info.Categories = append(info.Categories, t.In(p.Lang).Name)
 		}
+		tr := t.In(p.Lang)
+		info.Terms = append(info.Terms, plugin.TermInfo{Taxonomy: t.Taxonomy, Slug: t.Slug, Name: tr.Name,
+			URL: s.cfg.AbsURL(s.langPath(p.Lang, termURL(&tr)))})
+	}
+	if info.Terms == nil {
+		info.Terms = []plugin.TermInfo{}
+	}
+	if img := imageView(p.Featured); img != nil {
+		info.Image = s.cfg.AbsURL(img.URL)
 	}
 	return info
 }
@@ -584,6 +593,12 @@ type PageData struct {
 	IsFront      bool
 	Preview      bool
 	Ask          *AskView // the assistant page without JavaScript (assistant.go)
+	// Plugins (plugin_web.go): JSON-LD objects from head.meta, already
+	// escaped for a <script type="application/ld+json"> element, and the
+	// stylesheets and scripts of enabled plugins.
+	PluginLD  []template.JS
+	PluginCSS []string
+	PluginJS  []string
 }
 
 // LangLink points to a page in one of the site languages.

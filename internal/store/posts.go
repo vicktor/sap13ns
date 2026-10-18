@@ -90,6 +90,7 @@ type PostQuery struct {
 	PublicOnly bool
 	AuthorID   int64
 	TermID     int64
+	TermIDs    []int64 // every one must be attached (plugins: category and tag)
 	Search     string
 	Order      string // "published" (default), "updated", "menu", "title", "rank"
 	Limit      int
@@ -119,6 +120,9 @@ func (q *PostQuery) where() *whereBuilder {
 	}
 	if q.TermID > 0 {
 		w.add(`EXISTS (SELECT 1 FROM post_terms pt WHERE pt.post_id = p.id AND pt.term_id = ?)`, q.TermID)
+	}
+	for _, id := range q.TermIDs {
+		w.add(`EXISTS (SELECT 1 FROM post_terms pt WHERE pt.post_id = p.id AND pt.term_id = ?)`, id)
 	}
 	if q.Search != "" {
 		w.add(`p.search @@ websearch_to_tsquery('simple', ?)`, q.Search)

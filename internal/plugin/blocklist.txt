@@ -1,0 +1,7 @@
+# Known-bad plugin files: one SHA-256 (lower-case hex) per line, followed by
+# a note. The scanner checks the uploaded archive, the .wasm module and every
+# asset against this list and against <data dir>/plugin-blocklist.txt, which
+# operators can update without a new release.
+#
+# The EICAR anti-virus test file, so that the rule can be tested end to end.
+275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f EICAR test file

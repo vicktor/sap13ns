@@ -1,0 +1,31 @@
+{
+  "abi": 1,
+  "id": "my-plugin",
+  "name": "My plugin",
+  "version": "0.1.0",
+  "description": "A starting point for a sap13ns plugin: one small example of every hook.",
+  "author": "Your name",
+  "license": "MIT",
+  "homepage": "",
+  "wasm": "plugin.wasm",
+  "hooks": ["shortcode", "widget", "content.filter", "head.meta", "event", "comment.check", "form.submit"],
+  "shortcodes": ["hello", "contact"],
+  "widgets": [
+    {"id": "latest", "title": "Latest posts", "description": "The newest posts, with a greeting.", "config": [{"key": "count", "label": "Number of posts", "type": "number", "default": "3"}]}
+  ],
+  "events": ["post.published"],
+  "permissions": ["kv", "posts:read", "mail"],
+  "settings": [
+    {"key": "greeting", "label": "Greeting", "type": "text", "default": "Hello", "help": "Used by [hello] and the Latest posts widget."},
+    {"key": "words_per_minute", "label": "Reading speed (words per minute)", "type": "number", "default": "220"},
+    {"key": "max_links", "label": "Links before a comment is held for moderation", "type": "number", "default": "3"},
+    {"key": "copy_to", "label": "Send contact messages to", "type": "email", "help": "Empty sends them to the site administrator."}
+  ],
+  "forms": [
+    {"id": "contact", "title": {"en": "Contact us", "es": "Contacto"}, "submit": {"en": "Send", "es": "Enviar"}, "fields": [
+      {"name": "name", "label": {"en": "Name", "es": "Nombre"}, "type": "text", "required": true, "max_length": 100},
+      {"name": "email", "label": {"en": "E-mail", "es": "Correo electrónico"}, "type": "email", "required": true},
+      {"name": "message", "label": {"en": "Message", "es": "Mensaje"}, "type": "textarea", "required": true, "max_length": 3000}
+    ]}
+  ]
+}

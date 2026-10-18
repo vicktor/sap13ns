@@ -1,0 +1,32 @@
+{
+  "abi": 1,
+  "id": "hooks",
+  "name": "Hooks",
+  "version": "1.0.0",
+  "author": "Tests",
+  "hooks": ["shortcode", "widget", "head.meta", "comment.check", "form.submit"],
+  "shortcodes": ["posts", "forms"],
+  "widgets": [
+    {"id": "info", "title": "Info", "config": [
+      {"key": "count", "label": "Count", "type": "number", "default": "3"},
+      {"key": "show", "label": "Show", "type": "bool"},
+      {"key": "until", "label": "Until", "type": "datetime"}
+    ]}
+  ],
+  "permissions": ["posts:read", "mail"],
+  "settings": [
+    {"key": "copy_to", "label": "Copy to", "type": "email"},
+    {"key": "starts", "label": "Starts", "type": "datetime", "default": "2026-03-29T01:30"},
+    {"key": "api_key", "label": "API key", "type": "secret"},
+    {"key": "mode", "label": "Mode", "type": "select", "choices": ["a", "b"], "default": "a"},
+    {"key": "limit", "label": "Limit", "type": "number", "default": "10"},
+    {"key": "site", "label": "Site", "type": "url"}
+  ],
+  "forms": [
+    {"id": "contact", "fields": [
+      {"name": "email", "label": "E-mail", "type": "email", "required": true},
+      {"name": "to", "label": "To", "type": "text"},
+      {"name": "n", "label": "Count", "type": "number"}
+    ]}
+  ]
+}

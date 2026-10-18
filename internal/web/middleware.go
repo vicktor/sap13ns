@@ -180,7 +180,11 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", policy)
+		if strings.HasPrefix(r.URL.Path, "/admin") {
+			h.Set("Content-Security-Policy", policy)
+		} else {
+			h.Set("Content-Security-Policy", s.pluginCSP(policy)) // plus frame and image sources of enabled plugins
+		}
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -345,6 +349,9 @@ func (s *Server) mustEnroll2FA(u *store.User) bool {
 }
 
 func (s *Server) maxBody(r *http.Request) int64 {
+	if r.URL.Path == "/admin/plugins/upload" {
+		return pluginUploadLimit
+	}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return s.cfg.MaxUploadBytes + 1<<20
 	}

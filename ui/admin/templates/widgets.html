@@ -21,7 +21,7 @@
           <input type="hidden" name="kind" value="{{.Kind}}">
           <div class="field"><label for="w-title-{{.ID}}">{{T "Title"}}</label><input class="input" id="w-title-{{.ID}}" name="title" value="{{.Title}}" maxlength="100"></div>
           {{template "widget-lang" (dict "D" $d "ID" (print .ID) "Lang" .Lang)}}
-          {{template "widget-config" (dict "Kind" .Kind "Config" .Config "ID" .ID)}}
+          {{template "widget-config" (dict "Kind" .Kind "Config" .Config "ID" .ID "Fields" (index $d.Fields .Kind))}}
           <div class="form-actions">
             <button class="btn" data-size="sm" type="submit">{{icon "save"}}{{T "Save"}}</button>
             <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/up" aria-label="{{T "Move up"}}">{{icon "arrow-up"}}</button>
@@ -57,5 +57,8 @@
 <div class="field"><label for="w-count-{{.ID}}">{{T "Number of posts"}}</label><input class="input" id="w-count-{{.ID}}" name="count" type="number" min="1" max="20" value="{{or (index .Config "count") "5"}}"></div>
 {{else if eq .Kind "text"}}
 <div class="field"><label for="w-text-{{.ID}}">{{T "Text"}}</label><textarea class="textarea" id="w-text-{{.ID}}" name="text" rows="4" maxlength="10000">{{index .Config "text"}}</textarea><p class="hint">{{T "Plain text. Blank lines separate paragraphs."}}</p></div>
+{{else if .Fields}}{{$cfg := .Config}}{{$id := .ID}}
+<input type="hidden" name="cfg_form" value="1">
+{{range .Fields}}{{template "setting-field" (dict "S" . "Name" (print "cfg_" .Key) "ID" (print "w-cfg-" $id "-" .Key) "Value" (index $cfg .Key))}}{{end}}
 {{end}}
 {{end}}

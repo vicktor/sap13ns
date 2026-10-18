@@ -33,29 +33,35 @@ func (m *Mailer) Enabled() bool { return m.cfg.Enabled() }
 // headerSafe rejects CR/LF to prevent header injection.
 func headerSafe(s string) bool { return !strings.ContainsAny(s, "\r\n") }
 
-func (m *Mailer) Send(to, subject, body string) error {
-	if !headerSafe(to) || !headerSafe(subject) {
+func (m *Mailer) Send(to, subject, body string) error { return m.SendMessage(to, "", subject, body) }
+
+// SendMessage sends a plain-text message, with a Reply-To header when
+// replyTo is not empty (plugin forms reply to the visitor).
+func (m *Mailer) SendMessage(to, replyTo, subject, body string) error {
+	if !headerSafe(to) || !headerSafe(subject) || !headerSafe(replyTo) {
 		return errors.New("invalid header value")
 	}
 	if !m.cfg.Enabled() {
 		if m.logBodies {
-			m.log.Warn("SMTP not configured; e-mail printed instead of sent", "to", to, "subject", subject, "body", body)
+			m.log.Warn("SMTP not configured; e-mail printed instead of sent", "to", to, "reply_to", replyTo, "subject", subject, "body", body)
 			return nil
 		}
 		return errors.New("SMTP is not configured")
 	}
-	msg := strings.Join([]string{
-		"From: " + m.cfg.From,
-		"To: " + to,
-		"Subject: " + mime.QEncoding.Encode("utf-8", subject),
-		"Date: " + time.Now().Format(time.RFC1123Z),
+	headers := []string{"From: " + m.cfg.From, "To: " + to}
+	if replyTo != "" {
+		headers = append(headers, "Reply-To: "+replyTo)
+	}
+	msg := strings.Join(append(headers,
+		"Subject: "+mime.QEncoding.Encode("utf-8", subject),
+		"Date: "+time.Now().Format(time.RFC1123Z),
 		"MIME-Version: 1.0",
 		"Content-Type: text/plain; charset=utf-8",
 		"Content-Transfer-Encoding: 8bit",
 		"Auto-Submitted: auto-generated",
 		"",
 		strings.ReplaceAll(body, "\n", "\r\n"),
-	}, "\r\n")
+	), "\r\n")
 
 	addr := net.JoinHostPort(m.cfg.Host, strconv.Itoa(m.cfg.Port))
 	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)

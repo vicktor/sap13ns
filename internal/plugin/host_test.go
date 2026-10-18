@@ -21,7 +21,7 @@ import (
 type testLinks struct{}
 
 func (testLinks) PostInfo(p *store.Post) PostInfo {
-	return PostInfo{ID: p.ID, Title: p.Title, URL: "/blog/" + p.Slug}
+	return PostInfo{ID: p.ID, Title: p.Title, Lang: p.Lang, URL: "/blog/" + p.Slug}
 }
 
 // installPlugin compiles a plugin package to wasm and copies it with its
@@ -76,7 +76,7 @@ func adminUser(t *testing.T, st *store.Store) int64 {
 func TestApprovalPinsHash(t *testing.T) {
 	st := testutil.Store(t)
 	dir := t.TempDir()
-	pdir := installPlugin(t, dir, "./plugins/examples/callout", "callout")
+	pdir := installPlugin(t, dir, "./internal/plugin/testdata/callout", "callout")
 	h := newTestHost(t, st, dir)
 	ctx := context.Background()
 
@@ -87,7 +87,7 @@ func TestApprovalPinsHash(t *testing.T) {
 	if h.HasShortcode("callout") {
 		t.Fatal("shortcode active before approval")
 	}
-	if err := h.Approve(ctx, "callout", adminUser(t, st)); err != nil {
+	if err := h.Approve(ctx, "callout", "", adminUser(t, st)); err != nil {
 		t.Fatal(err)
 	}
 	if got := h.Get("callout").Status; got != StatusEnabled {
@@ -137,7 +137,7 @@ func TestSandbox(t *testing.T) {
 	installPlugin(t, dir, "./internal/plugin/testdata/evil", "evil")
 	h := newTestHost(t, st, dir)
 	ctx := context.Background()
-	if err := h.Approve(ctx, "evil", adminUser(t, st)); err != nil {
+	if err := h.Approve(ctx, "evil", "", adminUser(t, st)); err != nil {
 		t.Fatal(err)
 	}
 	call := func(name string) (string, error) {

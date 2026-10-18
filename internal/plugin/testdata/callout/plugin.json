@@ -3,7 +3,7 @@
   "id": "callout",
   "name": "Callouts",
   "version": "1.0.0",
-  "description": "Shortcodes [callout] y [kbd] que generan avisos y teclas con los componentes de Basecoat.",
+  "description": "Test fixture: [callout] and [kbd] shortcodes built with Basecoat components.",
   "author": "sap13ns",
   "license": "MIT",
   "hooks": ["shortcode"],

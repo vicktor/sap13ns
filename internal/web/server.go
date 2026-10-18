@@ -76,6 +76,8 @@ type Server struct {
 	stats   *analytics.Collector // cookie-less page views (stats.go)
 
 	bot botState // site assistant and MCP (assistant.go, mcp.go)
+
+	plug pluginWebState // plugin assets, forms and CSP sources (plugin_web.go)
 }
 
 type Deps struct {
@@ -281,5 +283,5 @@ func (s *Server) staticHash(file string) (string, bool) {
 // SiteInfo describes the site to plugins.
 func (s *Server) SiteInfo() plugin.SiteInfo {
 	st := s.settings()
-	return plugin.SiteInfo{URL: s.cfg.BaseURL.String(), Title: st.SiteTitle, Language: st.Language}
+	return plugin.SiteInfo{URL: s.cfg.BaseURL.String(), Title: st.SiteTitle, Language: st.Language, Timezone: s.state.Load().Loc.String()}
 }

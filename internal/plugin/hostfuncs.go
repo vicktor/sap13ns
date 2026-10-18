@@ -27,6 +27,8 @@ const (
 	codeQuota    int32 = -4
 	codeFailed   int32 = -5
 	codeLimit    int32 = -6
+	// codeRateLimited: an hourly limit (e-mail) was reached.
+	codeRateLimited int32 = -7
 )
 
 const (
@@ -54,8 +56,17 @@ func (h *Host) registerHostModule(ctx context.Context) error {
 		NewFunctionBuilder().WithFunc(h.hostKVDelete).Export("kv_delete").
 		NewFunctionBuilder().WithFunc(h.hostPostsQuery).Export("posts_query").
 		NewFunctionBuilder().WithFunc(h.hostHTTPFetch).Export("http_fetch").
+		NewFunctionBuilder().WithFunc(h.hostMailSend).Export("mail_send").
 		Instantiate(ctx)
 	return err
+}
+
+// hostImportPerms maps each sap13ns import to the permission it needs (""
+// for none). The scanner compares a module's imports with its permissions.
+var hostImportPerms = map[string]string{
+	"log": "", "result": "",
+	"kv_get": PermKV, "kv_set": PermKV, "kv_delete": PermKV,
+	"posts_query": PermPostsRead, "http_fetch": PermHTTP, "mail_send": PermMail,
 }
 
 func state(ctx context.Context) *callState {
@@ -75,7 +86,7 @@ func readMem(m api.Module, ptr, size uint32, max uint32) ([]byte, bool) {
 }
 
 func (st *callState) granted(perm string) bool {
-	return st.plugin.Record != nil && slices.Contains(st.plugin.Record.GrantedPermissions, perm) && slices.Contains(st.plugin.Permissions, perm)
+	return !st.dryRun && st.plugin.Record != nil && slices.Contains(st.plugin.Record.GrantedPermissions, perm) && slices.Contains(st.plugin.Permissions, perm)
 }
 
 func (st *callState) setPending(b []byte) int32 {
@@ -185,13 +196,17 @@ func (h *Host) hostKVDelete(ctx context.Context, m api.Module, kptr, klen uint32
 }
 
 type postsQuery struct {
-	Limit    int    `json:"limit"`
-	Category string `json:"category"`
-	Tag      string `json:"tag"`
-	Search   string `json:"search"`
-	Type     string `json:"type"`
-	Exclude  int64  `json:"exclude"`
+	Limit      int     `json:"limit"`
+	Category   string  `json:"category"` // slug
+	Tag        string  `json:"tag"`      // slug; with Category, both must match
+	Search     string  `json:"search"`
+	Type       string  `json:"type"`
+	Exclude    int64   `json:"exclude"`
+	ExcludeIDs []int64 `json:"exclude_ids"`
+	Lang       string  `json:"lang"` // "" = every language
 }
+
+var langRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
 
 // posts_query(qptr, qlen) -> len of a JSON array of PostInfo. Only public
 // content is ever returned.
@@ -225,15 +240,29 @@ func (h *Host) hostPostsQuery(ctx context.Context, m api.Module, qptr, qlen uint
 	if q.Exclude > 0 {
 		pq.ExcludeIDs = []int64{q.Exclude}
 	}
-	for tax, slug := range map[string]string{"category": q.Category, "tag": q.Tag} {
-		if slug == "" {
+	if len(q.ExcludeIDs) > 50 {
+		return codeInvalid
+	}
+	for _, id := range q.ExcludeIDs {
+		if id > 0 {
+			pq.ExcludeIDs = append(pq.ExcludeIDs, id)
+		}
+	}
+	if q.Lang != "" {
+		if !langRe.MatchString(q.Lang) {
+			return codeInvalid
+		}
+		pq.Lang = q.Lang
+	}
+	for _, f := range []struct{ tax, slug string }{{"category", q.Category}, {"tag", q.Tag}} {
+		if f.slug == "" {
 			continue
 		}
-		t, err := h.store.TermBySlug(ctx, tax, slug)
+		t, err := h.store.TermBySlug(ctx, f.tax, f.slug)
 		if err != nil {
 			return st.setPending([]byte("[]"))
 		}
-		pq.TermID = t.ID
+		pq.TermIDs = append(pq.TermIDs, t.ID)
 	}
 	posts, _, err := h.store.ListPosts(ctx, pq)
 	if err != nil {
@@ -276,7 +305,7 @@ func (h *Host) hostHTTPFetch(ctx context.Context, m api.Module, rptr, rlen uint3
 	if st == nil {
 		return codeInvalid
 	}
-	if !st.allowHTTP {
+	if !st.allowHTTP || st.dryRun {
 		return codeDenied
 	}
 	st.httpCalls++

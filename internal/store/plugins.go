@@ -12,18 +12,29 @@ import (
 type PluginRecord struct {
 	ID                 string            `db:"id"`
 	Enabled            bool              `db:"enabled"`
-	WasmSHA256         string            `db:"wasm_sha256"`
+	WasmSHA256         string            `db:"wasm_sha256"`   // pinned at approval
+	AssetsSHA256       string            `db:"assets_sha256"` // pinned at approval
 	GrantedPermissions []string          `db:"granted_permissions"`
 	Settings           map[string]string `db:"settings"`
 	ApprovedBy         *int64            `db:"approved_by"`
+	Version            string            `db:"version"` // installed package version
+	Source             string            `db:"source"`  // manual | upload | cli
+	UploadedBy         *int64            `db:"uploaded_by"`
+	UploadedByName     string            `db:"uploaded_by_name"`
+	UploadedAt         *time.Time        `db:"uploaded_at"`
+	ReviewRequired     bool              `db:"review_required"`
+	ScanReport         []byte            `db:"scan_report"` // JSON plugin.Report
+	ScannedAt          *time.Time        `db:"scanned_at"`
 	CreatedAt          time.Time         `db:"created_at"`
 	UpdatedAt          time.Time         `db:"updated_at"`
 }
 
-const pluginCols = `id, enabled, wasm_sha256, granted_permissions, settings, approved_by, created_at, updated_at`
+const pluginCols = `p.id, p.enabled, p.wasm_sha256, p.assets_sha256, p.granted_permissions, p.settings, p.approved_by,
+	p.version, p.source, p.uploaded_by, coalesce(u.username, '') AS uploaded_by_name, p.uploaded_at, p.review_required,
+	p.scan_report, p.scanned_at, p.created_at, p.updated_at`
 
 func (s *Store) ListPluginRecords(ctx context.Context) (map[string]PluginRecord, error) {
-	rows, err := s.DB.Query(ctx, `SELECT `+pluginCols+` FROM plugins`)
+	rows, err := s.DB.Query(ctx, `SELECT `+pluginCols+` FROM plugins p LEFT JOIN users u ON u.id = p.uploaded_by`)
 	if err != nil {
 		return nil, err
 	}
@@ -38,17 +49,77 @@ func (s *Store) ListPluginRecords(ctx context.Context) (map[string]PluginRecord,
 	return out, nil
 }
 
-// ApprovePlugin enables a plugin pinned to a specific wasm hash and permission set.
-func (s *Store) ApprovePlugin(ctx context.Context, id, sha string, perms []string, by int64) error {
+// ApprovePlugin enables a plugin pinned to a specific wasm hash, assets hash
+// and permission set.
+func (s *Store) ApprovePlugin(ctx context.Context, id, sha, assetsSHA string, perms []string, by int64) error {
 	if perms == nil {
 		perms = []string{}
 	}
-	_, err := s.DB.Exec(ctx, `INSERT INTO plugins (id, enabled, wasm_sha256, granted_permissions, approved_by)
-		VALUES ($1, true, $2, $3, $4)
-		ON CONFLICT (id) DO UPDATE SET enabled = true, wasm_sha256 = EXCLUDED.wasm_sha256,
+	_, err := s.DB.Exec(ctx, `INSERT INTO plugins (id, enabled, wasm_sha256, assets_sha256, granted_permissions, approved_by)
+		VALUES ($1, true, $2, $3, $4, $5)
+		ON CONFLICT (id) DO UPDATE SET enabled = true, wasm_sha256 = EXCLUDED.wasm_sha256, assets_sha256 = EXCLUDED.assets_sha256,
 			granted_permissions = EXCLUDED.granted_permissions, approved_by = EXCLUDED.approved_by, updated_at = now()`,
-		id, sha, perms, by)
+		id, sha, assetsSHA, perms, nullID(by))
 	return err
+}
+
+// PluginInstall describes an installed (or updated) package.
+type PluginInstall struct {
+	ID             string
+	Version        string
+	Source         string // upload | cli
+	UploadedBy     int64  // 0 = command line
+	ReviewRequired bool
+	Report         []byte // JSON plugin.Report
+}
+
+// RecordPluginInstall creates the plugin row (disabled) or updates an
+// existing one, keeping its approval, settings and key-value data.
+func (s *Store) RecordPluginInstall(ctx context.Context, in PluginInstall) error {
+	_, err := s.DB.Exec(ctx, `INSERT INTO plugins (id, enabled, wasm_sha256, version, source, uploaded_by, uploaded_at, review_required, scan_report, scanned_at)
+		VALUES ($1, false, '', $2, $3, $4, now(), $5, $6, now())
+		ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version, source = EXCLUDED.source, uploaded_by = EXCLUDED.uploaded_by,
+			uploaded_at = now(), review_required = plugins.review_required OR EXCLUDED.review_required,
+			scan_report = EXCLUDED.scan_report, scanned_at = now(), updated_at = now()`,
+		in.ID, in.Version, in.Source, nullID(in.UploadedBy), in.ReviewRequired, in.Report)
+	return err
+}
+
+// SavePluginReport stores the latest scanner report, creating the row for
+// plugins that were copied into the plugins directory by hand.
+func (s *Store) SavePluginReport(ctx context.Context, id, version string, report []byte) error {
+	_, err := s.DB.Exec(ctx, `INSERT INTO plugins (id, enabled, wasm_sha256, version, scan_report, scanned_at)
+		VALUES ($1, false, '', $2, $3, now())
+		ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version, scan_report = EXCLUDED.scan_report, scanned_at = now(), updated_at = now()`,
+		id, version, report)
+	return err
+}
+
+// ClearPluginReview records that the network operator reviewed the plugin.
+func (s *Store) ClearPluginReview(ctx context.Context, id string) error {
+	_, err := s.DB.Exec(ctx, `UPDATE plugins SET review_required = false, updated_at = now() WHERE id = $1`, id)
+	return err
+}
+
+// DeletePlugin removes the plugin row with its settings and key-value data.
+func (s *Store) DeletePlugin(ctx context.Context, id string) error {
+	_, err := s.DB.Exec(ctx, `DELETE FROM plugins WHERE id = $1`, id)
+	return err
+}
+
+// SiteAdminEmail is the address plugins may always e-mail: the oldest
+// active administrator (normally the account created at installation).
+func (s *Store) SiteAdminEmail(ctx context.Context) (string, error) {
+	var email string
+	err := s.DB.QueryRow(ctx, `SELECT email FROM users WHERE role = 'admin' AND status = 'active' ORDER BY created_at, id LIMIT 1`).Scan(&email)
+	return email, mapErr(err)
+}
+
+func nullID(id int64) any {
+	if id > 0 {
+		return id
+	}
+	return nil
 }
 
 func (s *Store) DisablePlugin(ctx context.Context, id string) error {

@@ -1,0 +1,1 @@
+{"abi": 1, "id": "metadata", "name": "Metadata", "version": "1.0.0", "hooks": ["event"], "events": ["post.published"], "permissions": ["http:analytics.example"]}

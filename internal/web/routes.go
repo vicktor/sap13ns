@@ -42,6 +42,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /static/{path...}", s.serveStatic)
 	mux.HandleFunc("GET /themes/{theme}/static/{path...}", s.handleThemeStatic)
+	mux.HandleFunc("GET /plugin-assets/{id}/{version}/{path...}", s.handlePluginAsset)
+	mux.HandleFunc("POST /plugin-forms/{plugin}/{form}", s.handlePluginForm)
 	if s.cfg.ServeUploads {
 		mux.HandleFunc("GET /uploads/{path...}", s.handleUploads)
 	}
@@ -146,10 +148,13 @@ func (s *Server) routes() *http.ServeMux {
 
 	admin("GET /admin/plugins", auth.CapPlugins, s.adminPlugins)
 	admin("POST /admin/plugins/reload", auth.CapPlugins, s.adminPluginsReload)
+	admin("POST /admin/plugins/upload", auth.CapPlugins, s.adminPluginUpload)
 	admin("GET /admin/plugins/{id}", auth.CapPlugins, s.adminPlugin)
 	admin("POST /admin/plugins/{id}/approve", auth.CapPlugins, s.adminPluginApprove)
 	admin("POST /admin/plugins/{id}/disable", auth.CapPlugins, s.adminPluginDisable)
 	admin("POST /admin/plugins/{id}/settings", auth.CapPlugins, s.adminPluginSettings)
+	admin("POST /admin/plugins/{id}/scan", auth.CapPlugins, s.adminPluginScan)
+	admin("POST /admin/plugins/{id}/uninstall", auth.CapPlugins, s.adminPluginUninstall)
 
 	admin("GET /admin/users", auth.CapManageUsers, s.adminUsers)
 	admin("GET /admin/users/new", auth.CapManageUsers, s.adminUserNew)

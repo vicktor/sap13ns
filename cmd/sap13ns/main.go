@@ -5,7 +5,8 @@
 //	sap13ns keygen                print a new SAP13NS_SECRET_KEY
 //	sap13ns user create ...       create a user from the command line
 //	sap13ns user reset-password   set a new password for a user
-//	sap13ns plugin hash <dir>     print the SHA-256 of a plugin's wasm file
+//	sap13ns plugin new|pack|check create, package and scan plugins (plugin.go)
+//	sap13ns plugin list|install   list and install the plugins of a site
 //	sap13ns assistant reindex     rebuild the site assistant's search index
 //	sap13ns version               print the version
 //
@@ -17,7 +18,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -103,6 +103,14 @@ Commands:
                                  when piped, otherwise a strong one is generated.
   user reset-password -username U
                                  Set a new password (same rules as above)
+  plugin new <id> [-dir D] [-hooks shortcode,widget,...] [-sdk PATH]
+                                 Start a plugin project from the skeleton
+  plugin pack <dir>              Build, scan and write <id>-<version>.zip
+  plugin check <dir|file.zip>    Scan a plugin as an upload is scanned
+                                 (exit status 1 on critical findings)
+  plugin list | install <file.zip>
+                                 List or install this site's plugins (installed
+                                 disabled; enable them in Admin → Plugins)
   plugin hash <dir>              Print the SHA-256 of a plugin's wasm module
   backup create|list|verify|restore|prune
                                  Encrypted backups of the database and uploads
@@ -207,8 +215,11 @@ func serve(args []string) error {
 			uiFS = os.DirFS("ui") // live templates and assets while developing
 		}
 	}
-	srv, err = web.New(ctx, web.Deps{Config: cfg, Log: log, Store: st, UI: uiFS, Plugins: host,
-		Mailer: mail.New(cfg.SMTP, log, cfg.Dev)})
+	mailer := mail.New(cfg.SMTP, log, cfg.Dev)
+	host.SetSecrets(auth.NewKeys(cfg.SecretKey)) // secret plugin settings, encrypted at rest
+	host.SetMailer(mailer)                       // the mail_send host function
+	host.SetBlocklistFile(filepath.Join(cfg.DataDir, "plugin-blocklist.txt"))
+	srv, err = web.New(ctx, web.Deps{Config: cfg, Log: log, Store: st, UI: uiFS, Plugins: host, Mailer: mailer})
 	if err != nil {
 		return err
 	}
@@ -402,33 +413,6 @@ func readPassword() (string, bool, error) {
 		}
 	}
 	return auth.NewToken(18), true, nil
-}
-
-// ---------------------------------------------------------------- plugins --
-
-func pluginCmd(args []string) error {
-	if len(args) != 2 || args[0] != "hash" {
-		return errors.New("usage: sap13ns plugin hash <plugin-dir>")
-	}
-	raw, err := os.ReadFile(filepath.Join(args[1], "plugin.json"))
-	if err != nil {
-		return err
-	}
-	m, err := plugin.ParseManifest(raw)
-	if err != nil {
-		return err
-	}
-	if err := m.Validate(); err != nil {
-		return err
-	}
-	wasm, err := os.ReadFile(filepath.Join(args[1], m.Wasm))
-	if err != nil {
-		return err
-	}
-	sum := sha256.Sum256(wasm)
-	fmt.Printf("%s  %s@%s (%s)\n", hex.EncodeToString(sum[:]), m.ID, m.Version, m.Wasm)
-	fmt.Printf("permissions: %s\n", strings.Join(m.Permissions, ", "))
-	return nil
 }
 
 var netipZero netip.Addr

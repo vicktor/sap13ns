@@ -87,3 +87,51 @@
 <p class="hint text-center" data-passkey-unsupported hidden>{{if .Only}}{{T "This browser does not support passkeys. Use another browser or device to finish signing in."}}{{end}}</p>
 <script src="{{asset "passkey.js"}}" defer></script>
 {{end}}
+
+{{/* One plugin setting or plugin widget config field.
+     dict: S (plugin.SettingDecl), Name, ID, Value, Stored (a secret is saved). */}}
+{{define "setting-field"}}{{$s := .S}}
+<div class="field">
+  {{if eq $s.Type "bool"}}
+  <label class="check"><input type="checkbox" class="input" role="switch" id="{{.ID}}" name="{{.Name}}" value="true"{{if eq .Value "true"}} checked{{end}}> {{$s.Label}}</label>
+  {{else}}
+  <label for="{{.ID}}">{{$s.Label}}{{if $s.Required}} *{{end}}</label>
+  {{if eq $s.Type "select"}}
+  <select class="select w-full" id="{{.ID}}" name="{{.Name}}">{{$cur := .Value}}{{range $s.Choices}}<option{{if eq . $cur}} selected{{end}}>{{.}}</option>{{end}}</select>
+  {{else if eq $s.Type "textarea"}}
+  <textarea class="textarea" id="{{.ID}}" name="{{.Name}}" rows="4" maxlength="4000"{{if $s.Required}} required{{end}}>{{.Value}}</textarea>
+  {{else if eq $s.Type "secret"}}
+  <input class="input" id="{{.ID}}" name="{{.Name}}" type="password" autocomplete="new-password" placeholder="{{if .Stored}}{{T "•••••• (stored — leave empty to keep)"}}{{end}}" maxlength="4000">
+  {{if .Stored}}<label class="check text-sm mt-1"><input type="checkbox" class="input" name="clear_{{$s.Key}}" value="1"> {{T "Delete the stored value"}}</label>{{end}}
+  {{else}}
+  <input class="input" id="{{.ID}}" name="{{.Name}}" type="{{if eq $s.Type "number"}}number{{else if eq $s.Type "url"}}url{{else if eq $s.Type "email"}}email{{else if eq $s.Type "datetime"}}datetime-local{{else}}text{{end}}" value="{{.Value}}"{{if eq $s.Type "number"}} step="any"{{end}} maxlength="4000"{{if $s.Required}} required{{end}}>
+  {{end}}
+  {{end}}
+  {{with $s.Help}}<p class="hint">{{.}}</p>{{else}}{{if eq $s.Type "datetime"}}<p class="hint">{{T "In the site's time zone."}}</p>{{end}}{{end}}
+</div>
+{{end}}
+
+{{/* A plugin scanner report (plugin.Report): verdict line, then findings. */}}
+{{define "scan-report"}}{{$r := .}}
+{{template "scan-report-summary" $r}}
+{{if $r.Findings}}
+<ul class="finding-list">
+  {{range $r.Findings}}
+  <li data-severity="{{.Severity}}">
+    {{if eq .Severity "critical"}}{{icon "octagon-alert"}}{{else if eq .Severity "high"}}{{icon "triangle-alert"}}{{else if eq .Severity "medium"}}{{icon "circle-alert"}}{{else}}{{icon "info"}}{{end}}
+    <div><p><span class="sev">{{.Severity}}</span> {{.Message}}</p><p class="rule">{{.Rule}}{{with .Location}} · {{.}}{{end}}</p></div>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}
+
+{{define "scan-report-summary"}}{{$r := .}}
+<div class="scan-summary">
+  {{if eq $r.Verdict "blocked"}}<span class="badge" data-variant="destructive">{{icon "octagon-alert" "size-3"}} {{T "Blocked"}}</span>
+  {{else if eq $r.Verdict "review"}}<span class="badge" data-variant="warning">{{icon "triangle-alert" "size-3"}} {{T "Needs review"}}</span>
+  {{else}}<span class="badge" data-variant="success">{{icon "shield-check" "size-3"}} {{T "No problems found"}}</span>{{end}}
+  <span class="muted text-xs">{{T "%d critical, %d high, %d medium, %d notes" ($r.Count "critical") ($r.Count "high") ($r.Count "medium") ($r.Count "info")}}</span>
+  {{if not $r.ScannedAt.IsZero}}<span class="muted text-xs">· {{dateTime $r.ScannedAt}}</span>{{end}}
+</div>
+{{end}}

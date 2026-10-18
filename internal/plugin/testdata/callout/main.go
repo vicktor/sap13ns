@@ -1,6 +1,4 @@
-//go:build wasip1
-
-// Callouts: [callout type="info|success|warning|error" title="..."]Text[/callout]
+// Test fixture: [callout type="info|success|warning|error" title="..."]Text[/callout]
 // and [kbd]Ctrl+K[/kbd]. Output uses Basecoat classes, which every theme ships.
 package main
 

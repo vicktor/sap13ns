@@ -61,13 +61,14 @@ func (s *Server) commentToken(r *http.Request, postID int64) string {
 // fillTokens returns e with fresh comment tokens, or e itself when the page
 // has none. Filled pages get no ETag: a 304 would revive an old token.
 func (s *Server) fillTokens(e *cache.Entry) *cache.Entry {
-	if !bytes.Contains(e.Body, []byte(commentTokenSlot)) {
+	if !bytes.Contains(e.Body, []byte(commentTokenSlot)) && !bytes.Contains(e.Body, []byte(formTokenSlot)) {
 		return e
 	}
 	now := time.Now()
 	body := commentTokenRE.ReplaceAllFunc(e.Body, func(m []byte) []byte {
 		return []byte(s.keys.Sign("comment", string(m[len(commentTokenSlot):]), now))
 	})
+	body = s.fillFormTokens(body) // plugin forms (plugin_web.go)
 	return &cache.Entry{Body: body, Status: e.Status, ContentType: e.ContentType}
 }
 
@@ -175,13 +176,13 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	if d, err := s.loadSiteData(ctx, pd.Site.Lang); err == nil {
 		pd.Widgets = s.buildWidgets(ctx, th, d, pd)
 	}
-	info := &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Title: pd.Title, Description: pd.Description}
+	info := &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Lang: pd.Site.Lang, Title: pd.Title, Description: pd.Description}
 	if pd.Post != nil {
 		pi := plugin.PostInfo{ID: pd.Post.ID, Type: pd.Post.Type, Title: pd.Post.Title, Slug: pd.Post.Slug, Lang: pd.Post.Lang,
 			URL: pd.Post.AbsURL, Excerpt: pd.Post.Summary, Author: pd.Post.Author.Name}
 		info.Post = &pi
 	}
-	pd.Meta = s.plugins.HeadMeta(ctx, info)
+	s.pluginHead(ctx, pd, info) // meta tags, JSON-LD, plugin stylesheets and scripts
 
 	var buf bytes.Buffer
 	if err := th.Render(&buf, page, pd.Site.Lang, pd); err != nil {
@@ -196,8 +197,10 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	if pd.Preview {
 		w.Header().Set("Cache-Control", "no-store")
 	}
+
+	body := s.expandForms(w, r, pd.Site.Lang, buf.Bytes()) // plugin forms (plugin_web.go)
 	w.WriteHeader(status)
-	w.Write(buf.Bytes())
+	w.Write(body)
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
@@ -684,13 +687,34 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 			in.Status = "approved"
 		}
 	}
+	// comment.check plugins (spam filters) may hold or reject the comment;
+	// moderators' own comments are not checked.
+	if u == nil || !auth.Can(u.Role, auth.CapModerate) {
+		var parent int64
+		if in.ParentID != nil {
+			parent = *in.ParentID
+		}
+		pi := s.PostInfo(p)
+		v := s.plugins.CheckComment(ctx, plugin.CommentInput{Author: in.AuthorName, URL: in.AuthorURL, Content: in.Content, Post: &pi,
+			ParentID: parent, Registered: u != nil, Email: in.AuthorEmail, IP: ip.String(), UserAgent: in.UserAgent})
+		switch v.Verdict {
+		case plugin.VerdictSpam:
+			in.Status = "spam"
+		case plugin.VerdictPending:
+			in.Status = "pending"
+		}
+		if v.Verdict != plugin.VerdictOK {
+			s.log.Info("comment held by plugin", "plugin", v.Plugin, "verdict", v.Verdict, "reason", v.Reason, "post", p.ID)
+		}
+	}
 	id, err := s.store.CreateComment(ctx, in)
 	if err != nil {
 		s.log.Error("create comment", "err", err)
 		done("error")
 		return
 	}
-	s.plugins.Emit("comment.created", map[string]any{"id": id, "post": s.PostInfo(p), "author": in.AuthorName, "status": in.Status})
+	s.plugins.Emit("comment.created", map[string]any{"id": id, "post_id": p.ID, "post": s.PostInfo(p), "author": in.AuthorName,
+		"status": in.Status, "content": in.Content})
 	if in.Status == "approved" {
 		s.contentChanged()
 		done("approved")
@@ -749,7 +773,7 @@ func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData,
 					continue
 				}
 				if page == nil {
-					page = &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Title: pd.Title}
+					page = &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Lang: d.lang, Title: pd.Title}
 				}
 				html, err := s.plugins.Widget(ctx, parts[1], parts[2], wd.Config, page)
 				if err != nil || html == "" {

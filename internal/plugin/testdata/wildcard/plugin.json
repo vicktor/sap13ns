@@ -1,0 +1,1 @@
+{"abi": 1, "id": "wildcard", "name": "Wildcard", "version": "1.0.0", "hooks": ["event"], "events": ["post.published"], "permissions": ["http:*"]}

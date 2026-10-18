@@ -7,6 +7,36 @@
     <form method="post" action="/admin/plugins/reload">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Rescan"}}</button></form>
   </div>
 </div>
+
+{{with $d.Refused}}
+<div class="alert" data-variant="destructive" role="alert" id="refused">
+  {{icon "octagon-alert"}}
+  <h2>{{T "The plugin was not installed"}}</h2>
+  <section>
+    <p>{{T "The scanner found critical problems in %s. Nothing was copied to the plugins folder." (or .PluginID (T "the package"))}}</p>
+    {{template "scan-report" .}}
+  </section>
+</div>
+{{end}}
+
+<section class="card plugin-upload" id="upload">
+  <header>
+    <h2>{{icon "upload"}} {{T "Upload a plugin"}}</h2>
+    <p>{{T "A .zip package of up to %d MB with plugin.json and plugin.wasm. It is checked for malicious code and installed disabled; uploading a new version of an installed plugin replaces it and keeps its settings and data." $d.MaxMB}}</p>
+  </header>
+  <section>
+    <form method="post" action="/admin/plugins/upload" enctype="multipart/form-data" class="plugin-upload-form">
+      {{.CSRFField}}
+      <div class="field grow">
+        <label for="plugin-package">{{T "Plugin package (.zip)"}}</label>
+        <input class="input" id="plugin-package" type="file" name="package" accept=".zip,application/zip" required>
+      </div>
+      <label class="check text-sm"><input type="checkbox" class="input" name="allow_downgrade" value="1"> {{T "Allow an older version"}}</label>
+      <button class="btn" type="submit">{{icon "scan-eye"}}{{T "Upload and scan"}}</button>
+    </form>
+  </section>
+</section>
+
 {{if $d.Plugins}}
 <ul class="plugin-list">
   {{range $d.Plugins}}
@@ -17,7 +47,9 @@
       <p>{{or .Description .Err}}</p>
       <div class="plugin-tags">
         {{range .Hooks}}<span class="badge" data-variant="outline">{{.}}</span>{{end}}
-        {{range .Permissions}}<span class="badge" data-variant="secondary">{{icon "key-round" "size-3"}} {{.}}</span>{{end}}
+        {{range .EffectivePermissions}}<span class="badge" data-variant="secondary">{{icon "key-round" "size-3"}} {{.}}</span>{{end}}
+        {{with .Report}}{{if eq .Verdict "review"}}<span class="badge" data-variant="warning">{{icon "triangle-alert" "size-3"}} {{T "Scan: needs review"}}</span>{{else if eq .Verdict "blocked"}}<span class="badge" data-variant="destructive">{{icon "octagon-alert" "size-3"}} {{T "Scan: blocked"}}</span>{{end}}{{end}}
+        {{if and .Record .Record.ReviewRequired}}<span class="badge" data-variant="info">{{T "Waiting for operator review"}}</span>{{end}}
       </div>
     </div>
     <div class="plugin-state">
@@ -26,12 +58,27 @@
       {{else if eq .Status "invalid"}}<span class="badge" data-variant="destructive">{{T "Invalid"}}</span>
       {{else if eq .Status "error"}}<span class="badge" data-variant="destructive">{{T "Error"}}</span>
       {{else}}<span class="badge" data-variant="secondary">{{T "Disabled"}}</span>{{end}}
+      {{if or (eq .Status "enabled") (and .Enabled (eq .Status "error"))}}
+      <form method="post" action="/admin/plugins/{{.ID}}/disable">
+        {{$.CSRFField}}<input type="hidden" name="back" value="list">
+        <button class="plugin-switch" type="submit" role="switch" aria-checked="true" aria-label="{{T "Disable %s" (or .Name .ID)}}" title="{{T "Disable"}}"></button>
+      </form>
+      {{else if .QuickEnable}}
+      <form method="post" action="/admin/plugins/{{.ID}}/approve">
+        {{$.CSRFField}}<input type="hidden" name="back" value="list"><input type="hidden" name="sha256" value="{{.SHA256}}">
+        <button class="plugin-switch" type="submit" role="switch" aria-checked="false" aria-label="{{T "Enable %s" (or .Name .ID)}}" title="{{T "Enable"}}"></button>
+      </form>
+      {{else if or (eq .Status "available") (eq .Status "modified")}}
+      <a class="plugin-switch" href="/admin/plugins/{{.ID}}#review" role="switch" aria-checked="false" aria-label="{{T "Review %s to enable it" (or .Name .ID)}}" title="{{T "Review to enable"}}"></a>
+      {{else}}
+      <span class="plugin-switch" role="switch" aria-checked="false" aria-disabled="true" aria-label="{{T "Cannot be enabled"}}"></span>
+      {{end}}
       <a class="btn" data-variant="outline" data-size="sm" href="/admin/plugins/{{.ID}}">{{T "Details"}}</a>
     </div>
   </li>
   {{end}}
 </ul>
 {{else}}
-<div class="card">{{template "empty" (dict "Icon" "puzzle" "Title" (T "No plugins installed") "Text" (T "Copy a plugin folder (plugin.json + .wasm) into %s and press Rescan." $d.Dir))}}</div>
+<div class="card">{{template "empty" (dict "Icon" "puzzle" "Title" (T "No plugins installed") "Text" (T "Upload a plugin package above, or copy a plugin folder (plugin.json + plugin.wasm) into %s and press Rescan." $d.Dir))}}</div>
 {{end}}
 {{end}}

@@ -72,6 +72,16 @@ All server-side fetches go through an SSRF guard that resolves the host and refu
 - **Permissions** are explicit and shown at approval: private key-value storage, read-only published posts, HTTP to named hosts only.
 - **Approval** pins the module's SHA-256 and the granted permissions. Any change disables the plugin until it is reviewed again.
 - **Output** is sanitised before it reaches a page. Head tags are limited to safe `<meta>` names; `http-equiv` is never allowed.
+- **Uploaded packages** are extracted with strict limits into a staging directory and scanned before anything is installed:
+  - critical findings refuse the package;
+  - plugins are always installed disabled;
+  - high-risk permissions or findings need an explicit confirmation to enable.
+- **Forms, e-mail and assets** are mediated by the host:
+  - forms are rendered by the host with single-use tokens, a honeypot and rate limits;
+  - e-mail only reaches the site's own addresses, at 20 messages per plugin per hour;
+  - plugin JavaScript and CSP additions are high-risk permissions.
+
+  The full contract is in [PLUGINS.md](PLUGINS.md).
 
 ### Secrets and data
 - The instance secret (`SAP13NS_SECRET_KEY`) signs tokens and encrypts stored secrets, such as AI provider keys, with AES-256-GCM. Secrets are never shown again in the admin.
