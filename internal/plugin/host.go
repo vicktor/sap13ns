@@ -1376,7 +1376,8 @@ func (h *Host) Asset(id, version, name string) ([]byte, string, bool) {
 	if !ok {
 		return nil, "", false
 	}
-	if strings.HasSuffix(name, ".js") && !p.Granted(PermAssetsJS) {
+	// By the type it is served with, not the name: "x.JS" is JavaScript too.
+	if strings.HasPrefix(a.contentType, "text/javascript") && !p.Granted(PermAssetsJS) {
 		return nil, "", false
 	}
 	return a.data, a.contentType, true

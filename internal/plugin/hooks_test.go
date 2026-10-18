@@ -503,6 +503,35 @@ func TestPermissionRisk(t *testing.T) {
 	}
 }
 
+// A script under another spelling of .js is still JavaScript and needs
+// assets:js: the check follows the served content type, not the name.
+func TestAssetScriptNeedsPermission(t *testing.T) {
+	st := testutil.Store(t)
+	dir := t.TempDir()
+	pdir := filepath.Join(dir, "nojs")
+	files := map[string]string{
+		"plugin.json":  `{"abi": 1, "id": "nojs", "name": "No JS", "version": "1.0.0", "hooks": ["shortcode"], "shortcodes": ["nojs"]}`,
+		"plugin.wasm":  string(respond(okHTML).bytes()),
+		"assets/a.JS":  "alert(1)",
+		"assets/b.css": "a{}",
+	}
+	for name, body := range files {
+		os.MkdirAll(filepath.Dir(filepath.Join(pdir, name)), 0o755)
+		os.WriteFile(filepath.Join(pdir, name), []byte(body), 0o644)
+	}
+	h := newTestHost(t, st, dir)
+	if err := h.Approve(context.Background(), "nojs", "", adminUser(t, st)); err != nil {
+		t.Fatal(err)
+	}
+	v := h.Get("nojs").AssetsVersion()
+	if _, ctype, ok := h.Asset("nojs", v, "assets/a.JS"); ok {
+		t.Fatalf("script served without assets:js (%s)", ctype)
+	}
+	if _, _, ok := h.Asset("nojs", v, "assets/b.css"); !ok {
+		t.Fatal("stylesheet not served")
+	}
+}
+
 func TestManifestRules(t *testing.T) {
 	base := func(fields string) string {
 		return `{"abi": 1, "id": "m1", "name": "M", "version": "1.0.0", ` + fields + `}`
@@ -523,6 +552,7 @@ func TestManifestRules(t *testing.T) {
 		{"datetime rfc3339", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "datetime", "default": "2026-01-01T09:00:00Z"}]`), true},
 		{"bad datetime", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "datetime", "default": "soon"}]`), false},
 		{"email", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "email"}]`), true},
+		{"email default", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "email", "default": "x@example.test"}]`), false},
 		{"widget config", base(`"hooks": ["widget"], "widgets": [{"id": "w", "title": "W", "config": [{"key": "n", "label": "N", "type": "number", "default": "3"}]}]`), true},
 		{"widget secret", base(`"hooks": ["widget"], "widgets": [{"id": "w", "title": "W", "config": [{"key": "n", "label": "N", "type": "secret"}]}]`), false},
 		{"js without permission", base(sc + `, "assets": {"js": ["assets/a.js"]}`), false},

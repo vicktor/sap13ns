@@ -126,10 +126,15 @@ type mailRequest struct {
 // settings of type "email": the only ones besides the site administrator a
 // plugin may write to.
 func mailRecipients(p *Plugin) []string {
+	// Only addresses an administrator saved count, never manifest defaults
+	// (which validateSettingDecl refuses anyway): a package must not be able
+	// to choose its own recipients.
+	if p.Record == nil {
+		return nil
+	}
 	var out []string
-	vals := p.SettingValues()
 	for _, s := range p.Settings {
-		if v := strings.TrimSpace(vals[s.Key]); s.Type == "email" && v != "" && validEmail(v) {
+		if v := strings.TrimSpace(p.Record.Settings[s.Key]); s.Type == "email" && v != "" && validEmail(v) {
 			out = append(out, strings.ToLower(v))
 		}
 	}

@@ -364,6 +364,11 @@ func validateSettingDecl(s SettingDecl, seen map[string]bool) error {
 	if s.Type == "secret" && s.Default != "" {
 		return fmt.Errorf("setting %q: a secret cannot have a default", s.Key)
 	}
+	// E-mail settings are mail_send recipients: only an administrator may
+	// enter one.
+	if s.Type == "email" && s.Default != "" {
+		return fmt.Errorf("setting %q: an e-mail setting cannot have a default", s.Key)
+	}
 	return nil
 }
 

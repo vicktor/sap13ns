@@ -413,7 +413,7 @@ Values are trimmed and control characters are removed (newlines are kept in `tex
 | `bool` | `true` / `false` | checkbox | |
 | `select` | one of `choices` | select | 1 to 100 choices; the default must be one of them; empty means "use the default" |
 | `url` | `https://` URL | url | |
-| `email` | one address | email | also allows `mail_send` to that address |
+| `email` | one address | email | no default allowed; an address an administrator saves also allows `mail_send` to it |
 | `datetime` | local site time `YYYY-MM-DDTHH:MM` | datetime-local | plugins receive RFC 3339 with the site offset, e.g. `2026-07-01T10:00:00+02:00` |
 | `secret` | encrypted | password | see below |
 
