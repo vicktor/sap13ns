@@ -34,7 +34,8 @@ import (
 	"sap13ns/internal/store"
 )
 
-// Limits applied to every plugin.
+// Limits applied to every plugin. HostOptions can lower the memory and
+// instance limits: a network runs one host per loaded site in a process.
 const (
 	MaxWasmBytes       = 32 << 20
 	memoryLimitPages   = 2048 // 128 MiB per instance
@@ -137,6 +138,7 @@ type Plugin struct {
 	pool     chan *instance
 	created  atomic.Int32
 	retired  atomic.Bool
+	maxInst  int32 // instances of this generation at once (HostOptions.MaxInstances)
 
 	failMu    sync.Mutex
 	failures  int
@@ -246,6 +248,67 @@ type instance struct {
 	mod    api.Module
 	alloc  api.Function
 	handle api.Function
+	limit  *InstanceLimit // holds one of its slots; nil without a limit
+}
+
+// close ends the instance and gives its slot back.
+func (inst *instance) close(ctx context.Context) {
+	inst.mod.Close(ctx)
+	inst.limit.release()
+}
+
+// InstanceLimit caps the plugin instances alive at once across every Host
+// that shares it: the sites of a network run in one process, and each
+// instance keeps its memory while pooled. While the limit is nearly
+// reached, released instances are closed instead of pooled, so the idle
+// plugins of one site do not hold the slots another site needs.
+type InstanceLimit struct {
+	slots   chan struct{}
+	waiting atomic.Int32
+}
+
+// NewInstanceLimit allows n live instances (at least 1).
+func NewInstanceLimit(n int) *InstanceLimit {
+	return &InstanceLimit{slots: make(chan struct{}, max(n, 1))}
+}
+
+func (l *InstanceLimit) acquire(ctx context.Context) error {
+	if l == nil {
+		return nil
+	}
+	select {
+	case l.slots <- struct{}{}:
+		return nil
+	default:
+	}
+	l.waiting.Add(1)
+	defer l.waiting.Add(-1)
+	select {
+	case l.slots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("too many plugin instances in this process: %w", ctx.Err())
+	}
+}
+
+func (l *InstanceLimit) release() {
+	if l != nil {
+		<-l.slots
+	}
+}
+
+// tight reports whether released instances should be closed instead of
+// pooled: someone waits for a slot, or more than three quarters are taken.
+func (l *InstanceLimit) tight() bool {
+	return l != nil && (l.waiting.Load() > 0 || len(l.slots)*4 > cap(l.slots)*3)
+}
+
+// InUse is the number of live instances.
+func (l *InstanceLimit) InUse() int {
+	if l == nil {
+		return 0
+	}
+	return len(l.slots)
 }
 
 type Host struct {
@@ -282,6 +345,10 @@ type Host struct {
 	events chan eventJob
 	wg     sync.WaitGroup
 	closed atomic.Bool
+
+	sharedCache  bool           // the compilation cache belongs to the caller
+	maxInstances int32          // per plugin
+	limit        *InstanceLimit // shared by the hosts of a process; may be nil
 }
 
 // Secrets encrypts secret settings at rest (auth.Keys implements it).
@@ -313,29 +380,69 @@ type eventJob struct {
 	data any
 }
 
+// HostOptions configures a Host. The zero values of the limits keep those
+// of a single-site install.
+type HostOptions struct {
+	Dir   string // the plugins directory
+	Store *store.Store
+	Log   *slog.Logger
+	Site  func() SiteInfo
+	Links Links
+
+	// CacheDir stores compiled machine code so that restarts are fast; it
+	// may be empty. Cache, when set, is used instead: one cache shared by
+	// every host of a process compiles each module once. Its owner closes
+	// it after the hosts.
+	CacheDir string
+	Cache    wazero.CompilationCache
+
+	MemoryLimitPages uint32         // per instance, in 64 KiB pages; 0 = 2048 (128 MiB), never more
+	MaxInstances     int            // per plugin; 0 = 4, never more
+	Limit            *InstanceLimit // instances alive in the process; nil = no limit
+}
+
 // NewHost creates the runtime. cacheDir stores compiled machine code so that
 // restarts are fast; it may be empty.
 func NewHost(ctx context.Context, dir, cacheDir string, st *store.Store, log *slog.Logger, site func() SiteInfo, links Links) (*Host, error) {
+	return NewHostWithOptions(ctx, HostOptions{Dir: dir, CacheDir: cacheDir, Store: st, Log: log, Site: site, Links: links})
+}
+
+// NewHostWithOptions creates the runtime with the cache and limits of opts.
+func NewHostWithOptions(ctx context.Context, opts HostOptions) (*Host, error) {
+	pages := uint32(memoryLimitPages)
+	if opts.MemoryLimitPages > 0 {
+		pages = min(opts.MemoryLimitPages, memoryLimitPages)
+	}
+	perPlugin := int32(maxInstances)
+	if opts.MaxInstances > 0 {
+		perPlugin = int32(min(opts.MaxInstances, maxInstances))
+	}
 	rc := wazero.NewRuntimeConfig().
-		WithMemoryLimitPages(memoryLimitPages).
+		WithMemoryLimitPages(pages).
 		WithCloseOnContextDone(true)
-	if cacheDir != "" {
-		if err := os.MkdirAll(cacheDir, 0o750); err == nil {
-			if cache, err := wazero.NewCompilationCacheWithDir(cacheDir); err == nil {
+	switch {
+	case opts.Cache != nil:
+		rc = rc.WithCompilationCache(opts.Cache)
+	case opts.CacheDir != "":
+		if err := os.MkdirAll(opts.CacheDir, 0o750); err == nil {
+			if cache, err := wazero.NewCompilationCacheWithDir(opts.CacheDir); err == nil {
 				rc = rc.WithCompilationCache(cache)
 			}
 		}
 	}
 	h := &Host{
-		dir: dir, store: st, log: log.With("component", "plugins"), site: site, links: links,
-		rt:          wazero.NewRuntimeWithConfig(ctx, rc),
-		httpc:       newHTTPClient(),
-		plugins:     map[string]*Plugin{},
-		shortcodes:  map[string]*Plugin{},
-		compiled:    map[string]wazero.CompiledModule{},
-		events:      make(chan eventJob, 256),
-		mailq:       make(chan mailJob, 64),
-		mailPerHour: MailPerHour,
+		dir: opts.Dir, store: opts.Store, log: opts.Log.With("component", "plugins"), site: opts.Site, links: opts.Links,
+		rt:           wazero.NewRuntimeWithConfig(ctx, rc),
+		httpc:        newHTTPClient(),
+		plugins:      map[string]*Plugin{},
+		shortcodes:   map[string]*Plugin{},
+		compiled:     map[string]wazero.CompiledModule{},
+		events:       make(chan eventJob, 256),
+		mailq:        make(chan mailJob, 64),
+		mailPerHour:  MailPerHour,
+		sharedCache:  opts.Cache != nil,
+		maxInstances: perPlugin,
+		limit:        opts.Limit,
 	}
 	h.mailLimit = auth.NewLimiter(h.mailPerHour, time.Hour)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, h.rt); err != nil {
@@ -353,6 +460,10 @@ func NewHost(ctx context.Context, dir, cacheDir string, st *store.Store, log *sl
 	return h, nil
 }
 
+// Close delivers the queued events and mails, then releases the runtime:
+// the instances with their slots of the instance limit and, with a shared
+// cache, this host's references to compiled modules (the cache keeps a
+// module while another host uses it).
 func (h *Host) Close(ctx context.Context) {
 	if h.closed.Swap(true) {
 		return
@@ -360,7 +471,39 @@ func (h *Host) Close(ctx context.Context) {
 	close(h.events)
 	close(h.mailq)
 	h.wg.Wait()
+	h.loadMu.Lock() // no Load is compiling meanwhile
+	defer h.loadMu.Unlock()
+	h.mu.Lock()
+	plugins, compiled := h.plugins, h.compiled
+	h.plugins, h.shortcodes, h.compiled = map[string]*Plugin{}, map[string]*Plugin{}, map[string]wazero.CompiledModule{}
+	h.mu.Unlock()
+	for _, p := range plugins {
+		p.retire(ctx)
+	}
+	if h.sharedCache {
+		for _, c := range compiled {
+			c.Close(ctx)
+		}
+	}
 	h.rt.Close(ctx)
+}
+
+// retire marks a generation of a plugin as replaced and closes its idle
+// instances; busy ones are closed when released.
+func (p *Plugin) retire(ctx context.Context) {
+	p.retired.Store(true)
+	if p.pool == nil {
+		return
+	}
+	for {
+		select {
+		case inst := <-p.pool:
+			inst.close(ctx)
+			p.created.Add(-1)
+		default:
+			return
+		}
+	}
 }
 
 // Generation changes whenever the set of active plugins or their settings
@@ -452,21 +595,20 @@ func (h *Host) Load(ctx context.Context) error {
 	// Retire the previous generation: idle instances are closed now, busy
 	// ones when they are released.
 	for _, p := range old {
-		p.retired.Store(true)
-		if p.pool == nil {
-			continue
-		}
-	drain:
-		for {
-			select {
-			case inst := <-p.pool:
-				inst.mod.Close(ctx)
-			default:
-				break drain
-			}
-		}
+		p.retire(ctx)
 	}
 	return nil
+}
+
+// WantsCron reports whether an enabled plugin subscribes to cron.hourly.
+// A network wakes an unloaded site for its hourly cron only when one does.
+func (h *Host) WantsCron() bool {
+	for _, p := range h.enabled() {
+		if p.HasHook(HookEvent) && p.HasEvent("cron.hourly") {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Host) inspect(ctx context.Context, dirName string, records map[string]store.PluginRecord) *Plugin {
@@ -548,7 +690,8 @@ func (h *Host) inspect(ctx context.Context, dirName string, records map[string]s
 		return p
 	}
 	p.compiled = compiled
-	p.pool = make(chan *instance, maxInstances)
+	p.maxInst = h.maxInstances
+	p.pool = make(chan *instance, p.maxInst)
 	p.assets = assets
 	p.Status = StatusEnabled
 	return p
@@ -942,12 +1085,18 @@ func (p *Plugin) acquire(ctx context.Context, h *Host) (*instance, error) {
 		return inst, nil
 	default:
 	}
-	if p.created.Add(1) <= maxInstances {
-		inst, err := h.instantiate(p)
-		if err != nil {
+	if p.created.Add(1) <= p.maxInst {
+		if err := h.limit.acquire(ctx); err != nil {
 			p.created.Add(-1)
 			return nil, err
 		}
+		inst, err := h.instantiate(p)
+		if err != nil {
+			h.limit.release()
+			p.created.Add(-1)
+			return nil, err
+		}
+		inst.limit = h.limit
 		return inst, nil
 	}
 	p.created.Add(-1)
@@ -960,15 +1109,19 @@ func (p *Plugin) acquire(ctx context.Context, h *Host) (*instance, error) {
 }
 
 func (p *Plugin) release(inst *instance, broken bool) {
-	if broken || p.retired.Load() {
-		inst.mod.Close(context.Background())
+	if broken || p.retired.Load() || inst.limit.tight() {
+		inst.close(context.Background())
 		p.created.Add(-1)
 		return
 	}
 	select {
 	case p.pool <- inst:
+		if p.retired.Load() {
+			// Retired meanwhile, maybe after its pool was drained.
+			p.retire(context.Background())
+		}
 	default:
-		inst.mod.Close(context.Background())
+		inst.close(context.Background())
 		p.created.Add(-1)
 	}
 }

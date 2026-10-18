@@ -589,12 +589,12 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 func (s *Server) adminAssistantRebuild(w http.ResponseWriter, r *http.Request) {
 	opt := assistant.ReconcileOptions{Rechunk: true, Reembed: r.FormValue("reembed") == "1"}
 	s.audit(r, uid(r), "assistant.rebuild", "", map[string]string{"reembed": strconv.FormatBool(opt.Reembed)})
-	go func() {
+	s.goJob(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 		defer cancel()
 		if _, err := s.assistant().Reconcile(ctx, opt); err != nil {
 			s.log.Error("assistant rebuild", "err", err)
 		}
-	}()
+	})
 	s.redirect(w, r, "/admin/settings/assistant", "success", s.t("The index is being rebuilt in the background. Reload this page to follow it."))
 }

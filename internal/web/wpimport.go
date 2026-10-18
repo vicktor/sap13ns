@@ -146,7 +146,7 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, u.ID, "import.started", hdr.Filename, map[string]string{"dry_run": fmt.Sprint(opts.DryRun)})
 
 	sink := &wpSink{s: s, lang: lang, uploader: u.ID}
-	go func() {
+	s.goJob(func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Hour)
 		defer cancel()
 		rep, err := wpimport.Import(ctx, exp, sink, opts)
@@ -161,7 +161,7 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 			s.redirects.reset()
 		}
 		s.log.Info("wordpress import finished", "dry_run", opts.DryRun, "err", err)
-	}()
+	})
 	s.redirect(w, r, "/admin/tools/import", "success", s.t("Import started."))
 }
 

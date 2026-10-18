@@ -31,7 +31,6 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -41,8 +40,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/config"
 	"sap13ns/internal/db"
-	"sap13ns/internal/mail"
-	"sap13ns/internal/plugin"
+	"sap13ns/internal/siteapp"
 	"sap13ns/internal/store"
 	"sap13ns/internal/update"
 	"sap13ns/internal/web"
@@ -168,12 +166,6 @@ func migrate(args []string) error {
 	return db.Migrate(ctx, pool, log)
 }
 
-// links forwards plugin URL lookups to the web server, which is created
-// after the plugin host.
-type links struct{ s *web.Server }
-
-func (l *links) PostInfo(p *store.Post) plugin.PostInfo { return l.s.PostInfo(p) }
-
 func serve(args []string) error {
 	cfg, log, _, err := setup("serve", args, true, nil)
 	if err != nil {
@@ -185,10 +177,8 @@ func serve(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	for _, dir := range []string{cfg.DataDir, cfg.UploadsDir, cfg.PluginsDir} {
-		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return err
-		}
+	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
+		return err
 	}
 	pool, err := db.Open(ctx, cfg.DatabaseURL, cfg.DBMaxConns)
 	if err != nil {
@@ -198,76 +188,69 @@ func serve(args []string) error {
 	if err := db.Migrate(ctx, pool, log); err != nil {
 		return err
 	}
-	st := store.New(pool)
-
-	var srv *web.Server
-	lk := &links{}
-	host, err := plugin.NewHost(ctx, cfg.PluginsDir, filepath.Join(cfg.DataDir, "cache", "wasm"), st, log,
-		func() plugin.SiteInfo { return srv.SiteInfo() }, lk)
-	if err != nil {
-		return err
-	}
-	defer host.Close(context.Background())
-
-	uiFS := fs.FS(ui.FS)
-	if cfg.Dev {
-		if _, err := os.Stat("ui/admin/templates"); err == nil {
-			uiFS = os.DirFS("ui") // live templates and assets while developing
-		}
-	}
-	mailer := mail.New(cfg.SMTP, log, cfg.Dev)
-	host.SetSecrets(auth.NewKeys(cfg.SecretKey)) // secret plugin settings, encrypted at rest
-	host.SetMailer(mailer)                       // the mail_send host function
-	host.SetBlocklistFile(filepath.Join(cfg.DataDir, "plugin-blocklist.txt"))
-	srv, err = web.New(ctx, web.Deps{Config: cfg, Log: log, Store: st, UI: uiFS, Plugins: host, Mailer: mailer})
-	if err != nil {
-		return err
-	}
-	lk.s = srv
-	if err := host.Load(ctx); err != nil {
-		log.Error("load plugins", "err", err)
-	}
-	go srv.Background(ctx)
 	checker := update.NewChecker(web.Version, nil, log)
-	srv.SetUpdateChecker(checker)
-	go checker.Run(ctx)
-
-	ln, err := listen(cfg.Listen, cfg.SocketGroup)
+	app, err := siteapp.Open(ctx, siteapp.Params{Config: cfg, Store: store.New(pool), Log: log, UI: uiFS(cfg),
+		Background: web.BackgroundOptions{Cron: true, Maintenance: true}, Updates: checker})
 	if err != nil {
 		return err
 	}
-	hs := &http.Server{
-		Handler:           srv.Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       2 * time.Minute, // large uploads on slow links
-		WriteTimeout:      2 * time.Minute,
-		IdleTimeout:       2 * time.Minute,
-		MaxHeaderBytes:    64 << 10,
-		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
-		BaseContext:       func(net.Listener) context.Context { return ctx },
-	}
-	errc := make(chan error, 1)
-	go func() {
-		log.Info("sap13ns listening", "addr", cfg.Listen, "url", cfg.BaseURL.String(), "version", web.Version)
-		errc <- hs.Serve(ln)
-	}()
-	select {
-	case err := <-errc:
-		if !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
-	case <-ctx.Done():
-		log.Info("shutting down")
-		sctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
-		if err := hs.Shutdown(sctx); err != nil {
-			log.Error("shutdown", "err", err)
-		}
-		if err := srv.Close(sctx); err != nil {
+	go checker.Run(ctx)
+	return runHTTP(ctx, cfg, log, app, func(sctx context.Context) {
+		if err := app.Close(sctx); err != nil {
 			log.Error("analytics final flush", "err", err)
 		}
+	})
+}
+
+// uiFS is the embedded UI, or ui/ from disk in development mode when run
+// from a checkout (live templates and assets).
+func uiFS(cfg *config.Config) fs.FS {
+	if cfg.Dev {
+		if _, err := os.Stat("ui/admin/templates"); err == nil {
+			return os.DirFS("ui")
+		}
 	}
-	return nil
+	return ui.FS
+}
+
+// runHTTP serves h on SAP13NS_LISTEN until ctx ends or the server fails.
+// Then it shuts the HTTP server down and calls closeApp, in every case.
+func runHTTP(ctx context.Context, cfg *config.Config, log *slog.Logger, h http.Handler, closeApp func(context.Context)) error {
+	ln, err := listen(cfg.Listen, cfg.SocketGroup)
+	if err == nil {
+		hs := &http.Server{
+			Handler:           h,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       2 * time.Minute, // large uploads on slow links
+			WriteTimeout:      2 * time.Minute,
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    64 << 10,
+			ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
+			BaseContext:       func(net.Listener) context.Context { return ctx },
+		}
+		errc := make(chan error, 1)
+		go func() {
+			log.Info("sap13ns listening", "addr", cfg.Listen, "url", cfg.BaseURL.String(), "version", web.Version)
+			errc <- hs.Serve(ln)
+		}()
+		select {
+		case err = <-errc:
+			if errors.Is(err, http.ErrServerClosed) {
+				err = nil
+			}
+		case <-ctx.Done():
+			log.Info("shutting down")
+			sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+			defer cancel()
+			if err := hs.Shutdown(sctx); err != nil {
+				log.Error("shutdown", "err", err)
+			}
+		}
+	}
+	sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+	defer cancel()
+	closeApp(sctx)
+	return err
 }
 
 // listen supports "host:port" and "unix:/path/to.sock" (recommended behind nginx).

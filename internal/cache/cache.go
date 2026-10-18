@@ -32,6 +32,9 @@ func New(maxEntries, maxBytes int, ttl time.Duration) *Cache {
 	return &Cache{entries: map[string]*Entry{}, max: maxEntries, ttl: ttl, maxSize: maxBytes}
 }
 
+// Limits returns the maximum number of entries and of body bytes.
+func (c *Cache) Limits() (entries, bytes int) { return c.max, c.maxSize }
+
 // Generation identifies the current content version (useful as an ETag salt).
 func (c *Cache) Generation() uint64 { return c.gen.Load() }
 

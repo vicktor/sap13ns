@@ -316,7 +316,7 @@ func (s *Server) startAIJob(u *store.User, kind string, run func(ctx context.Con
 	}
 	s.ai.jobs[j.ID] = j
 	s.ai.mu.Unlock()
-	go func() {
+	s.goJob(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		res, err := run(ctx)
@@ -326,7 +326,7 @@ func (s *Server) startAIJob(u *store.User, kind string, run func(ctx context.Con
 			j.Error = s.aiErrorMessage(err)
 		}
 		s.ai.mu.Unlock()
-	}()
+	})
 	return j
 }
 

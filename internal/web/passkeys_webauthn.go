@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,19 +23,28 @@ const passkeysAvailable = true
 // webAuthn returns the relying party configuration. The RP ID is the host of
 // SAP13NS_BASE_URL and the only accepted origin is the base URL origin, so a
 // passkey created for one site never works on another (or on a look-alike
-// phishing domain). Built per request because the display name follows the
-// site title setting; validation is cheap.
+// phishing domain). A site of a network has the RP ID and origins of its
+// configuration instead (config.ForSite): the RP ID stays its default
+// subdomain when the primary host changes. Built per request because the
+// display name follows the site title setting; validation is cheap.
 func (s *Server) webAuthn() (*webauthn.WebAuthn, error) {
 	base := s.cfg.BaseURL
 	name := strings.TrimSpace(s.settings().SiteTitle)
 	if name == "" {
 		name = "sap13ns"
 	}
+	rpID, origins := base.Hostname(), []string{base.Scheme + "://" + base.Host}
+	if s.cfg.PasskeyRPID != "" {
+		rpID = s.cfg.PasskeyRPID
+	}
+	if len(s.cfg.PasskeyOrigins) > 0 {
+		origins = slices.Clone(s.cfg.PasskeyOrigins)
+	}
 	timeout := webauthn.TimeoutConfig{Enforce: true, Timeout: ceremonyTTL, TimeoutUVD: ceremonyTTL}
 	return webauthn.New(&webauthn.Config{
-		RPID:                  base.Hostname(),
+		RPID:                  rpID,
 		RPDisplayName:         name,
-		RPOrigins:             []string{base.Scheme + "://" + base.Host},
+		RPOrigins:             origins,
 		AttestationPreference: protocol.PreferNoAttestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			RequireResidentKey: protocol.ResidentKeyRequired(),

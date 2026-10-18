@@ -4,11 +4,13 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"sap13ns/internal/analytics"
+	"sap13ns/internal/store"
 )
 
 // Cookie-less analytics (internal/analytics). cached() records every public
@@ -25,7 +27,7 @@ func (s *Server) newStats() *analytics.Collector {
 		// Stable per install, so that a restart keeps today's unique
 		// visitors comparable; the daily salt still rotates in memory.
 		SiteSalt: s.keys.SignBytes([]byte("analytics visitor salt")),
-		Hosts:    []string{s.cfg.BaseURL.Hostname()},
+		Hosts:    append([]string{s.cfg.BaseURL.Hostname()}, s.hosts...),
 		Disabled: s.settings().AnalyticsOff,
 	})
 }
@@ -39,17 +41,18 @@ func (s *Server) recordView(r *http.Request, status int, contentType string) {
 	s.stats.Record(r, s.langPath(lang, r.URL.Path), cmp.Or(lang, s.mainLang()))
 }
 
-// Close flushes what the analytics collector holds in memory. Call it after
-// the HTTP server has shut down.
+// Close flushes what the analytics collector and the redirect hit counters
+// hold in memory. Call it after the HTTP server has shut down.
 func (s *Server) Close(ctx context.Context) error {
+	s.flushRedirectHits(ctx)
 	return s.stats.Close(ctx)
 }
 
-func (s *Server) pruneStats(ctx context.Context) {
-	if n, err := analytics.Prune(ctx, s.store.DB, time.Now().Add(-statsRetention)); err != nil {
-		s.log.Error("prune analytics", "err", err)
+func pruneStats(ctx context.Context, st *store.Store, log *slog.Logger) {
+	if n, err := analytics.Prune(ctx, st.DB, time.Now().Add(-statsRetention)); err != nil {
+		log.Error("prune analytics", "err", err)
 	} else if n > 0 {
-		s.log.Info("old analytics pruned", "rows", n)
+		log.Info("old analytics pruned", "rows", n)
 	}
 }
 

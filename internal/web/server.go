@@ -3,6 +3,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -80,6 +81,10 @@ type Server struct {
 	plug pluginWebState // plugin assets, forms and CSP sources (plugin_web.go)
 
 	custom customCache // published theme designs (customize.go)
+
+	network NetworkHooks // nil on a single-site install
+	hosts   []string     // other host names of this site (multisite aliases)
+	jobs    atomic.Int32 // background jobs started by requests (Busy)
 }
 
 type Deps struct {
@@ -89,9 +94,32 @@ type Deps struct {
 	UI      fs.FS
 	Plugins *plugin.Host
 	Mailer  *mail.Mailer
+
+	// Set by a network for each of its sites; nil and zero on a
+	// single-site install, which keeps today's behaviour.
+	Network    NetworkHooks
+	Hosts      []string // other routed host names of the site, for analytics referrers
+	CacheSizes CacheSizes
+}
+
+// NetworkHooks connect the server of one site to the network that runs it
+// (internal/network). A site of a network never uses the web installer:
+// its users come from the network.
+type NetworkHooks interface {
+	// Wakeup asks the network to load the site at at, when a scheduled
+	// post is due, in case it is unloaded by then.
+	Wakeup(ctx context.Context, at time.Time)
+}
+
+// CacheSizes bound the in-memory caches of a server. Zero fields keep the
+// single-site defaults; a network gives each site smaller ones.
+type CacheSizes struct {
+	Pages, PagesBytes     int // rendered public responses
+	Content, ContentBytes int // rendered post bodies
 }
 
 func New(ctx context.Context, d Deps) (*Server, error) {
+	cs := d.CacheSizes
 	s := &Server{
 		cfg:        d.Config,
 		log:        d.Log,
@@ -100,9 +128,11 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		ui:         d.UI,
 		plugins:    d.Plugins,
 		mailer:     d.Mailer,
+		network:    d.Network,
+		hosts:      d.Hosts,
 		media:      &media.Processor{Dir: d.Config.UploadsDir, MaxBytes: d.Config.MaxUploadBytes},
-		pages:      cache.New(2000, 64<<20, 2*time.Minute),
-		content:    cache.New(1000, 32<<20, 24*time.Hour),
+		pages:      cache.New(cmp.Or(cs.Pages, 2000), cmp.Or(cs.PagesBytes, 64<<20), 2*time.Minute),
+		content:    cache.New(cmp.Or(cs.Content, 1000), cmp.Or(cs.ContentBytes, 32<<20), 24*time.Hour),
 		loginIP:    auth.NewLimiter(20, 15*time.Minute),
 		loginUser:  auth.NewLimiter(8, 15*time.Minute),
 		mfaUser:    auth.NewLimiter(6, 15*time.Minute),
@@ -146,8 +176,10 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	if s.admin, err = newAdminTemplates(d.UI, funcs, d.Config.Dev); err != nil {
 		return nil, err
 	}
-	if err := s.prepareSetup(ctx); err != nil {
-		return nil, err
+	if s.network == nil {
+		if err := s.prepareSetup(ctx); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -205,12 +237,26 @@ func (s *Server) prepareSetup(ctx context.Context) error {
 	return nil
 }
 
-// Background runs periodic maintenance until ctx is cancelled.
-func (s *Server) Background(ctx context.Context) {
-	go s.plugins.RunCron(ctx)
-	go s.stats.Run(ctx)
-	go s.assistant().Run(ctx)
-	go func() {
+// BackgroundOptions choose the loops Background runs besides analytics,
+// the assistant index, redirect hits and scheduled posts. A single-site
+// install runs both; a network drives them from its registry instead, for
+// loaded and unloaded sites alike.
+type BackgroundOptions struct {
+	Cron        bool // the plugins' cron.hourly event
+	Maintenance bool // Maintain every 30 minutes
+}
+
+// Background runs periodic work until ctx is cancelled, and returns once
+// every loop it started has stopped.
+func (s *Server) Background(ctx context.Context, opt BackgroundOptions) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	if opt.Cron {
+		wg.Go(func() { s.plugins.RunCron(ctx) })
+	}
+	wg.Go(func() { s.stats.Run(ctx) })
+	wg.Go(func() { s.assistant().Run(ctx) })
+	wg.Go(func() {
 		t := time.NewTicker(time.Minute)
 		defer t.Stop()
 		for {
@@ -220,29 +266,59 @@ func (s *Server) Background(ctx context.Context) {
 				return
 			case <-t.C:
 				s.flushRedirectHits(ctx)
-				s.announceDue(ctx)
+				s.AnnounceDue(ctx)
 			}
 		}
-	}()
+	})
+	if !opt.Maintenance {
+		<-ctx.Done()
+		return
+	}
 	t := time.NewTicker(30 * time.Minute)
 	defer t.Stop()
 	for {
-		idle := time.Duration(s.settings().IdleHours) * time.Hour
-		if n, err := s.store.PurgeExpired(ctx, idle); err != nil {
-			s.log.Error("purge sessions", "err", err)
-		} else if n > 0 {
-			s.log.Info("expired sessions purged", "count", n)
-		}
-		if err := s.store.PruneAudit(ctx, 365); err != nil {
-			s.log.Error("prune audit log", "err", err)
-		}
-		s.pruneStats(ctx)
+		s.Maintain(ctx)
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
 	}
+}
+
+// Maintain purges expired sessions and prunes the audit log and old
+// analytics.
+func (s *Server) Maintain(ctx context.Context) {
+	Maintain(ctx, s.store, s.settings(), s.log)
+}
+
+// Maintain is the periodic cleanup of one site's store, with its settings.
+// A network runs it over every site schema without loading their servers.
+func Maintain(ctx context.Context, st *store.Store, set store.Settings, log *slog.Logger) {
+	idle := time.Duration(set.IdleHours) * time.Hour
+	if n, err := st.PurgeExpired(ctx, idle); err != nil {
+		log.Error("purge sessions", "err", err)
+	} else if n > 0 {
+		log.Info("expired sessions purged", "count", n)
+	}
+	if err := st.PruneAudit(ctx, 365); err != nil {
+		log.Error("prune audit log", "err", err)
+	}
+	pruneStats(ctx, st, log)
+}
+
+// Busy reports whether a job started by a request still runs (an import,
+// an AI job, an index rebuild, a WebSub ping). A network does not unload
+// a busy site.
+func (s *Server) Busy() bool { return s.jobs.Load() > 0 }
+
+// goJob runs fn in the background as a job Busy reports.
+func (s *Server) goJob(fn func()) {
+	s.jobs.Add(1)
+	go func() {
+		defer s.jobs.Add(-1)
+		fn()
+	}()
 }
 
 func hashFiles(fsys fs.FS, dir string) map[string]string {

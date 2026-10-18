@@ -832,18 +832,9 @@ type dryCall struct {
 func (h *Host) dryRun(ctx context.Context, rep *Report, m *Manifest, compiled wazero.CompiledModule) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	p := &Plugin{Manifest: *m, Status: StatusEnabled, compiled: compiled, pool: make(chan *instance, maxInstances), dryRun: true}
-	defer func() {
-		p.retired.Store(true)
-		for {
-			select {
-			case inst := <-p.pool:
-				inst.mod.Close(context.Background())
-			default:
-				return
-			}
-		}
-	}()
+	p := &Plugin{Manifest: *m, Status: StatusEnabled, compiled: compiled, maxInst: h.maxInstances,
+		pool: make(chan *instance, h.maxInstances), dryRun: true}
+	defer p.retire(context.Background())
 
 	inst, err := p.acquire(ctx, h)
 	if err != nil {

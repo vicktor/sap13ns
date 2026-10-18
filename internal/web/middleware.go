@@ -189,6 +189,12 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	if s.cfg.BaseURL.Scheme == "https" {
 		policy += "; upgrade-insecure-requests"
 	}
+	hsts := "max-age=63072000; includeSubDomains"
+	if s.cfg.HSTSNoSubdomains {
+		// A site on a customer's domain must not force HTTPS on the
+		// customer's other hosts.
+		hsts = "max-age=63072000"
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		if strings.HasPrefix(r.URL.Path, "/admin") {
@@ -202,7 +208,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=(), interest-cohort=()")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		if s.cfg.HSTS {
-			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+			h.Set("Strict-Transport-Security", hsts)
 		}
 		next.ServeHTTP(w, r)
 	})

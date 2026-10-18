@@ -154,7 +154,7 @@ func (s *Server) pingWebSub() {
 	if hub == "" {
 		return
 	}
-	go func() {
+	s.goJob(func() {
 		client := &http.Client{Timeout: 10 * time.Second}
 		var feeds []string
 		for _, l := range s.siteLangs() {
@@ -171,5 +171,5 @@ func (s *Server) pingWebSub() {
 			}
 			resp.Body.Close()
 		}
-	}()
+	})
 }

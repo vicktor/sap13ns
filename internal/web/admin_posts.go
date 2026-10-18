@@ -546,6 +546,9 @@ func (s *Server) afterPostSave(r *http.Request, id int64, oldStatus, newStatus s
 		}
 	case p.IsScheduled(time.Now()):
 		pending(true)
+		if s.network != nil && p.PublishedAt != nil {
+			s.network.Wakeup(ctx, *p.PublishedAt)
+		}
 	default:
 		// Live: announced if it was not published before, or was scheduled.
 		claimed, err := s.store.ClaimAnnouncement(ctx, id)
@@ -568,8 +571,11 @@ func (s *Server) announce(p *store.Post) {
 	}
 }
 
-// announceDue announces the scheduled posts whose date has arrived. It runs
-// every minute; the claim is atomic, so each post is announced once.
+// AnnounceDue announces the scheduled posts whose date has arrived. The
+// server runs it every minute, and a network for the sites it wakes; the
+// claim is atomic, so each post is announced once.
+func (s *Server) AnnounceDue(ctx context.Context) { s.announceDue(ctx) }
+
 func (s *Server) announceDue(ctx context.Context) {
 	ids, err := s.store.ClaimDueAnnouncements(ctx)
 	if err != nil {
