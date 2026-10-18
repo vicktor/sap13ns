@@ -76,22 +76,12 @@ link that already contains an `sr-only` element gets no second one.
 
 ## Host compatibility
 
-The server sanitizes the HTML returned by every plugin. With the current
-sanitizer policy (`internal/content/markdown.go`):
-
-- `rel` and `target` are not in the list of allowed attributes, so they are
-  removed from the plugin's output, and the sanitizer then adds
-  `rel="nofollow"` to every link (including internal ones). Until the policy
-  allows `rel` (space-separated tokens) and `target="_blank"` on `<a>`, only
-  the UTM parameters and the hidden text survive. Keep `new_tab` off until
-  then: the hidden text would announce a new tab that does not open.
-- `tel:` links lose their `href` (the scheme is not allowed); the plugin skips
-  them anyway.
-- The whole document is sanitized again after every `content.filter` plugin,
-  and `<svg>` is not allowed, so icons expanded earlier (by shortcodes or other
-  filters) would be lost. When the plugin returns HTML it turns those Lucide
-  SVGs back into `<span data-icon="…">` placeholders, which the server expands
-  again.
+The server sanitizes the HTML returned by every plugin. Hosts since fa06d1a
+keep `rel` (space-separated tokens) and `target="_blank"` on links and no
+longer add `rel="nofollow"` to every link; older hosts strip both, so only
+the UTM parameters and the hidden text survive there. On those hosts keep
+`new_tab` off: the hidden text would announce a new tab that does not open.
+`tel:` links are skipped.
 
 ## Build and install
 

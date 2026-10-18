@@ -34,10 +34,10 @@ falling back to the site language:
 | Marker | Title (en / es) | `data-category` | Icon |
 | --- | --- | --- | --- |
 | `[!NOTE]` | Note / Nota | `info` | `info` |
-| `[!TIP]` | Tip / Consejo | `success` | `sparkles` |
-| `[!IMPORTANT]` | Important / Importante | `important` | `message-square` |
+| `[!TIP]` | Tip / Consejo | `success` | `lightbulb` |
+| `[!IMPORTANT]` | Important / Importante | `important` | `message-square-warning` |
 | `[!WARNING]` | Warning / Advertencia | `warning` | `triangle-alert` |
-| `[!CAUTION]` | Caution / Precaución | `error` (+ `data-variant="destructive"`) | `circle-alert` |
+| `[!CAUTION]` | Caution / Precaución | `error` (+ `data-variant="destructive"`) | `octagon-alert` |
 
 The themes colour the icon from `data-category` (`success`, `warning`,
 `error`); the `markdown-alert-*` classes match GitHub's for custom CSS.
@@ -79,16 +79,13 @@ skipped, and `[kbd]` wraps the key in `<span class="kbd">` (see below).
 
 ## Host compatibility
 
-- The sanitizer does not allow `<kbd>` in plugin output and keeps only its
-  text, so the styled `kbd` class sits on a `<span>` around it; the inner
-  `<kbd>` keeps its meaning once the policy allows it.
-- The whole document is sanitized again after every `content.filter` plugin,
-  and `<svg>` is not allowed, so icons expanded earlier (by shortcodes or other
-  filters) would be lost. When the plugin returns HTML it turns those Lucide
-  SVGs back into `<span data-icon="…">` placeholders, which the server expands
-  again.
-- The Lucide set embedded in the server has no `lightbulb` or `octagon-alert`
-  (GitHub's TIP and CAUTION icons), hence `sparkles` and `circle-alert`.
+- Hosts before fa06d1a dropped `<kbd>` from plugin output and kept only its
+  text, so the styled `kbd` class sits on a `<span>` around it.
+- Those hosts also sanitised the whole document after every `content.filter`
+  plugin without keeping icons, so any icon expanded earlier was lost. When
+  the plugin returns HTML it still turns Lucide SVGs back into
+  `<span data-icon="…">` placeholders. Current hosts keep placeholders until
+  every filter has run, so this step changes nothing there.
 
 ## Build and install
 

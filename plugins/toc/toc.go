@@ -2,7 +2,7 @@
 //
 // Filter collects the h2–h4 headings of the rendered HTML, gives the ones
 // without an id a stable, unique, transliterated slug, and inserts an
-// <aside class="card toc"> with a nested ordered list after the first
+// <nav class="card toc"> with a nested ordered list after the first
 // paragraph, or where the author wrote a [toc] marker. Headings inside code,
 // quotes, callouts and other boxed content are ignored.
 //
@@ -181,19 +181,19 @@ func Filter(src string, o Options) (string, bool) {
 // previous heading of a higher level, so skipped levels (h2 → h4) only
 // indent once and a document starting at h3 still works.
 func buildTOC(hs []heading, ids []string, title string) *html.Node {
-	aside := element(atom.Aside, "class", "card toc", "aria-label", ariaLabel(title))
+	nav := element(atom.Nav, "class", "card toc", "aria-label", ariaLabel(title))
 	header := element(atom.Header)
 	strong := element(atom.Strong)
 	strong.AppendChild(&html.Node{Type: html.TextNode, Data: title})
 	header.AppendChild(strong)
-	aside.AppendChild(header)
+	nav.AppendChild(header)
 
 	type frame struct {
 		level int
 		item  *html.Node // the <li> of that heading; nil for the root
 	}
 	top := element(atom.Ol)
-	aside.AppendChild(top)
+	nav.AppendChild(top)
 	stack := []frame{{level: 0}}
 	for i, h := range hs {
 		for len(stack) > 1 && stack[len(stack)-1].level >= h.level {
@@ -215,7 +215,7 @@ func buildTOC(hs []heading, ids []string, title string) *html.Node {
 		list.AppendChild(li)
 		stack = append(stack, frame{level: h.level, item: li})
 	}
-	return aside
+	return nav
 }
 
 // skipped reports whether headings inside n belong to quoted, code or boxed

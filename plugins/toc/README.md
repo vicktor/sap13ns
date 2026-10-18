@@ -53,7 +53,7 @@ anything else English), falling back to the site language.
 becomes (with `min_headings` = 3, Spanish post)
 
 ```html
-<p>Intro</p><aside class="card toc" aria-label="Índice"><header><strong>Índice</strong></header><ol><li><a href="#setup">Setup</a><ol><li><a href="#requisitos">Requisitos</a></li></ol></li><li><a href="#instalacion">Instalación</a></li></ol></aside>
+<p>Intro</p><nav class="card toc" aria-label="Índice"><header><strong>Índice</strong></header><ol><li><a href="#setup">Setup</a><ol><li><a href="#requisitos">Requisitos</a></li></ol></li><li><a href="#instalacion">Instalación</a></li></ol></nav>
 <h2 id="setup">Setup</h2>
 <h3 id="requisitos">Requisitos</h3>
 <h2 id="instalacion">Instalación</h2>
@@ -68,21 +68,12 @@ The table uses Basecoat's `card` component, which every theme styles, plus the
 
 ## Host compatibility
 
-- The sanitizer does not allow `<nav>` in plugin output (it would be removed,
-  leaving a bare list), so the table is an `<aside>` labelled with the title.
-  Switch the element in `buildTOC` once the policy allows `nav`.
-- The Markdown renderer already gives every heading an id, and drops letters
-  with accents while doing so (`Detalle técnico` → `detalle-tcnico`). Because
-  existing ids are kept, the plugin's own slugs are only used for headings
-  without an id (raw HTML from other plugins, or if the server stops
-  generating them).
-- The sanitizer adds `rel="nofollow"` to every link, including the table's
-  `#anchor` links. It is harmless here.
-- The whole document is sanitized again after every `content.filter` plugin,
-  and `<svg>` is not allowed, so icons expanded earlier (by shortcodes or other
-  filters) would be lost. When the plugin returns HTML it turns those Lucide
-  SVGs back into `<span data-icon="…">` placeholders, which the server expands
-  again.
+- The table is a `<nav>`, which hosts allow in plugin output since fa06d1a.
+  Older hosts remove it and leave a bare list.
+- The Markdown renderer gives every heading an id; hosts since fa06d1a fold
+  accents (`Detalle técnico` → `detalle-tecnico`). Existing ids are kept, so
+  the plugin's own slugs are only used for headings without one (raw HTML
+  from other plugins).
 
 ## Build and install
 

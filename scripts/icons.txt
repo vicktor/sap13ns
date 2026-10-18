@@ -69,6 +69,7 @@ languages
 layers
 layout-dashboard
 layout-grid
+lightbulb
 link
 link-2
 list
@@ -79,13 +80,16 @@ log-in
 log-out
 mail
 map-pin
+megaphone
 menu
 message-circle
 message-square
+message-square-warning
 minus
 monitor
 moon
 newspaper
+octagon-alert
 package
 palette
 panel-left

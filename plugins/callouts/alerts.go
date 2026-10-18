@@ -16,10 +16,10 @@ type alertKind struct {
 // alertKinds follows GitHub's five alert types.
 var alertKinds = map[string]alertKind{
 	"note":      {"info", "info", "Note", "Nota"},
-	"tip":       {"success", "sparkles", "Tip", "Consejo"},
-	"important": {"important", "message-square", "Important", "Importante"},
+	"tip":       {"success", "lightbulb", "Tip", "Consejo"},
+	"important": {"important", "message-square-warning", "Important", "Importante"},
 	"warning":   {"warning", "triangle-alert", "Warning", "Advertencia"},
-	"caution":   {"error", "circle-alert", "Caution", "Precaución"},
+	"caution":   {"error", "octagon-alert", "Caution", "Precaución"},
 }
 
 // FilterAlerts turns blockquotes whose first line is [!NOTE], [!TIP],

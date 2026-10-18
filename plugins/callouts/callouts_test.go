@@ -82,10 +82,10 @@ func TestFilterAlerts(t *testing.T) {
 			in: "<blockquote><p>[!TIP]\na</p></blockquote><blockquote><p>[!IMPORTANT]\nb</p></blockquote>" +
 				"<blockquote><p>[!WARNING]\nc</p></blockquote><blockquote><p>[!CAUTION]\nd</p></blockquote>",
 			lang: "es",
-			want: `<div class="alert markdown-alert markdown-alert-tip" role="note" data-category="success"><span data-icon="sparkles"></span><strong>Consejo</strong><section><p>a</p></section></div>` +
-				`<div class="alert markdown-alert markdown-alert-important" role="note" data-category="important"><span data-icon="message-square"></span><strong>Importante</strong><section><p>b</p></section></div>` +
+			want: `<div class="alert markdown-alert markdown-alert-tip" role="note" data-category="success"><span data-icon="lightbulb"></span><strong>Consejo</strong><section><p>a</p></section></div>` +
+				`<div class="alert markdown-alert markdown-alert-important" role="note" data-category="important"><span data-icon="message-square-warning"></span><strong>Importante</strong><section><p>b</p></section></div>` +
 				`<div class="alert markdown-alert markdown-alert-warning" role="note" data-category="warning"><span data-icon="triangle-alert"></span><strong>Advertencia</strong><section><p>c</p></section></div>` +
-				`<div class="alert markdown-alert markdown-alert-caution" role="note" data-category="error" data-variant="destructive"><span data-icon="circle-alert"></span><strong>Precaución</strong><section><p>d</p></section></div>`,
+				`<div class="alert markdown-alert markdown-alert-caution" role="note" data-category="error" data-variant="destructive"><span data-icon="octagon-alert"></span><strong>Precaución</strong><section><p>d</p></section></div>`,
 		},
 		{
 			name: "regional Spanish",
