@@ -26,6 +26,8 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/sys"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 // The scanner inspects a plugin before it is installed: manifest, module
@@ -515,23 +517,19 @@ func (ss *stringScan) harmlessHost(host string) bool {
 // grantedRunOn reports whether host is a granted host followed directly by
 // the next string in the module ("bsky.social" + "embedded"), which
 // trimRunOn cannot cut when the top-level domain is not a common one. The
-// text after the granted host must have no dot: "bsky.social.evil.net" is
-// another host.
+// cut is made inside the last label and checked with hostAllowed. It is
+// refused when the whole last label is a real top-level domain:
+// "example.co" + "m" is example.com, another host.
 func (ss *stringScan) grantedRunOn(host string) bool {
-	for _, g := range ss.httpGrants {
-		pat := strings.TrimPrefix(g, PermHTTP)
-		rest := ""
-		switch {
-		case pat == "*":
-			return true
-		case strings.HasPrefix(pat, "*."):
-			if i := strings.Index(host, pat[1:]); i > 0 {
-				rest = host[i+len(pat)-1:]
-			}
-		case strings.HasPrefix(host, pat):
-			rest = host[len(pat):]
-		}
-		if rest != "" && !strings.Contains(rest, ".") {
+	dot := strings.LastIndexByte(host, '.')
+	if dot < 0 || len(ss.httpGrants) == 0 {
+		return false
+	}
+	if _, icann := publicsuffix.PublicSuffix(host[dot+1:]); icann {
+		return false
+	}
+	for k := len(host) - 1; k > dot+1; k-- {
+		if hostAllowed(ss.httpGrants, host[:k]) {
 			return true
 		}
 	}
