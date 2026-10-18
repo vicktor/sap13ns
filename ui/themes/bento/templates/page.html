@@ -1,0 +1,17 @@
+{{define "content"}}
+{{with .Post}}
+<div class="wrap page-narrow">
+  <article class="reading-article" aria-labelledby="page-title">
+    <header class="tile tile-tint title-tile">
+      <p class="tile-label">{{icon "file-text"}}<span>{{$.Site.Title}}</span></p>
+      <h1 id="page-title" class="title-h1">{{.Title}}</h1>
+      {{if $.IsFront}}{{with .Summary}}<p class="title-dek">{{.}}</p>{{end}}{{end}}
+    </header>
+    <div class="tile reading-tile{{if .Image}} has-image{{end}}">
+      {{if .Image}}{{template "shared/featured-image" .}}{{end}}
+      {{template "shared/content" .}}
+    </div>
+  </article>
+</div>
+{{end}}
+{{end}}

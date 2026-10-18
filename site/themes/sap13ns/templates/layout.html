@@ -1,0 +1,55 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}">
+<head>{{template "shared/head" .}}
+<link rel="apple-touch-icon" href="{{.Site.Static "brand/apple-touch-icon.png"}}">
+</head>
+<body class="kind-{{.Kind}}{{if .IsFront}} is-front{{end}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="{{.Site.Home}}" aria-label="{{.Site.Title}} — {{T "Home"}}">{{template "sap/mark" .}}<span class="brand-name">{{.Site.Title}}</span></a>
+    <nav class="primary-nav" aria-label="{{T "Main menu"}}">
+      <ul id="primary-menu" class="primary-menu">
+        {{template "shared/menu" (.Site.Menu "primary")}}
+        {{range $i, $l := .Site.Menu "cta"}}{{if eq $i 0}}<li class="menu-cta"><a href="{{$l.URL}}">{{$l.Label}}</a></li>{{end}}{{end}}
+      </ul>
+    </nav>
+    <div class="header-actions">
+      <a class="icon-btn" href="{{.Site.Search}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>
+      {{template "shared/lang-switch" .}}
+      {{template "shared/theme-toggle"}}
+      {{range $i, $l := .Site.Menu "cta"}}{{if eq $i 0}}<a class="button button-primary button-sm header-cta" href="{{$l.URL}}">{{$l.Label}}</a>{{end}}{{end}}
+      {{template "shared/nav-toggle" "primary-menu"}}
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="{{.Site.Home}}">{{template "sap/mark" .}}<span class="brand-name">{{.Site.Title}}</span></a>
+        {{with .Site.Tagline}}<p class="footer-tagline">{{.}}</p>{{end}}
+        <p class="footer-links">
+          <a href="https://github.com/vicktor/sap13ns" rel="noopener">{{icon "code"}}<span>GitHub</span></a>
+          <a href="{{.Site.FeedRSS}}" type="application/rss+xml">{{icon "rss"}}<span>RSS</span></a>
+        </p>
+      </div>
+      {{with .Site.Menu "footer"}}
+      <nav class="footer-nav" aria-label="{{T "Footer menu"}}">
+        <ul>{{template "shared/menu" .}}</ul>
+      </nav>
+      {{end}}
+    </div>
+    <div class="footer-bottom">
+      {{template "shared/footer-meta" .}}
+      <p class="powered"><a href="https://sap13ns.site">{{template "sap/mark" .}}<span>Powered by sap13ns</span></a></p>
+    </div>
+  </div>
+</footer>
+</body>
+</html>{{end}}

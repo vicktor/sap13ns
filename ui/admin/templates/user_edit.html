@@ -1,0 +1,113 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$u := $d.User}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/users">{{icon "arrow-left" "size-3.5"}} {{T "Users"}}</a></p>
+    <h1>{{if $d.New}}{{T "New user"}}{{else}}{{$u.Name}} <span class="muted text-base font-normal">@{{$u.Username}}</span>{{end}}</h1>
+  </div>
+</div>
+{{template "form-error" $d.Error}}
+<div class="split">
+  <section class="card">
+    <section>
+      <form method="post" action="{{if $d.New}}/admin/users/new{{else}}/admin/users/{{$u.ID}}{{end}}" class="form" data-unsaved>
+        {{.CSRFField}}
+        {{if $d.New}}
+        <div class="field">
+          <label for="username">{{T "Username"}}</label>
+          <input class="input" id="username" name="username" value="{{$u.Username}}" required minlength="3" maxlength="32" pattern="[a-z0-9][a-z0-9_.\-]{2,31}" autocapitalize="none" spellcheck="false" autocomplete="off">
+        </div>
+        {{end}}
+        <div class="grid-2">
+          <div class="field"><label for="display_name">{{T "Public name"}}</label><input class="input" id="display_name" name="display_name" value="{{$u.DisplayName}}" maxlength="100"></div>
+          <div class="field"><label for="email">{{T "E-mail"}}</label><input class="input" id="email" name="email" type="email" value="{{$u.Email}}" required maxlength="254"></div>
+        </div>
+        {{if not $d.New}}
+        <div class="field"><label for="website">{{T "Website"}}</label><input class="input" id="website" name="website" type="url" value="{{$u.Website}}" maxlength="300" placeholder="https://"></div>
+        <div class="field"><label for="bio">{{T "Biography"}}</label><textarea class="textarea" id="bio" name="bio" rows="3" maxlength="2000">{{$u.Bio}}</textarea></div>
+        {{end}}
+        <div class="grid-2">
+          <div class="field">
+            <label for="role">{{T "Role"}}</label>
+            <select class="select w-full" id="role" name="role"{{if $d.Self}} disabled{{end}}>
+              {{range $d.Roles}}<option value="{{.}}"{{if eq . $u.Role}} selected{{end}}>{{roleLabel .}}</option>{{end}}
+            </select>
+            {{if $d.Self}}<p class="hint">{{T "You cannot change your own role."}}</p>{{end}}
+          </div>
+          {{if not $d.New}}
+          <div class="field">
+            <label for="status">{{T "Account"}}</label>
+            <select class="select w-full" id="status" name="status"{{if $d.Self}} disabled{{end}}>
+              <option value="active"{{if eq $u.Status "active"}} selected{{end}}>{{T "Active"}}</option>
+              <option value="disabled"{{if eq $u.Status "disabled"}} selected{{end}}>{{T "Disabled (cannot log in)"}}</option>
+            </select>
+          </div>
+          {{end}}
+        </div>
+        <details class="role-help">
+          <summary>{{icon "info" "size-4"}} {{T "What can each role do?"}}</summary>
+          <ul>
+            <li><strong>{{roleLabel "admin"}}</strong>: {{T "everything, including users, plugins and settings."}}</li>
+            <li><strong>{{roleLabel "editor"}}</strong>: {{T "publishes and manages everyone's content, comments, pages and appearance."}}</li>
+            <li><strong>{{roleLabel "author"}}</strong>: {{T "writes and publishes their own posts and uploads files."}}</li>
+            <li><strong>{{roleLabel "contributor"}}</strong>: {{T "writes posts that an editor must approve."}}</li>
+            <li><strong>{{roleLabel "subscriber"}}</strong>: {{T "manages their profile and comments."}}</li>
+          </ul>
+        </details>
+        <fieldset class="fieldset">
+          <legend>{{if $d.New}}{{T "Password"}}{{else}}{{T "Set a new password"}}{{end}}</legend>
+          <div class="grid-2">
+            <div class="field"><label for="password">{{T "Password"}}</label><input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="256"{{if $d.New}} required{{end}} data-strength="pw-strength"></div>
+            <div class="field"><label for="password_confirm">{{T "Repeat the password"}}</label><input class="input" id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" maxlength="256"{{if $d.New}} required{{end}}></div>
+          </div>
+          <div class="strength" id="pw-strength" aria-live="polite"><span></span></div>
+          {{if not $d.New}}<p class="hint">{{T "Leave empty to keep the current password. Changing it closes the user's sessions."}}</p>{{end}}
+        </fieldset>
+        <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{if $d.New}}{{T "Create user"}}{{else}}{{T "Save"}}{{end}}</button></div>
+      </form>
+    </section>
+  </section>
+
+  {{if not $d.New}}
+  <div class="stack">
+    <section class="card">
+      <header><h2>{{T "Security"}}</h2></header>
+      <section>
+        <dl class="meta-list">
+          <div><dt>{{T "Registered"}}</dt><dd>{{shortDate $u.CreatedAt}}</dd></div>
+          <div><dt>{{T "Last login"}}</dt><dd>{{if $u.LastLoginAt}}{{dateTime $u.LastLoginAt}}{{else}}—{{end}}</dd></div>
+          <div><dt>{{T "Two-factor"}}</dt><dd>{{if $u.TOTPEnabled}}<span class="text-success">{{T "Enabled"}}</span>{{else if $u.PasskeyCount}}<span class="text-success">{{T "Passkey"}}</span>{{else}}{{T "Not enabled"}}{{end}}</dd></div>
+          {{if $u.PasskeyCount}}<div><dt>{{T "Passkeys"}}</dt><dd>{{$u.PasskeyCount}}</dd></div>{{end}}
+          <div><dt>{{T "Active sessions"}}</dt><dd>{{len $d.Sessions}}</dd></div>
+          {{if $u.LockedUntil}}{{if $u.LockedUntil.After now}}<div><dt>{{T "Locked until"}}</dt><dd class="text-destructive">{{dateTime $u.LockedUntil}}</dd></div>{{end}}{{end}}
+        </dl>
+      </section>
+      <footer class="stack-actions">
+        <form method="post" action="/admin/users/{{$u.ID}}/logout">{{.CSRFField}}<button class="btn w-full" data-variant="outline" data-size="sm" type="submit">{{icon "log-out"}}{{T "Close all sessions"}}</button></form>
+        {{if or $u.TOTPEnabled $u.PasskeyCount}}<form method="post" action="/admin/users/{{$u.ID}}/reset-2fa">{{.CSRFField}}<button class="btn w-full" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Disable two-factor authentication and delete the passkeys of this user? Do it only if they lost their device."}}">{{icon "shield"}}{{T "Reset two-factor"}}</button></form>{{end}}
+        {{if or $u.LockedUntil $u.FailedLogins}}<form method="post" action="/admin/users/{{$u.ID}}/unlock">{{.CSRFField}}<button class="btn w-full" data-variant="outline" data-size="sm" type="submit">{{icon "lock"}}{{T "Unlock account"}}</button></form>{{end}}
+      </footer>
+    </section>
+    {{if not $d.Self}}
+    <section class="card danger-zone">
+      <header><h2>{{T "Delete account"}}</h2><p>{{T "Comments stay; you can give their posts to someone else."}}</p></header>
+      <section>
+        <form method="post" action="/admin/users/{{$u.ID}}/delete" class="form">
+          {{.CSRFField}}
+          <div class="field">
+            <label for="reassign_to">{{T "Give their posts to"}}</label>
+            <select class="select w-full" id="reassign_to" name="reassign_to">
+              <option value="">{{T "Nobody (posts lose their author)"}}</option>
+              {{range $d.Others}}<option value="{{.ID}}">{{.Name}} (@{{.Username}})</option>{{end}}
+            </select>
+          </div>
+          <button class="btn" data-variant="destructive" type="submit" data-confirm="{{T "Delete @%s permanently?" $u.Username}}">{{icon "trash-2"}}{{T "Delete user"}}</button>
+        </form>
+      </section>
+    </section>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}

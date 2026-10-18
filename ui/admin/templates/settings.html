@@ -1,0 +1,144 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.S}}
+<div class="page-header">
+  <div><h1>{{T "Settings"}}</h1><p>{{T "Site-wide options. Changes apply immediately."}}</p></div>
+</div>
+{{template "form-error" $d.Error}}
+<form method="post" action="/admin/settings" class="settings" data-unsaved>
+  {{.CSRFField}}
+  <nav class="settings-nav" aria-label="{{T "Sections"}}">
+    <a href="#general">{{icon "house"}}{{T "General"}}</a>
+    <a href="#languages">{{icon "languages"}}{{T "Languages"}}</a>
+    <a href="#reading">{{icon "book-open"}}{{T "Reading"}}</a>
+    <a href="#discussion">{{icon "message-square"}}{{T "Discussion"}}</a>
+    <a href="#feeds">{{icon "rss"}}{{T "Feeds"}}</a>
+    <a href="#discovery">{{icon "bot"}}{{T "Sharing, AI & stats"}}</a>
+    <a href="#accounts">{{icon "shield-check"}}{{T "Accounts & security"}}</a>
+    <a href="/admin/settings/ai">{{icon "sparkles"}}{{T "AI assistant"}}</a>
+  </nav>
+  <div class="stack">
+    <section class="card" id="general">
+      <header><h2>{{T "General"}}</h2></header>
+      <section class="form">
+        <div class="field"><label for="site_title">{{T "Site title"}}</label><input class="input" id="site_title" name="site_title" value="{{$s.SiteTitle}}" required maxlength="120"></div>
+        <div class="field"><label for="tagline">{{T "Tagline"}}</label><input class="input" id="tagline" name="tagline" value="{{$s.Tagline}}" maxlength="250"><p class="hint">{{T "In a few words, explain what this site is about."}}</p></div>
+        <div class="grid-2">
+          <div class="field"><label for="language">{{T "Main language"}}</label>
+            <select class="select w-full" id="language" name="language">{{range $d.Languages}}<option value="{{.Code}}"{{if eq .Code $s.Language}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+            <p class="hint">{{T "Served at the root of the site. The administration uses it too."}}</p></div>
+          <div class="field"><label for="timezone">{{T "Time zone"}}</label>
+            <input class="input" id="timezone" name="timezone" value="{{$s.Timezone}}" list="zones" required maxlength="64">
+            <datalist id="zones">{{range $d.Zones}}<option value="{{.}}">{{end}}</datalist></div>
+        </div>
+        <div class="field"><label for="footer_text">{{T "Footer text"}}</label><textarea class="textarea" id="footer_text" name="footer_text" rows="2" maxlength="1000">{{$s.FooterText}}</textarea></div>
+      </section>
+    </section>
+
+    <section class="card" id="languages">
+      <header><h2>{{T "Languages"}}</h2><p>{{T "Publish translations of your content. Each extra language lives under its own prefix, such as /en/, with its own feeds and hreflang links."}}</p></header>
+      <section class="form">
+        <fieldset class="fieldset">
+          <legend>{{T "Extra languages"}}</legend>
+          <div class="lang-grid">
+          {{range $d.Languages}}{{$code := .Code}}{{if ne $code $s.Language}}<label class="check"><input type="checkbox" class="input" name="languages" value="{{$code}}"{{range $s.Languages}}{{if eq . $code}} checked{{end}}{{end}}> {{.Name}} <span class="muted mono">/{{$code}}/</span></label>{{end}}{{end}}
+          </div>
+        </fieldset>
+        {{range $d.Extra}}{{$t := index $s.SiteText .Code}}
+        <fieldset class="fieldset">
+          <legend>{{.Name}} <span class="muted mono">/{{.Code}}/</span></legend>
+          <div class="field"><label for="text_{{.Code}}_title">{{T "Site title"}}</label><input class="input" id="text_{{.Code}}_title" name="text_{{.Code}}_title" value="{{$t.SiteTitle}}" maxlength="120" placeholder="{{$s.SiteTitle}}"></div>
+          <div class="field"><label for="text_{{.Code}}_tagline">{{T "Tagline"}}</label><input class="input" id="text_{{.Code}}_tagline" name="text_{{.Code}}_tagline" value="{{$t.Tagline}}" maxlength="250" placeholder="{{$s.Tagline}}"></div>
+          <div class="field"><label for="text_{{.Code}}_footer">{{T "Footer text"}}</label><textarea class="textarea" id="text_{{.Code}}_footer" name="text_{{.Code}}_footer" rows="2" maxlength="1000" placeholder="{{$s.FooterText}}">{{$t.FooterText}}</textarea></div>
+          <p class="hint">{{T "Empty fields use the main-language text."}}</p>
+        </fieldset>
+        {{end}}
+      </section>
+    </section>
+
+    <section class="card" id="reading">
+      <header><h2>{{T "Reading"}}</h2></header>
+      <section class="form">
+        <fieldset class="fieldset">
+          <legend>{{T "Your homepage displays"}}</legend>
+          <label class="check"><input type="radio" class="input" name="front_page" value="posts"{{if ne $s.FrontPage "page"}} checked{{end}}> {{T "Your latest posts"}}</label>
+          <label class="check"><input type="radio" class="input" name="front_page" value="page"{{if eq $s.FrontPage "page"}} checked{{end}}> {{T "A static page"}}</label>
+          <select class="select w-full" name="front_page_id" aria-label="{{T "Front page"}}">
+            <option value="">{{T "— Choose a page —"}}</option>
+            {{range $d.Pages}}<option value="{{.ID}}"{{if eq .ID $s.FrontPageID}} selected{{end}}>{{.Title}}</option>{{end}}
+          </select>
+          <p class="hint">{{T "With a static homepage, posts are listed at /blog."}}</p>
+        </fieldset>
+        <div class="field"><label for="posts_per_page">{{T "Posts per page"}}</label><input class="input w-32" id="posts_per_page" name="posts_per_page" type="number" min="1" max="100" value="{{$s.PostsPerPage}}"></div>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="discourage_search" value="1"{{if $s.DiscourageSearch}} checked{{end}}> {{T "Ask search engines not to index this site"}}</label>
+      </section>
+    </section>
+
+    <section class="card" id="discussion">
+      <header><h2>{{T "Discussion"}}</h2></header>
+      <section class="form">
+        <label class="check"><input type="checkbox" class="input" role="switch" name="comments_enabled" value="1"{{if $s.CommentsEnabled}} checked{{end}}> {{T "Allow comments on posts"}}</label>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="comments_require_login" value="1"{{if $s.CommentsRequireLogin}} checked{{end}}> {{T "Only registered users can comment"}}</label>
+        <div class="field"><label for="comment_moderation">{{T "Before a comment appears"}}</label>
+          <select class="select w-full" id="comment_moderation" name="comment_moderation">
+            <option value="all"{{if eq $s.CommentModeration "all"}} selected{{end}}>{{T "Always hold it for moderation"}}</option>
+            <option value="returning"{{if eq $s.CommentModeration "returning"}} selected{{end}}>{{T "Hold it unless the author has an approved comment"}}</option>
+            <option value="none"{{if eq $s.CommentModeration "none"}} selected{{end}}>{{T "Publish immediately"}}</option>
+          </select></div>
+        <div class="field"><label for="comments_close_days">{{T "Close comments on posts older than (days)"}}</label><input class="input w-32" id="comments_close_days" name="comments_close_days" type="number" min="0" max="3650" value="{{$s.CommentsCloseDays}}"><p class="hint">{{T "0 keeps them open forever."}}</p></div>
+      </section>
+    </section>
+
+    <section class="card" id="feeds">
+      <header><h2>{{T "Feeds"}}</h2><p>{{T "RSS, Atom and JSON Feed are published at /feed.xml, /feed.atom and /feed.json, and for every category, tag and author."}}</p></header>
+      <section class="form">
+        <div class="field"><label for="feed_items">{{T "Items in each feed"}}</label><input class="input w-32" id="feed_items" name="feed_items" type="number" min="1" max="100" value="{{$s.FeedItems}}"></div>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="feed_full_text" value="1"{{if $s.FeedFullText}} checked{{end}}> {{T "Include the full text (otherwise, a summary)"}}</label>
+        <div class="field"><label for="websub_hub">{{T "WebSub hub"}}</label><input class="input" id="websub_hub" name="websub_hub" type="url" value="{{$s.WebSubHub}}" placeholder="https://pubsubhubbub.appspot.com/" maxlength="300"><p class="hint">{{T "Optional. Readers that support WebSub get new posts instantly."}}</p></div>
+      </section>
+    </section>
+
+    <section class="card" id="discovery">
+      <header><h2>{{T "Sharing, AI & stats"}}</h2></header>
+      <section class="form">
+        <div class="grid-2">
+          <div class="field"><label for="og_cards">{{T "Social images"}}</label>
+            <select class="select w-full" id="og_cards" name="og_cards">
+              {{range $d.OGLayouts}}<option value="{{.Code}}"{{if eq .Code $s.OGCards}} selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+            <p class="hint">{{T "Posts without a featured image get a generated card when shared."}}</p></div>
+          <div class="field"><label for="og_accent">{{T "Card colour"}}</label><input class="input w-24" id="og_accent" name="og_accent" type="color" value="{{or $s.OGAccent "#3f068b"}}"></div>
+        </div>
+        <fieldset class="fieldset">
+          <legend>{{T "AI crawlers and assistants"}}</legend>
+          <label class="check"><input type="radio" class="input" name="ai_access" value="open"{{if eq $s.AIAccess "open"}} checked{{end}}> {{T "Open: publish llms.txt and Markdown versions, allow every AI agent"}}</label>
+          <label class="check"><input type="radio" class="input" name="ai_access" value="no-training"{{if eq $s.AIAccess "no-training"}} checked{{end}}> {{T "Answers yes, training no: allow AI search and assistants, block training crawlers"}}</label>
+          <label class="check"><input type="radio" class="input" name="ai_access" value="block"{{if eq $s.AIAccess "block"}} checked{{end}}> {{T "Closed: block every AI agent and turn off llms.txt"}}</label>
+          <p class="hint">{{T "Rules are published in robots.txt; well-behaved crawlers follow them."}} <a href="/robots.txt" target="_blank" rel="noopener">robots.txt</a> · <a href="/llms.txt" target="_blank" rel="noopener">llms.txt</a></p>
+        </fieldset>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="analytics" value="1"{{if not $s.AnalyticsOff}} checked{{end}}> {{T "Count visits (no cookies, no personal data)"}}</label>
+      </section>
+    </section>
+
+    <section class="card" id="accounts">
+      <header><h2>{{T "Accounts & security"}}</h2></header>
+      <section class="form">
+        <label class="check"><input type="checkbox" class="input" role="switch" name="allow_registration" value="1"{{if $s.AllowRegistration}} checked{{end}}> {{T "Anyone can register"}}</label>
+        <div class="field"><label for="default_role">{{T "Role for new accounts"}}</label>
+          <select class="select w-full" id="default_role" name="default_role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $s.DefaultRole}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+        <div class="field"><label for="two_factor">{{T "Two-factor authentication is required for"}}</label>
+          <select class="select w-full" id="two_factor" name="two_factor">
+            <option value="staff"{{if eq $s.TwoFactor "staff"}} selected{{end}}>{{T "Everyone with access to the administration (recommended)"}}</option>
+            <option value="editors"{{if eq $s.TwoFactor "editors"}} selected{{end}}>{{T "Administrators and editors"}}</option>
+          </select>
+          <p class="hint">{{T "An authenticator app code or a passkey."}}</p></div>
+        <div class="grid-2">
+          <div class="field"><label for="session_days">{{T "Session length (days)"}}</label><input class="input" id="session_days" name="session_days" type="number" min="1" max="90" value="{{$s.SessionDays}}"></div>
+          <div class="field"><label for="idle_hours">{{T "Log out after inactivity (hours)"}}</label><input class="input" id="idle_hours" name="idle_hours" type="number" min="1" max="2160" value="{{$s.IdleHours}}"></div>
+        </div>
+      </section>
+    </section>
+    <div class="sticky-actions"><button class="btn" type="submit">{{icon "save"}}{{T "Save settings"}}</button></div>
+  </div>
+</form>
+{{end}}

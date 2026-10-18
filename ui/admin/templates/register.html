@@ -1,0 +1,38 @@
+{{template "auth" .}}
+{{define "content"}}
+<header><h1>{{T "Create an account"}}</h1><p>{{T "Join to comment and follow the site."}}</p></header>
+<section>
+  {{template "form-alerts" .D}}
+  <form method="post" action="/register" class="form auth-form">
+    <input type="hidden" name="token" value="{{.D.Token}}">
+    <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+    <div class="field">
+      <label for="username">{{T "Username"}}</label>
+      <input class="input" id="username" name="username" type="text" value="{{index .D.Values "username"}}" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="32" pattern="[a-z0-9][a-z0-9_.\-]{2,31}">
+      <p class="hint">{{T "Lowercase letters, numbers, dots, dashes or underscores."}}</p>
+    </div>
+    <div class="field">
+      <label for="email">{{T "E-mail"}}</label>
+      <input class="input" id="email" name="email" type="email" value="{{index .D.Values "email"}}" autocomplete="email" required maxlength="254">
+    </div>
+    {{template "password-pair" .}}
+    <button class="btn w-full" type="submit">{{icon "user-plus"}}{{T "Create account"}}</button>
+  </form>
+</section>
+<footer><p>{{T "Already registered?"}} <a href="/login">{{T "Log in"}}</a></p></footer>
+{{end}}
+{{define "password-pair"}}
+<div class="field">
+  <label for="password">{{T "Password"}}</label>
+  <div class="password-field">
+    <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="256" data-strength="password-strength">
+    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-password-toggle="password" aria-label="{{T "Show password"}}">{{icon "eye"}}</button>
+  </div>
+  <div class="strength" id="password-strength" aria-live="polite"><span></span></div>
+  <p class="hint">{{T "At least 10 characters. A short sentence is easier to remember and harder to guess."}}</p>
+</div>
+<div class="field">
+  <label for="password2">{{T "Repeat the password"}}</label>
+  <input class="input" id="password2" name="password2" type="password" autocomplete="new-password" required maxlength="256">
+</div>
+{{end}}

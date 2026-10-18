@@ -1,0 +1,6 @@
+{{define "content"}}
+<section class="page-head"><div class="wrap">{{template "shared/archive-header" .}}</div></section>
+<section class="section"><div class="wrap">
+  {{if .Posts}}{{template "grid" .Posts}}<div class="pager">{{template "shared/pagination" .Pagination}}</div>{{else}}{{template "shared/no-results" .}}{{end}}
+</div></section>
+{{end}}

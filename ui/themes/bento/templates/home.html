@@ -1,0 +1,60 @@
+{{define "content"}}
+{{$first := and .IsFront (or (not .Pagination) (eq .Pagination.Page 1))}}
+{{$stats := eq (index .Site.Options "show_stats") "true"}}
+{{if $first}}
+<div class="wrap page-stack">
+  <div class="bento-home{{if not $stats}} no-stats{{end}}">
+    <section class="tile tile-ink t-about" aria-labelledby="site-title">
+      {{template "brand-mark" "brand-mark-lg"}}
+      <div class="about-copy">
+        <h1 id="site-title" class="about-title">{{.Site.Title}}</h1>
+        {{with .Site.Tagline}}<p class="about-lead">{{.}}</p>{{end}}
+      </div>
+      <p class="about-actions">
+        {{if .Posts}}<a class="pill pill-accent" href="{{(index .Posts 0).URL}}">{{T "Read the latest"}} {{icon "arrow-right"}}</a>{{end}}
+        <a class="pill pill-ghost" href="{{link "/blog"}}">{{T "All posts"}}</a>
+      </p>
+    </section>
+
+    {{if .Posts}}{{template "feature" (index .Posts 0)}}
+    {{else}}<div class="tile t-feat t-empty">{{template "shared/no-results" .}}</div>{{end}}
+
+    {{if gt (len .Posts) 1}}{{template "card" (dict "P" (index .Posts 1) "H" 2 "Class" "t-p2")}}
+    {{else}}{{template "tile-explore" (dict "Page" . "Class" "t-p2")}}{{end}}
+
+    {{if gt (len .Posts) 2}}{{template "card" (dict "P" (index .Posts 2) "H" 2 "Class" "t-p3")}}
+    {{else}}{{template "tile-pages" (dict "Page" . "Class" "t-p3")}}{{end}}
+
+    {{if $stats}}{{template "tile-stats" .Site}}{{end}}
+    {{template "tile-subscribe" .}}
+    {{template "tile-categories" .}}
+    {{template "tile-tags" .}}
+    {{template "tile-archives" .}}
+  </div>
+
+  {{if gt (len .Posts) 3}}
+  <section class="more" aria-labelledby="more-title">
+    <div class="section-head">
+      <h2 id="more-title" class="section-title">{{T "More posts"}}</h2>
+      <a class="section-link" href="{{link "/blog"}}">{{T "All posts"}} {{icon "arrow-right"}}</a>
+    </div>
+    {{template "post-grid" (dict "Posts" (slice .Posts 3) "H" 3)}}
+  </section>
+  {{end}}
+  {{template "pager" .Pagination}}
+</div>
+{{else}}
+<div class="wrap listing">
+  <header class="tile tile-tint head-tile">
+    <p class="tile-label">{{icon "newspaper"}}<span>{{.Site.Title}}</span></p>
+    <h1>{{or .Heading .Site.Title}}</h1>
+    {{with .Site.Tagline}}<p class="head-lead">{{.}}</p>{{end}}
+    <p class="head-meta">{{with .Pagination}}{{plural .Total "%d post" "%d posts"}}{{else}}{{plural (len .Posts) "%d post" "%d posts"}}{{end}}</p>
+  </header>
+  {{if .Posts}}{{template "post-grid" (dict "Posts" .Posts "H" 2)}}
+  {{else}}<div class="tile t-empty">{{template "shared/no-results" .}}</div>{{end}}
+  {{template "pager" .Pagination}}
+  {{template "tile-categories" .}}
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,80 @@
+# Daily backup of the database and uploads, started by sap13ns-backup.timer.
+#
+#   install -m 0644 sap13ns-backup.service sap13ns-backup.timer /etc/systemd/system/
+#   install -d -o sap13ns -g sap13ns -m 0700 /var/lib/sap13ns/backups
+#   systemctl daemon-reload && systemctl enable --now sap13ns-backup.timer
+#
+# Run one now with `systemctl start sap13ns-backup` and read its output with
+# `journalctl -u sap13ns-backup`. Prune runs only if create succeeded, so a
+# failing backup never removes older archives.
+#
+# The env file must be readable by the sap13ns user (for example
+# root:sap13ns 0640). If it sets SAP13NS_BACKUP_PASSPHRASE, keep a copy of
+# the passphrase off this machine: without it the archives cannot be restored.
+
+[Unit]
+Description=sap13ns backup (database and uploads)
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=sap13ns
+Group=sap13ns
+UMask=0077
+ExecStart=/usr/local/bin/sap13ns backup create -env /etc/sap13ns/sap13ns.env
+ExecStart=/usr/local/bin/sap13ns backup prune -env /etc/sap13ns/sap13ns.env
+# oneshot units have no start timeout by default; never hang forever.
+TimeoutStartSec=4h
+SyslogIdentifier=sap13ns-backup
+
+# Stay out of the site's way.
+Nice=10
+CPUSchedulingPolicy=batch
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# Optional: pass the passphrase as a systemd credential instead of keeping it
+# in the env file (needs CLI support for -passphrase-file).
+#LoadCredential=backup-passphrase:/etc/sap13ns/backup-passphrase
+#Environment=SAP13NS_BACKUP_PASSPHRASE_FILE=%d/backup-passphrase
+
+# --- Hardening (check with `systemd-analyze security sap13ns-backup`) ---
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+# Archives are written here; the directory must exist (see above). Creating
+# a backup only reads the uploads, which ProtectSystem=strict leaves
+# readable, so they are read-only here ("-": fine if they live elsewhere). A
+# restore run from a unit would need ReadWritePaths for the uploads' parent.
+ReadWritePaths=/var/lib/sap13ns/backups
+ReadOnlyPaths=-/var/lib/sap13ns/uploads
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+KeyringMode=private
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RemoveIPC=yes
+# AF_UNIX for a local socket (host=/run/postgresql), AF_INET* for TCP.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# With a local database, also uncomment:
+#IPAddressDeny=any
+#IPAddressAllow=localhost
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM

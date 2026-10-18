@@ -1,0 +1,62 @@
+{{/* brand: logo mark + site title. Data: PageData. */}}
+{{define "brand"}}
+<a class="brand" href="{{link "/"}}">
+  <span class="brand-mark" aria-hidden="true">{{initials .Site.Title}}</span>
+  <span class="brand-text"><span class="brand-name">{{or .Site.Title (T "Home")}}</span>{{with .Site.Tagline}}<span class="brand-tagline">{{.}}</span>{{end}}</span>
+</a>
+{{end}}
+
+{{/* breadcrumbs: top-bar trail ending in the current page. Data: PageData. */}}
+{{define "breadcrumbs"}}
+<nav class="crumbs" aria-label="{{T "Breadcrumb"}}">
+  <ol>
+    <li><a class="crumb-home" href="{{link "/"}}">{{icon "house"}}<span class="sr-only">{{T "Home"}}</span></a></li>
+    {{if eq .Kind "single"}}
+      <li><a href="{{link "/blog"}}">{{T "Blog"}}</a></li>
+      {{with .Post}}<li><span aria-current="page">{{.Title}}</span></li>{{end}}
+    {{else if eq .Kind "page"}}
+      {{if .IsFront}}<li><span aria-current="page">{{T "Overview"}}</span></li>{{else}}{{with .Post}}<li><span aria-current="page">{{.Title}}</span></li>{{end}}{{end}}
+    {{else if eq .Kind "archive"}}
+      {{with .Archive}}
+      <li><span>{{if eq .Kind "category"}}{{T "Categories"}}{{else if eq .Kind "tag"}}{{T "Tags"}}{{else if eq .Kind "author"}}{{T "Authors"}}{{else}}{{T "Archive"}}{{end}}</span></li>
+      <li><span aria-current="page">{{.Title}}</span></li>
+      {{else}}<li><span aria-current="page">{{or $.Heading (T "Archive")}}</span></li>{{end}}
+    {{else if eq .Kind "search"}}
+      {{if .Query}}<li><a href="{{link "/search"}}">{{T "Search"}}</a></li><li><span aria-current="page">“{{.Query}}”</span></li>{{else}}<li><span aria-current="page">{{T "Search"}}</span></li>{{end}}
+    {{else if eq .Kind "404"}}
+      <li><span aria-current="page">{{T "Page not found"}}</span></li>
+    {{else}}
+      {{if .IsFront}}<li><span aria-current="page">{{T "Overview"}}</span></li>{{else}}<li><span aria-current="page">{{or .Heading .Title (T "Posts")}}</span></li>{{end}}
+    {{end}}
+  </ol>
+</nav>
+{{end}}
+
+{{/* side-categories: category list with counts for the sidebar, unless the
+     option is off or the sidebar area already holds a categories widget.
+     Data: PageData. */}}
+{{define "side-categories"}}
+{{$hasWidget := false}}{{range .Area "sidebar"}}{{if eq .Kind "categories"}}{{$hasWidget = true}}{{end}}{{end}}
+{{if and (eq (index .Site.Options "sidebar_categories") "true") (not $hasWidget)}}{{with .Site.Categories}}
+<nav class="side-section" aria-label="{{T "Categories"}}">
+  <p class="side-label">{{T "Categories"}}</p>
+  <ul class="side-menu side-terms">
+    {{range .}}<li><a href="{{.URL}}"{{if and $.Archive (eq $.Archive.Kind "category") (eq $.Archive.Title .Name)}} aria-current="page"{{end}}>{{icon "hash"}}<span>{{.Name}}</span><span class="side-count">{{.Count}}</span></a></li>{{end}}
+  </ul>
+</nav>
+{{end}}{{end}}
+{{end}}
+
+{{/* stats: KPI cards. Data: SiteStats. */}}
+{{define "stats"}}
+<section class="stats" aria-labelledby="stats-title">
+  <h2 id="stats-title" class="sr-only">{{T "At a glance"}}</h2>
+  <dl class="stat-grid">
+    <div class="stat"><dt>{{T "Posts"}}<span class="stat-icon">{{icon "file-text"}}</span></dt><dd class="stat-value">{{.Posts}}</dd><dd class="stat-note">{{T "published"}}</dd></div>
+    <div class="stat"><dt>{{T "Pages"}}<span class="stat-icon">{{icon "files"}}</span></dt><dd class="stat-value">{{.Pages}}</dd><dd class="stat-note">{{T "static pages"}}</dd></div>
+    <div class="stat"><dt>{{T "Categories"}}<span class="stat-icon">{{icon "folder"}}</span></dt><dd class="stat-value">{{.Categories}}</dd><dd class="stat-note">{{T "topics"}}</dd></div>
+    <div class="stat"><dt>{{T "Tags"}}<span class="stat-icon">{{icon "tags"}}</span></dt><dd class="stat-value">{{.Tags}}</dd><dd class="stat-note">{{T "keywords"}}</dd></div>
+    <div class="stat"><dt>{{T "Comments"}}<span class="stat-icon">{{icon "message-square"}}</span></dt><dd class="stat-value">{{.Comments}}</dd><dd class="stat-note">{{T "approved"}}</dd></div>
+  </dl>
+</section>
+{{end}}

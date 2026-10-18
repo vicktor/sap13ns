@@ -1,0 +1,24 @@
+{{define "content"}}
+{{with .Post}}
+<article class="article">
+  <header class="article-head wrap narrow-center">
+    {{with .Categories}}<p class="eyebrow">{{range $i, $c := .}}{{if $i}} · {{end}}<a href="{{$c.URL}}">{{$c.Name}}</a>{{end}}</p>{{end}}
+    <h1>{{.Title}}</h1>
+    {{with .Summary}}<p class="article-dek">{{.}}</p>{{end}}
+    {{template "shared/post-meta" .}}
+  </header>
+  {{if .Image}}<div class="wrap wide">{{template "shared/featured-image" .}}</div>{{end}}
+  <div class="wrap measure">
+    {{template "shared/content" .}}
+    <footer class="article-foot">
+      {{template "shared/tags" .}}
+      {{template "shared/share" .}}
+    </footer>
+  </div>
+</article>
+{{end}}
+<div class="wrap measure stack-lg">
+  {{template "shared/post-nav" .}}
+  {{template "shared/comments" .}}
+</div>
+{{end}}

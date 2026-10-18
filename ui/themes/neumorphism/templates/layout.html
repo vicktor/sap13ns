@@ -1,0 +1,40 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} depth-{{index .Site.Options "depth"}}">
+<head>{{template "shared/head" .}}</head>
+<body class="kind-{{.Kind}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+<header class="nm-header">
+  <div class="nm-bar">
+    <a class="nm-brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
+      <span class="nm-brand-mark" aria-hidden="true"><span></span></span>
+      <span class="nm-brand-name">{{.Site.Title}}</span>
+    </a>
+    <nav class="nm-nav" aria-label="{{T "Main menu"}}">
+      <ul id="primary-menu" class="nm-menu">{{template "shared/menu" (.Site.Menu "primary")}}</ul>
+    </nav>
+    <div class="nm-actions">
+      <a class="nm-icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>
+      {{template "shared/lang-switch" .}}
+      {{template "shared/theme-toggle"}}
+      {{template "shared/nav-toggle" "primary-menu"}}
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+<footer class="nm-footer">
+  <div class="wrap">
+    <div class="nm-tray">
+      {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+      <div class="nm-footer-bottom">
+        <a class="nm-brand nm-brand-sm" href="{{link "/"}}"><span class="nm-brand-mark" aria-hidden="true"><span></span></span><span class="nm-brand-name">{{.Site.Title}}</span></a>
+        {{with .Site.Menu "footer"}}<nav aria-label="{{T "Footer menu"}}"><ul class="nm-footer-menu">{{template "shared/menu" .}}</ul></nav>{{end}}
+        {{template "shared/footer-meta" .}}
+      </div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>{{end}}

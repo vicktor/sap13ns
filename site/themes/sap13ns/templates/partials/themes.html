@@ -1,0 +1,73 @@
+{{/* CSS-only previews of the five bundled themes. Every preview is drawn
+     twice, light and dark, and the dark copy is clipped diagonally. */}}
+
+{{define "tp/apple"}}
+<span class="m m-apple mode-{{.}}">
+  <span class="m-nav"><span class="m-logo"></span><span class="m-links"><span></span><span></span><span></span></span></span>
+  <span class="m-hero"><span class="m-h1"></span><span class="m-h1 short"></span><span class="m-sub"></span><span class="m-pill"></span></span>
+  <span class="m-tiles"><span></span><span></span><span></span></span>
+</span>
+{{end}}
+
+{{define "tp/neumorphism"}}
+<span class="m m-neu mode-{{.}}">
+  <span class="m-nav"><span class="m-logo"></span><span class="m-links"><span></span><span></span></span></span>
+  <span class="m-panel"><span class="m-h1"></span><span class="m-sub"></span><span class="m-row"><span class="m-btn"></span><span class="m-toggle"><span></span></span></span></span>
+  <span class="m-tiles"><span></span><span></span></span>
+</span>
+{{end}}
+
+{{define "tp/glass"}}
+<span class="m m-glass mode-{{.}}">
+  <span class="m-blob b1"></span><span class="m-blob b2"></span><span class="m-blob b3"></span>
+  <span class="m-nav"><span class="m-logo"></span><span class="m-links"><span></span><span></span><span></span></span></span>
+  <span class="m-card"><span class="m-h1"></span><span class="m-sub"></span><span class="m-sub short"></span></span>
+  <span class="m-card small"><span class="m-sub"></span><span class="m-sub short"></span></span>
+</span>
+{{end}}
+
+{{define "tp/bento"}}
+<span class="m m-bento mode-{{.}}">
+  <span class="m-grid">
+    <span class="t t-a"><span class="m-h1"></span><span class="m-sub"></span></span>
+    <span class="t t-b"><span class="m-num"></span></span>
+    <span class="t t-c"></span>
+    <span class="t t-d"><span class="m-sub"></span><span class="m-sub short"></span></span>
+    <span class="t t-e"></span>
+  </span>
+</span>
+{{end}}
+
+{{define "tp/dashboard"}}
+<span class="m m-dash mode-{{.}}">
+  <span class="m-side"><span class="m-logo"></span><span class="m-item on"></span><span class="m-item"></span><span class="m-item"></span><span class="m-item"></span></span>
+  <span class="m-main">
+    <span class="m-top"><span class="m-search"></span><span class="m-avatar"></span></span>
+    <span class="m-kpis"><span></span><span></span><span></span></span>
+    <span class="m-chart"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+  </span>
+</span>
+{{end}}
+
+{{/* sap/theme-card. Data: dict "Name" "Key" "Text". */}}
+{{define "sap/theme-card"}}
+<figure class="theme-card">
+  <span class="theme-screen" aria-hidden="true">
+    <span class="theme-half is-light">{{if eq .Key "apple"}}{{template "tp/apple" "light"}}{{else if eq .Key "neumorphism"}}{{template "tp/neumorphism" "light"}}{{else if eq .Key "glass"}}{{template "tp/glass" "light"}}{{else if eq .Key "bento"}}{{template "tp/bento" "light"}}{{else}}{{template "tp/dashboard" "light"}}{{end}}</span>
+    <span class="theme-half is-dark">{{if eq .Key "apple"}}{{template "tp/apple" "dark"}}{{else if eq .Key "neumorphism"}}{{template "tp/neumorphism" "dark"}}{{else if eq .Key "glass"}}{{template "tp/glass" "dark"}}{{else if eq .Key "bento"}}{{template "tp/bento" "dark"}}{{else}}{{template "tp/dashboard" "dark"}}{{end}}</span>
+    <span class="theme-modes"><span>{{icon "sun"}}</span><span>{{icon "moon"}}</span></span>
+  </span>
+  <figcaption><strong>{{.Name}}</strong><span>{{.Text}}</span></figcaption>
+</figure>
+{{end}}
+
+{{/* sap/themes-showcase: the five previews. Data: PageData. */}}
+{{define "sap/themes-showcase"}}
+<div class="theme-showcase">
+  {{template "sap/theme-card" (dict "Key" "apple" "Name" "Apple" "Text" (T "Quiet product-page elegance: frosted navigation, oversized headlines and airy grids."))}}
+  {{template "sap/theme-card" (dict "Key" "neumorphism" "Name" "Neumorphism" "Text" (T "Soft UI: cards, buttons and fields extruded from one continuous surface."))}}
+  {{template "sap/theme-card" (dict "Key" "glass" "Name" "Glassmorphism" "Text" (T "Frosted, translucent panels floating over an aurora of colour."))}}
+  {{template "sap/theme-card" (dict "Key" "bento" "Name" "Bento Grid" "Text" (T "An asymmetric grid of rounded tiles for stories, stats and categories."))}}
+  {{template "sap/theme-card" (dict "Key" "dashboard" "Name" "Dashboard / SaaS" "Text" (T "A precise product layout: sidebar, top bar, KPI cards and crisp lists."))}}
+</div>
+{{end}}

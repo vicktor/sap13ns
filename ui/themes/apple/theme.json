@@ -1,0 +1,23 @@
+{
+  "name": "Apple",
+  "version": "1.0.0",
+  "description": "Quiet, product-page elegance: frosted navigation, oversized headlines, airy grids and San Francisco-style typography.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "footer", "label": "Footer", "description": "Columns above the footer line."}
+  ],
+  "options": [
+    {"key": "hero", "label": "Show the large introduction on the homepage", "type": "bool", "default": "true"},
+    {"key": "hero_title", "label": "Introduction headline", "type": "text", "default": "", "help": "Empty uses the site title."},
+    {"key": "accent", "label": "Accent colour", "type": "select", "default": "blue", "choices": [
+      {"value": "blue", "label": "Blue"}, {"value": "indigo", "label": "Indigo"}, {"value": "green", "label": "Green"},
+      {"value": "orange", "label": "Orange"}, {"value": "pink", "label": "Pink"}, {"value": "graphite", "label": "Graphite"}
+    ]}
+  ],
+  "swatches": ["#f5f5f7", "#ffffff", "#1d1d1f", "#0071e3"]
+}

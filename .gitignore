@@ -1,0 +1,11 @@
+/node_modules/
+/bin/
+/dist/
+/data/
+*.test
+*.out
+.env
+.DS_Store
+*.wasm
+/plugins/**/*.zip
+/plugins/**/*.sha256

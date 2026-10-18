@@ -1,0 +1,129 @@
+{{/* Bento tiles. Every tile is a rounded box; variants: tile-tint, tile-sand,
+     tile-ink (the dark one) and tile-accent (vivid fill). */}}
+
+{{/* brand-mark: the little three-cell bento logo. */}}
+{{define "brand-mark"}}<span class="brand-mark{{with .}} {{.}}{{end}}" aria-hidden="true"><span></span><span></span><span></span></span>{{end}}
+
+{{/* card: a post tile. Data: dict "P" *PostView "H" 2|3 "Class" string "Eager" bool. */}}
+{{define "card"}}
+{{$p := .P}}
+<article class="tile tile-post{{with .Class}} {{.}}{{end}}{{if $p.Image}} has-image{{else}} no-image{{end}}">
+  {{if $p.Image}}<div class="tile-media">{{template "shared/image" (dict "Image" $p.Image "Sizes" "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" "Eager" .Eager)}}</div>{{end}}
+  <div class="tile-body">
+    {{if not $p.Image}}<span class="card-glyph" aria-hidden="true">{{icon "file-text"}}</span>{{end}}
+    {{with $p.Categories}}<p class="eyebrow">{{(index . 0).Name}}</p>{{end}}
+    {{if eq .H 3}}<h3 class="post-title"><a class="stretched" href="{{$p.URL}}">{{$p.Title}}</a></h3>{{else}}<h2 class="post-title"><a class="stretched" href="{{$p.URL}}">{{$p.Title}}</a></h2>{{end}}
+    {{with $p.Summary}}<p class="post-summary">{{.}}</p>{{end}}
+    <p class="post-foot">
+      {{if $p.HasDate}}<time datetime="{{isoDate $p.Published}}">{{shortDate $p.Published}}</time><span aria-hidden="true">·</span>{{end}}
+      <span>{{T "%d min read" $p.ReadingMinutes}}</span>
+      <span class="go" aria-hidden="true">{{icon "arrow-up-right"}}</span>
+    </p>
+  </div>
+</article>
+{{end}}
+
+{{/* feature: the latest post as the big 2x2 tile. Data: *PostView. */}}
+{{define "feature"}}
+<article class="tile tile-feature t-feat{{if .Image}} has-image{{else}} no-image{{end}}" id="latest">
+  {{if .Image}}<div class="feature-media">{{template "shared/image" (dict "Image" .Image "Sizes" "(min-width: 1024px) 50vw, 100vw" "Eager" true)}}</div>{{end}}
+  <p class="feature-chips">
+    <span class="chip chip-accent">{{T "Latest"}}</span>
+    {{with .Categories}}<span class="chip">{{(index . 0).Name}}</span>{{end}}
+  </p>
+  <div class="feature-body">
+    <h2 class="feature-title"><a class="stretched" href="{{.URL}}">{{.Title}}</a></h2>
+    {{with .Summary}}<p class="feature-summary">{{.}}</p>{{end}}
+    <p class="post-foot">
+      {{if .HasDate}}<time datetime="{{isoDate .Published}}">{{date .Published}}</time><span aria-hidden="true">·</span>{{end}}
+      <span>{{T "%d min read" .ReadingMinutes}}</span>
+      <span class="go go-lg" aria-hidden="true">{{icon "arrow-up-right"}}</span>
+    </p>
+  </div>
+</article>
+{{end}}
+
+{{/* tile-stats: Site.Stats. Data: *SiteView. */}}
+{{define "tile-stats"}}
+<section class="tile tile-tint t-stats" aria-labelledby="tile-stats-title">
+  <h2 id="tile-stats-title" class="tile-label">{{icon "chart-column"}}<span>{{T "In numbers"}}</span></h2>
+  <dl class="stats">
+    <div class="stat"><dt>{{if eq .Stats.Posts 1}}{{T "Post"}}{{else}}{{T "Posts"}}{{end}}</dt><dd>{{.Stats.Posts}}</dd></div>
+    <div class="stat"><dt>{{if eq .Stats.Comments 1}}{{T "Comment"}}{{else}}{{T "Comments"}}{{end}}</dt><dd>{{.Stats.Comments}}</dd></div>
+    <div class="stat"><dt>{{if eq .Stats.Categories 1}}{{T "Category"}}{{else}}{{T "Categories"}}{{end}}</dt><dd>{{.Stats.Categories}}</dd></div>
+    <div class="stat"><dt>{{if eq .Stats.Tags 1}}{{T "Tag"}}{{else}}{{T "Tags"}}{{end}}</dt><dd>{{.Stats.Tags}}</dd></div>
+  </dl>
+</section>
+{{end}}
+
+{{/* tile-subscribe: feed links on the vivid accent tile. Data: PageData. */}}
+{{define "tile-subscribe"}}
+<section class="tile tile-accent t-subs" aria-labelledby="tile-subs-title">
+  <h2 id="tile-subs-title" class="tile-label">{{icon "rss"}}<span>{{T "Subscribe"}}</span></h2>
+  {{template "shared/subscribe" .}}
+  <span class="tile-deco" aria-hidden="true">{{icon "rss"}}</span>
+</section>
+{{end}}
+
+{{/* tile-categories: Site.Categories with counts. Data: PageData. */}}
+{{define "tile-categories"}}
+<section class="tile t-cats side-tile" aria-labelledby="tile-cats-title">
+  <h2 id="tile-cats-title" class="tile-label">{{icon "folder"}}<span>{{T "Categories"}}</span></h2>
+  {{with .Site.Categories}}
+  <ul class="term-list">{{range $i, $c := .}}{{if lt $i 7}}<li><a href="{{$c.URL}}"><span>{{$c.Name}}</span><span class="count">{{$c.Count}}</span></a></li>{{end}}{{end}}</ul>
+  {{else}}<p class="tile-note">{{T "No categories yet."}}</p>{{end}}
+  <span class="tile-deco" aria-hidden="true">{{icon "folder"}}</span>
+</section>
+{{end}}
+
+{{/* tile-tags: popular tags. Data: PageData. */}}
+{{define "tile-tags"}}
+<section class="tile tile-sand t-tags side-tile" aria-labelledby="tile-tags-title">
+  <h2 id="tile-tags-title" class="tile-label">{{icon "hash"}}<span>{{T "Popular tags"}}</span></h2>
+  {{with .Site.Tags}}
+  <ul class="tag-cloud">{{range $i, $t := .}}{{if lt $i 18}}<li><a href="{{$t.URL}}" rel="tag">#{{$t.Name}}</a></li>{{end}}{{end}}</ul>
+  {{else}}<p class="tile-note">{{T "No tags yet."}}</p>{{end}}
+  <span class="tile-deco" aria-hidden="true">{{icon "hash"}}</span>
+</section>
+{{end}}
+
+{{/* tile-archives: months with posts. Data: PageData. */}}
+{{define "tile-archives"}}
+<section class="tile t-arch side-tile" aria-labelledby="tile-arch-title">
+  <h2 id="tile-arch-title" class="tile-label">{{icon "archive"}}<span>{{T "Archives"}}</span></h2>
+  {{with .Site.Archives}}
+  <ul class="term-list">{{range $i, $a := .}}{{if lt $i 6}}<li><a href="{{$a.URL}}"><span>{{$a.Label}}</span><span class="count">{{$a.Count}}</span></a></li>{{end}}{{end}}</ul>
+  {{else}}<p class="tile-note">{{T "Nothing archived yet."}}</p>{{end}}
+  <span class="tile-deco" aria-hidden="true">{{icon "calendar"}}</span>
+</section>
+{{end}}
+
+{{/* tile-explore: quick links, used when a slot has nothing else. Data: dict "Page" PageData "Class" string. */}}
+{{define "tile-explore"}}
+<section class="tile tile-tint t-explore{{with .Class}} {{.}}{{end}}" aria-labelledby="tile-explore-title">
+  <h2 id="tile-explore-title" class="tile-label">{{icon "layout-grid"}}<span>{{T "Explore"}}</span></h2>
+  <ul class="term-list">
+    <li><a href="{{link "/blog"}}"><span>{{T "All posts"}}</span>{{icon "arrow-right"}}</a></li>
+    <li><a href="{{link "/search"}}"><span>{{T "Search"}}</span>{{icon "search"}}</a></li>
+    <li><a href="{{.Page.Site.FeedRSS}}"><span>{{T "RSS feed"}}</span>{{icon "rss"}}</a></li>
+  </ul>
+</section>
+{{end}}
+
+{{/* tile-pages: the site's pages. Data: dict "Page" PageData "Class" string. */}}
+{{define "tile-pages"}}
+<section class="tile t-pages{{with .Class}} {{.}}{{end}}" aria-labelledby="tile-pages-title">
+  <h2 id="tile-pages-title" class="tile-label">{{icon "files"}}<span>{{T "Pages"}}</span></h2>
+  {{with .Page.Site.Pages}}
+  <ul class="term-list">{{range $i, $l := .}}{{if lt $i 6}}<li><a href="{{$l.URL}}"><span>{{$l.Label}}</span>{{icon "arrow-right"}}</a></li>{{end}}{{end}}</ul>
+  {{else}}<p class="tile-note">{{T "Nothing here yet."}}</p>{{end}}
+</section>
+{{end}}
+
+{{/* post-grid: a regular grid of post tiles. Data: dict "Posts" []*PostView "H" 2|3. */}}
+{{define "post-grid"}}
+{{if .Posts}}<div class="tile-grid">{{range .Posts}}{{template "card" (dict "P" . "H" $.H)}}{{end}}</div>{{end}}
+{{end}}
+
+{{/* pager: pagination inside a slim tile. Data: *Pagination (may be nil). */}}
+{{define "pager"}}{{with .}}<div class="tile pager-tile">{{template "shared/pagination" .}}</div>{{end}}{{end}}

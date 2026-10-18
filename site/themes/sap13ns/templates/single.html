@@ -1,0 +1,29 @@
+{{define "content"}}
+{{with .Post}}
+<article class="article">
+  <header class="page-head article-head">
+    <div class="wrap measure">
+      {{with .Categories}}<p class="eyebrow">{{range $i, $c := .}}{{if $i}} · {{end}}<a href="{{$c.URL}}">{{$c.Name}}</a>{{end}}</p>{{end}}
+      <h1>{{.Title}}</h1>
+      {{with .Summary}}<p class="page-lead">{{.}}</p>{{end}}
+      <div class="article-byline">
+        <span class="byline-avatar" aria-hidden="true">{{.Author.Initials}}</span>
+        {{template "shared/post-meta" .}}
+      </div>
+    </div>
+  </header>
+  {{if .Image}}<div class="wrap wide">{{template "shared/featured-image" .}}</div>{{end}}
+  <div class="wrap measure article-body">
+    {{template "shared/content" .}}
+    <footer class="article-foot">
+      {{template "shared/tags" .}}
+      {{template "shared/share" .}}
+    </footer>
+  </div>
+</article>
+{{end}}
+<div class="wrap measure article-after">
+  {{template "shared/post-nav" .}}
+  {{template "shared/comments" .}}
+</div>
+{{end}}

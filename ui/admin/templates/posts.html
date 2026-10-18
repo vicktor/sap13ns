@@ -1,0 +1,98 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{.Title}}</h1>
+    <p>{{if eq $d.Type "page"}}{{T "Static pages such as About or Contact."}}{{else}}{{T "Write, schedule and organize your posts."}}{{end}}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{{$d.ListPath}}/new">{{icon "plus"}}{{if eq $d.Type "page"}}{{T "New page"}}{{else}}{{T "New post"}}{{end}}</a>
+  </div>
+</div>
+
+<div class="toolbar">
+  {{template "filter-tabs" $d.Tabs}}
+  <form method="get" action="{{$d.ListPath}}" class="search-inline" role="search">
+    {{if $d.Status}}<input type="hidden" name="status" value="{{$d.Status}}">{{end}}
+    {{with $d.Langs}}<label class="sr-only" for="lang-filter">{{T "Language"}}</label>
+    <select class="select" id="lang-filter" name="lang" data-size="sm" data-autosubmit>
+      <option value="">{{T "All languages"}}</option>
+      {{range .}}<option value="{{.Code}}"{{if eq .Code $d.Lang}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>{{end}}
+    <label class="sr-only" for="q">{{T "Search"}}</label>
+    <div class="input-icon">{{icon "search"}}<input class="input" type="search" id="q" name="q" value="{{$d.Query}}" placeholder="{{T "Search…"}}"></div>
+  </form>
+</div>
+
+{{if $d.Posts}}
+<form method="post" action="{{$d.ListPath}}/bulk" id="bulk-form" data-bulk>
+  {{.CSRFField}}
+  <input type="hidden" name="status" value="{{$d.Status}}">
+  <div class="bulk-bar">
+    <label class="sr-only" for="bulk-action">{{T "Bulk action"}}</label>
+    <select class="select" id="bulk-action" name="action" data-size="sm">
+      <option value="">{{T "Bulk actions"}}</option>
+      {{if eq $d.Status "trash"}}
+      <option value="restore">{{T "Restore"}}</option>
+      <option value="delete">{{T "Delete permanently"}}</option>
+      {{else}}
+      <option value="publish">{{T "Publish"}}</option>
+      <option value="trash">{{T "Move to trash"}}</option>
+      {{end}}
+    </select>
+    <button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Apply this action to the selected items?"}}">{{T "Apply"}}</button>
+    <span class="muted" data-selected-count></span>
+    {{if eq $d.Status "trash"}}
+    <button class="btn ml-auto" data-variant="destructive" data-size="sm" type="submit" form="empty-trash" data-confirm="{{T "Delete everything in the trash? This cannot be undone."}}">{{icon "trash-2"}}{{T "Empty trash"}}</button>
+    {{end}}
+  </div>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="w-8"><input type="checkbox" class="input" data-select-all="ids" aria-label="{{T "Select all"}}"></th>
+          <th>{{T "Title"}}</th>
+          <th class="max-md:hidden">{{T "Author"}}</th>
+          {{if eq $d.Type "post"}}<th class="max-lg:hidden">{{T "Categories"}}</th>{{end}}
+          <th class="max-sm:hidden">{{T "Status"}}</th>
+          <th class="max-md:hidden">{{T "Date"}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $d.Posts}}
+        <tr>
+          <td><input type="checkbox" class="input" name="ids" value="{{.ID}}" aria-label="{{T "Select"}} {{.Title}}"></td>
+          <td>
+            <a class="row-title" href="/admin/posts/{{.ID}}">{{.Title}}</a>
+            <div class="row-sub">
+              <span class="sm:hidden">{{if .IsScheduled $d.Now}}{{template "status-badge" "scheduled"}}{{else}}{{template "status-badge" .Status}}{{end}}</span>
+              {{if $d.Langs}}<span class="badge" data-variant="outline" title="{{T "Language"}}">{{upper .Lang}}</span>{{end}}
+              <span class="muted">/{{if eq .Type "post"}}blog/{{end}}{{.Slug}}</span>
+              {{if .CommentCount}}<span class="muted">· {{icon "message-circle" "size-3"}} {{.CommentCount}}</span>{{end}}
+            </div>
+          </td>
+          <td class="max-md:hidden">{{.AuthorName}}</td>
+          {{if eq $d.Type "post"}}<td class="max-lg:hidden">{{range $i, $t := .Categories}}{{if $i}}, {{end}}{{$t.Name}}{{end}}</td>{{end}}
+          <td class="max-sm:hidden">{{if .IsScheduled $d.Now}}{{template "status-badge" "scheduled"}}{{else}}{{template "status-badge" .Status}}{{end}}</td>
+          <td class="max-md:hidden muted nowrap">{{if .PublishedAt}}{{shortDate .PublishedAt}}{{else}}{{T "Edited"}} {{ago .UpdatedAt}}{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</form>
+<form id="empty-trash" method="post" action="{{$d.ListPath}}/empty-trash" hidden>{{.CSRFField}}</form>
+{{template "pagination" $d.Page}}
+{{else}}
+<div class="card">
+  {{if $d.Query}}
+  {{template "empty" (dict "Icon" "search" "Title" (T "No results") "Text" (T "Nothing matches “%s”." $d.Query))}}
+  {{else if eq $d.Status "trash"}}
+  {{template "empty" (dict "Icon" "trash-2" "Title" (T "The trash is empty"))}}
+  {{else}}
+  {{template "empty" (dict "Icon" "feather" "Title" (T "Nothing here yet") "Text" (T "Create your first one now."))}}
+  {{end}}
+</div>
+{{end}}
+{{end}}

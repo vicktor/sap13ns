@@ -1,0 +1,61 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Widgets"}}</h1><p>{{T "Blocks shown in the areas of the active theme (%s)." $d.Theme.Name}}</p></div>
+</div>
+{{if not $d.Theme.WidgetAreas}}
+<div class="card">{{template "empty" (dict "Icon" "layout-grid" "Title" (T "This theme has no widget areas"))}}</div>
+{{else}}
+<div class="widget-areas">
+  {{range $d.Theme.WidgetAreas}}
+  {{$area := .ID}}
+  <section class="card" id="area-{{.ID}}">
+    <header><h2>{{.Label}}</h2>{{with .Description}}<p>{{.}}</p>{{end}}</header>
+    <section class="stack">
+      {{range (index $d.Widgets $area)}}
+      <details class="widget-item" id="widget-{{.ID}}">
+        <summary><span><strong>{{or .Title (index $d.Labels .Kind) .Kind}}</strong> <span class="muted text-xs">{{or (index $d.Labels .Kind) .Kind}}</span>{{if .Lang}} <span class="badge" data-variant="outline">{{.Lang}}</span>{{end}}</span>{{icon "chevron-down" "rev-chevron"}}</summary>
+        <form method="post" action="/admin/appearance/widgets/{{.ID}}" class="form">
+          {{$.CSRFField}}
+          <input type="hidden" name="kind" value="{{.Kind}}">
+          <div class="field"><label for="w-title-{{.ID}}">{{T "Title"}}</label><input class="input" id="w-title-{{.ID}}" name="title" value="{{.Title}}" maxlength="100"></div>
+          {{template "widget-lang" (dict "D" $d "ID" (print .ID) "Lang" .Lang)}}
+          {{template "widget-config" (dict "Kind" .Kind "Config" .Config "ID" .ID)}}
+          <div class="form-actions">
+            <button class="btn" data-size="sm" type="submit">{{icon "save"}}{{T "Save"}}</button>
+            <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/up" aria-label="{{T "Move up"}}">{{icon "arrow-up"}}</button>
+            <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/down" aria-label="{{T "Move down"}}">{{icon "arrow-down"}}</button>
+            <button class="btn ml-auto" data-variant="ghost" data-size="sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/delete" data-confirm="{{T "Remove this widget?"}}">{{icon "trash-2"}}{{T "Remove"}}</button>
+          </div>
+        </form>
+      </details>
+      {{else}}
+      <p class="muted text-sm">{{T "No widgets in this area."}}</p>
+      {{end}}
+      <form method="post" action="/admin/appearance/widgets" class="widget-add">
+        {{$.CSRFField}}
+        <input type="hidden" name="area" value="{{$area}}">
+        <label class="sr-only" for="add-{{$area}}">{{T "Widget type"}}</label>
+        <select class="select grow" id="add-{{$area}}" name="kind">{{range $d.Kinds}}<option value="{{.Kind}}">{{.Label}}</option>{{end}}</select>
+        {{if $d.Langs}}<label class="sr-only" for="add-lang-{{$area}}">{{T "Language"}}</label>
+        <select class="select" id="add-lang-{{$area}}" name="lang"><option value="">{{T "All languages"}}</option>{{range $d.Langs}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</select>{{end}}
+        <button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "plus"}}{{T "Add"}}</button>
+      </form>
+    </section>
+  </section>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+{{define "widget-lang"}}{{if .D.Langs}}{{$cur := .Lang}}
+<div class="field"><label for="w-lang-{{.ID}}">{{T "Language"}}</label>
+  <select class="select w-full" id="w-lang-{{.ID}}" name="lang"><option value="">{{T "All languages"}}</option>{{range .D.Langs}}<option value="{{.Code}}"{{if eq .Code $cur}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+</div>{{end}}{{end}}
+{{define "widget-config"}}
+{{if eq .Kind "recent_posts"}}
+<div class="field"><label for="w-count-{{.ID}}">{{T "Number of posts"}}</label><input class="input" id="w-count-{{.ID}}" name="count" type="number" min="1" max="20" value="{{or (index .Config "count") "5"}}"></div>
+{{else if eq .Kind "text"}}
+<div class="field"><label for="w-text-{{.ID}}">{{T "Text"}}</label><textarea class="textarea" id="w-text-{{.ID}}" name="text" rows="4" maxlength="10000">{{index .Config "text"}}</textarea><p class="hint">{{T "Plain text. Blank lines separate paragraphs."}}</p></div>
+{{end}}
+{{end}}

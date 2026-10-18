@@ -1,0 +1,17 @@
+{{define "content"}}
+<div class="container stack">
+  <header class="page-header search-header">
+    <div class="page-header-text">
+      {{if .Query}}<p class="eyebrow">{{T "Search"}}</p>{{end}}
+      <h1>{{if .Query}}{{.Heading}}{{else}}{{T "Search"}}{{end}}</h1>
+      {{if .Query}}<p class="lead">{{with .Pagination}}{{plural .Total "%d result" "%d results"}}{{else}}{{plural (len .Posts) "%d result" "%d results"}}{{end}}</p>{{else}}<p class="lead">{{T "Find posts and pages by title or content."}}</p>{{end}}
+    </div>
+    {{if or .Posts (not .Query)}}{{template "shared/search-form" .}}{{end}}
+  </header>
+  {{if .Posts}}
+    {{template "post-table" (dict "Posts" .Posts "Page" . "Title" (T "Results"))}}
+  {{else if .Query}}
+    <div class="panel panel-empty">{{template "shared/no-results" .}}</div>
+  {{end}}
+</div>
+{{end}}

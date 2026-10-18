@@ -1,0 +1,12 @@
+{{if .User}}{{template "admin" .}}{{else}}{{template "auth" .}}{{end}}
+{{define "content"}}
+<div class="empty-state error-page">
+  <div class="empty-icon" aria-hidden="true">{{if eq .D.Status 403}}{{icon "lock"}}{{else if eq .D.Status 404}}{{icon "search"}}{{else}}{{icon "triangle-alert"}}{{end}}</div>
+  <p class="error-code">{{.D.Status}}</p>
+  <h1>{{.D.Message}}</h1>
+  <div class="empty-actions">
+    <a class="btn" data-variant="outline" href="/admin/" data-back>{{icon "arrow-left"}}{{T "Go back"}}</a>
+    <a class="btn" href="/admin/">{{icon "house"}}{{T "Dashboard"}}</a>
+  </div>
+</div>
+{{end}}

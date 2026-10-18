@@ -1,0 +1,34 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$p := .D.Post}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/posts/{{$p.ID}}">{{icon "arrow-left" "size-3.5"}} {{$p.Title}}</a></p>
+    <h1>{{T "Revisions"}}</h1>
+    <p>{{T "Every save keeps the previous version. Restoring creates a new revision, so nothing is lost."}}</p>
+  </div>
+</div>
+{{if .D.Revisions}}
+<div class="revision-list">
+  {{range .D.Revisions}}
+  <details class="card revision">
+    <summary>
+      <span class="rev-title"><strong>{{.Title}}</strong><span class="muted">{{dateTime .CreatedAt}} · {{.AuthorName}}</span></span>
+      <span class="muted max-sm:hidden">{{ago .CreatedAt}}</span>
+      {{icon "chevron-down" "rev-chevron"}}
+    </summary>
+    <section>
+      {{if .Excerpt}}<p class="muted"><em>{{.Excerpt}}</em></p>{{end}}
+      <pre class="rev-content">{{.Content}}</pre>
+      <form method="post" action="/admin/revisions/{{.ID}}/restore">
+        {{$.CSRFField}}
+        <button class="btn" data-size="sm" type="submit" data-confirm="{{T "Replace the current content with this revision?"}}">{{icon "rotate-ccw"}}{{T "Restore this revision"}}</button>
+      </form>
+    </section>
+  </details>
+  {{end}}
+</div>
+{{else}}
+<div class="card">{{template "empty" (dict "Icon" "history" "Title" (T "No revisions yet"))}}</div>
+{{end}}
+{{end}}

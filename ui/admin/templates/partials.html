@@ -1,0 +1,89 @@
+{{define "page-header"}}
+<div class="page-header">
+  <div>
+    <h1>{{.Title}}</h1>
+    {{with .Description}}<p>{{.}}</p>{{end}}
+  </div>
+  {{with .Actions}}<div class="page-actions">{{.}}</div>{{end}}
+</div>
+{{end}}
+
+{{define "pagination"}}
+{{if .}}
+<nav class="pager" aria-label="{{T "Pagination"}}">
+  {{if .PrevURL}}<a class="btn" data-variant="outline" data-size="sm" href="{{.PrevURL}}" rel="prev">{{icon "chevron-left"}}<span class="max-sm:sr-only">{{T "Previous"}}</span></a>{{end}}
+  <ul>
+  {{range .Links}}
+    {{if .Gap}}<li aria-hidden="true">…</li>
+    {{else}}<li><a class="btn" data-size="icon-sm" data-variant="{{if .Current}}secondary{{else}}ghost{{end}}" href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Num}}</a></li>{{end}}
+  {{end}}
+  </ul>
+  {{if .NextURL}}<a class="btn" data-variant="outline" data-size="sm" href="{{.NextURL}}" rel="next"><span class="max-sm:sr-only">{{T "Next"}}</span>{{icon "chevron-right"}}</a>{{end}}
+</nav>
+{{end}}
+{{end}}
+
+{{define "status-badge"}}
+{{if eq . "published"}}<span class="badge" data-variant="success">{{statusLabel .}}</span>
+{{else if eq . "scheduled"}}<span class="badge" data-variant="info">{{statusLabel .}}</span>
+{{else if or (eq . "pending") (eq . "spam")}}<span class="badge" data-variant="warning">{{statusLabel .}}</span>
+{{else if or (eq . "trash") (eq . "disabled")}}<span class="badge" data-variant="destructive">{{statusLabel .}}</span>
+{{else if eq . "approved"}}<span class="badge" data-variant="success">{{statusLabel .}}</span>
+{{else if eq . "active"}}<span class="badge" data-variant="outline">{{statusLabel .}}</span>
+{{else}}<span class="badge" data-variant="secondary">{{statusLabel .}}</span>{{end}}
+{{end}}
+
+{{define "empty"}}
+<div class="empty-state">
+  <div class="empty-icon" aria-hidden="true">{{icon .Icon}}</div>
+  <h3>{{.Title}}</h3>
+  {{with .Text}}<p>{{.}}</p>{{end}}
+  {{with .Action}}<div>{{.}}</div>{{end}}
+</div>
+{{end}}
+
+{{define "form-error"}}
+{{if .}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "Please review the form"}}</h2><section>{{if eq (printf "%T" .) "[]string"}}<ul>{{range .}}<li>{{.}}</li>{{end}}</ul>{{else}}<p>{{.}}</p>{{end}}</section></div>{{end}}
+{{end}}
+
+{{define "filter-tabs"}}
+<nav class="filter-tabs" aria-label="{{T "Filter"}}">
+  {{range .}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}{{if ge .Count 0}} <span>{{.Count}}</span>{{end}}</a>{{end}}
+</nav>
+{{end}}
+
+{{/* Passkey registration (profile and 2FA pages). Hidden until passkey.js
+   confirms browser support. Expects (dict "Recent" bool "Next" path). */}}
+{{define "passkey-add"}}
+<form class="form passkey-add" data-passkey-register data-next="{{.Next}}" hidden
+  data-msg-cancelled="{{T "The passkey request was cancelled or timed out."}}"
+  data-msg-exists="{{T "This device already has a passkey for your account."}}"
+  data-msg-failed="{{T "The passkey could not be created. Try again."}}"
+  data-msg-insecure="{{T "Passkeys only work on the site's own address over HTTPS."}}">
+  <div class="field">
+    <label for="passkey-name">{{T "Passkey name"}} <span class="muted font-normal">({{T "optional"}})</span></label>
+    <input class="input" id="passkey-name" name="name" maxlength="100" placeholder="{{T "e.g. Work laptop, iPhone"}}" autocomplete="off">
+  </div>
+  <div class="field" data-passkey-reauth{{if .Recent}} hidden{{end}}>
+    <label for="passkey-password">{{T "Current password"}}</label>
+    <input class="input" id="passkey-password" name="current_password" type="password" autocomplete="current-password" maxlength="256">
+    <p class="hint">{{T "Confirm your password to add a passkey."}}</p>
+  </div>
+  <div class="form-actions"><button class="btn" type="submit">{{icon "fingerprint"}}{{T "Add a passkey"}}</button></div>
+</form>
+<p class="hint" data-passkey-unsupported hidden>{{T "This browser does not support passkeys."}}</p>
+{{end}}
+
+{{/* Passkey sign-in button for /login (Mode "") and the second step of a
+   password login (Mode "2fa"). Hidden until passkey.js confirms support. */}}
+{{define "passkey-signin"}}
+<div class="passkey-signin" data-passkey-login data-mode="{{.Mode}}" data-next="{{.Next}}" hidden
+  data-msg-cancelled="{{T "The passkey request was cancelled or timed out."}}"
+  data-msg-failed="{{T "Signing in with the passkey failed. Try again."}}"
+  data-msg-insecure="{{T "Passkeys only work on the site's own address over HTTPS."}}">
+  {{if not .Only}}<div class="auth-divider"><span>{{T "or"}}</span></div>{{end}}
+  <button type="button" class="btn w-full"{{if not .Only}} data-variant="outline"{{end}} data-passkey-signin{{if .Only}} autofocus{{end}}>{{icon "fingerprint"}}{{if eq .Mode "2fa"}}{{T "Use a passkey"}}{{else}}{{T "Sign in with a passkey"}}{{end}}</button>
+</div>
+<p class="hint text-center" data-passkey-unsupported hidden>{{if .Only}}{{T "This browser does not support passkeys. Use another browser or device to finish signing in."}}{{end}}</p>
+<script src="{{asset "passkey.js"}}" defer></script>
+{{end}}

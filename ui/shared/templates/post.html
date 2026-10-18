@@ -1,0 +1,111 @@
+{{/* shared/post-meta: date, author, reading time. Data: *PostView. */}}
+{{define "shared/post-meta"}}
+<div class="post-meta">
+  {{if .HasDate}}<time datetime="{{isoDate .Published}}">{{date .Published}}</time>{{end}}
+  {{if .Author.Name}}<span class="post-meta-sep" aria-hidden="true">·</span>{{if .Author.URL}}<a href="{{.Author.URL}}" rel="author">{{.Author.Name}}</a>{{else}}<span>{{.Author.Name}}</span>{{end}}{{end}}
+  {{if eq .Type "post"}}<span class="post-meta-sep" aria-hidden="true">·</span><span>{{T "%d min read" .ReadingMinutes}}</span>{{end}}
+  {{if .Scheduled}}<span class="post-badge">{{T "Scheduled"}}</span>{{else if ne .Status "published"}}<span class="post-badge">{{statusLabel .Status}}</span>{{end}}
+</div>
+{{end}}
+
+{{/* shared/categories: category links. Data: *PostView. */}}
+{{define "shared/categories"}}
+{{if .Categories}}<ul class="post-categories" aria-label="{{T "Categories"}}">{{range .Categories}}<li><a href="{{.URL}}" rel="category">{{.Name}}</a></li>{{end}}</ul>{{end}}
+{{end}}
+
+{{/* shared/tags: tag links. Data: *PostView. */}}
+{{define "shared/tags"}}
+{{if .Tags}}<ul class="post-tags" aria-label="{{T "Tags"}}">{{range .Tags}}<li><a href="{{.URL}}" rel="tag">#{{.Name}}</a></li>{{end}}</ul>{{end}}
+{{end}}
+
+{{/* shared/image: responsive <img>. Data: dict "Image" *ImageView "Sizes" string "Eager" bool "Class" string. */}}
+{{define "shared/image"}}
+{{with .Image}}<img src="{{.Medium}}" srcset="{{.Srcset}}" sizes="{{or $.Sizes "(min-width: 1024px) 50vw, 100vw"}}" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}}{{if $.Eager}} fetchpriority="high"{{else}} loading="lazy"{{end}} decoding="async"{{with $.Class}} class="{{.}}"{{end}}>{{end}}
+{{end}}
+
+{{/* shared/featured-image: <figure> with caption for the single view. Data: *PostView. */}}
+{{define "shared/featured-image"}}
+{{with .Image}}<figure class="featured-image">
+  <img src="{{.Large}}" srcset="{{.Srcset}}" sizes="(min-width: 1200px) 1200px, 100vw" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}} fetchpriority="high" decoding="async">
+  {{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}
+</figure>{{end}}
+{{end}}
+
+{{/* shared/content: rendered body. Data: *PostView. */}}
+{{define "shared/content"}}<div class="prose entry-content">{{.Content}}</div>{{end}}
+
+{{/* shared/post-nav: previous / next post. Data: PageData. */}}
+{{define "shared/post-nav"}}
+{{if or .Prev .Next}}
+<nav class="post-nav" aria-label="{{T "More posts"}}">
+  {{with .Prev}}<a class="post-nav-prev" href="{{.URL}}" rel="prev"><small>{{icon "arrow-left"}} {{T "Previous"}}</small><span>{{.Title}}</span></a>{{else}}<span></span>{{end}}
+  {{with .Next}}<a class="post-nav-next" href="{{.URL}}" rel="next"><small>{{T "Next"}} {{icon "arrow-right"}}</small><span>{{.Title}}</span></a>{{end}}
+</nav>
+{{end}}
+{{end}}
+
+{{/* shared/share: share links (no third-party scripts). Data: *PostView. */}}
+{{define "shared/share"}}
+<div class="share-links">
+  <span>{{T "Share"}}</span>
+  <a href="https://bsky.app/intent/compose?text={{.Title}}%20{{.AbsURL}}" rel="noopener nofollow" target="_blank">Bluesky</a>
+  <a href="https://www.linkedin.com/sharing/share-offsite/?url={{.AbsURL}}" rel="noopener nofollow" target="_blank">LinkedIn</a>
+  <a href="mailto:?subject={{.Title}}&amp;body={{.AbsURL}}">E-mail</a>
+  <button type="button" data-copy-url="{{.AbsURL}}">{{icon "link"}}<span>{{T "Copy link"}}</span></button>
+</div>
+{{end}}
+
+{{/* shared/pagination. Data: *Pagination (may be nil). */}}
+{{define "shared/pagination"}}
+{{with .}}
+<nav class="pagination" aria-label="{{T "Pagination"}}">
+  {{if .PrevURL}}<a class="pagination-prev" href="{{.PrevURL}}" rel="prev">{{icon "arrow-left"}}<span>{{T "Newer"}}</span></a>{{else}}<span class="pagination-prev" aria-hidden="true"></span>{{end}}
+  <ol>
+    {{range .Links}}{{if .Gap}}<li class="pagination-gap" aria-hidden="true">…</li>{{else}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Num}}</a></li>{{end}}{{end}}
+  </ol>
+  {{if .NextURL}}<a class="pagination-next" href="{{.NextURL}}" rel="next"><span>{{T "Older"}}</span>{{icon "arrow-right"}}</a>{{else}}<span class="pagination-next" aria-hidden="true"></span>{{end}}
+</nav>
+{{end}}
+{{end}}
+
+{{/* shared/archive-header: title of category/tag/author/date archives and search. Data: PageData. */}}
+{{define "shared/archive-header"}}
+<header class="archive-header">
+  {{with .Archive}}
+  <p class="archive-kind">{{if eq .Kind "category"}}{{T "Category"}}{{else if eq .Kind "tag"}}{{T "Tag"}}{{else if eq .Kind "author"}}{{T "Author"}}{{else}}{{T "Archive"}}{{end}}</p>
+  <h1>{{.Title}}</h1>
+  {{with .Description}}<p class="archive-description">{{.}}</p>{{end}}
+  <p class="archive-meta">{{plural .Count "%d post" "%d posts"}}{{with .FeedURL}} · <a href="{{.}}">{{icon "rss"}} {{T "Subscribe"}}</a>{{end}}</p>
+  {{else}}
+  <h1>{{.Heading}}</h1>
+  {{end}}
+</header>
+{{end}}
+
+{{/* shared/not-found: default 404 body. Data: PageData. */}}
+{{define "shared/not-found"}}
+<section class="not-found">
+  <p class="not-found-code">404</p>
+  <h1>{{T "Page not found"}}</h1>
+  <p>{{T "The address may be mistyped, or the page was moved."}}</p>
+  {{template "shared/search-form" .}}
+  <p><a href="{{link "/"}}">{{icon "arrow-left"}} {{T "Back to the homepage"}}</a></p>
+</section>
+{{end}}
+
+{{/* shared/search-form. Data: PageData. */}}
+{{define "shared/search-form"}}
+<form class="search-form" method="get" action="{{link "/search"}}" role="search">
+  <label class="sr-only" for="search-q-{{.Kind}}">{{T "Search"}}</label>
+  <input id="search-q-{{.Kind}}" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
+  <button type="submit" aria-label="{{T "Search"}}">{{icon "search"}}</button>
+</form>
+{{end}}
+
+{{/* shared/no-results: empty listing. Data: PageData. */}}
+{{define "shared/no-results"}}
+<section class="no-results">
+  {{if .Query}}<h2>{{T "Nothing found for “%s”" .Query}}</h2><p>{{T "Try other words or browse the categories."}}</p>{{template "shared/search-form" .}}
+  {{else}}<h2>{{T "Nothing published yet"}}</h2><p>{{T "Come back soon."}}</p>{{end}}
+</section>
+{{end}}

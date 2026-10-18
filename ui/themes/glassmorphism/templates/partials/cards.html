@@ -1,0 +1,46 @@
+{{/* card: one post as a glass card. Data: dict "P" *PostView "Lead" bool. */}}
+{{define "card"}}
+{{$p := .P}}
+{{$sizes := "(min-width: 1200px) 24rem, (min-width: 700px) 50vw, 100vw"}}
+{{if .Lead}}{{$sizes = "(min-width: 1024px) 40rem, (min-width: 700px) 50vw, 100vw"}}{{end}}
+<article class="post-card glass{{if .Lead}} card-lead{{end}}{{if not $p.Image}} card-noimage{{end}}">
+  {{if $p.Image}}<div class="card-media">{{template "shared/image" (dict "Image" $p.Image "Sizes" $sizes "Eager" .Lead)}}</div>
+  {{else}}<div class="card-media card-art" aria-hidden="true"><span class="card-art-disc">{{icon "feather"}}</span></div>{{end}}
+  <div class="card-body">
+    {{with $p.Categories}}<p class="card-kicker"><a href="{{(index . 0).URL}}">{{(index . 0).Name}}</a></p>{{end}}
+    <h2 class="card-title"><a href="{{$p.URL}}">{{$p.Title}}</a></h2>
+    {{with $p.Summary}}<p class="card-summary">{{.}}</p>{{end}}
+    <p class="card-meta">
+      {{if $p.HasDate}}<time datetime="{{isoDate $p.Published}}">{{date $p.Published}}</time><span aria-hidden="true">·</span>{{end}}
+      <span>{{T "%d min read" $p.ReadingMinutes}}</span>
+      {{if $p.CommentCount}}<span aria-hidden="true">·</span><span class="card-comments">{{icon "message-circle"}}{{plural $p.CommentCount "%d comment" "%d comments"}}</span>{{end}}
+    </p>
+  </div>
+</article>
+{{end}}
+
+{{/* grid: posts as cards. Data: dict "Posts" []*PostView "Lead" bool (first card larger). */}}
+{{define "grid"}}
+{{if .Posts}}<div class="card-grid{{if .Lead}} has-lead{{end}}">{{range $i, $p := .Posts}}{{template "card" (dict "P" $p "Lead" (and $.Lead (eq $i 0)))}}{{end}}</div>{{end}}
+{{end}}
+
+{{/* pager: glass pagination. Data: *Pagination (may be nil). */}}
+{{define "pager"}}
+{{with .}}<div class="pager">{{template "shared/pagination" .}}</div>{{end}}
+{{end}}
+
+{{/* sidebar: the sidebar widget area, when enabled and not empty. Data: PageData. */}}
+{{define "sidebar"}}
+<aside class="sidebar" aria-label="{{T "Sidebar"}}">{{template "shared/widget-area" (dict "Page" . "Area" "sidebar")}}</aside>
+{{end}}
+
+{{/* intro: glass header card for listings without a hero. Data: PageData. */}}
+{{define "intro"}}
+<section class="wrap intro">
+  <span class="orb orb-intro" aria-hidden="true"></span>
+  <div class="intro-card glass">
+    <h1>{{or .Heading .Site.Title}}</h1>
+    {{if not .IsFront}}{{with .Site.Tagline}}<p class="intro-lead">{{.}}</p>{{end}}{{end}}
+  </div>
+</section>
+{{end}}

@@ -1,0 +1,274 @@
+package web
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/netip"
+	"regexp"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"sap13ns/internal/auth"
+	"sap13ns/internal/content"
+	"sap13ns/internal/media"
+	"sap13ns/internal/store"
+	"sap13ns/internal/wpimport"
+)
+
+// WordPress import. The WXR file is parsed while it uploads (it is never
+// written to disk); the import itself runs in the background, one at a
+// time, and the tools page shows its progress and final report.
+
+const wxrMaxBytes = 256 << 20
+
+type importJob struct {
+	mu       sync.Mutex
+	running  bool
+	started  time.Time
+	finished time.Time
+	user     string
+	file     string
+	report   *wpimport.Report
+	err      string
+}
+
+type importStatus struct {
+	Running  bool
+	Started  time.Time
+	Finished time.Time
+	User     string
+	File     string
+	Summary  string
+	Warnings []string
+	Dropped  int
+	DryRun   bool
+	Error    string
+}
+
+func (j *importJob) status() importStatus {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	st := importStatus{Running: j.running, Started: j.started, Finished: j.finished, User: j.user, File: j.file, Error: j.err}
+	if j.report != nil {
+		st.Summary, st.Warnings, st.Dropped, st.DryRun = j.report.Summary(), j.report.Warnings, j.report.WarningsDropped, j.report.DryRun
+	}
+	return st
+}
+
+type importData struct {
+	Status  importStatus
+	Authors []store.User
+	Langs   []LangLink
+	Error   string
+}
+
+func (s *Server) adminImport(w http.ResponseWriter, r *http.Request) {
+	s.renderImport(w, r, http.StatusOK, "")
+}
+
+func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, status int, msg string) {
+	authors, err := s.authorChoices(r)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderAdminStatus(w, r, status, "import", s.t("Import from WordPress"), "import",
+		importData{Status: s.imports.status(), Authors: authors, Langs: s.adminLangs(), Error: msg})
+}
+
+func (s *Server) authorChoices(r *http.Request) ([]store.User, error) {
+	list, _, err := s.store.ListUsers(r.Context(), store.UserListQuery{Limit: 500})
+	if err != nil {
+		return nil, err
+	}
+	out := list[:0]
+	for _, u := range list {
+		if auth.Can(u.Role, auth.CapEditOwnPosts) {
+			out = append(out, u)
+		}
+	}
+	return out, nil
+}
+
+func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, wxrMaxBytes+1<<20)
+	file, hdr, err := r.FormFile("wxr")
+	if err != nil {
+		s.renderImport(w, r, http.StatusBadRequest, s.t("Choose the export file (.xml) from Tools → Export in WordPress."))
+		return
+	}
+	defer file.Close()
+	exp, err := wpimport.Parse(wpimport.LimitReader(file, wxrMaxBytes))
+	if err != nil {
+		msg := s.t("This is not a valid WordPress export file.")
+		if errors.Is(err, wpimport.ErrTooLarge) {
+			msg = s.t("The file is too large (%s max).", filesize(wxrMaxBytes))
+		}
+		s.log.Warn("wxr parse", "err", err)
+		s.renderImport(w, r, http.StatusUnprocessableEntity, msg)
+		return
+	}
+	authorID := uid(r)
+	if id := formInt64Ptr(r, "author_id"); id != nil {
+		authorID = *id
+	}
+	if au, err := s.store.UserByID(r.Context(), authorID); err != nil || !auth.Can(au.Role, auth.CapEditOwnPosts) {
+		s.renderImport(w, r, http.StatusUnprocessableEntity, s.t("Choose an author for the imported content."))
+		return
+	}
+	lang := r.FormValue("lang")
+	if !slices.Contains(s.siteLangs(), lang) {
+		lang = s.mainLang()
+	}
+	opts := wpimport.Options{DryRun: r.FormValue("dry_run") == "1", DownloadMedia: r.FormValue("media") == "1",
+		SkipExisting: r.FormValue("skip_existing") == "1", DefaultAuthorID: authorID,
+		MaxMediaBytes: s.cfg.MaxUploadBytes,
+		PostURL:       func(typ, slug string) string { return s.langPath(lang, postPath(typ, slug)) }}
+	for _, h := range strings.Fields(strings.ReplaceAll(r.FormValue("media_hosts"), ",", " ")) {
+		opts.MediaHosts = append(opts.MediaHosts, strings.ToLower(h))
+	}
+
+	j := &s.imports
+	j.mu.Lock()
+	if j.running {
+		j.mu.Unlock()
+		s.renderImport(w, r, http.StatusConflict, s.t("An import is already running."))
+		return
+	}
+	u := currentUser(r)
+	j.running, j.started, j.finished, j.user, j.file, j.report, j.err = true, time.Now(), time.Time{}, u.Name(), hdr.Filename, nil, ""
+	j.mu.Unlock()
+	s.audit(r, u.ID, "import.started", hdr.Filename, map[string]string{"dry_run": fmt.Sprint(opts.DryRun)})
+
+	sink := &wpSink{s: s, lang: lang, uploader: u.ID}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Hour)
+		defer cancel()
+		rep, err := wpimport.Import(ctx, exp, sink, opts)
+		j.mu.Lock()
+		j.running, j.finished, j.report = false, time.Now(), rep
+		if err != nil {
+			j.err = err.Error()
+		}
+		j.mu.Unlock()
+		if !opts.DryRun {
+			s.contentChanged()
+			s.redirects.reset()
+		}
+		s.log.Info("wordpress import finished", "dry_run", opts.DryRun, "err", err)
+	}()
+	s.redirect(w, r, "/admin/tools/import", "success", s.t("Import started."))
+}
+
+// wpSink stores imported content through the store.
+type wpSink struct {
+	s        *Server
+	lang     string
+	uploader int64
+}
+
+var nonUsername = regexp.MustCompile(`[^a-z0-9_.-]+`)
+
+func (k *wpSink) EnsureUser(ctx context.Context, a wpimport.Author) (int64, error) {
+	st := k.s.store
+	if a.Email != "" {
+		if u, err := st.UserByEmail(ctx, strings.ToLower(a.Email)); err == nil {
+			return u.ID, nil
+		}
+	}
+	name := strings.Trim(nonUsername.ReplaceAllString(strings.ToLower(content.Slugify(a.Login)), ""), "._-")
+	for len(name) < 3 {
+		name += "x"
+	}
+	if len(name) > 28 {
+		name = name[:28]
+	}
+	if u, err := st.UserByUsername(ctx, name); err == nil {
+		if a.Email == "" || strings.EqualFold(u.Email, a.Email) {
+			return u.ID, nil
+		}
+		name = fmt.Sprintf("%s-wp%d", name, a.ID%1000)
+	}
+	email := strings.ToLower(a.Email)
+	if email == "" || !strings.Contains(email, "@") {
+		email = name + "@import.invalid"
+	}
+	display := strings.TrimSpace(a.DisplayName)
+	if display == "" {
+		display = strings.TrimSpace(a.FirstName + " " + a.LastName)
+	}
+	// No password: the account can only be used after a password reset.
+	return st.CreateUser(ctx, store.NewUser{Username: name, Email: email, DisplayName: display, Role: auth.RoleContributor})
+}
+
+func (k *wpSink) EnsureTerm(ctx context.Context, taxonomy string, t wpimport.Term, parentID *int64) (int64, error) {
+	if term, err := k.s.store.TermBySlug(ctx, taxonomy, t.Slug); err == nil {
+		return term.ID, nil
+	}
+	if taxonomy != wpimport.TaxonomyCategory {
+		parentID = nil
+	}
+	return k.s.store.CreateTerm(ctx, store.TermInput{Taxonomy: taxonomy, Name: t.Name, Slug: t.Slug, Description: t.Description, ParentID: parentID})
+}
+
+func (k *wpSink) PostExists(ctx context.Context, typ, slug string) (bool, error) {
+	if typ == store.TypePage && (reservedSlugs[slug] || validLang(slug)) {
+		return true, nil
+	}
+	return k.s.store.SlugExists(ctx, typ, k.lang, slug, 0)
+}
+
+func (k *wpSink) CreatePost(ctx context.Context, p wpimport.Post) (int64, error) {
+	return k.s.store.CreatePost(ctx, store.PostInput{Type: p.Type, Status: p.Status, Title: p.Title, Slug: p.Slug, Lang: k.lang,
+		Excerpt: p.Excerpt, Content: p.Content, AuthorID: p.AuthorID, ParentID: p.ParentID, MenuOrder: p.MenuOrder,
+		FeaturedMediaID: p.FeaturedMediaID, CommentStatus: p.CommentStatus, PublishedAt: p.PublishedAt, TermIDs: p.TermIDs})
+}
+
+func (k *wpSink) CreateComment(ctx context.Context, postID int64, c wpimport.Comment, parentID *int64) (int64, error) {
+	ip, _ := netip.ParseAddr(c.AuthorIP)
+	date := c.Date
+	return k.s.store.CreateComment(ctx, store.NewComment{PostID: postID, ParentID: parentID, UserID: c.NewUserID,
+		AuthorName: c.Author, AuthorEmail: c.AuthorEmail, AuthorURL: c.AuthorURL, Content: c.Text, Status: c.Status,
+		IP: ip, CreatedAt: &date})
+}
+
+func (k *wpSink) StoreMedia(ctx context.Context, name string, r io.Reader, alt string) (int64, string, error) {
+	res, err := k.s.media.Save(r)
+	if err != nil {
+		if errors.Is(err, media.ErrTooLarge) {
+			return 0, "", wpimport.ErrMediaTooLarge
+		}
+		return 0, "", err
+	}
+	m := &store.Media{UploaderID: &k.uploader, Path: res.Path, OriginalName: cleanFilename(name), MIME: res.MIME, Size: res.Size,
+		Width: res.Width, Height: res.Height, Variants: res.Variants, SHA256: res.SHA256, Alt: alt}
+	if !media.MatchesName(res.MIME, m.OriginalName) {
+		k.s.media.Remove(m)
+		return 0, "", errors.New("file type does not match its name")
+	}
+	if existing, err := k.s.store.MediaBySHA(ctx, res.SHA256); err == nil {
+		k.s.media.Remove(m) // already imported
+		return existing.ID, existing.URL(), nil
+	}
+	if m.Variants == nil {
+		m.Variants = map[string]store.MediaVariant{}
+	}
+	if m.ID, err = k.s.store.CreateMedia(ctx, m); err != nil {
+		k.s.media.Remove(m)
+		return 0, "", err
+	}
+	return m.ID, m.URL(), nil
+}
+
+func (k *wpSink) AddRedirect(ctx context.Context, from, to string) error {
+	src, dst, ok := normalizeRedirect(from, to, http.StatusMovedPermanently)
+	if !ok {
+		return fmt.Errorf("unusable redirect %q → %q", from, to)
+	}
+	return k.s.store.SaveRedirect(ctx, src, dst, http.StatusMovedPermanently, true)
+}

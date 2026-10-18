@@ -1,0 +1,59 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$t := $d.Term}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/terms/{{$d.Taxonomy}}">{{icon "arrow-left" "size-3.5"}} {{if eq $d.Taxonomy "tag"}}{{T "Tags"}}{{else}}{{T "Categories"}}{{end}}</a></p>
+    <h1>{{$t.Name}}</h1>
+  </div>
+  <div class="page-actions"><a class="btn" data-variant="outline" data-size="sm" href="/{{$d.Taxonomy}}/{{$t.Slug}}" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View"}}</a></div>
+</div>
+<section class="card narrow">
+  <section>
+    {{template "form-error" $d.Error}}
+    <form method="post" action="/admin/terms/{{$d.Taxonomy}}/{{$t.ID}}" class="form" data-unsaved>
+      {{.CSRFField}}
+      {{template "term-fields" (dict "D" $d "T" (dict "Name" $t.Name "Slug" $t.Slug "Description" $t.Description "ParentID" $t.ParentID "I18n" $t.I18n) "Self" $t.ID)}}
+      <div class="form-actions">
+        <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
+        <button class="btn ml-auto" data-variant="destructive" type="submit" form="delete-term" data-confirm="{{T "Delete “%s”? Posts keep their content but lose this term." $t.Name}}">{{icon "trash-2"}}{{T "Delete"}}</button>
+      </div>
+    </form>
+    <form id="delete-term" method="post" action="/admin/terms/{{$d.Taxonomy}}/{{$t.ID}}/delete" hidden>{{.CSRFField}}</form>
+  </section>
+</section>
+{{end}}
+{{define "term-fields"}}
+<div class="field">
+  <label for="name">{{T "Name"}}</label>
+  <input class="input" id="name" name="name" type="text" value="{{.T.Name}}" required maxlength="100">
+</div>
+<div class="field">
+  <label for="slug">{{T "Address"}}</label>
+  <input class="input" id="slug" name="slug" type="text" value="{{.T.Slug}}" maxlength="120" pattern="[a-z0-9\-]*" spellcheck="false" autocapitalize="none">
+</div>
+{{if eq .D.Taxonomy "category"}}
+<div class="field">
+  <label for="parent_id">{{T "Parent"}}</label>
+  <select class="select w-full" id="parent_id" name="parent_id">
+    <option value="">{{T "(none)"}}</option>
+    {{$cur := .T}}{{$self := .Self}}
+    {{range .D.Terms}}{{if ne .ID $self}}<option value="{{.ID}}"{{if eq (derefInt (index $cur "ParentID")) .ID}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+  </select>
+</div>
+{{end}}
+<div class="field">
+  <label for="description">{{T "Description"}}</label>
+  <textarea class="textarea" id="description" name="description" rows="4" maxlength="1000">{{.T.Description}}</textarea>
+</div>
+{{if .D.Langs}}{{$i := .T.I18n}}
+<fieldset class="fieldset">
+  <legend>{{T "Translations"}}</legend>
+  {{range .D.Langs}}{{$tx := index $i .Code}}
+  <div class="field"><label for="i18n-{{.Code}}-name">{{T "Name"}} · {{.Name}}</label><input class="input" id="i18n-{{.Code}}-name" name="i18n_{{.Code}}_name" type="text" value="{{$tx.Name}}" maxlength="100" lang="{{.Code}}"></div>
+  <div class="field"><label for="i18n-{{.Code}}-description">{{T "Description"}} · {{.Name}}</label><textarea class="textarea" id="i18n-{{.Code}}-description" name="i18n_{{.Code}}_description" rows="2" maxlength="1000" lang="{{.Code}}">{{$tx.Description}}</textarea></div>
+  {{end}}
+  <p class="hint">{{T "Leave a name empty to use the main-language one."}}</p>
+</fieldset>
+{{end}}
+{{end}}

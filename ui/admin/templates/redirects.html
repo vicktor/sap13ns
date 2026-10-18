@@ -1,0 +1,54 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Redirects"}}</h1>
+    <p>{{T "Send visitors and search engines from old addresses to new ones. When a published post changes its address, a permanent redirect is added automatically."}}</p>
+  </div>
+</div>
+<div class="split">
+  <section class="card">
+    <header><h2>{{T "Add redirect"}}</h2></header>
+    <section>
+      {{template "form-error" $d.Error}}
+      <form method="post" action="/admin/tools/redirects" class="form">
+        {{.CSRFField}}
+        <div class="field"><label for="source">{{T "From"}}</label><input class="input mono" id="source" name="source" value="{{$d.Form.Source}}" required maxlength="1000" placeholder="/2019/05/old-post/" spellcheck="false" autocapitalize="none"></div>
+        <div class="field"><label for="target">{{T "To"}}</label><input class="input mono" id="target" name="target" value="{{$d.Form.Target}}" maxlength="2000" placeholder="/blog/new-post · https://…" spellcheck="false" autocapitalize="none"><p class="hint">{{T "Leave empty for “Gone”."}}</p></div>
+        <div class="field"><label for="status">{{T "Type"}}</label>
+          <select class="select w-full" id="status" name="status">{{template "redirect-status" $d.Form.Status}}</select></div>
+        <button class="btn" type="submit">{{icon "plus"}}{{T "Add"}}</button>
+      </form>
+    </section>
+  </section>
+  <section class="card table-wrap">
+    {{if $d.Redirects}}
+    <table class="table">
+      <thead><tr><th>{{T "From"}}</th><th>{{T "To"}}</th><th class="text-right">{{T "Hits"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+      <tbody>
+        {{range $d.Redirects}}
+        <tr>
+          <td><span class="mono text-sm break-all">{{.Source}}</span>{{if .Auto}} <span class="badge" data-variant="secondary">{{T "Automatic"}}</span>{{end}}</td>
+          <td><span class="badge" data-variant="outline">{{.Status}}</span> <span class="mono text-sm break-all">{{or .Target (T "Gone")}}</span></td>
+          <td class="text-right tabular">{{.Hits}}{{with .LastHitAt}}<div class="row-sub muted">{{ago .}}</div>{{end}}</td>
+          <td class="text-right nowrap">
+            <form method="post" action="/admin/tools/redirects/{{.ID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Delete"}}" data-confirm="{{T "Delete this redirect?"}}">{{icon "trash-2"}}</button></form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    {{template "empty" (dict "Icon" "arrow-right-left" "Title" (T "No redirects yet"))}}
+    {{end}}
+  </section>
+</div>
+{{end}}
+{{define "redirect-status"}}{{$cur := .}}
+<option value="301"{{if eq $cur 301}} selected{{end}}>301 · {{T "Moved permanently"}}</option>
+<option value="302"{{if eq $cur 302}} selected{{end}}>302 · {{T "Temporary"}}</option>
+<option value="307"{{if eq $cur 307}} selected{{end}}>307 · {{T "Temporary (keep method)"}}</option>
+<option value="308"{{if eq $cur 308}} selected{{end}}>308 · {{T "Permanent (keep method)"}}</option>
+<option value="410"{{if eq $cur 410}} selected{{end}}>410 · {{T "Gone"}}</option>
+{{end}}

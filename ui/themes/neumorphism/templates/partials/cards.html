@@ -1,0 +1,65 @@
+{{/* nm-card: one raised post card. Data: dict "P" *PostView "Images" bool. */}}
+{{define "nm-card"}}
+{{$p := .P}}{{$img := and .Images $p.Image}}
+<article class="nm-card{{if $img}} has-media{{end}}">
+  {{if $img}}<div class="nm-well nm-card-media">{{template "shared/image" (dict "Image" $p.Image "Sizes" "(min-width: 1280px) 24rem, (min-width: 720px) 45vw, 100vw")}}</div>{{end}}
+  <div class="nm-card-body">
+    {{with $p.Categories}}<p class="nm-eyebrow">{{(index . 0).Name}}</p>{{end}}
+    <h3 class="nm-card-title"><a class="nm-card-link" href="{{$p.URL}}">{{$p.Title}}</a></h3>
+    {{with $p.Summary}}<p class="nm-card-summary">{{.}}</p>{{end}}
+    {{template "nm-card-meta" $p}}
+  </div>
+</article>
+{{end}}
+
+{{/* nm-card-meta: date, reading time, comments. Data: *PostView. */}}
+{{define "nm-card-meta"}}
+<p class="nm-card-meta">
+  {{if .HasDate}}<time datetime="{{isoDate .Published}}">{{date .Published}}</time><span aria-hidden="true">·</span>{{end}}
+  <span>{{T "%d min read" .ReadingMinutes}}</span>
+  {{if .CommentCount}}<span class="nm-card-comments">{{icon "message-circle"}}{{plural .CommentCount "%d comment" "%d comments"}}</span>{{end}}
+</p>
+{{end}}
+
+{{/* nm-feature: the newest post, wide. Data: dict "P" *PostView "Images" bool. */}}
+{{define "nm-feature"}}
+{{$p := .P}}{{$img := and .Images $p.Image}}
+<article class="nm-card nm-feature{{if $img}} has-media{{end}}">
+  <div class="nm-card-body">
+    <p class="nm-eyebrow">{{with $p.Categories}}{{(index . 0).Name}}{{else}}{{T "Latest"}}{{end}}</p>
+    <h3 class="nm-card-title"><a class="nm-card-link" href="{{$p.URL}}">{{$p.Title}}</a></h3>
+    {{with $p.Summary}}<p class="nm-card-summary">{{.}}</p>{{end}}
+    {{template "nm-card-meta" $p}}
+    <span class="nm-btn nm-btn-sm nm-more" aria-hidden="true">{{T "Read more"}} {{icon "arrow-right"}}</span>
+  </div>
+  {{if $img}}<div class="nm-well nm-card-media">{{template "shared/image" (dict "Image" $p.Image "Sizes" "(min-width: 1024px) 40vw, 100vw" "Eager" true)}}</div>{{else}}<div class="nm-well nm-feature-art" aria-hidden="true"><span>{{icon "feather"}}</span></div>{{end}}
+</article>
+{{end}}
+
+{{/* nm-grid: cards. Data: dict "Posts" []*PostView "Images" bool. */}}
+{{define "nm-grid"}}
+{{$imgs := .Images}}
+{{if .Posts}}<div class="nm-grid">{{range .Posts}}{{template "nm-card" (dict "P" . "Images" $imgs)}}{{end}}</div>{{end}}
+{{end}}
+
+{{/* nm-listing: posts, pagination, empty state and the optional sidebar.
+     Data: dict "Page" PageData "Posts" []*PostView "Feature" bool "Images" bool "NoAside" bool. */}}
+{{define "nm-listing"}}
+{{$aside := and (not .NoAside) (eq (index .Page.Site.Options "sidebar") "true") (.Page.Area "sidebar")}}
+<div class="nm-listing{{if $aside}} has-aside{{end}}">
+  <div class="nm-listing-main">
+    {{if .Posts}}
+      {{if .Feature}}
+        {{template "nm-feature" (dict "P" (index .Posts 0) "Images" .Images)}}
+        {{template "nm-grid" (dict "Posts" (slice .Posts 1) "Images" .Images)}}
+      {{else}}
+        {{template "nm-grid" (dict "Posts" .Posts "Images" .Images)}}
+      {{end}}
+      {{with .Page.Pagination}}<div class="nm-pager">{{template "shared/pagination" .}}</div>{{end}}
+    {{else}}
+      <div class="nm-plaque nm-empty">{{template "shared/no-results" .Page}}</div>
+    {{end}}
+  </div>
+  {{if $aside}}<aside class="nm-aside" aria-label="{{T "Sidebar"}}">{{template "shared/widget-area" (dict "Page" .Page "Area" "sidebar")}}</aside>{{end}}
+</div>
+{{end}}

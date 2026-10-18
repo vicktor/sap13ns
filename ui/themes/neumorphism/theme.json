@@ -1,0 +1,29 @@
+{
+  "name": "Neumorphism",
+  "version": "1.0.0",
+  "description": "Soft UI: every card, button and field is extruded from or carved into one continuous surface, with accessible contrast and clear focus rings in light and dark.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "sidebar", "label": "Sidebar", "description": "Soft panels beside the post listings (below them on small screens)."},
+    {"id": "footer", "label": "Footer", "description": "Columns inside the carved footer tray."}
+  ],
+  "options": [
+    {"key": "accent", "label": "Accent colour", "type": "select", "default": "iris", "help": "Used for links, focus rings and the primary button.", "choices": [
+      {"value": "iris", "label": "Iris"}, {"value": "teal", "label": "Teal"}, {"value": "rose", "label": "Rose"},
+      {"value": "amber", "label": "Amber"}, {"value": "sage", "label": "Sage"}, {"value": "slate", "label": "Slate"}
+    ]},
+    {"key": "depth", "label": "Shadow depth", "type": "select", "default": "soft", "help": "How far raised elements stand out from the surface.", "choices": [
+      {"value": "subtle", "label": "Subtle"}, {"value": "soft", "label": "Soft"}, {"value": "deep", "label": "Deep"}
+    ]},
+    {"key": "hero", "label": "Show the soft introduction panel on the homepage", "type": "bool", "default": "true"},
+    {"key": "hero_title", "label": "Introduction headline", "type": "text", "default": "", "help": "Empty uses the site title."},
+    {"key": "card_images", "label": "Show featured images in post cards", "type": "bool", "default": "true"},
+    {"key": "sidebar", "label": "Show the sidebar next to post listings", "type": "bool", "default": "true"}
+  ],
+  "swatches": ["#e6e9ef", "#1f2329", "#262d3a", "#4750b0"]
+}

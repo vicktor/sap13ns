@@ -1,0 +1,9 @@
+{{define "content"}}
+<div class="wrap listing">
+  <div class="tile tile-tint head-tile">{{template "shared/archive-header" .}}</div>
+  {{if .Posts}}{{template "post-grid" (dict "Posts" .Posts "H" 2)}}
+  {{else}}<div class="tile t-empty">{{template "shared/no-results" .}}</div>{{end}}
+  {{template "pager" .Pagination}}
+  {{with .Archive}}{{if eq .Kind "tag"}}{{template "tile-tags" $}}{{else if eq .Kind "date"}}{{template "tile-archives" $}}{{else}}{{template "tile-categories" $}}{{end}}{{else}}{{template "tile-categories" $}}{{end}}
+</div>
+{{end}}

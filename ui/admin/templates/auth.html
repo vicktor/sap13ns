@@ -1,0 +1,25 @@
+{{define "auth"}}<!doctype html>
+<html lang="{{.Site.Language}}">
+<head>{{template "head" .}}</head>
+<body class="auth">
+<main id="main" class="auth-shell">
+  <div class="auth-top">
+    <a href="/" class="brand">
+      <span class="brand-mark" aria-hidden="true">{{initials .Site.SiteTitle}}</span>
+      <span class="brand-text"><strong>{{.Site.SiteTitle}}</strong></span>
+    </a>
+    <button type="button" class="btn" data-variant="ghost" data-size="icon" data-theme-toggle aria-label="{{T "Toggle dark mode"}}">{{icon "sun" "theme-icon-light"}}{{icon "moon" "theme-icon-dark"}}</button>
+  </div>
+  <section class="card auth-card">
+    {{template "content" .}}
+  </section>
+  <p class="auth-foot">{{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a></p>
+</main>
+{{template "toaster" .}}
+</body>
+</html>{{end}}
+
+{{define "form-alerts"}}
+{{if .Error}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{.Error}}</h2></div>{{end}}
+{{if .Notice}}<div class="alert" role="status">{{icon "info"}}<h2>{{.Notice}}</h2></div>{{end}}
+{{end}}

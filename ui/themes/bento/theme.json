@@ -1,0 +1,23 @@
+{
+  "name": "Bento",
+  "version": "1.0.0",
+  "description": "A bento box of rounded tiles: an asymmetric home grid with the latest story, stats, categories, tags and feeds, and reading pages built from the same tiles.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "sidebar", "label": "Sidebar", "description": "Tiles in the side column of posts."},
+    {"id": "footer", "label": "Footer", "description": "Tiles above the footer line."}
+  ],
+  "options": [
+    {"key": "accent", "label": "Accent palette", "type": "select", "default": "lime", "choices": [
+      {"value": "lime", "label": "Lime"}, {"value": "violet", "label": "Violet"},
+      {"value": "orange", "label": "Orange"}, {"value": "sky", "label": "Sky"}
+    ]},
+    {"key": "show_stats", "label": "Show the stats tile on the homepage", "type": "bool", "default": "true"}
+  ],
+  "swatches": ["#f3f0e8", "#ffffff", "#171612", "#c5f23c"]
+}

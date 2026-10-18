@@ -1,0 +1,20 @@
+{{define "content"}}
+<div class="wrap listing">
+  <header class="tile tile-tint head-tile search-head">
+    <p class="tile-label">{{icon "search"}}<span>{{T "Search"}}</span></p>
+    <h1>{{if .Query}}{{.Heading}}{{else}}{{T "What are you looking for?"}}{{end}}</h1>
+    {{template "shared/search-form" .}}
+    {{if .Query}}<p class="head-meta">{{with .Pagination}}{{plural .Total "%d result" "%d results"}}{{else}}{{plural (len .Posts) "%d result" "%d results"}}{{end}}</p>{{end}}
+  </header>
+  {{if .Posts}}{{template "post-grid" (dict "Posts" .Posts "H" 2)}}
+  {{else if .Query}}
+  <section class="tile t-empty no-match">
+    <span class="empty-icon" aria-hidden="true">{{icon "search"}}</span>
+    <h2>{{T "Nothing found for “%s”" .Query}}</h2>
+    <p>{{T "Try other words or browse the categories."}}</p>
+  </section>
+  {{end}}
+  {{template "pager" .Pagination}}
+  {{if and .Query (not .Posts)}}{{template "tile-categories" .}}{{else}}{{template "tile-tags" .}}{{end}}
+</div>
+{{end}}

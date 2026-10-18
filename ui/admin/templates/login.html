@@ -1,0 +1,24 @@
+{{template "auth" .}}
+{{define "content"}}
+<header><h1>{{T "Log in"}}</h1><p>{{T "Welcome back. Enter your details to continue."}}</p></header>
+<section>
+  {{template "form-alerts" .D}}
+  <form method="post" action="/login" class="form auth-form">
+    <input type="hidden" name="next" value="{{.D.Next}}">
+    <div class="field">
+      <label for="login">{{T "Username or e-mail"}}</label>
+      <input class="input" id="login" name="login" type="text" value="{{index .D.Values "login"}}" autocomplete="{{if .D.Passkeys}}username webauthn{{else}}username{{end}}" autocapitalize="none" spellcheck="false" required autofocus maxlength="254">
+    </div>
+    <div class="field">
+      <div class="label-row"><label for="password">{{T "Password"}}</label>{{if .D.CanReset}}<a href="/forgot-password">{{T "Forgot it?"}}</a>{{end}}</div>
+      <div class="password-field">
+        <input class="input" id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-password-toggle="password" aria-label="{{T "Show password"}}">{{icon "eye"}}</button>
+      </div>
+    </div>
+    <button class="btn w-full" type="submit">{{icon "log-in"}}{{T "Log in"}}</button>
+  </form>
+  {{if .D.Passkeys}}{{template "passkey-signin" (dict "Next" .D.Next "Mode" "")}}{{end}}
+</section>
+{{if .D.AllowRegistration}}<footer><p>{{T "No account yet?"}} <a href="/register">{{T "Create one"}}</a></p></footer>{{end}}
+{{end}}

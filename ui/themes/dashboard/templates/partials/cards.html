@@ -1,0 +1,33 @@
+{{/* post-table: a panel of table-like post rows with pagination.
+     Data: dict "Posts" []*PostView "Page" PageData "Title" string. */}}
+{{define "post-table"}}
+{{$thumbs := eq (index .Page.Site.Options "thumbnails") "true"}}
+<section class="panel post-table{{if $thumbs}} has-thumbs{{end}}" aria-labelledby="posts-title">
+  <header class="panel-head">
+    <h2 id="posts-title">{{.Title}}</h2>
+    <p class="panel-meta">{{with .Page.Pagination}}<span>{{T "Page %d of %d" .Page .TotalPages}}</span><span class="count-chip">{{plural .Total "%d post" "%d posts"}}</span>{{else}}<span class="count-chip">{{plural (len .Posts) "%d post" "%d posts"}}</span>{{end}}</p>
+  </header>
+  <div class="post-cols" aria-hidden="true">{{if $thumbs}}<span></span>{{end}}<span>{{T "Title"}}</span><span>{{T "Category"}}</span><span>{{T "Published"}}</span><span>{{T "Reading"}}</span></div>
+  <ul class="post-rows" role="list">
+    {{range .Posts}}{{template "post-row" (dict "P" . "Thumbs" $thumbs)}}{{end}}
+  </ul>
+  {{with .Page.Pagination}}<footer class="panel-foot">{{template "shared/pagination" .}}</footer>{{end}}
+</section>
+{{end}}
+
+{{/* post-row: one row. Data: dict "P" *PostView "Thumbs" bool. */}}
+{{define "post-row"}}
+{{$p := .P}}
+<li class="post-row">
+  {{if .Thumbs}}<div class="row-thumb">{{with $p.Image}}{{template "shared/image" (dict "Image" . "Sizes" "96px")}}{{else}}<span class="row-thumb-empty">{{icon "file-text"}}</span>{{end}}</div>{{end}}
+  <div class="row-main">
+    <h3 class="row-title"><a href="{{$p.URL}}">{{$p.Title}}</a></h3>
+    {{with $p.Summary}}<p class="row-summary">{{.}}</p>{{end}}
+  </div>
+  <div class="row-meta">
+    <span class="row-cat">{{with $p.Categories}}<a class="chip" href="{{(index . 0).URL}}">{{(index . 0).Name}}</a>{{else}}<span class="chip chip-empty">{{T "Uncategorized"}}</span>{{end}}</span>
+    <span class="row-date">{{if $p.HasDate}}<time datetime="{{isoDate $p.Published}}">{{shortDate $p.Published}}</time>{{else}}{{T "Undated"}}{{end}}</span>
+    <span class="row-read">{{T "%d min read" $p.ReadingMinutes}}</span>
+  </div>
+</li>
+{{end}}

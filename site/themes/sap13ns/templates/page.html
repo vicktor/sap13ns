@@ -1,0 +1,20 @@
+{{define "content"}}
+{{with .Post}}
+<article class="doc{{if eq .Slug "themes" "temas" "hosting" "alojamiento"}} has-extra{{end}}">
+  <header class="page-head doc-head">
+    <div class="wrap">
+      <h1>{{.Title}}</h1>
+      {{with .Summary}}<p class="page-lead">{{.}}</p>{{end}}
+      {{if ne .Status "published"}}{{template "shared/post-meta" .}}{{end}}
+    </div>
+  </header>
+  {{if eq .Slug "themes" "temas"}}<div class="wrap doc-extra">{{template "sap/themes-showcase" $}}</div>{{end}}
+  {{if eq .Slug "hosting" "alojamiento"}}{{with plans}}<div class="wrap doc-extra" id="plans">{{template "sap/plans" .}}</div>{{end}}{{end}}
+  {{if .Image}}<div class="wrap doc-image">{{template "shared/featured-image" .}}</div>{{end}}
+  <div class="wrap doc-body">
+    {{template "shared/content" .}}
+    {{with .EditURL}}<p class="doc-edit"><a href="{{.}}">{{icon "pencil"}} {{T "Edit this page"}}</a></p>{{end}}
+  </div>
+</article>
+{{end}}
+{{end}}

@@ -1,0 +1,37 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Plugins"}}</h1><p>{{T "Plugins run in an isolated WebAssembly sandbox: no files, no network and no database unless you grant it."}}</p></div>
+  <div class="page-actions">
+    <form method="post" action="/admin/plugins/reload">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Rescan"}}</button></form>
+  </div>
+</div>
+{{if $d.Plugins}}
+<ul class="plugin-list">
+  {{range $d.Plugins}}
+  <li class="card plugin-card" data-status="{{.Status}}">
+    <span class="plugin-icon" aria-hidden="true">{{icon "puzzle"}}</span>
+    <div class="plugin-body">
+      <h2><a href="/admin/plugins/{{.ID}}">{{or .Name .ID}}</a> {{if .Version}}<span class="muted text-xs">v{{.Version}}</span>{{end}}</h2>
+      <p>{{or .Description .Err}}</p>
+      <div class="plugin-tags">
+        {{range .Hooks}}<span class="badge" data-variant="outline">{{.}}</span>{{end}}
+        {{range .Permissions}}<span class="badge" data-variant="secondary">{{icon "key-round" "size-3"}} {{.}}</span>{{end}}
+      </div>
+    </div>
+    <div class="plugin-state">
+      {{if eq .Status "enabled"}}<span class="badge" data-variant="success">{{T "Enabled"}}</span>
+      {{else if eq .Status "modified"}}<span class="badge" data-variant="warning">{{T "Changed — review again"}}</span>
+      {{else if eq .Status "invalid"}}<span class="badge" data-variant="destructive">{{T "Invalid"}}</span>
+      {{else if eq .Status "error"}}<span class="badge" data-variant="destructive">{{T "Error"}}</span>
+      {{else}}<span class="badge" data-variant="secondary">{{T "Disabled"}}</span>{{end}}
+      <a class="btn" data-variant="outline" data-size="sm" href="/admin/plugins/{{.ID}}">{{T "Details"}}</a>
+    </div>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<div class="card">{{template "empty" (dict "Icon" "puzzle" "Title" (T "No plugins installed") "Text" (T "Copy a plugin folder (plugin.json + .wasm) into %s and press Rescan." $d.Dir))}}</div>
+{{end}}
+{{end}}

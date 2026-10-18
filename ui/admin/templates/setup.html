@@ -1,0 +1,39 @@
+{{template "auth" .}}
+{{define "content"}}
+<header>
+  <div class="auth-icon" aria-hidden="true">{{icon "sparkles"}}</div>
+  <h1>{{T "Install sap13ns"}}</h1>
+  <p>{{T "Name your site and create the administrator account."}}</p>
+</header>
+<section>
+  {{template "form-alerts" .D}}
+  <form method="post" action="/setup" class="form auth-form">
+    <input type="hidden" name="token" value="{{.D.Token}}">
+    <div class="field">
+      <label for="site_title">{{T "Site title"}}</label>
+      <input class="input" id="site_title" name="site_title" type="text" value="{{index .D.Values "site_title"}}" required maxlength="120" autofocus>
+    </div>
+    <div class="field">
+      <label for="username">{{T "Username"}}</label>
+      <input class="input" id="username" name="username" type="text" value="{{index .D.Values "username"}}" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="32" pattern="[a-z0-9][a-z0-9_.\-]{2,31}">
+    </div>
+    <div class="field">
+      <label for="email">{{T "E-mail"}}</label>
+      <input class="input" id="email" name="email" type="email" value="{{index .D.Values "email"}}" autocomplete="email" required maxlength="254">
+    </div>
+    <div class="field">
+      <label for="password">{{T "Password"}}</label>
+      <div class="password-field">
+        <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="256" data-strength="password-strength">
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-password-toggle="password" aria-label="{{T "Show password"}}">{{icon "eye"}}</button>
+      </div>
+      <div class="strength" id="password-strength" aria-live="polite"><span></span></div>
+    </div>
+    <div class="field">
+      <label for="password2">{{T "Repeat the password"}}</label>
+      <input class="input" id="password2" name="password2" type="password" autocomplete="new-password" required maxlength="256">
+    </div>
+    <button class="btn w-full" type="submit">{{T "Install"}}</button>
+  </form>
+</section>
+{{end}}

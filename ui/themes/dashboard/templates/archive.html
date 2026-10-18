@@ -1,0 +1,10 @@
+{{define "content"}}
+<div class="container stack">
+  <div class="page-header">{{template "shared/archive-header" .}}</div>
+  {{if .Posts}}
+    {{template "post-table" (dict "Posts" .Posts "Page" . "Title" (T "Posts"))}}
+  {{else}}
+    <div class="panel panel-empty">{{template "shared/no-results" .}}</div>
+  {{end}}
+</div>
+{{end}}

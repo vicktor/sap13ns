@@ -1,0 +1,63 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} density-{{index .Site.Options "density"}}">
+<head>{{template "shared/head" .}}</head>
+<body class="kind-{{.Kind}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+<div class="app">
+  <aside class="sidebar" id="app-sidebar" aria-label="{{T "Site navigation"}}">
+    <div class="sidebar-brand">{{template "brand" .}}</div>
+    <div class="sidebar-scroll">
+      {{with .Site.Menu "primary"}}
+      <nav class="side-section" aria-label="{{T "Main menu"}}">
+        <p class="side-label">{{T "Navigation"}}</p>
+        <ul class="side-menu">{{template "shared/menu" .}}</ul>
+      </nav>
+      {{end}}
+      {{template "side-categories" .}}
+      {{template "shared/widget-area" (dict "Page" . "Area" "sidebar")}}
+      <nav class="side-section side-foot" aria-label="{{T "Explore"}}">
+        <ul class="side-menu side-menu-icons">
+          <li><a href="{{link "/search"}}">{{icon "search"}}<span>{{T "Search"}}</span></a></li>
+          <li><a href="{{.Site.FeedRSS}}" type="application/rss+xml">{{icon "rss"}}<span>{{T "RSS feed"}}</span></a></li>
+        </ul>
+      </nav>
+    </div>
+  </aside>
+
+  <div class="app-main">
+    <header class="topbar">
+      <div class="topbar-inner">
+        {{template "shared/nav-toggle" "app-sidebar"}}
+        <div class="topbar-brand">{{template "brand" .}}</div>
+        {{template "breadcrumbs" .}}
+        <div class="topbar-actions">
+          <form class="topbar-search" method="get" action="{{link "/search"}}" role="search">
+            <label class="sr-only" for="topbar-q">{{T "Search"}}</label>
+            {{icon "search"}}
+            <input id="topbar-q" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
+          </form>
+          <a class="icon-btn topbar-search-link" href="{{link "/search"}}" aria-label="{{T "Search"}}">{{icon "search"}}</a>
+          {{template "shared/lang-switch" .}}
+          {{template "shared/theme-toggle"}}
+        </div>
+      </div>
+    </header>
+
+    <main id="main" class="content" tabindex="-1">
+      {{template "content" .}}
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+        <div class="footer-bottom">
+          {{template "shared/footer-meta" .}}
+          {{with .Site.Menu "footer"}}<nav aria-label="{{T "Footer menu"}}"><ul class="footer-menu">{{template "shared/menu" .}}</ul></nav>{{end}}
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
+</body>
+</html>{{end}}

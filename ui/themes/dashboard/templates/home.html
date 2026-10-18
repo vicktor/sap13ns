@@ -1,0 +1,28 @@
+{{define "content"}}
+{{$first := and .IsFront (or (not .Pagination) (eq .Pagination.Page 1))}}
+<div class="container stack">
+  <header class="page-header">
+    <div class="page-header-text">
+      <p class="eyebrow">{{if .IsFront}}{{T "Overview"}}{{else}}{{T "Posts"}}{{end}}</p>
+      {{if .IsFront}}
+      <h1>{{or (index .Site.Options "home_title") .Site.Title}}</h1>
+      {{with .Site.Tagline}}<p class="lead">{{.}}</p>{{end}}
+      {{else}}
+      <h1>{{or .Heading .Title .Site.Title}}</h1>
+      {{end}}
+    </div>
+    <div class="page-header-actions">
+      <a class="button" href="{{.Site.FeedRSS}}">{{icon "rss"}}<span>{{T "Subscribe"}}</span></a>
+      {{if $first}}{{with .Posts}}<a class="button button-primary" href="{{(index . 0).URL}}"><span>{{T "Read the latest"}}</span>{{icon "arrow-right"}}</a>{{end}}{{end}}
+    </div>
+  </header>
+
+  {{if and $first (eq (index .Site.Options "stats") "true")}}{{template "stats" .Site.Stats}}{{end}}
+
+  {{if .Posts}}
+    {{template "post-table" (dict "Posts" .Posts "Page" . "Title" (T "Latest posts"))}}
+  {{else}}
+    <div class="panel panel-empty">{{template "shared/no-results" .}}</div>
+  {{end}}
+</div>
+{{end}}

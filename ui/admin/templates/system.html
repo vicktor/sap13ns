@@ -1,0 +1,20 @@
+{{template "admin" .}}
+{{define "content"}}
+<div class="page-header">
+  <div><h1>{{T "System"}}</h1><p>{{T "Health of the installation. Secrets are never shown."}}</p></div>
+</div>
+<div class="system-grid">
+  {{range .D.Groups}}
+  <section class="card">
+    <header><h2>{{.Title}}</h2></header>
+    <section>
+      <dl class="meta-list">
+        {{range .Rows}}
+        <div><dt>{{.Label}}</dt><dd>{{if .OK}}{{if deref .OK}}<span class="text-success" aria-label="OK">{{icon "circle-check" "size-4"}}</span>{{else}}<span class="text-warning" aria-label="{{T "Attention"}}">{{icon "triangle-alert" "size-4"}}</span>{{end}} {{end}}<span class="break-all">{{.Value}}</span></dd></div>
+        {{end}}
+      </dl>
+    </section>
+  </section>
+  {{end}}
+</div>
+{{end}}

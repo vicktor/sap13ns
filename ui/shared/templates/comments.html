@@ -1,0 +1,92 @@
+{{/* shared/comments: list + form for a single post. Data: PageData. */}}
+{{define "shared/comments"}}
+{{if or .Comments .CommentForm}}
+<section class="comments" id="comments" aria-labelledby="comments-title">
+  <h2 id="comments-title">{{if .Comments}}{{plural (len .Comments) "%d comment" "%d comments"}}{{else}}{{T "Comments"}}{{end}}</h2>
+  {{with .CommentForm}}{{template "shared/comment-notice" .Notice}}{{end}}
+  {{if .Comments}}
+  <ol class="comment-list">
+    {{range .Comments}}{{template "shared/comment" (dict "C" . "Open" $.CommentForm)}}{{end}}
+  </ol>
+  {{end}}
+  {{with .CommentForm}}{{template "shared/comment-form" .}}{{else}}{{if .Post}}{{if not .Post.CommentsOpen}}<p class="comments-closed">{{T "Comments are closed."}}</p>{{end}}{{end}}{{end}}
+</section>
+{{end}}
+{{end}}
+
+{{define "shared/comment"}}
+{{$c := .C}}
+<li class="comment{{if $c.IsAuthor}} comment-by-author{{end}}" id="comment-{{$c.ID}}">
+  <article>
+    <header class="comment-header">
+      <span class="comment-avatar" aria-hidden="true">{{$c.Initials}}</span>
+      <div>
+        <strong class="comment-author">{{if $c.URL}}<a href="{{$c.URL}}" rel="nofollow ugc noopener" target="_blank">{{$c.Author}}</a>{{else}}{{$c.Author}}{{end}}</strong>
+        {{if $c.IsAuthor}}<span class="comment-badge">{{T "Author"}}</span>{{end}}
+        <a class="comment-date" href="#comment-{{$c.ID}}"><time datetime="{{isoDate $c.Date}}">{{ago $c.Date}}</time></a>
+      </div>
+    </header>
+    <div class="comment-body">{{paragraphs $c.Content}}</div>
+    {{if .Open}}<button type="button" class="comment-reply" data-reply-to="{{$c.ID}}" data-reply-name="{{$c.Author}}">{{icon "message-circle"}} {{T "Reply"}}</button>{{end}}
+  </article>
+  {{if $c.Replies}}
+  <ol class="comment-replies">
+    {{range $c.Replies}}{{template "shared/comment-reply" .}}{{end}}
+  </ol>
+  {{end}}
+</li>
+{{end}}
+
+{{define "shared/comment-reply"}}
+<li class="comment{{if .IsAuthor}} comment-by-author{{end}}" id="comment-{{.ID}}">
+  <article>
+    <header class="comment-header">
+      <span class="comment-avatar" aria-hidden="true">{{.Initials}}</span>
+      <div>
+        <strong class="comment-author">{{if .URL}}<a href="{{.URL}}" rel="nofollow ugc noopener" target="_blank">{{.Author}}</a>{{else}}{{.Author}}{{end}}</strong>
+        {{if .IsAuthor}}<span class="comment-badge">{{T "Author"}}</span>{{end}}
+        <a class="comment-date" href="#comment-{{.ID}}"><time datetime="{{isoDate .Date}}">{{ago .Date}}</time></a>
+      </div>
+    </header>
+    <div class="comment-body">{{paragraphs .Content}}</div>
+  </article>
+</li>
+{{end}}
+
+{{define "shared/comment-notice"}}
+{{if eq . "pending"}}<p class="comment-notice" role="status">{{icon "clock"}} {{T "Thanks! Your comment is awaiting moderation."}}</p>
+{{else if eq . "approved"}}<p class="comment-notice is-success" role="status">{{icon "circle-check"}} {{T "Thanks! Your comment has been published."}}</p>
+{{else if eq . "ratelimit"}}<p class="comment-notice is-error" role="alert">{{icon "triangle-alert"}} {{T "You are commenting too fast. Wait a few minutes."}}</p>
+{{else if eq . "login"}}<p class="comment-notice is-error" role="alert">{{icon "log-in"}} {{T "Log in to comment."}}</p>
+{{else if eq . "closed"}}<p class="comment-notice is-error" role="alert">{{T "Comments are closed."}}</p>
+{{else if eq . "error"}}<p class="comment-notice is-error" role="alert">{{icon "circle-alert"}} {{T "The comment could not be saved. Check the fields and try again."}}</p>{{end}}
+{{end}}
+
+{{/* shared/comment-form. Data: *CommentForm. */}}
+{{define "shared/comment-form"}}
+<div class="comment-respond" id="respond">
+  <h3>{{T "Leave a comment"}}</h3>
+  {{if and .RequireLogin (not .LoggedIn)}}
+  <p><a href="/login">{{T "Log in to comment."}}</a></p>
+  {{else}}
+  <form class="comment-form" method="post" action="{{.Action}}">
+    <input type="hidden" name="token" value="{{.Token}}">
+    <input type="hidden" name="parent_id" value="" data-reply-parent>
+    {{if .LoggedIn}}<input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
+    <p class="comment-replying" data-reply-banner hidden>{{T "Replying to"}} <strong data-reply-label></strong> <button type="button" data-reply-cancel>{{T "Cancel"}}</button></p>
+    <div class="sap-hp" aria-hidden="true"><label for="c-website">Website</label><input id="c-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+    {{if .LoggedIn}}
+    <p class="comment-as">{{T "Commenting as %s." .ViewerName}}</p>
+    {{else}}
+    <div class="comment-fields">
+      <p><label for="c-name">{{T "Name"}}</label><input id="c-name" name="name" type="text" required maxlength="100" autocomplete="name"></p>
+      <p><label for="c-email">{{T "E-mail"}} <small>({{T "not published"}})</small></label><input id="c-email" name="email" type="email" required maxlength="254" autocomplete="email"></p>
+      <p><label for="c-url">{{T "Website"}} <small>({{T "optional"}})</small></label><input id="c-url" name="url" type="url" maxlength="300" autocomplete="url" placeholder="https://"></p>
+    </div>
+    {{end}}
+    <p><label for="c-content">{{T "Comment"}}</label><textarea id="c-content" name="content" rows="5" required maxlength="10000"></textarea></p>
+    <p class="comment-submit"><button type="submit">{{T "Post comment"}}</button></p>
+  </form>
+  {{end}}
+</div>
+{{end}}

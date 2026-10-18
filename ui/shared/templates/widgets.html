@@ -1,0 +1,51 @@
+{{/* shared/widget-area: all widgets of an area. Data: dict "Page" PageData "Area" "<id>". */}}
+{{define "shared/widget-area"}}
+{{$ws := .Page.Area .Area}}
+{{if $ws}}<div class="widget-area widget-area-{{.Area}}">{{range $ws}}{{template "shared/widget" (dict "W" . "Page" $.Page)}}{{end}}</div>{{end}}
+{{end}}
+
+{{/* shared/widget: one widget. Data: dict "W" WidgetView "Page" PageData. */}}
+{{define "shared/widget"}}
+{{$w := .W}}
+<section class="widget widget-{{if hasPrefix $w.Kind "plugin:"}}plugin{{else}}{{$w.Kind}}{{end}}" aria-label="{{or $w.Title $w.Kind}}">
+  {{if $w.Title}}<h2 class="widget-title">{{$w.Title}}</h2>{{end}}
+  {{if eq $w.Kind "recent_posts"}}
+    <ul class="widget-posts">{{range $w.Posts}}<li><a href="{{.URL}}">{{if .Image}}<img src="{{.Image.Thumb}}" alt="" width="64" height="64" loading="lazy">{{end}}<span>{{.Title}}{{if .HasDate}}<time datetime="{{isoDate .Published}}">{{shortDate .Published}}</time>{{end}}</span></a></li>{{end}}</ul>
+  {{else if eq $w.Kind "categories"}}
+    <ul class="widget-terms">{{range $w.Terms}}<li><a href="{{.URL}}">{{.Name}}</a> <span class="widget-count">{{.Count}}</span></li>{{end}}</ul>
+  {{else if eq $w.Kind "tags"}}
+    <p class="widget-tags">{{range $w.Terms}}<a href="{{.URL}}">#{{.Name}}</a> {{end}}</p>
+  {{else if eq $w.Kind "archives"}}
+    <ul class="widget-archives">{{range $w.Archives}}<li><a href="{{.URL}}">{{.Label}}</a> <span class="widget-count">{{.Count}}</span></li>{{end}}</ul>
+  {{else if eq $w.Kind "search"}}
+    {{template "shared/search-form" .Page}}
+  {{else if eq $w.Kind "feeds"}}
+    {{template "shared/subscribe" .Page}}
+  {{else}}
+    <div class="widget-html">{{$w.HTML}}</div>
+  {{end}}
+</section>
+{{end}}
+
+{{/* shared/subscribe: feed links. Data: PageData. */}}
+{{define "shared/subscribe"}}
+<div class="subscribe">
+  <p>{{T "Follow new posts in your favourite reader."}}</p>
+  <ul class="subscribe-links">
+    <li><a href="{{.Site.FeedRSS}}" type="application/rss+xml">{{icon "rss"}} RSS</a></li>
+    <li><a href="{{.Site.FeedAtom}}" type="application/atom+xml">{{icon "rss"}} Atom</a></li>
+    <li><a href="{{.Site.FeedJSON}}" type="application/feed+json">{{icon "rss"}} JSON Feed</a></li>
+  </ul>
+</div>
+{{end}}
+
+{{/* shared/footer-meta: copyright line, attribution (required by the
+CPAL-1.0 licence, Exhibit B) and login link. Data: PageData. */}}
+{{define "shared/footer-meta"}}
+<p class="footer-meta">
+  {{if .Site.FooterText}}{{.Site.FooterText}}{{else}}© {{.Site.Year}} {{.Site.Title}}{{end}}
+  <span aria-hidden="true">·</span> <a href="{{.Site.FeedRSS}}">{{icon "rss"}} RSS</a>
+  <span aria-hidden="true">·</span> {{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a>
+  {{if not .Site.Viewer}}<span aria-hidden="true">·</span> <a href="/login" rel="nofollow">{{T "Log in"}}</a>{{end}}
+</p>
+{{end}}

@@ -1,0 +1,12 @@
+{
+  "abi": 1,
+  "id": "callout",
+  "name": "Callouts",
+  "version": "1.0.0",
+  "description": "Shortcodes [callout] y [kbd] que generan avisos y teclas con los componentes de Basecoat.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["shortcode"],
+  "shortcodes": ["callout", "kbd"],
+  "permissions": []
+}

@@ -1,0 +1,86 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/profile">{{icon "arrow-left" "size-3.5"}} {{T "Your profile"}}</a></p>
+    <h1>{{T "Two-factor authentication"}}</h1>
+    <p>{{T "Use an authenticator app such as Aegis, 2FAS, Google Authenticator or 1Password."}}{{if $d.Passkeys.Available}} {{T "A passkey also counts as a second factor."}}{{end}}</p>
+  </div>
+</div>
+{{if $d.Required}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Your role requires two-factor authentication."}}</h2><section><p>{{if $d.Passkeys.Available}}{{T "Set up an authenticator app or add a passkey to continue using the administration panel."}}{{else}}{{T "Set it up to continue using the administration panel."}}{{end}}</p></section></div>{{end}}
+{{template "form-error" $d.Error}}
+
+{{if $d.Codes}}
+<section class="card narrow">
+  <header><h2>{{icon "circle-check" "text-success"}} {{T "Save your recovery codes"}}</h2><p>{{T "Each code works once if you lose your phone. They will not be shown again."}}</p></header>
+  <section>
+    <ol class="recovery-codes mono" id="recovery-codes">{{range $d.Codes}}<li>{{.}}</li>{{end}}</ol>
+  </section>
+  <footer>
+    <button type="button" class="btn" data-variant="outline" data-copy-text="recovery-codes">{{icon "copy"}}{{T "Copy"}}</button>
+    <button type="button" class="btn" data-variant="outline" data-download-text="recovery-codes" data-filename="{{.Site.SiteTitle}}-recovery-codes.txt">{{icon "download"}}{{T "Download"}}</button>
+    <a class="btn ml-auto" href="/admin/">{{T "I saved them"}}</a>
+  </footer>
+</section>
+{{else if $d.Enabled}}
+<div class="split">
+  <section class="card">
+    <header><h2>{{icon "shield-check" "text-success"}} {{T "Enabled"}}</h2><p>{{T "Your account asks for a code after the password."}}</p></header>
+    <section>
+      <form method="post" action="/admin/profile/2fa/enable" class="form">
+        {{.CSRFField}}<input type="hidden" name="regenerate" value="1">
+        <h3 class="text-sm font-medium">{{T "New recovery codes"}}</h3>
+        <p class="hint">{{T "Generating new codes invalidates the previous ones."}}</p>
+        <div class="field"><label for="pw-regen">{{T "Current password"}}</label><input class="input" id="pw-regen" name="current_password" type="password" autocomplete="current-password" required maxlength="256"></div>
+        <button class="btn" data-variant="outline" type="submit">{{icon "refresh-cw"}}{{T "Generate new codes"}}</button>
+      </form>
+    </section>
+  </section>
+  <section class="card danger-zone">
+    <header><h2>{{T "Disable"}}</h2><p>{{T "Your account will be protected only by the password."}}</p></header>
+    <section>
+      <form method="post" action="/admin/profile/2fa/disable" class="form">
+        {{.CSRFField}}
+        <div class="field"><label for="pw-disable">{{T "Current password"}}</label><input class="input" id="pw-disable" name="current_password" type="password" autocomplete="current-password" required maxlength="256"></div>
+        <button class="btn" data-variant="destructive" type="submit" data-confirm="{{T "Disable two-factor authentication?"}}">{{T "Disable two-factor"}}</button>
+      </form>
+    </section>
+  </section>
+</div>
+{{else}}
+<section class="card enroll">
+  <section class="enroll-grid">
+    <div class="enroll-qr">
+      {{if $d.QR}}<img src="{{$d.QR}}" alt="{{T "QR code to scan with your authenticator app"}}" width="240" height="240">{{end}}
+    </div>
+    <ol class="enroll-steps">
+      <li><strong>{{T "Scan the code"}}</strong><p>{{T "Open your authenticator app and add a new account by scanning the QR code."}}</p>
+        <details><summary>{{T "Can't scan it?"}}</summary>
+          <p class="hint">{{T "Enter this key manually (time-based, 6 digits):"}}</p>
+          <div class="copy-field"><input class="input mono" id="totp-secret" readonly value="{{$d.Secret}}"><button type="button" class="btn" data-variant="outline" data-size="icon" data-copy="totp-secret" aria-label="{{T "Copy"}}">{{icon "copy"}}</button></div>
+        </details>
+      </li>
+      <li><strong>{{T "Enter the code"}}</strong>
+        <form method="post" action="/admin/profile/2fa/enable" class="form mt-2">
+          {{.CSRFField}}
+          <div class="field"><label for="code">{{T "6-digit code"}}</label><input class="input otp-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus></div>
+          <button class="btn" type="submit">{{icon "shield-check"}}{{T "Enable"}}</button>
+        </form>
+      </li>
+    </ol>
+  </section>
+</section>
+{{if $d.Passkeys.Available}}
+{{$next := "/admin/profile#passkeys"}}{{if $d.Required}}{{$next = "/admin/"}}{{end}}
+<section class="card narrow passkey-alt" id="passkeys">
+  <header><h2>{{icon "fingerprint"}} {{T "Or use a passkey"}}</h2><p>{{T "A passkey stored on this device, your phone or a security key satisfies the two-factor requirement and lets you sign in without typing your password."}}</p></header>
+  <section class="passkey-alt-body">
+    {{if $d.Passkeys.List}}<p class="text-sm">{{T "You already have passkeys."}} <a href="/admin/profile#passkeys">{{T "Manage passkeys"}}</a></p>{{end}}
+    {{if not $d.Passkeys.Max}}{{template "passkey-add" (dict "Recent" $d.Passkeys.Recent "Next" $next)}}{{end}}
+  </section>
+</section>
+<script src="{{asset "passkey.js"}}" defer></script>
+{{end}}
+{{end}}
+{{end}}

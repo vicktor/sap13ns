@@ -1,0 +1,102 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Hello, %s" .User.Name}}</h1>
+    <p>{{T "This is what is happening on %s." .Site.SiteTitle}}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/admin/posts/new">{{icon "square-pen"}}{{T "Write a post"}}</a>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <a class="card stat" href="/admin/posts?status=published">
+    <span class="stat-icon" aria-hidden="true">{{icon "file-text"}}</span>
+    <span class="stat-label">{{T "Published posts"}}</span>
+    <strong class="stat-value">{{index $d.Posts "published"}}</strong>
+    <span class="stat-foot">{{T "%d drafts" (index $d.Posts "draft")}} · {{T "%d pending" (index $d.Posts "pending")}}</span>
+  </a>
+  {{if .Can "pages.manage"}}
+  <a class="card stat" href="/admin/pages">
+    <span class="stat-icon" aria-hidden="true">{{icon "files"}}</span>
+    <span class="stat-label">{{T "Pages"}}</span>
+    <strong class="stat-value">{{index $d.Pages "published"}}</strong>
+    <span class="stat-foot">{{T "%d drafts" (index $d.Pages "draft")}}</span>
+  </a>
+  {{end}}
+  {{if .Can "comments.moderate"}}
+  <a class="card stat" href="/admin/comments?status=pending">
+    <span class="stat-icon" aria-hidden="true">{{icon "message-square"}}</span>
+    <span class="stat-label">{{T "Comments"}}</span>
+    <strong class="stat-value">{{index $d.Comments "approved"}}</strong>
+    <span class="stat-foot{{if index $d.Comments "pending"}} text-warning{{end}}">{{T "%d awaiting moderation" (index $d.Comments "pending")}}</span>
+  </a>
+  {{end}}
+  {{if .Can "users.manage"}}
+  <a class="card stat" href="/admin/users">
+    <span class="stat-icon" aria-hidden="true">{{icon "users"}}</span>
+    <span class="stat-label">{{T "Users"}}</span>
+    <strong class="stat-value">{{$d.Users}}</strong>
+    <span class="stat-foot">{{T "Theme: %s" $d.Theme}} · {{T "%d plugins" $d.Plugins}}</span>
+  </a>
+  {{end}}
+</div>
+
+<div class="dash-grid">
+  <section class="card">
+    <header><h2>{{T "Your drafts"}}</h2><p>{{T "Pick up where you left off."}}</p></header>
+    <section>
+      {{if $d.Drafts}}
+      <ul class="list">
+        {{range $d.Drafts}}
+        <li><a href="/admin/posts/{{.ID}}"><span class="list-title">{{.Title}}</span><span class="list-meta">{{template "status-badge" .Status}} {{ago .UpdatedAt}}</span></a></li>
+        {{end}}
+      </ul>
+      {{else}}
+      {{template "empty" (dict "Icon" "feather" "Title" (T "No drafts") "Text" (T "Ideas you save without publishing will appear here."))}}
+      {{end}}
+    </section>
+  </section>
+
+  <section class="card">
+    <header><h2>{{T "Recently published"}}</h2></header>
+    <section>
+      {{if $d.Recent}}
+      <ul class="list">
+        {{range $d.Recent}}
+        <li><a href="/admin/posts/{{.ID}}"><span class="list-title">{{.Title}}</span><span class="list-meta">{{if .PublishedAt}}{{shortDate .PublishedAt}}{{end}} · {{.AuthorName}}</span></a></li>
+        {{end}}
+      </ul>
+      {{else}}
+      {{template "empty" (dict "Icon" "newspaper" "Title" (T "Nothing published yet") "Text" (T "Your first post is one click away."))}}
+      {{end}}
+    </section>
+  </section>
+
+  {{if .Can "comments.moderate"}}
+  <section class="card dash-wide">
+    <header><h2>{{T "Awaiting moderation"}}</h2></header>
+    <section>
+      {{if $d.Pending}}
+      <ul class="comment-list">
+        {{range $d.Pending}}
+        <li>
+          <div class="comment-head"><span class="avatar-initials" aria-hidden="true">{{initials .AuthorName}}</span><strong>{{.AuthorName}}</strong><span class="muted">{{T "on"}} <a href="/blog/{{.PostSlug}}" target="_blank" rel="noopener">{{.PostTitle}}</a> · {{ago .CreatedAt}}</span></div>
+          <p class="comment-body">{{truncate .Content 240}}</p>
+          <div class="row-actions">
+            <form method="post" action="/admin/comments/{{.ID}}/approve">{{$.CSRFField}}<button class="btn" data-size="sm" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>
+            <form method="post" action="/admin/comments/{{.ID}}/spam">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "ban"}}{{T "Spam"}}</button></form>
+          </div>
+        </li>
+        {{end}}
+      </ul>
+      {{else}}
+      {{template "empty" (dict "Icon" "inbox" "Title" (T "All caught up") "Text" (T "No comments are waiting for you."))}}
+      {{end}}
+    </section>
+  </section>
+  {{end}}
+</div>
+{{end}}

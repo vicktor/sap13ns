@@ -1,0 +1,60 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Comments"}}</h1><p>{{T "Moderate the conversation on your posts."}}</p></div>
+</div>
+<div class="toolbar">{{template "filter-tabs" $d.Tabs}}</div>
+{{if $d.Comments}}
+<form method="post" action="/admin/comments/bulk" data-bulk>
+  {{.CSRFField}}
+  <input type="hidden" name="status" value="{{$d.Status}}">
+  <div class="bulk-bar">
+    <label class="check"><input type="checkbox" class="input" data-select-all="ids"> <span class="sr-only">{{T "Select all"}}</span></label>
+    <select class="select" name="action" data-size="sm" aria-label="{{T "Bulk action"}}">
+      <option value="">{{T "Bulk actions"}}</option>
+      <option value="approve">{{T "Approve"}}</option>
+      <option value="unapprove">{{T "Unapprove"}}</option>
+      <option value="spam">{{T "Mark as spam"}}</option>
+      <option value="trash">{{T "Move to trash"}}</option>
+      {{if or (eq $d.Status "spam") (eq $d.Status "trash")}}<option value="delete">{{T "Delete permanently"}}</option>{{end}}
+    </select>
+    <button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Apply"}}</button>
+    <span class="muted" data-selected-count></span>
+    {{if or (eq $d.Status "spam") (eq $d.Status "trash")}}
+    <button class="btn ml-auto" data-variant="destructive" data-size="sm" type="submit" form="empty-comments" data-confirm="{{T "Delete all these comments permanently?"}}">{{icon "trash-2"}}{{T "Empty"}}</button>
+    {{end}}
+  </div>
+  <ul class="comment-list card">
+    {{range $d.Comments}}
+    <li class="comment-item" data-status="{{.Status}}">
+      <input type="checkbox" class="input" name="ids" value="{{.ID}}" aria-label="{{T "Select"}}">
+      <div class="comment-main">
+        <div class="comment-head">
+          <span class="avatar-initials" aria-hidden="true">{{initials .AuthorName}}</span>
+          <strong>{{.AuthorName}}</strong>
+          {{if .AuthorURL}}<a class="muted" href="{{.AuthorURL}}" rel="nofollow noopener" target="_blank">{{icon "link-2" "size-3.5"}}</a>{{end}}
+          <span class="muted">{{.AuthorEmail}} · {{.IP}}</span>
+          {{template "status-badge" .Status}}
+        </div>
+        <p class="muted text-sm">{{T "on"}} <a href="/blog/{{.PostSlug}}#comment-{{.ID}}" target="_blank" rel="noopener">{{.PostTitle}}</a> · <time datetime="{{isoDate .CreatedAt}}">{{dateTime .CreatedAt}}</time>{{if .ParentID}} · {{T "reply"}}{{end}}</p>
+        <div class="comment-body">{{paragraphs .Content}}</div>
+        <div class="row-actions">
+          {{if ne .Status "approved"}}<button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/approve" data-variant="secondary">{{icon "check"}}{{T "Approve"}}</button>{{end}}
+          {{if eq .Status "approved"}}<button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/unapprove" data-variant="ghost">{{icon "undo-2"}}{{T "Unapprove"}}</button>{{end}}
+          {{if ne .Status "spam"}}<button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/spam" data-variant="ghost">{{icon "ban"}}{{T "Spam"}}</button>{{end}}
+          {{if ne .Status "trash"}}<button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/trash" data-variant="ghost">{{icon "trash-2"}}{{T "Trash"}}</button>
+          {{else}}<button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/restore" data-variant="ghost">{{icon "undo-2"}}{{T "Restore"}}</button>
+          <button class="btn" data-size="xs" type="submit" formaction="/admin/comments/{{.ID}}/delete" data-variant="destructive" data-confirm="{{T "Delete permanently? This cannot be undone."}}">{{T "Delete permanently"}}</button>{{end}}
+        </div>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+</form>
+{{if or (eq $d.Status "spam") (eq $d.Status "trash")}}<form id="empty-comments" method="post" action="/admin/comments/empty/{{$d.Status}}" hidden>{{.CSRFField}}</form>{{end}}
+{{template "pagination" $d.Page}}
+{{else}}
+<div class="card">{{template "empty" (dict "Icon" "message-square" "Title" (T "No comments here"))}}</div>
+{{end}}
+{{end}}

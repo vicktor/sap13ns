@@ -1,0 +1,69 @@
+{{/* shared/head: everything a theme needs inside <head>. Data: PageData. */}}
+{{define "shared/head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{.DocTitle}}</title>
+{{with .Description}}<meta name="description" content="{{truncate . 300}}">{{end}}
+<link rel="canonical" href="{{.Canonical}}">
+{{if .NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
+<meta name="color-scheme" content="light dark">
+<meta name="generator" content="sap13ns">
+<meta property="og:site_name" content="{{.Site.Title}}">
+<meta property="og:type" content="{{.OGType}}">
+<meta property="og:title" content="{{if .Title}}{{.Title}}{{else}}{{.Site.Title}}{{end}}">
+<meta property="og:url" content="{{.Canonical}}">
+{{with .Description}}<meta property="og:description" content="{{truncate . 300}}">{{end}}
+{{with .OGImage}}<meta property="og:image" content="{{.}}"><meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}
+<meta property="og:locale" content="{{if eq .Site.Lang "es"}}es_ES{{else}}en_US{{end}}">
+{{if .Post}}{{if .Post.HasDate}}<meta property="article:published_time" content="{{isoDate .Post.Published}}">{{end}}<meta property="article:modified_time" content="{{isoDate .Post.Updated}}">{{end}}
+{{range .Translations}}{{if .Alt}}<link rel="alternate" hreflang="{{.Code}}" href="{{.AbsURL}}">
+{{end}}{{end}}{{range .Alternates}}<link rel="alternate" type="{{.Type}}" title="{{.Title}}" href="{{.URL}}">
+{{end}}
+{{range .Meta}}{{if .Property}}<meta property="{{.Property}}" content="{{.Content}}">{{else}}<meta name="{{.Name}}" content="{{.Content}}">{{end}}
+{{end}}
+{{with .JSONLD}}<script type="application/ld+json">{{.}}</script>{{end}}
+<link rel="icon" href="{{.Site.Static "favicon.svg"}}" type="image/svg+xml">
+<script src="{{.Site.Static "theme-init.js"}}"></script>
+<link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
+<script src="{{.Site.Static "site.js"}}" defer></script>
+{{end}}
+
+{{/* shared/theme-toggle: light/dark switch. Themes style .theme-toggle. */}}
+{{define "shared/theme-toggle"}}
+<button type="button" class="theme-toggle" data-theme-toggle aria-label="{{T "Toggle dark mode"}}" title="{{T "Toggle dark mode"}}">{{icon "sun" "theme-icon-light"}}{{icon "moon" "theme-icon-dark"}}</button>
+{{end}}
+
+{{/* shared/lang-switch: links to this page in the site's other languages.
+     Data: the PageData. Renders nothing on single-language sites. */}}
+{{define "shared/lang-switch"}}{{with .Translations}}
+<details class="lang-switch">
+  <summary aria-label="{{T "Language"}}">{{icon "languages"}}{{range .}}{{if .Current}}<span class="lang-code">{{.Code}}</span>{{end}}{{end}}</summary>
+  <ul>{{range .}}<li><a href="{{.URL}}" hreflang="{{.Code}}" lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>{{end}}</ul>
+</details>
+{{end}}{{end}}
+
+{{/* shared/nav-toggle: hamburger for small screens; controls an element by id. */}}
+{{define "shared/nav-toggle"}}
+<button type="button" class="nav-toggle" data-nav-toggle="{{.}}" aria-controls="{{.}}" aria-expanded="false" aria-label="{{T "Menu"}}">{{icon "menu" "nav-icon-open"}}{{icon "x" "nav-icon-close"}}</button>
+{{end}}
+
+{{/* shared/menu: list of MenuLink. Data: []MenuLink. */}}
+{{define "shared/menu"}}
+{{range .}}<li><a href="{{.URL}}"{{if .Active}} aria-current="page"{{end}}{{if .External}} rel="noopener" target="_blank"{{end}}>{{.Label}}</a></li>{{end}}
+{{end}}
+
+{{/* shared/skip-link */}}
+{{define "shared/skip-link"}}<a class="skip-link" href="#main">{{T "Skip to content"}}</a>{{end}}
+
+{{/* shared/admin-bar: shown to signed-in editors. Data: PageData. */}}
+{{define "shared/admin-bar"}}
+{{if .Site.Viewer}}{{if .Site.Viewer.Admin}}
+<div class="sap-adminbar" role="region" aria-label="{{T "Administration"}}">
+  <a href="/admin/" title="{{T "Dashboard"}}">{{icon "layout-dashboard"}}<span>{{T "Dashboard"}}</span></a>
+  {{if .Post}}{{with .Post.EditURL}}<a href="{{.}}">{{icon "pencil"}}<span>{{T "Edit"}}</span></a>{{end}}{{end}}
+  <a href="/admin/posts/new" title="{{T "New post"}}">{{icon "plus"}}<span class="sap-hide-sm">{{T "New"}}</span></a>
+  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.Site.Viewer.CSRF}}"><button type="submit" title="{{T "Log out"}}" aria-label="{{T "Log out"}}">{{icon "log-out"}}</button></form>
+</div>
+{{end}}{{end}}
+{{if .Preview}}<div class="sap-preview" role="status">{{icon "eye"}} {{T "Preview — this content is not public yet."}}</div>{{end}}
+{{end}}

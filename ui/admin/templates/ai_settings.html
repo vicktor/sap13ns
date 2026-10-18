@@ -1,0 +1,62 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.S}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
+    <h1>{{T "AI assistant"}}</h1>
+    <p>{{T "Summaries, SEO, translations, images and writing help in the editor. Texts are sent to the provider you choose; nothing is sent until someone presses a button."}}</p>
+  </div>
+</div>
+{{template "form-error" $d.Error}}
+{{with $d.Notice}}<div class="alert" data-variant="success">{{icon "circle-check"}}<h2>{{.}}</h2></div>{{end}}
+<form method="post" action="/admin/settings/ai" class="stack" data-unsaved>
+  {{.CSRFField}}
+  <section class="card">
+    <header><h2>{{T "Provider"}}</h2></header>
+    <section class="form">
+      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Turn on the assistant"}}</label>
+      <div class="field"><label for="provider">{{T "Provider"}}</label>
+        <select class="select w-full" id="provider" name="provider">{{range $d.Providers}}<option value="{{.Code}}"{{if eq .Code $s.Provider}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+      <div class="field"><label for="api_key">{{T "API key"}}</label>
+        <input class="input mono" id="api_key" name="api_key" type="password" autocomplete="off" maxlength="500" placeholder="{{if $d.HasKey}}{{T "Saved (leave empty to keep it)"}}{{end}}">
+        <p class="hint">{{T "Stored encrypted. Local servers (Ollama, llama.cpp) may not need one."}}</p>
+        {{if $d.HasKey}}<label class="check"><input type="checkbox" class="input" name="remove_key" value="1"> {{T "Remove the saved key"}}</label>{{end}}</div>
+      <div class="field"><label for="base_url">{{T "API address (optional)"}}</label>
+        <input class="input mono" id="base_url" name="base_url" value="{{$s.BaseURL}}" maxlength="300" placeholder="http://127.0.0.1:11434/v1" spellcheck="false" autocapitalize="none">
+        <p class="hint">{{T "Only for OpenAI-compatible servers or proxies. Empty uses the provider's public API."}}</p></div>
+      <label class="check"><input type="checkbox" class="input" role="switch" name="allow_local" value="1"{{if $s.AllowLocal}} checked{{end}}> {{T "Allow plain http:// to this machine (local models)"}}</label>
+      <div class="field"><label class="check"><input type="checkbox" class="input" role="switch" name="no_thinking" value="1"{{if $s.NoThinking}} checked{{end}}> {{T "Answer without thinking (local models)"}}</label>
+        <p class="hint">{{T "Much faster with reasoning models such as Qwen or GLM on llama.cpp and vLLM. In LM Studio, turn thinking off in the model's settings instead."}}</p></div>
+      <div class="grid-2">
+        <div class="field"><label for="text_model">{{T "Text model"}}</label><input class="input mono" id="text_model" name="text_model" value="{{$s.TextModel}}" list="text-models" maxlength="100" placeholder="{{T "Default"}}"></div>
+        <div class="field"><label for="image_model">{{T "Image model"}}</label><input class="input mono" id="image_model" name="image_model" value="{{$s.ImageModel}}" list="image-models" maxlength="100" placeholder="{{T "Default"}}"></div>
+      </div>
+      <datalist id="text-models">{{range $p, $ms := $d.TextModels}}{{range $ms}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}</datalist>
+      <datalist id="image-models">{{range $p, $ms := $d.ImgModels}}{{range $ms}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}</datalist>
+      <div class="field"><label for="image_style">{{T "House style for images"}}</label><textarea class="textarea" id="image_style" name="image_style" rows="2" maxlength="500" placeholder="{{T "e.g. flat editorial illustration, soft violet and teal palette"}}">{{$s.ImageStyle}}</textarea></div>
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "Who and how much"}}</h2></header>
+    <section class="form">
+      <div class="field"><label for="min_role">{{T "Available from the role"}}</label>
+        <select class="select w-full" id="min_role" name="min_role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $s.MinRole}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+      <div class="grid-2">
+        <div class="field"><label for="monthly_requests">{{T "Requests per person and month"}}</label><input class="input" id="monthly_requests" name="monthly_requests" type="number" min="0" value="{{$s.MonthlyRequests}}"><p class="hint">{{T "0 means no limit."}}</p></div>
+        <div class="field"><label for="monthly_images">{{T "Images per person and month"}}</label><input class="input" id="monthly_images" name="monthly_images" type="number" min="0" value="{{$s.MonthlyImages}}"></div>
+      </div>
+      {{if $d.Usage}}
+      <table class="table">
+        <thead><tr><th>{{T "This month"}}</th><th class="text-right">{{T "Requests"}}</th><th class="text-right">{{T "Tokens"}}</th><th class="text-right">{{T "Images"}}</th></tr></thead>
+        <tbody>{{range $d.Usage}}<tr><td>{{.UserName}}</td><td class="text-right tabular">{{.Requests}}</td><td class="text-right tabular">{{.Tokens}}</td><td class="text-right tabular">{{.Images}}</td></tr>{{end}}</tbody>
+      </table>
+      {{end}}
+    </section>
+  </section>
+  <div class="sticky-actions">
+    <button class="btn" data-variant="outline" type="submit" name="test" value="1">{{icon "plug"}}{{T "Save and test"}}</button>
+    <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
+  </div>
+</form>
+{{end}}

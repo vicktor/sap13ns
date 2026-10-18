@@ -1,0 +1,16 @@
+{{define "content"}}
+{{with .Post}}
+<div class="container doc-layout is-page">
+  <article class="panel doc">
+    <header class="doc-head">
+      <h1>{{.Title}}</h1>
+      {{with .Summary}}{{if $.IsFront}}<p class="doc-dek">{{.}}</p>{{end}}{{end}}
+      <p class="doc-updated">{{icon "history"}}<span>{{T "Updated"}} <time datetime="{{isoDate .Updated}}">{{date .Updated}}</time></span></p>
+    </header>
+    {{if .Image}}{{template "shared/featured-image" .}}{{end}}
+    {{template "shared/content" .}}
+  </article>
+  {{if or $.Comments $.CommentForm}}<div class="panel doc-comments">{{template "shared/comments" $}}</div>{{end}}
+</div>
+{{end}}
+{{end}}

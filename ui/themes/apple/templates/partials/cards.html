@@ -1,0 +1,31 @@
+{{define "card"}}
+<article class="tile">
+  <a class="tile-link" href="{{.URL}}">
+    {{if .Image}}<div class="tile-media">{{template "shared/image" (dict "Image" .Image "Sizes" "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw")}}</div>{{end}}
+    <div class="tile-body">
+      {{with .Categories}}<p class="eyebrow">{{(index . 0).Name}}</p>{{end}}
+      <h3>{{.Title}}</h3>
+      <p class="tile-summary">{{.Summary}}</p>
+      <p class="tile-meta">{{if .HasDate}}<time datetime="{{isoDate .Published}}">{{date .Published}}</time> · {{end}}{{T "%d min read" .ReadingMinutes}}</p>
+    </div>
+  </a>
+</article>
+{{end}}
+
+{{define "feature"}}
+<article class="feature">
+  <a class="feature-link" href="{{.URL}}">
+    <div class="feature-body">
+      <p class="eyebrow">{{with .Categories}}{{(index . 0).Name}}{{else}}{{T "Latest"}}{{end}}</p>
+      <h2>{{.Title}}</h2>
+      <p class="feature-summary">{{.Summary}}</p>
+      <span class="more-link">{{T "Read more"}} {{icon "chevron-right"}}</span>
+    </div>
+    {{if .Image}}<div class="feature-media">{{template "shared/image" (dict "Image" .Image "Sizes" "(min-width: 1024px) 60vw, 100vw" "Eager" true)}}</div>{{end}}
+  </a>
+</article>
+{{end}}
+
+{{define "grid"}}
+{{if .}}<div class="tile-grid">{{range .}}{{template "card" .}}{{end}}</div>{{end}}
+{{end}}

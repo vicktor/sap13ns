@@ -1,0 +1,12 @@
+{{define "content"}}
+<section class="wrap nm-page-head">
+  <div class="nm-plaque nm-plaque-split">
+    <div class="nm-plaque-copy">{{template "shared/archive-header" .}}</div>
+    {{with .Archive}}<span class="nm-plaque-icon" aria-hidden="true"><span>{{if eq .Kind "category"}}{{icon "folder"}}{{else if eq .Kind "tag"}}{{icon "hash"}}{{else if eq .Kind "author"}}{{icon "user"}}{{else}}{{icon "calendar"}}{{end}}</span></span>{{end}}
+  </div>
+</section>
+<section class="wrap nm-section" aria-labelledby="archive-posts-title">
+  <h2 id="archive-posts-title" class="sr-only">{{T "Posts"}}</h2>
+  {{template "nm-listing" (dict "Page" . "Posts" .Posts "Images" (eq (index .Site.Options "card_images") "true"))}}
+</section>
+{{end}}

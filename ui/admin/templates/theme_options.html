@@ -1,0 +1,39 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$th := .D.Theme}}{{$v := .D.Values}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/appearance/themes">{{icon "arrow-left" "size-3.5"}} {{T "Themes"}}</a></p>
+    <h1>{{$th.Name}}</h1>
+    <p>{{$th.Description}}</p>
+  </div>
+  <div class="page-actions"><a class="btn" data-variant="outline" data-size="sm" href="/?preview_theme={{$th.Slug}}" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a></div>
+</div>
+<section class="card narrow">
+  <section>
+    <form method="post" class="form" data-unsaved>
+      {{.CSRFField}}
+      {{range $th.Options}}
+      <div class="field">
+        {{if eq .Type "bool"}}
+        <label class="check"><input type="checkbox" class="input" role="switch" name="opt_{{.Key}}" value="true"{{if eq (index $v .Key) "true"}} checked{{end}}> {{.Label}}</label>
+        {{else}}
+        <label for="opt_{{.Key}}">{{.Label}}</label>
+        {{if eq .Type "select"}}
+        <select class="select w-full" id="opt_{{.Key}}" name="opt_{{.Key}}">
+          {{$cur := index $v .Key}}{{range .Choices}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+        {{else if eq .Type "textarea"}}
+        <textarea class="textarea" id="opt_{{.Key}}" name="opt_{{.Key}}" rows="3" maxlength="2000">{{index $v .Key}}</textarea>
+        {{else}}
+        <input class="input" id="opt_{{.Key}}" name="opt_{{.Key}}" type="text" value="{{index $v .Key}}" maxlength="2000">
+        {{end}}
+        {{end}}
+        {{with .Help}}<p class="hint">{{.}}</p>{{end}}
+      </div>
+      {{end}}
+      <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button></div>
+    </form>
+  </section>
+</section>
+{{end}}

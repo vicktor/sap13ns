@@ -1,0 +1,28 @@
+{{template "auth" .}}
+{{define "content"}}
+<header><h1>{{T "Choose a new password"}}</h1></header>
+<section>
+  {{template "form-alerts" .D}}
+  <form method="post" action="/reset-password" class="form auth-form">
+    <input type="hidden" name="token" value="{{.D.Token}}">
+    {{template "password-pair" .}}
+    <button class="btn w-full" type="submit">{{icon "key-round"}}{{T "Save password"}}</button>
+  </form>
+</section>
+<footer><p><a href="/forgot-password">{{T "Request a new link"}}</a></p></footer>
+{{end}}
+{{define "password-pair"}}
+<div class="field">
+  <label for="password">{{T "New password"}}</label>
+  <div class="password-field">
+    <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="256" data-strength="password-strength" autofocus>
+    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-password-toggle="password" aria-label="{{T "Show password"}}">{{icon "eye"}}</button>
+  </div>
+  <div class="strength" id="password-strength" aria-live="polite"><span></span></div>
+  <p class="hint">{{T "At least 10 characters. A short sentence is easier to remember and harder to guess."}}</p>
+</div>
+<div class="field">
+  <label for="password2">{{T "Repeat the password"}}</label>
+  <input class="input" id="password2" name="password2" type="password" autocomplete="new-password" required maxlength="256">
+</div>
+{{end}}

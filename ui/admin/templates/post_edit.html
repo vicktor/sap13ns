@@ -1,0 +1,297 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$p := $d.Post}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="{{$d.ListPath}}">{{icon "arrow-left" "size-3.5"}} {{if eq $d.Type "page"}}{{T "Pages"}}{{else}}{{T "Posts"}}{{end}}</a></p>
+    <h1>{{if $d.New}}{{.Title}}{{else}}{{T "Edit"}}{{end}}</h1>
+  </div>
+  <div class="page-actions">
+    <span class="muted text-sm" data-autosave-status aria-live="polite"></span>
+  {{if not $d.New}}
+    {{if $d.Revisions}}<a class="btn" data-variant="ghost" data-size="sm" href="/admin/posts/{{$p.ID}}/revisions">{{icon "history"}}{{T "%d revisions" $d.Revisions}}</a>{{end}}
+    <a class="btn" data-variant="outline" data-size="sm" href="/admin/posts/{{$p.ID}}/preview" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a>
+    {{if eq $p.Status "published"}}<a class="btn" data-variant="outline" data-size="sm" href="{{$d.PublicURL}}" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View"}}</a>{{end}}
+  {{end}}
+  </div>
+</div>
+
+{{template "form-error" $d.Errors}}
+
+{{if not $d.New}}
+<div class="alert edit-notice" data-variant="warning" data-lock-notice{{if not $d.Edit.LockedBy}} hidden{{end}} role="status">
+  {{icon "lock-keyhole"}}
+  <h2 data-lock-text data-template="{{T "%s is editing this post. If you both save, the last one wins."}}">{{with $d.Edit.LockedBy}}{{T "%s is editing this post. If you both save, the last one wins." .}}{{end}}</h2>
+  <section><button class="btn" data-size="sm" data-variant="outline" type="submit" form="takeover-form">{{T "Take over"}}</button></section>
+</div>
+<form id="takeover-form" method="post" action="/admin/posts/{{$p.ID}}/takeover" hidden>{{.CSRFField}}</form>
+{{if $d.Edit.HasAutosave}}
+<div class="alert edit-notice" data-autosave-notice role="status">
+  {{icon "history"}}
+  <h2>{{T "There is an autosave from %s that is newer than this version." (ago $d.Edit.AutosaveAt)}}</h2>
+  <section class="flex gap-2"><button class="btn" data-size="sm" type="button" data-autosave-restore>{{T "Restore it"}}</button><button class="btn" data-size="sm" data-variant="ghost" type="button" data-autosave-discard>{{T "Discard"}}</button></section>
+</div>
+{{end}}
+{{end}}
+{{with $d.Conflict}}<input type="hidden" form="post-form" name="overwrite" value="1">{{end}}
+
+<form method="post" action="{{if $d.New}}{{$d.ListPath}}/new{{else}}/admin/posts/{{$p.ID}}{{end}}" class="editor-layout" id="post-form" data-unsaved data-post-type="{{$d.Type}}" data-post-id="{{$p.ID}}"{{if $d.New}} data-local-draft="{{$d.Type}}"{{else}} data-heartbeat="/admin/api/posts/{{$p.ID}}"{{end}}
+  data-msg-saved="{{T "Autosaved %s"}}" data-msg-local="{{T "You have an unsaved draft from %s in this browser."}}" data-msg-restore="{{T "Restore it"}}" data-msg-offline="{{T "Autosave failed. Check your connection."}}">
+  {{.CSRFField}}
+  {{if not $d.New}}<input type="hidden" name="version" value="{{$d.Edit.Version}}">{{end}}
+  <div class="editor-main">
+    <div class="card editor-card">
+      <section>
+        <label class="sr-only" for="title">{{T "Title"}}</label>
+        <input class="title-input" id="title" name="title" type="text" value="{{$p.Title}}" placeholder="{{T "Add a title"}}" required maxlength="300" autocomplete="off" data-slug-source>
+        <div class="slug-row">
+          <span class="muted">{{.SiteURL}}/{{if eq $d.Type "post"}}blog/{{end}}</span>
+          <label class="sr-only" for="slug">{{T "Address"}}</label>
+          <input class="slug-input" id="slug" name="slug" type="text" value="{{$p.Slug}}" placeholder="{{T "address"}}" maxlength="180" pattern="[a-z0-9\-]*" data-slug-target{{if $p.Slug}} data-slug-locked{{end}} spellcheck="false" autocapitalize="none">
+        </div>
+      </section>
+    </div>
+
+    <div class="card editor-card" data-editor>
+      <div class="editor-toolbar" role="toolbar" aria-label="{{T "Formatting"}}">
+        <div class="segmented" role="group">
+          <button type="button" class="active" data-editor-tab="write" aria-pressed="true">{{icon "pencil"}}<span>{{T "Write"}}</span></button>
+          <button type="button" data-editor-tab="preview" aria-pressed="false">{{icon "eye"}}<span>{{T "Preview"}}</span></button>
+        </div>
+        <div class="toolbar-buttons" data-editor-tools>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="heading" title="{{T "Heading"}}" aria-label="{{T "Heading"}}">{{icon "heading"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="bold" title="{{T "Bold"}} (Ctrl+B)" aria-label="{{T "Bold"}}">{{icon "bold"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="italic" title="{{T "Italic"}} (Ctrl+I)" aria-label="{{T "Italic"}}">{{icon "italic"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="link" title="{{T "Link"}} (Ctrl+K)" aria-label="{{T "Link"}}">{{icon "link"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="quote" title="{{T "Quote"}}" aria-label="{{T "Quote"}}">{{icon "quote"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="code" title="{{T "Code"}}" aria-label="{{T "Code"}}">{{icon "code"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="ul" title="{{T "Bulleted list"}}" aria-label="{{T "Bulleted list"}}">{{icon "list"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="ol" title="{{T "Numbered list"}}" aria-label="{{T "Numbered list"}}">{{icon "list-ordered"}}</button>
+          <span class="toolbar-sep" aria-hidden="true"></span>
+          <button type="button" class="btn" data-variant="ghost" data-size="sm" data-media-picker="insert">{{icon "image-plus"}}<span class="max-sm:sr-only">{{T "Media"}}</span></button>
+        </div>
+      </div>
+      <label class="sr-only" for="content">{{T "Content"}}</label>
+      <textarea class="editor-text" id="content" name="content" rows="22" spellcheck="true" placeholder="{{T "Write in Markdown…"}}" data-editor-text data-dropzone>{{$p.Content}}</textarea>
+      <div class="editor-preview prose" data-editor-preview hidden aria-live="polite"></div>
+      <div class="editor-status muted" data-editor-status>
+        <span data-word-count></span>
+        <a href="https://commonmark.org/help/" target="_blank" rel="noopener">{{icon "info" "size-3.5"}} {{T "Markdown help"}}</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <header><h2>{{T "Excerpt"}}</h2><p>{{T "Optional summary shown in lists and feeds."}}</p></header>
+      <section>
+        <label class="sr-only" for="excerpt">{{T "Excerpt"}}</label>
+        <textarea class="textarea" id="excerpt" name="excerpt" rows="3" maxlength="2000">{{$p.Excerpt}}</textarea>
+      </section>
+    </div>
+
+    <div class="card">
+      <header><h2>{{T "Search engines"}}</h2></header>
+      <section class="form">
+        <div class="field">
+          <label for="meta_description">{{T "Meta description"}}</label>
+          <textarea class="textarea" id="meta_description" name="meta_description" rows="2" maxlength="300" data-counter="160">{{$p.MetaDescription}}</textarea>
+          <p class="hint">{{T "Around 150–160 characters. If empty, the excerpt is used."}} <span data-counter-for="meta_description"></span></p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <aside class="editor-side">
+    <div class="card">
+      <header><h2>{{T "Publish"}}</h2></header>
+      <section class="form">
+        {{if not $d.New}}
+        <div class="kv"><span>{{T "Status"}}</span>{{if $d.Scheduled}}{{template "status-badge" "scheduled"}}{{else}}{{template "status-badge" $p.Status}}{{end}}</div>
+        {{end}}
+        {{if $d.CanPublish}}
+        <div class="field">
+          <label for="status">{{T "Visibility"}}</label>
+          <select class="select w-full" id="status" name="status">
+            <option value="draft"{{if eq $p.Status "draft"}} selected{{end}}>{{T "Draft"}}</option>
+            <option value="pending"{{if eq $p.Status "pending"}} selected{{end}}>{{T "Pending review"}}</option>
+            <option value="published"{{if eq $p.Status "published"}} selected{{end}}>{{T "Public"}}</option>
+            <option value="private"{{if eq $p.Status "private"}} selected{{end}}>{{T "Private (logged-in editors only)"}}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="published_at">{{T "Publication date"}}</label>
+          <input class="input" id="published_at" name="published_at" type="datetime-local" value="{{inputTime $p.PublishedAt}}">
+          <p class="hint">{{T "A future date schedules the post. Leave empty to publish now."}}</p>
+        </div>
+        {{else}}
+        <input type="hidden" name="status" value="{{if eq $p.Status "pending"}}pending{{else}}draft{{end}}">
+        <p class="hint">{{T "An editor will review your work before it is published."}}</p>
+        {{end}}
+      </section>
+      <footer class="publish-actions">
+        {{if $d.CanPublish}}
+          <button type="submit" class="btn" data-variant="outline" name="intent" value="draft">{{T "Save draft"}}</button>
+          {{if or $d.New (ne $p.Status "published")}}
+          <button type="submit" class="btn" name="intent" value="publish">{{icon "send"}}{{T "Publish"}}</button>
+          {{else}}
+          <button type="submit" class="btn" name="intent" value="">{{icon "save"}}{{T "Update"}}</button>
+          {{end}}
+        {{else}}
+          <button type="submit" class="btn" data-variant="outline" name="intent" value="draft">{{T "Save draft"}}</button>
+          <button type="submit" class="btn" name="intent" value="pending">{{icon "send"}}{{T "Submit for review"}}</button>
+        {{end}}
+      </footer>
+      {{if not $d.New}}
+      <footer class="danger-actions">
+        {{if eq $p.Status "trash"}}
+        <button type="submit" class="btn" data-variant="ghost" data-size="sm" form="restore-form">{{icon "undo-2"}}{{T "Restore"}}</button>
+        <button type="submit" class="btn" data-variant="destructive" data-size="sm" form="delete-form" data-confirm="{{T "Delete permanently? This cannot be undone."}}">{{icon "trash-2"}}{{T "Delete permanently"}}</button>
+        {{else}}
+        <button type="submit" class="btn" data-variant="ghost" data-size="sm" form="trash-form" data-confirm="{{T "Move to the trash?"}}">{{icon "trash-2"}}{{T "Move to trash"}}</button>
+        {{end}}
+        <span class="muted text-xs">{{T "Edited"}} {{ago $p.UpdatedAt}}</span>
+      </footer>
+      {{end}}
+    </div>
+
+    {{template "ai-panel" .}}
+
+    {{with $d.Langs}}
+    <div class="card">
+      <header><h2>{{T "Language"}}</h2></header>
+      <section class="form">
+        <div class="field">
+          <label for="lang" class="sr-only">{{T "Language"}}</label>
+          <select class="select w-full" id="lang" name="lang">
+            {{range .}}<option value="{{.Code}}"{{if eq .Code $p.Lang}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        {{if not $d.New}}
+        {{if $d.Translations}}
+        <ul class="translations">
+          {{range $d.Translations}}
+          <li><a href="/admin/posts/{{.ID}}"><span class="badge" data-variant="outline">{{upper .Lang}}</span> {{.Title}}</a>{{template "status-badge" .Status}}</li>
+          {{end}}
+        </ul>
+        {{end}}
+        {{if $d.Missing}}
+        <div class="translate-actions">
+          <p class="hint">{{T "Create a translation as a linked draft:"}}</p>
+          {{range $d.Missing}}<button type="submit" class="btn" data-variant="outline" data-size="sm" form="translate-form" name="lang" value="{{.Code}}">{{icon "plus"}}{{.Name}}</button>{{end}}
+        </div>
+        {{end}}
+        {{if $d.Translations}}<button type="submit" class="btn" data-variant="ghost" data-size="sm" form="unlink-form" data-confirm="{{T "Stop treating this as a translation of the others?"}}">{{T "Unlink translations"}}</button>{{end}}
+        {{end}}
+      </section>
+    </div>
+    {{end}}
+
+    <div class="card">
+      <header><h2>{{T "Featured image"}}</h2></header>
+      <section>
+        <input type="hidden" name="featured_media_id" id="featured_media_id" value="{{if $p.FeaturedMediaID}}{{derefInt $p.FeaturedMediaID}}{{end}}">
+        <div class="featured" data-featured>
+          {{if $p.Featured}}<img src="{{$p.Featured.VariantURL "medium"}}" alt="{{$p.Featured.Alt}}" data-featured-img>{{else}}<img alt="" data-featured-img hidden>{{end}}
+          <div class="featured-actions">
+            <button type="button" class="btn" data-variant="outline" data-size="sm" data-media-picker="featured">{{icon "image"}}{{T "Choose image"}}</button>
+            <button type="button" class="btn" data-variant="ghost" data-size="sm" data-featured-clear{{if not $p.FeaturedMediaID}} hidden{{end}}>{{icon "x"}}{{T "Remove"}}</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    {{if eq $d.Type "post"}}
+    <div class="card">
+      <header><h2>{{T "Categories"}}</h2></header>
+      <section>
+        {{if $d.Categories}}
+        <div class="check-list scrollbar">
+          {{range $d.Categories}}
+          <label class="check"><input type="checkbox" class="input" name="categories" value="{{.ID}}"{{if hasID .ID $d.Selected}} checked{{end}}> {{.Name}}</label>
+          {{end}}
+        </div>
+        {{else}}<p class="muted text-sm">{{T "No categories yet."}}</p>{{end}}
+        {{if .Can "terms.manage"}}<p class="mt-3"><a class="text-sm" href="/admin/terms/category" target="_blank">{{icon "plus" "size-3.5"}} {{T "Manage categories"}}</a></p>{{end}}
+      </section>
+    </div>
+    <div class="card">
+      <header><h2>{{T "Tags"}}</h2></header>
+      <section class="form">
+        <div class="field">
+          <label class="sr-only" for="tags">{{T "Tags"}}</label>
+          <input class="input" id="tags" name="tags" type="text" value="{{$d.TagsText}}" placeholder="{{T "go, security, linux"}}" maxlength="2000" autocomplete="off">
+          <p class="hint">{{T "Separate tags with commas."}}</p>
+        </div>
+      </section>
+    </div>
+    {{else}}
+    <div class="card">
+      <header><h2>{{T "Page attributes"}}</h2></header>
+      <section class="form">
+        <div class="field">
+          <label for="parent_id">{{T "Parent page"}}</label>
+          <select class="select w-full" id="parent_id" name="parent_id">
+            <option value="">{{T "(none)"}}</option>
+            {{range $d.Pages}}<option value="{{.ID}}"{{if eq (derefInt $p.ParentID) .ID}} selected{{end}}>{{.Title}}</option>{{end}}
+          </select>
+        </div>
+        <div class="field">
+          <label for="menu_order">{{T "Order"}}</label>
+          <input class="input" id="menu_order" name="menu_order" type="number" value="{{$p.MenuOrder}}" min="-1000" max="1000">
+          <p class="hint">{{T "Lower numbers appear first in automatic menus."}}</p>
+        </div>
+      </section>
+    </div>
+    {{end}}
+
+    <div class="card">
+      <header><h2>{{T "Discussion"}}</h2></header>
+      <section class="form">
+        <label class="check"><input type="checkbox" class="input" role="switch" name="comments_open" value="1"{{if eq $p.CommentStatus "open"}} checked{{end}}> {{T "Allow comments"}}</label>
+        {{if $d.CanAuthor}}
+        <div class="field">
+          <label for="author_id">{{T "Author"}}</label>
+          <select class="select w-full" id="author_id" name="author_id">
+            {{range $d.Authors}}<option value="{{.ID}}"{{if eq (derefInt $p.AuthorID) .ID}} selected{{end}}>{{.Name}} ({{.Username}})</option>{{end}}
+          </select>
+        </div>
+        {{end}}
+      </section>
+    </div>
+  </aside>
+</form>
+
+{{if not $d.New}}
+<form id="trash-form" method="post" action="/admin/posts/{{$p.ID}}/status" hidden>{{.CSRFField}}<input type="hidden" name="to" value="trash"></form>
+<form id="restore-form" method="post" action="/admin/posts/{{$p.ID}}/status" hidden>{{.CSRFField}}<input type="hidden" name="to" value="draft"></form>
+<form id="delete-form" method="post" action="/admin/posts/{{$p.ID}}/delete" hidden>{{.CSRFField}}</form>
+{{if $d.Langs}}
+<form id="translate-form" method="post" action="/admin/posts/{{$p.ID}}/translate" hidden>{{.CSRFField}}</form>
+<form id="unlink-form" method="post" action="/admin/posts/{{$p.ID}}/unlink" hidden>{{.CSRFField}}</form>
+{{end}}
+{{end}}
+
+{{template "media-dialog" .}}
+{{end}}
+
+{{define "media-dialog"}}
+<dialog id="media-dialog" class="dialog media-dialog" aria-labelledby="media-dialog-title" data-overlay-close>
+  <div>
+    <header>
+      <h2 id="media-dialog-title">{{T "Media library"}}</h2>
+      <p>{{T "Choose a file or drop new ones here."}}</p>
+    </header>
+    <section>
+      <div class="media-picker-bar">
+        <div class="input-icon grow">{{icon "search"}}<input class="input" type="search" placeholder="{{T "Search…"}}" data-media-search aria-label="{{T "Search media"}}"></div>
+        <label class="btn" data-size="sm">{{icon "upload"}}{{T "Upload"}}<input type="file" multiple hidden data-media-upload accept="image/*,application/pdf,audio/*,video/mp4,video/webm,text/plain"></label>
+      </div>
+      <div class="media-grid picker" data-media-grid data-dropzone aria-live="polite"></div>
+      <div class="media-picker-more"><button type="button" class="btn" data-variant="outline" data-size="sm" data-media-more hidden>{{T "Load more"}}</button></div>
+    </section>
+    <footer>
+      <button type="button" class="btn" data-variant="outline" data-dialog-close>{{T "Cancel"}}</button>
+    </footer>
+    <button type="button" class="btn dialog-close" data-variant="ghost" data-size="icon-sm" aria-label="{{T "Close"}}" data-dialog-close>{{icon "x"}}</button>
+  </div>
+</dialog>
+{{end}}

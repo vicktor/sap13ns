@@ -1,0 +1,38 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Users"}}</h1><p>{{T "%d accounts" $d.Total}}</p></div>
+  <div class="page-actions"><a class="btn" href="/admin/users/new">{{icon "user-plus"}}{{T "New user"}}</a></div>
+</div>
+<div class="toolbar">
+  <nav class="filter-tabs" aria-label="{{T "Filter"}}">
+    <a href="/admin/users"{{if not $d.Role}} aria-current="page"{{end}}>{{T "All"}}</a>
+    {{range $d.Roles}}<a href="/admin/users?role={{.}}"{{if eq . $d.Role}} aria-current="page"{{end}}>{{roleLabel .}}</a>{{end}}
+  </nav>
+  <form method="get" action="/admin/users" class="search-inline" role="search">
+    {{if $d.Role}}<input type="hidden" name="role" value="{{$d.Role}}">{{end}}
+    <label class="sr-only" for="q">{{T "Search"}}</label>
+    <div class="input-icon">{{icon "search"}}<input class="input" type="search" id="q" name="q" value="{{$d.Query}}" placeholder="{{T "Search…"}}"></div>
+  </form>
+</div>
+<div class="card table-wrap">
+  <table class="table">
+    <thead><tr><th>{{T "User"}}</th><th class="max-md:hidden">{{T "E-mail"}}</th><th>{{T "Role"}}</th><th class="max-sm:hidden">{{T "Security"}}</th><th class="max-lg:hidden">{{T "Last login"}}</th></tr></thead>
+    <tbody>
+      {{range $d.Users}}
+      <tr>
+        <td><a class="user-cell" href="/admin/users/{{.ID}}"><span class="avatar-initials" aria-hidden="true">{{initials .Name}}</span><span><strong>{{.Name}}</strong><small class="muted">@{{.Username}}</small></span></a></td>
+        <td class="max-md:hidden muted">{{.Email}}</td>
+        <td><span class="badge" data-variant="{{if eq .Role "admin"}}default{{else}}outline{{end}}">{{roleLabel .Role}}</span>{{if ne .Status "active"}} {{template "status-badge" .Status}}{{end}}</td>
+        <td class="max-sm:hidden">{{if or .TOTPEnabled .PasskeyCount}}<span class="text-success" title="{{T "Two-factor authentication enabled"}}">{{icon "shield-check" "size-4"}}</span>{{else}}<span class="muted" title="{{T "Password only"}}">{{icon "shield" "size-4"}}</span>{{end}}</td>
+        <td class="max-lg:hidden muted nowrap">{{if .LastLoginAt}}{{ago .LastLoginAt}}{{else}}—{{end}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">{{template "empty" (dict "Icon" "users" "Title" (T "No results"))}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" $d.Page}}
+{{end}}

@@ -1,0 +1,35 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}}">
+<head>{{template "shared/head" .}}</head>
+<body class="kind-{{.Kind}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+<header class="site-header">
+  <nav class="wrap header-bento" aria-label="{{T "Main menu"}}">
+    <a class="header-tile brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
+      {{template "brand-mark"}}<span class="brand-name">{{.Site.Title}}</span>
+    </a>
+    <ul id="primary-menu" class="header-tile nav-menu">{{template "shared/menu" (.Site.Menu "primary")}}</ul>
+    <div class="header-tile header-actions">
+      <a class="icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>
+      {{template "shared/lang-switch" .}}
+      {{template "shared/theme-toggle"}}
+      {{template "shared/nav-toggle" "primary-menu"}}
+    </div>
+  </nav>
+</header>
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+    <div class="tile footer-bar">
+      <a class="footer-brand" href="{{link "/"}}">{{template "brand-mark"}}<span>{{.Site.Title}}</span></a>
+      {{with .Site.Menu "footer"}}<nav class="footer-nav" aria-label="{{T "Footer menu"}}"><ul class="footer-menu">{{template "shared/menu" .}}</ul></nav>{{end}}
+      {{template "shared/footer-meta" .}}
+    </div>
+  </div>
+</footer>
+</body>
+</html>{{end}}

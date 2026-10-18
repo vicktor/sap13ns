@@ -1,0 +1,66 @@
+{{/* sap/mark: the brand mark. Light mode shows /static/brand/logo.svg; dark
+     mode paints /static/brand/logo-mono.svg as a mask (see theme.css), so
+     the deep violet half stays visible on dark backgrounds. Data: PageData. */}}
+{{define "sap/mark"}}<span class="brand-mark" aria-hidden="true"><img src="{{.Site.Static "brand/logo.svg"}}" alt="" width="28" height="28"></span>{{end}}
+
+{{/* sap/more: the Nth link of a menu as an arrow link (no output when the
+     menu is shorter). Data: dict "M" []MenuLink "N" int "Text" string. */}}
+{{define "sap/more"}}{{$n := .N}}{{$t := .Text}}{{range $i, $l := .M}}{{if eq $i $n}}<a class="more-link" href="{{$l.URL}}">{{or $t $l.Label}} {{icon "arrow-right"}}</a>{{end}}{{end}}{{end}}
+
+{{/* Language-aware replacements of two shared partials: the core versions
+     point to "/" and "/search" in every language. */}}
+{{define "shared/search-form"}}
+<form class="search-form" method="get" action="{{.Site.Search}}" role="search">
+  <label class="sr-only" for="search-q-{{.Kind}}">{{T "Search"}}</label>
+  <input id="search-q-{{.Kind}}" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
+  <button type="submit" aria-label="{{T "Search"}}">{{icon "search"}}</button>
+</form>
+{{end}}
+
+{{define "shared/not-found"}}
+<section class="not-found">
+  <p class="not-found-code" aria-hidden="true">404</p>
+  <h1>{{T "Page not found"}}</h1>
+  <p>{{T "The address may be mistyped, or the page was moved."}}</p>
+  {{template "shared/search-form" .}}
+  <p><a class="more-link" href="{{.Site.Home}}">{{icon "arrow-left"}} {{T "Back to the homepage"}}</a></p>
+</section>
+{{end}}
+
+{{/* sap/card: a post card. Data: *PostView. */}}
+{{define "sap/card"}}
+<article class="post-card">
+  <a class="post-card-link" href="{{.URL}}">
+    {{if .Image}}<div class="post-card-media">{{template "shared/image" (dict "Image" .Image "Sizes" "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw")}}</div>
+    {{else}}<div class="post-card-art" aria-hidden="true"><span class="art-grid"></span><span class="art-orb"></span><span class="art-label">{{with .Categories}}{{(index . 0).Name}}{{else}}sap13ns{{end}}</span></div>{{end}}
+    <div class="post-card-body">
+      {{with .Categories}}<p class="eyebrow">{{(index . 0).Name}}</p>{{end}}
+      <h3>{{.Title}}</h3>
+      <p class="post-card-summary">{{.Summary}}</p>
+      <p class="post-card-meta">{{if .HasDate}}<time datetime="{{isoDate .Published}}">{{date .Published}}</time><span aria-hidden="true"> · </span>{{end}}<span>{{T "%d min read" .ReadingMinutes}}</span></p>
+    </div>
+  </a>
+</article>
+{{end}}
+
+{{/* sap/grid: cards. Data: []*PostView. */}}
+{{define "sap/grid"}}{{if .}}<div class="post-grid">{{range .}}{{template "sap/card" .}}{{end}}</div>{{end}}{{end}}
+
+{{/* sap/plans: hosting plans from {{plans}}. Data: []PlanView. */}}
+{{define "sap/plans"}}
+<div class="plans">
+  {{range .}}
+  <article class="plan{{if .Highlight}} is-highlight{{end}}">
+    <header class="plan-head">
+      <h3>{{T .Name}}</h3>
+      {{if .Highlight}}<span class="plan-flag">{{T "Recommended"}}</span>{{end}}
+    </header>
+    {{with .Description}}<p class="plan-desc">{{T .}}</p>{{end}}
+    <p class="plan-price">{{if .Free}}<strong>{{T "Free"}}</strong>{{else}}<strong>{{.Price}}</strong>{{with .Interval}}<span>/ {{if eq . "month"}}{{T "month"}}{{else if eq . "year"}}{{T "year"}}{{else}}{{.}}{{end}}</span>{{end}}{{end}}</p>
+    <p class="plan-use">{{if .Commercial}}{{icon "badge-check"}} {{T "Commercial use allowed"}}{{else}}{{icon "user-round-check"}} {{T "Personal, non-commercial sites"}}{{end}}</p>
+    <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{T .}}</span></li>{{end}}</ul>
+    {{$hl := .Highlight}}{{with .SignupURL}}<a class="button {{if $hl}}button-primary{{else}}button-outline{{end}} plan-cta" href="{{.}}">{{T "Choose plan"}}</a>{{end}}
+  </article>
+  {{end}}
+</div>
+{{end}}

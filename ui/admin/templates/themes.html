@@ -1,0 +1,31 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Themes"}}</h1><p>{{T "Every theme supports light and dark mode. Preview before activating."}}</p></div>
+</div>
+<ul class="theme-grid">
+  {{range $d.Themes}}
+  <li class="card theme-card{{if eq .Slug $d.Active}} is-active{{end}}">
+    <svg class="theme-swatches" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+      {{$n := len .Swatches}}{{range $i, $c := .Swatches}}<rect x="{{mul $i (div 100 $n)}}" y="0" width="{{div 100 $n}}" height="24" fill="{{$c}}"/>{{end}}
+    </svg>
+    <header>
+      <h2>{{.Name}} {{if eq .Slug $d.Active}}<span class="badge" data-variant="success">{{T "Active"}}</span>{{end}}</h2>
+      <p>{{.Description}}</p>
+    </header>
+    <section class="theme-meta muted text-xs">
+      <span>v{{.Version}}</span>{{with .Author}} · <span>{{.}}</span>{{end}}{{if .Builtin}} · <span>{{T "Built-in"}}</span>{{end}}
+    </section>
+    <footer>
+      <a class="btn" data-variant="outline" data-size="sm" href="/?preview_theme={{.Slug}}" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a>
+      {{if .Options}}<a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/options">{{icon "settings"}}{{T "Options"}}</a>{{end}}
+      {{if ne .Slug $d.Active}}
+      <form method="post" action="/admin/appearance/themes/{{.Slug}}/activate" class="ml-auto">{{$.CSRFField}}<button class="btn" data-size="sm" type="submit">{{T "Activate"}}</button></form>
+      {{end}}
+    </footer>
+  </li>
+  {{end}}
+</ul>
+<p class="hint mt-6">{{T "To install more themes, copy them to the themes directory of the server and reload this page."}}</p>
+{{end}}

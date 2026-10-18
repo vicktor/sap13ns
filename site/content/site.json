@@ -1,0 +1,25 @@
+{
+  "title": "sap13ns",
+  "tagline": "The fast, secure CMS that ships as one binary",
+  "footer_text": "© 2026 BAUBER.XYZ SL",
+  "language": "en",
+  "languages": ["es"],
+  "active_theme": "sap13ns",
+  "timezone": "Europe/Madrid",
+  "posts_per_page": 9,
+  "site_text": {
+    "es": {
+      "site_title": "sap13ns",
+      "tagline": "El CMS rápido y seguro que cabe en un binario",
+      "footer_text": "© 2026 BAUBER.XYZ SL"
+    }
+  },
+  "menu_links": [
+    {"menu": "primary", "lang": "en", "label": "Blog", "url": "/blog", "order": 70},
+    {"menu": "primary", "lang": "es", "label": "Blog", "url": "/es/blog", "order": 70},
+    {"menu": "footer", "lang": "en", "label": "Blog", "url": "/blog", "order": 15},
+    {"menu": "footer", "lang": "es", "label": "Blog", "url": "/es/blog", "order": 15},
+    {"menu": "footer", "lang": "en", "label": "GitHub", "url": "https://github.com/vicktor/sap13ns", "order": 16},
+    {"menu": "footer", "lang": "es", "label": "GitHub", "url": "https://github.com/vicktor/sap13ns", "order": 16}
+  ]
+}

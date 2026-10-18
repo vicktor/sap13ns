@@ -1,0 +1,50 @@
+{{define "content"}}
+{{with .Post}}
+<div class="container doc-layout">
+  <article class="panel doc">
+    <header class="doc-head">
+      {{with .Categories}}<ul class="doc-badges" aria-label="{{T "Categories"}}">{{range .}}<li><a class="chip chip-accent" href="{{.URL}}" rel="category">{{.Name}}</a></li>{{end}}</ul>{{end}}
+      <h1>{{.Title}}</h1>
+      {{with .Summary}}<p class="doc-dek">{{.}}</p>{{end}}
+      {{template "shared/post-meta" .}}
+    </header>
+    {{if .Image}}{{template "shared/featured-image" .}}{{end}}
+    {{template "shared/content" .}}
+  </article>
+
+  <aside class="doc-rail" aria-label="{{T "About this post"}}">
+    <section class="panel rail-card">
+      <h2 class="rail-title">{{T "Details"}}</h2>
+      {{if .Author.Name}}
+      <div class="rail-author">
+        <span class="avatar" aria-hidden="true">{{.Author.Initials}}</span>
+        <div>
+          {{if .Author.URL}}<a href="{{.Author.URL}}" rel="author">{{.Author.Name}}</a>{{else}}<span>{{.Author.Name}}</span>{{end}}
+          <small>{{T "Author"}}</small>
+        </div>
+      </div>
+      {{end}}
+      <dl class="kv">
+        {{if .HasDate}}<div><dt>{{T "Published"}}</dt><dd><time datetime="{{isoDate .Published}}">{{shortDate .Published}}</time></dd></div>{{end}}
+        <div><dt>{{T "Updated"}}</dt><dd><time datetime="{{isoDate .Updated}}">{{shortDate .Updated}}</time></dd></div>
+        <div><dt>{{T "Reading"}}</dt><dd>{{T "%d min read" .ReadingMinutes}}</dd></div>
+        {{if or .CommentCount .CommentsOpen}}<div><dt>{{T "Comments"}}</dt><dd><a href="#comments">{{.CommentCount}}</a></dd></div>{{end}}
+      </dl>
+    </section>
+    {{if .Tags}}
+    <section class="panel rail-card">
+      <h2 class="rail-title">{{T "Tags"}}</h2>
+      {{template "shared/tags" .}}
+    </section>
+    {{end}}
+    <section class="panel rail-card">
+      <h2 class="rail-title">{{T "Share"}}</h2>
+      {{template "shared/share" .}}
+    </section>
+    {{template "shared/post-nav" $}}
+  </aside>
+
+  {{if or $.Comments $.CommentForm}}<div class="panel doc-comments">{{template "shared/comments" $}}</div>{{end}}
+</div>
+{{end}}
+{{end}}

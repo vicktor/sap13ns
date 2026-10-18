@@ -1,0 +1,34 @@
+{{define "content"}}
+{{$first := and .IsFront (or (not .Pagination) (eq .Pagination.Page 1))}}
+{{$imgs := eq (index .Site.Options "card_images") "true"}}
+{{if and $first (eq (index .Site.Options "hero") "true")}}
+<section class="wrap nm-hero-wrap" aria-labelledby="hero-title">
+  <div class="nm-hero">
+    <div class="nm-hero-copy">
+      <p class="nm-pill-inset">{{plural .Site.Stats.Posts "%d post" "%d posts"}}<span aria-hidden="true">·</span>{{plural .Site.Stats.Categories "%d category" "%d categories"}}</p>
+      <h1 id="hero-title" class="nm-hero-title">{{or (index .Site.Options "hero_title") .Site.Title}}</h1>
+      {{with .Site.Tagline}}<p class="nm-hero-lead">{{.}}</p>{{end}}
+      <p class="nm-hero-actions">
+        <a class="nm-btn nm-btn-primary" href="#latest">{{T "Read the latest"}} {{icon "arrow-down"}}</a>
+        <a class="nm-btn" href="{{.Site.FeedRSS}}">{{icon "rss"}} {{T "Subscribe"}}</a>
+      </p>
+    </div>
+    <div class="nm-dial" aria-hidden="true"><span class="nm-dial-ring"><span class="nm-dial-knob"><span class="nm-dial-dot"></span></span></span></div>
+  </div>
+</section>
+{{else}}
+<section class="wrap nm-page-head">
+  <div class="nm-plaque">
+    <h1>{{or .Heading .Site.Title}}</h1>
+    {{if not .IsFront}}{{with .Site.Tagline}}<p class="nm-plaque-lead">{{.}}</p>{{end}}{{end}}
+  </div>
+</section>
+{{end}}
+<section class="wrap nm-section" id="latest" aria-labelledby="latest-title">
+  <header class="nm-section-head">
+    <h2 id="latest-title">{{T "Latest posts"}}</h2>
+    {{with .Pagination}}<p class="nm-muted">{{T "Page %d of %d" .Page .TotalPages}}</p>{{end}}
+  </header>
+  {{template "nm-listing" (dict "Page" . "Posts" .Posts "Feature" $first "Images" $imgs)}}
+</section>
+{{end}}

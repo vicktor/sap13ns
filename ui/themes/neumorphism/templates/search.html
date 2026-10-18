@@ -1,0 +1,27 @@
+{{define "content"}}
+<section class="wrap nm-page-head">
+  <div class="nm-plaque nm-plaque-split">
+    <div class="nm-plaque-copy nm-search-head">
+      <h1>{{if .Query}}{{.Heading}}{{else}}{{T "Search"}}{{end}}</h1>
+      {{template "shared/search-form" .}}
+      {{if .Pagination}}<p class="nm-muted">{{plural .Pagination.Total "%d result" "%d results"}}</p>{{else if .Posts}}<p class="nm-muted">{{plural (len .Posts) "%d result" "%d results"}}</p>{{end}}
+    </div>
+    <span class="nm-plaque-icon" aria-hidden="true"><span>{{icon "search"}}</span></span>
+  </div>
+</section>
+{{if .Posts}}
+<section class="wrap nm-section" aria-labelledby="search-results-title">
+  <h2 id="search-results-title" class="sr-only">{{T "Results"}}</h2>
+  {{template "nm-listing" (dict "Page" . "Posts" .Posts "Images" (eq (index .Site.Options "card_images") "true") "NoAside" true)}}
+</section>
+{{else if .Query}}
+<section class="wrap nm-section">
+  <div class="nm-plaque nm-empty no-results">
+    <span class="nm-empty-icon" aria-hidden="true">{{icon "search"}}</span>
+    <h2>{{T "Nothing found for “%s”" .Query}}</h2>
+    <p>{{T "Try other words or browse the categories."}}</p>
+    {{with .Site.Categories}}<ul class="nm-chips" aria-label="{{T "Categories"}}">{{range .}}<li><a class="nm-chip" href="{{.URL}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
+  </div>
+</section>
+{{end}}
+{{end}}

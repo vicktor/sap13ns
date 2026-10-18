@@ -1,0 +1,19 @@
+{{define "content"}}
+{{$side := and (eq (index .Site.Options "sidebar") "true") (.Area "sidebar")}}
+<section class="wrap intro">
+  <span class="orb orb-intro" aria-hidden="true"></span>
+  <span class="orb orb-intro-2" aria-hidden="true"></span>
+  <div class="intro-card glass">{{template "shared/archive-header" .}}</div>
+</section>
+<div class="wrap section layout{{if $side}} with-sidebar{{end}}">
+  <div class="main-col">
+    {{if .Posts}}
+      {{template "grid" (dict "Posts" .Posts)}}
+      {{template "pager" .Pagination}}
+    {{else}}
+      <div class="glass empty-card">{{template "shared/no-results" .}}</div>
+    {{end}}
+  </div>
+  {{if $side}}{{template "sidebar" .}}{{end}}
+</div>
+{{end}}

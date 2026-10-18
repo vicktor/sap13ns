@@ -1,0 +1,11 @@
+{{define "content"}}
+<section class="page-head search-head"><div class="wrap">
+  <p class="eyebrow">{{T "Search"}}</p>
+  <h1>{{if .Query}}{{.Heading}}{{else}}{{T "Search the site"}}{{end}}</h1>
+  {{template "shared/search-form" .}}
+  {{with .Pagination}}<p class="muted">{{plural .Total "%d result" "%d results"}}</p>{{end}}
+</div></section>
+<section class="section listing" aria-label="{{T "Results"}}"><div class="wrap">
+  {{if .Posts}}{{template "sap/grid" .Posts}}<div class="pager">{{template "shared/pagination" .Pagination}}</div>{{else if .Query}}{{template "shared/no-results" .}}{{end}}
+</div></section>
+{{end}}

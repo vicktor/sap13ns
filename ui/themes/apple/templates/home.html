@@ -1,0 +1,33 @@
+{{define "content"}}
+{{$first := and .IsFront (or (not .Pagination) (eq .Pagination.Page 1))}}
+{{if and $first (eq (index .Site.Options "hero") "true")}}
+<section class="hero">
+  <div class="wrap narrow-center">
+    <h1 class="hero-title">{{or (index .Site.Options "hero_title") .Site.Title}}</h1>
+    {{with .Site.Tagline}}<p class="hero-lead">{{.}}</p>{{end}}
+    <p class="hero-actions">
+      <a class="pill pill-primary" href="#latest">{{T "Read the latest"}}</a>
+      <a class="text-link" href="{{.Site.FeedRSS}}">{{T "Subscribe"}} {{icon "chevron-right"}}</a>
+    </p>
+  </div>
+</section>
+{{else}}
+<section class="page-head"><div class="wrap"><h1>{{or .Heading .Site.Title}}</h1>{{if not .IsFront}}{{with .Site.Tagline}}<p>{{.}}</p>{{end}}{{end}}</div></section>
+{{end}}
+
+<section class="section" id="latest" aria-label="{{T "Latest posts"}}">
+  <div class="wrap">
+    {{if .Posts}}
+      {{if $first}}
+        {{template "feature" (index .Posts 0)}}
+        {{template "grid" (slice .Posts 1)}}
+      {{else}}
+        {{template "grid" .Posts}}
+      {{end}}
+      <div class="pager">{{template "shared/pagination" .Pagination}}</div>
+    {{else}}
+      {{template "shared/no-results" .}}
+    {{end}}
+  </div>
+</section>
+{{end}}

@@ -1,0 +1,40 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}" class="palette-{{index .Site.Options "palette"}} glass-{{index .Site.Options "glass"}}{{if ne (index .Site.Options "motion") "true"}} motion-off{{end}}">
+<head>{{template "shared/head" .}}</head>
+<body class="kind-{{.Kind}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+<header class="site-header">
+  <nav class="nav-pill" aria-label="{{T "Main menu"}}">
+    <a class="brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
+      <span class="brand-mark" aria-hidden="true"></span><span class="brand-name">{{.Site.Title}}</span>
+    </a>
+    <ul id="primary-menu" class="nav-menu">{{template "shared/menu" (.Site.Menu "primary")}}</ul>
+    <div class="nav-actions">
+      <a class="icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>
+      {{template "shared/lang-switch" .}}
+      {{template "shared/theme-toggle"}}
+      {{template "shared/nav-toggle" "primary-menu"}}
+    </div>
+  </nav>
+</header>
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-panel glass">
+      <div class="footer-intro">
+        <a class="brand" href="{{link "/"}}"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">{{.Site.Title}}</span></a>
+        {{with .Site.Tagline}}<p class="footer-tagline">{{.}}</p>{{end}}
+      </div>
+      {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+      <div class="footer-bottom">
+        {{with .Site.Menu "footer"}}<nav aria-label="{{T "Footer menu"}}"><ul class="footer-menu">{{template "shared/menu" .}}</ul></nav>{{end}}
+        {{template "shared/footer-meta" .}}
+      </div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>{{end}}

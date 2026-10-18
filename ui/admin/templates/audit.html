@@ -1,0 +1,33 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Audit log"}}</h1><p>{{T "Security-relevant actions of the last 365 days."}}</p></div>
+</div>
+<div class="toolbar">
+  <form method="get" action="/admin/audit" class="search-inline" role="search">
+    <label class="sr-only" for="action">{{T "Action"}}</label>
+    <div class="input-icon">{{icon "filter"}}<input class="input" id="action" name="action" value="{{$d.Action}}" placeholder="login.failed, user.*, plugin.approved…" maxlength="60"></div>
+  </form>
+</div>
+<div class="card table-wrap">
+  <table class="table audit-table">
+    <thead><tr><th>{{T "When"}}</th><th>{{T "Action"}}</th><th>{{T "User"}}</th><th class="max-md:hidden">{{T "Target"}}</th><th class="max-lg:hidden">IP</th></tr></thead>
+    <tbody>
+      {{range $d.Entries}}
+      <tr data-action="{{.Action}}">
+        <td class="nowrap muted"><time datetime="{{isoDate .At}}" title="{{dateTime .At}}">{{ago .At}}</time></td>
+        <td><a class="mono text-xs action-tag" href="/admin/audit?action={{.Action}}">{{.Action}}</a>
+          {{if .Details}}<div class="row-sub muted text-xs">{{range $k, $v := .Details}}<span>{{$k}}={{$v}}</span> {{end}}</div>{{end}}</td>
+        <td>{{or .Username "—"}}</td>
+        <td class="max-md:hidden">{{truncate .Target 80}}</td>
+        <td class="max-lg:hidden mono text-xs">{{.IP}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">{{template "empty" (dict "Icon" "history" "Title" (T "No entries"))}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" $d.Page}}
+{{end}}

@@ -1,0 +1,30 @@
+{
+  "name": "Dashboard",
+  "version": "1.0.0",
+  "description": "A precise, product-style layout: persistent sidebar navigation, a top bar with breadcrumbs and search, KPI cards and table-like post lists. Crisp borders, one accent and a compact mode.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "sidebar", "label": "Sidebar", "description": "Below the navigation in the left sidebar (the menu drawer on small screens)."},
+    {"id": "footer", "label": "Footer", "description": "Columns above the footer line."}
+  ],
+  "options": [
+    {"key": "accent", "label": "Accent colour", "type": "select", "default": "indigo", "choices": [
+      {"value": "indigo", "label": "Indigo"}, {"value": "violet", "label": "Violet"}, {"value": "sky", "label": "Sky"},
+      {"value": "emerald", "label": "Emerald"}, {"value": "rose", "label": "Rose"}, {"value": "amber", "label": "Amber"},
+      {"value": "slate", "label": "Slate"}
+    ]},
+    {"key": "density", "label": "Density", "type": "select", "default": "comfortable", "choices": [
+      {"value": "comfortable", "label": "Comfortable"}, {"value": "compact", "label": "Compact"}
+    ]},
+    {"key": "home_title", "label": "Homepage heading", "type": "text", "default": "", "help": "Empty uses the site title."},
+    {"key": "stats", "label": "Show statistic cards on the homepage", "type": "bool", "default": "true"},
+    {"key": "thumbnails", "label": "Show featured-image thumbnails in post lists", "type": "bool", "default": "true"},
+    {"key": "sidebar_categories", "label": "List categories with post counts in the sidebar", "type": "bool", "default": "true", "help": "Skipped automatically when the Sidebar area already holds a Categories widget."}
+  ],
+  "swatches": ["#f6f6f7", "#ffffff", "#18181b", "#4f46e5"]
+}

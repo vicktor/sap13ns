@@ -1,0 +1,132 @@
+{
+  "id": "evt_1TestCheckoutCompleted0001",
+  "object": "event",
+  "api_version": "2026-09-30.endive",
+  "created": 1790813012,
+  "data": {
+    "object": {
+      "id": "cs_test_a1TestSessionCompleted0000000000000000000000000000",
+      "object": "checkout.session",
+      "adaptive_pricing": null,
+      "after_expiration": null,
+      "allow_promotion_codes": true,
+      "amount_subtotal": 1900,
+      "amount_total": 2299,
+      "automatic_tax": {
+        "enabled": true,
+        "liability": {
+          "type": "self"
+        },
+        "status": "complete"
+      },
+      "billing_address_collection": "required",
+      "cancel_url": "https://portal.sap13ns.site/billing/cancel",
+      "client_reference_id": "site_42",
+      "client_secret": null,
+      "consent": null,
+      "consent_collection": null,
+      "created": 1790812800,
+      "currency": "eur",
+      "custom_fields": [],
+      "custom_text": {
+        "after_submit": null,
+        "shipping_address": null,
+        "submit": null,
+        "terms_of_service_acceptance": null
+      },
+      "customer": "cus_TestCustomer0001",
+      "customer_account": null,
+      "customer_creation": "always",
+      "customer_details": {
+        "address": {
+          "city": "Madrid",
+          "country": "ES",
+          "line1": "Calle Falsa 123",
+          "line2": null,
+          "postal_code": "28001",
+          "state": "M"
+        },
+        "business_name": "Ejemplo Studio SL",
+        "email": "owner@example.com",
+        "individual_name": null,
+        "name": "Ejemplo Studio SL",
+        "phone": null,
+        "tax_exempt": "none",
+        "tax_ids": [
+          {
+            "type": "eu_vat",
+            "value": "ESA12345674"
+          }
+        ]
+      },
+      "customer_email": "owner@example.com",
+      "discounts": [],
+      "expires_at": 1790899200,
+      "invoice": "in_TestInvoiceFirst0001",
+      "invoice_creation": null,
+      "livemode": false,
+      "locale": "es",
+      "metadata": {
+        "plan": "pro",
+        "site_id": "42"
+      },
+      "mode": "subscription",
+      "origin_context": null,
+      "payment_intent": null,
+      "payment_link": null,
+      "payment_method_collection": "always",
+      "payment_method_configuration_details": {
+        "id": "pmc_TestConfig0001",
+        "parent": null
+      },
+      "payment_method_options": {
+        "card": {
+          "request_three_d_secure": "automatic"
+        }
+      },
+      "payment_method_types": [
+        "card",
+        "sepa_debit"
+      ],
+      "payment_status": "paid",
+      "phone_number_collection": {
+        "enabled": false
+      },
+      "recovered_from": null,
+      "saved_payment_method_options": {
+        "allow_redisplay_filters": [
+          "always"
+        ],
+        "payment_method_remove": null,
+        "payment_method_save": null
+      },
+      "setup_intent": null,
+      "shipping_address_collection": null,
+      "shipping_cost": null,
+      "shipping_options": [],
+      "status": "complete",
+      "submit_type": null,
+      "subscription": "sub_TestSubscription0001",
+      "success_url": "https://portal.sap13ns.site/billing/success?session_id={CHECKOUT_SESSION_ID}",
+      "tax_id_collection": {
+        "enabled": true,
+        "required": "never"
+      },
+      "total_details": {
+        "amount_discount": 0,
+        "amount_shipping": 0,
+        "amount_tax": 399
+      },
+      "ui_mode": "hosted_page",
+      "url": null,
+      "wallet_options": null
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "checkout.session.completed"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "sap13ns-assets",
+  "private": true,
+  "type": "module",
+  "description": "Build-time frontend assets for sap13ns (Tailwind CSS, Basecoat UI, Lucide icons). Nothing here ships to production as Node: outputs are embedded in the Go binary.",
+  "scripts": {
+    "build": "node scripts/build-assets.mjs",
+    "watch": "node scripts/build-assets.mjs --watch",
+    "test": "node --test ui/admin/test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "basecoat-css": "1.0.2",
+    "lucide-static": "1.59.0",
+    "tailwindcss": "4.3.3"
+  }
+}

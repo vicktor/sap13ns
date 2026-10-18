@@ -1,0 +1,35 @@
+{{define "content"}}
+{{$first := and .IsFront (or (not .Pagination) (eq .Pagination.Page 1))}}
+{{if and $first (eq (index .Site.Options "hero") "true")}}
+<section class="wrap hero" aria-labelledby="hero-title">
+  <span class="orb orb-a" aria-hidden="true"></span>
+  <span class="orb orb-b" aria-hidden="true"></span>
+  <span class="orb orb-c" aria-hidden="true"></span>
+  <div class="hero-card glass">
+    <p class="chip hero-chip">{{icon "sparkles"}}<span>{{plural .Site.Stats.Posts "%d post" "%d posts"}}</span></p>
+    <h1 id="hero-title" class="hero-title">{{or (index .Site.Options "hero_title") .Site.Title}}</h1>
+    {{with .Site.Tagline}}<p class="hero-lead">{{.}}</p>{{end}}
+    <p class="hero-actions">
+      <a class="btn-glow" href="#latest">{{T "Read the latest"}} {{icon "arrow-down"}}</a>
+      <a class="btn-glass" href="{{.Site.FeedRSS}}">{{icon "rss"}} {{T "Subscribe"}}</a>
+    </p>
+    {{with .Site.Categories}}
+    <nav class="hero-topics" aria-label="{{T "Categories"}}">
+      <ul>{{range .}}<li><a href="{{.URL}}">{{.Name}}</a></li>{{end}}</ul>
+    </nav>
+    {{end}}
+  </div>
+</section>
+{{else}}
+{{template "intro" .}}
+{{end}}
+
+<section class="wrap section" id="latest" aria-label="{{T "Latest posts"}}">
+  {{if .Posts}}
+    {{template "grid" (dict "Posts" .Posts "Lead" $first)}}
+    {{template "pager" .Pagination}}
+  {{else}}
+    <div class="glass empty-card">{{template "shared/no-results" .}}</div>
+  {{end}}
+</section>
+{{end}}

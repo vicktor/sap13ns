@@ -1,0 +1,125 @@
+# Builds, signs and publishes a release when a version tag is pushed:
+#
+#   git tag -a v1.4.0 -m v1.4.0 && git push origin v1.4.0
+#
+# Needs (Settings > Secrets and variables > Actions), see docs/RELEASES.md:
+#   variable SAP13NS_UPDATE_PUBKEY  base64 Ed25519 public key, compiled into the binaries
+#   secret   SAP13NS_SIGNING_KEY    matching base64 private key, signs SHA256SUMS
+#
+# Assets: sap13ns_<version>_<goos>_<goarch>.tar.gz (version without "v"),
+# SHA256SUMS and SHA256SUMS.sig. internal/update depends on these names.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # gh release create
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ github.ref_name }}
+      UPDATE_PUBKEY: ${{ vars.SAP13NS_UPDATE_PUBKEY }}
+    steps:
+      - name: Check tag and signing configuration
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag $VERSION is not vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+          if [[ -z "$UPDATE_PUBKEY" ]]; then
+            echo "::error::repository variable SAP13NS_UPDATE_PUBKEY is not set (see docs/RELEASES.md)"
+            exit 1
+          fi
+          if [[ "$(printf '%s' "$UPDATE_PUBKEY" | base64 -d 2>/dev/null | wc -c)" -ne 32 ]]; then
+            echo "::error::SAP13NS_UPDATE_PUBKEY is not a base64 32-byte Ed25519 public key"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build frontend assets
+        run: npm ci && npm run build
+
+      - name: Test
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          v="${VERSION#v}"
+          mkdir -p dist build
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            goos="${target%/*}" goarch="${target#*/}"
+            name="sap13ns_${v}_${goos}_${goarch}"
+            work="build/$name"
+            mkdir -p "$work"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "-s -w -X sap13ns/internal/web.Version=${VERSION} -X sap13ns/internal/update.PublicKey=${UPDATE_PUBKEY}" \
+              -o "$work/sap13ns" ./cmd/sap13ns
+            # -X is silently ignored for packages the binary does not link.
+            if ! grep -qaF -- "$UPDATE_PUBKEY" "$work/sap13ns"; then
+              echo "::error::update public key not embedded in $name (does cmd/sap13ns import internal/update?)"
+              exit 1
+            fi
+            files=(sap13ns)
+            for f in LICENSE README.md; do
+              if [[ -f "$f" ]]; then cp "$f" "$work/"; files+=("$f"); fi
+            done
+            tar -C "$work" --owner=0 --group=0 --numeric-owner --sort=name \
+              --mtime="@${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}" \
+              -czf "dist/$name.tar.gz" "${files[@]}"
+          done
+          # The binary must report the tag, as sap13ns update checks.
+          out="$("build/sap13ns_${v}_linux_amd64/sap13ns" version)"
+          echo "$out"
+          [[ "$out" == "sap13ns $VERSION "* ]] || { echo "::error::version output mismatch"; exit 1; }
+          (cd dist && sha256sum -- *.tar.gz > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: Sign checksums
+        env:
+          SIGNING_KEY: ${{ secrets.SAP13NS_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SIGNING_KEY" ]]; then
+            echo "::error::secret SAP13NS_SIGNING_KEY is not set (see docs/RELEASES.md)"
+            exit 1
+          fi
+          umask 077
+          keyfile="$(mktemp "$RUNNER_TEMP/signing-key.XXXXXX")"
+          trap 'rm -f "$keyfile"' EXIT
+          chmod 600 "$keyfile"
+          printf '%s\n' "$SIGNING_KEY" > "$keyfile"
+          go run ./scripts/releasesign sign -key "$keyfile" dist/SHA256SUMS
+          # Fails if the secret and the variable are not a key pair.
+          go run ./scripts/releasesign verify -pub "$UPDATE_PUBKEY" dist/SHA256SUMS dist/SHA256SUMS.sig
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$VERSION" dist/* \
+            --title "$VERSION" --generate-notes --verify-tag "${flags[@]}"

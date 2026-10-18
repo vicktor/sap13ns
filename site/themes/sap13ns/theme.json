@@ -1,0 +1,20 @@
+{
+  "name": "sap13ns",
+  "version": "1.0.0",
+  "description": "The corporate theme of sap13ns.site: a product landing page on the front page, documentation-style pages and a clean blog. Deep violet and turquoise, light and dark. The Themes and Hosting pages (slugs themes/temas and hosting/alojamiento) also show the CSS theme previews and the hosting plans.",
+  "author": "sap13ns",
+  "license": "CPAL-1.0",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "cta", "label": "Call to action (first item: main button, second: secondary button)"},
+    {"id": "landing", "label": "Landing section links, in this order: Features, Themes, Plugins, Security, Install, Hosting, Open source"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "footer", "label": "Footer", "description": "Columns above the footer links."}
+  ],
+  "options": [
+    {"key": "landing", "label": "Show the product landing page on the front page", "type": "bool", "default": "true", "help": "Off shows the latest posts only."}
+  ],
+  "swatches": ["#ffffff", "#40088c", "#10e8dc", "#0a0613"]
+}

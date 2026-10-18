@@ -1,0 +1,6 @@
+{{define "content"}}
+<section class="page-head"><div class="wrap">{{template "shared/archive-header" .}}</div></section>
+<section class="section listing" aria-label="{{T "Posts"}}"><div class="wrap">
+  {{if .Posts}}{{template "sap/grid" .Posts}}<div class="pager">{{template "shared/pagination" .Pagination}}</div>{{else}}{{template "shared/no-results" .}}{{end}}
+</div></section>
+{{end}}

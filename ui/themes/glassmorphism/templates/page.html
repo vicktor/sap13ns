@@ -1,0 +1,14 @@
+{{define "content"}}
+{{with .Post}}
+<div class="wrap layout is-centered">
+  <article class="article panel-read is-page">
+    <header class="article-head">
+      <h1>{{.Title}}</h1>
+      {{with .Summary}}{{if $.IsFront}}<p class="article-dek">{{.}}</p>{{end}}{{end}}
+    </header>
+    {{if .Image}}{{template "shared/featured-image" .}}{{end}}
+    <div class="article-body">{{template "shared/content" .}}</div>
+  </article>
+</div>
+{{end}}
+{{end}}

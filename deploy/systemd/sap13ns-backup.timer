@@ -1,0 +1,15 @@
+# Starts sap13ns-backup.service every day at 03:30, local time.
+# `systemctl list-timers sap13ns-backup.timer` shows the next run.
+
+[Unit]
+Description=Daily sap13ns backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=15m
+# Catch up after the machine was off at 03:30.
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

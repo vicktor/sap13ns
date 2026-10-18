@@ -1,0 +1,308 @@
+{{define "content"}}
+{{$first := and .IsFront (or (not .Pagination) (eq .Pagination.Page 1))}}
+{{if and $first (eq (index .Site.Options "landing") "true")}}
+{{$landing := .Site.Menu "landing"}}
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="wrap hero-inner">
+    <p class="hero-badge"><span class="badge-dot" aria-hidden="true"></span>{{T "Open source · CPAL‑1.0 · Written in Go"}}</p>
+    <h1 id="hero-title" class="hero-title">{{T "The CMS that ships as"}} <span class="ink">{{T "one binary"}}</span></h1>
+    <p class="hero-lead">{{T "sap13ns is a WordPress-style CMS written in Go. One executable and PostgreSQL behind nginx give you a fast, secure site with themes, plugins and two languages from day one."}}</p>
+    <div class="hero-actions">
+      {{range $i, $l := .Site.Menu "cta"}}{{if eq $i 0}}<a class="button button-primary button-lg" href="{{$l.URL}}">{{$l.Label}} {{icon "arrow-right"}}</a>{{end}}{{end}}
+      <a class="button button-ghost button-lg" href="https://github.com/vicktor/sap13ns" rel="noopener">{{icon "code"}} {{T "View on GitHub"}}</a>
+    </div>
+    <ul class="hero-points">
+      <li>{{icon "check"}} {{T "Single Go binary"}}</li>
+      <li>{{icon "check"}} {{T "PostgreSQL behind nginx"}}</li>
+      <li>{{icon "check"}} {{T "No Node.js in production"}}</li>
+    </ul>
+  </div>
+
+  <div class="wrap hero-shot" aria-hidden="true">
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="mock-dots"><span></span><span></span><span></span></span>
+        <span class="mock-url">{{icon "lock"}}<span>sap13ns.site/admin/posts/new</span></span>
+        <span class="mock-saved">{{icon "circle-check"}}<span>{{T "Saved"}}</span></span>
+      </div>
+      <div class="mock-body">
+        <div class="mock-side">
+          <span class="is-on">{{icon "file-text"}}<span>{{T "Posts"}}</span></span>
+          <span>{{icon "files"}}<span>{{T "Pages"}}</span></span>
+          <span>{{icon "images"}}<span>{{T "Media"}}</span></span>
+          <span>{{icon "message-square"}}<span>{{T "Comments"}}</span></span>
+          <span>{{icon "palette"}}<span>{{T "Appearance"}}</span></span>
+          <span>{{icon "puzzle"}}<span>{{T "Plugins"}}</span></span>
+          <span>{{icon "settings"}}<span>{{T "Settings"}}</span></span>
+        </div>
+        <div class="mock-editor">
+          <div class="mock-tabs"><span class="is-on">Markdown</span><span>{{T "Live preview"}}</span><span class="mock-ai">{{icon "sparkles"}}<span>{{T "Suggest excerpt"}}</span></span></div>
+<pre class="mock-code"><code><span class="tk-h">## {{T "Why one binary?"}}</span>
+
+{{T "Templates, styles and icons travel"}}
+{{T "inside the executable."}}
+
+<span class="tk-q">&gt; {{T "Deploying is copying a file."}}</span>
+
+<span class="tk-l">-</span> <span class="tk-b">**PostgreSQL**</span> {{T "full-text search"}}
+<span class="tk-l">-</span> <span class="tk-b">**WASM**</span> {{T "plugin sandbox"}}
+<span class="tk-l">-</span> <span class="tk-b">**CSP**</span> {{T "without inline scripts"}}<span class="caret"></span></code></pre>
+        </div>
+        <div class="mock-preview">
+          <span class="mock-eyebrow">{{T "Engineering"}}</span>
+          <span class="mock-h">{{T "Why one binary?"}}</span>
+          <span class="mock-p">{{T "Templates, styles and icons travel inside the executable."}}</span>
+          <span class="mock-quote">{{T "Deploying is copying a file."}}</span>
+          <span class="mock-list"><span><b>PostgreSQL</b> {{T "full-text search"}}</span><span><b>WASM</b> {{T "plugin sandbox"}}</span><span><b>CSP</b> {{T "without inline scripts"}}</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="float-chip chip-a">{{icon "shield-check"}}<span>CSP: script-src 'self'</span></div>
+    <div class="float-chip chip-b">{{icon "zap"}}<span>X-Cache: HIT</span></div>
+  </div>
+</section>
+
+<section class="section values" aria-labelledby="values-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">{{T "Why sap13ns"}}</p>
+      <h2 id="values-title">{{T "Built for people who would rather publish than babysit servers."}}</h2>
+    </div>
+    <div class="value-grid">
+      <article class="value">
+        <span class="value-icon">{{icon "zap"}}</span>
+        <h3>{{T "Fast by default"}}</h3>
+        <p>{{T "Pages are rendered once and served from memory until something changes. Search runs inside PostgreSQL. There is no PHP pool, no Node process and no extra cache to set up."}}</p>
+      </article>
+      <article class="value">
+        <span class="value-icon">{{icon "shield-check"}}</span>
+        <h3>{{T "Secure by design"}}</h3>
+        <p>{{T "A strict Content Security Policy, Argon2id passwords, two-factor sign-in and plugins that cannot touch files, the network or the database unless you allow it."}}</p>
+      </article>
+      <article class="value">
+        <span class="value-icon">{{icon "package"}}</span>
+        <h3>{{T "Simple to run"}}</h3>
+        <p>{{T "One binary, one PostgreSQL database and nginx in front. Migrations run on start and an update is a file swap and a restart."}}</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section features" id="features" aria-labelledby="features-title">
+  <div class="wrap">
+    <div class="section-head split">
+      <div>
+        <p class="eyebrow">{{T "Features"}}</p>
+        <h2 id="features-title">{{T "Everything a site needs. Nothing it does not."}}</h2>
+      </div>
+      <p class="section-lead">{{T "The parts you would otherwise assemble from a dozen plugins ship in the box, tested together and covered by the same security rules."}}</p>
+    </div>
+    <ul class="feature-grid">
+      <li class="feature"><span class="feature-icon">{{icon "search"}}</span><h3>{{T "Full-text search"}}</h3><p>{{T "PostgreSQL ranks titles, excerpts and bodies. No external search service."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "zap"}}</span><h3>{{T "In-memory page cache"}}</h3><p>{{T "Public pages are served from memory and invalidated on every edit."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "palette"}}</span><h3>{{T "Five themes"}}</h3><p>{{T "Apple, Neumorphism, Glassmorphism, Bento Grid and Dashboard, each light and dark."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "puzzle"}}</span><h3>{{T "WASM plugins"}}</h3><p>{{T "Sandboxed modules with per-permission approval pinned to the file hash."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "languages"}}</span><h3>{{T "Multilingual"}}</h3><p>{{T "Translations linked per post, language prefixes and hreflang alternates."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "rss"}}</span><h3>{{T "Feeds and WebSub"}}</h3><p>{{T "RSS, Atom and JSON Feed for the site, every category, tag and author."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "square-pen"}}</span><h3>{{T "Markdown editor"}}</h3><p>{{T "Write in Markdown with a live preview, revisions and scheduled posts."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "image"}}</span><h3>{{T "Responsive media"}}</h3><p>{{T "Uploads are checked, stripped of metadata and resized into variants."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "message-square"}}</span><h3>{{T "Comments with anti-spam"}}</h3><p>{{T "Threaded replies, moderation, a honeypot and signed form timestamps."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "users"}}</span><h3>{{T "Five roles"}}</h3><p>{{T "Admin, editor, author, contributor and subscriber, with clear capabilities."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "fingerprint"}}</span><h3>{{T "Two-factor sign-in"}}</h3><p>{{T "TOTP with recovery codes today. Passkeys are planned."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "history"}}</span><h3>{{T "Audit log"}}</h3><p>{{T "Who changed what and when, for settings, users, plugins and content."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "file-input"}}</span><h3>{{T "WordPress importer"}}</h3><p>{{T "Bring posts, pages, terms and media over from a WordPress export."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "sparkles"}}</span><h3>{{T "AI assistant"}}</h3><p>{{T "Claude, OpenAI-compatible, local models or Gemini. It suggests; it never publishes."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "bot"}}</span><h3>llms.txt</h3><p>{{T "llms.txt and llms-full.txt give language models a clean map of your site."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "image-plus"}}</span><h3>{{T "Automatic OG images"}}</h3><p>{{T "Every post gets a share card drawn from its title. No design tool needed."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "arrow-right-left"}}</span><h3>{{T "Redirects"}}</h3><p>{{T "Keep old links alive when you change a slug or move from another CMS."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "chart-column"}}</span><h3>{{T "Cookie-less analytics"}}</h3><p>{{T "Aggregate visit counts without cookies, banners or personal data."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "hard-drive-download"}}</span><h3>{{T "Backups"}}</h3><p>{{T "Database and uploads in one verified archive, optionally encrypted."}}</p></li>
+      <li class="feature"><span class="feature-icon">{{icon "layers"}}</span><h3>{{T "Multisite"}}</h3><p>{{T "One account for many sites, each with its own domain, themes and plugins."}}</p></li>
+    </ul>
+    <p class="section-foot">{{template "sap/more" (dict "M" $landing "N" 0 "Text" (T "Explore every feature"))}}</p>
+  </div>
+</section>
+
+<section class="section binary" aria-labelledby="binary-title">
+  <div class="wrap binary-inner">
+    <div class="binary-copy">
+      <p class="eyebrow">{{T "Deploy"}}</p>
+      <h2 id="binary-title">{{T "One binary. One database. Done."}}</h2>
+      <p class="section-lead">{{T "Templates, stylesheets, icons and translations are compiled into the executable. Copy it to a server, point it at PostgreSQL and let nginx talk to it over a Unix socket."}}</p>
+      <ul class="check-list">
+        <li>{{icon "check"}}<span>{{T "Database migrations run on start, inside a transaction."}}</span></li>
+        <li>{{icon "check"}}<span>{{T "No open port: nginx connects through a socket only its group can use."}}</span></li>
+        <li>{{icon "check"}}<span>{{T "Updates are atomic: the old binary or the new one, never a mix."}}</span></li>
+        <li>{{icon "check"}}<span>{{T "Node.js is only used at build time. Production never sees it."}}</span></li>
+      </ul>
+      <p class="section-foot">{{template "sap/more" (dict "M" $landing "N" 4 "Text" (T "Read the install guide"))}}</p>
+    </div>
+    <div class="terminal" aria-label="{{T "Example installation in a terminal"}}" role="img">
+      <div class="terminal-bar"><span class="mock-dots"><span></span><span></span><span></span></span><span class="terminal-title">deploy@server: ~</span></div>
+<pre class="terminal-body"><code><span class="c"># {{T "1. Install the binary"}}</span>
+<span class="p">$</span> sudo install -m 0755 sap13ns /usr/local/bin/
+<span class="c"># {{T "2. Create the database"}}</span>
+<span class="p">$</span> sudo -u postgres createuser sap13ns
+<span class="p">$</span> sudo -u postgres createdb -O sap13ns sap13ns
+<span class="c"># {{T "3. Generate a secret key for the env file"}}</span>
+<span class="p">$</span> sap13ns keygen
+<span class="o">9f2c…e41a</span>
+<span class="c"># {{T "4. Migrate and start"}}</span>
+<span class="p">$</span> sudo -u sap13ns sap13ns migrate -env /etc/sap13ns/sap13ns.env
+<span class="p">$</span> sudo systemctl enable --now sap13ns
+<span class="o ok">msg="sap13ns listening" addr=unix:/run/sap13ns/sap13ns.sock</span>
+<span class="p">$</span> <span class="caret"></span></code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="section themes" aria-labelledby="themes-title">
+  <div class="wrap">
+    <div class="section-head split">
+      <div>
+        <p class="eyebrow">{{T "Themes"}}</p>
+        <h2 id="themes-title">{{T "Five themes. Light and dark, all of them."}}</h2>
+      </div>
+      <p class="section-lead">{{T "Every theme follows the visitor's system preference, remembers a manual choice and passes the same strict CSP. Pick one, set an accent and publish."}}</p>
+    </div>
+    {{template "sap/themes-showcase" .}}
+    <p class="section-foot">{{template "sap/more" (dict "M" $landing "N" 1 "Text" (T "See the themes"))}}</p>
+  </div>
+</section>
+
+<section class="section security" aria-labelledby="security-title">
+  <div class="wrap">
+    <div class="security-inner">
+      <div class="security-copy">
+        <p class="eyebrow">{{T "Security"}}</p>
+        <h2 id="security-title">{{T "Secure by default, not by plugin."}}</h2>
+        <p class="section-lead">{{T "Most CMS breaches start with an add-on or an upload. sap13ns treats both as untrusted and makes the safe setting the only one."}}</p>
+        <pre class="headers"><code><span>content-security-policy:</span> default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; …
+<span>x-frame-options:</span> DENY
+<span>x-content-type-options:</span> nosniff
+<span>cross-origin-opener-policy:</span> same-origin
+<span>referrer-policy:</span> strict-origin-when-cross-origin</code></pre>
+        <p class="section-foot">{{template "sap/more" (dict "M" $landing "N" 3 "Text" (T "Read the security model"))}}</p>
+      </div>
+      <ul class="security-grid">
+        <li>{{icon "lock-keyhole"}}<h3>{{T "Strict CSP"}}</h3><p>{{T "No inline scripts, styles or event handlers anywhere, admin included."}}</p></li>
+        <li>{{icon "key-round"}}<h3>Argon2id</h3><p>{{T "Slow, memory-hard password hashes and no silly composition rules."}}</p></li>
+        <li>{{icon "shield"}}<h3>{{T "CSRF protection"}}</h3><p>{{T "Synchronizer tokens plus Go's Cross-Origin Protection on every form."}}</p></li>
+        <li>{{icon "timer"}}<h3>{{T "Rate limits"}}</h3><p>{{T "Sign-in, password resets and comments are throttled per address."}}</p></li>
+        <li>{{icon "filter"}}<h3>{{T "Sanitised HTML"}}</h3><p>{{T "Markdown and plugin output pass through bluemonday allow-lists."}}</p></li>
+        <li>{{icon "upload"}}<h3>{{T "Upload validation"}}</h3><p>{{T "Type from content, matching extension and a sandbox CSP when served."}}</p></li>
+        <li>{{icon "box"}}<h3>{{T "Plugin isolation"}}</h3><p>{{T "WebAssembly with memory caps, deadlines and no ambient access."}}</p></li>
+        <li>{{icon "database"}}<h3>{{T "Per-site isolation"}}</h3><p>{{T "In multisite, every site lives in its own PostgreSQL schema."}}</p></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section multisite" aria-labelledby="multisite-title">
+  <div class="wrap multisite-inner">
+    <div class="multisite-copy">
+      <p class="eyebrow">{{T "Multisite"}}</p>
+      <h2 id="multisite-title">{{T "One account. As many sites as you need."}}</h2>
+      <p class="section-lead">{{T "Run a personal blog, a project site and a client's shop notes from the same sign-in. Each site keeps its own domain, theme, plugins and data."}}</p>
+      <ul class="check-list">
+        <li>{{icon "globe"}}<span>{{T "A domain per site, with HTTPS."}}</span></li>
+        <li>{{icon "palette"}}<span>{{T "Themes and plugins chosen site by site."}}</span></li>
+        <li>{{icon "database"}}<span>{{T "A separate PostgreSQL schema for every site."}}</span></li>
+      </ul>
+    </div>
+    <div class="sites" aria-hidden="true">
+      <div class="site-account">
+        <span class="avatar">{{icon "user"}}</span>
+        <span><strong>{{T "Your account"}}</strong><small>{{T "One sign-in, 2FA on"}}</small></span>
+      </div>
+      <div class="site-links"><span></span><span></span><span></span></div>
+      <div class="site-list">
+        <div class="site-card"><span class="site-dot d1"></span><strong>blog.example</strong><small>Apple · 2 {{T "plugins"}}</small><code>schema site_blog</code></div>
+        <div class="site-card"><span class="site-dot d2"></span><strong>studio.example</strong><small>Bento Grid · 1 {{T "plugin"}}</small><code>schema site_studio</code></div>
+        <div class="site-card"><span class="site-dot d3"></span><strong>docs.example</strong><small>Dashboard · 3 {{T "plugins"}}</small><code>schema site_docs</code></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{{with plans}}
+<section class="section pricing" aria-labelledby="pricing-title">
+  <div class="wrap">
+    <div class="section-head center">
+      <p class="eyebrow">{{T "Hosting"}}</p>
+      <h2 id="pricing-title">{{T "Rather not run a server? We will."}}</h2>
+      <p class="section-lead">{{T "Personal sites are free once we have validated them. Commercial sites pay monthly through Stripe. Same software, same security, no lock-in."}}</p>
+    </div>
+    {{template "sap/plans" .}}
+    <p class="section-foot center">{{template "sap/more" (dict "M" $landing "N" 5 "Text" (T "Compare plans and read the FAQ"))}}</p>
+  </div>
+</section>
+{{end}}
+
+<section class="section license" aria-labelledby="license-title">
+  <div class="wrap">
+    <div class="license-band">
+      <div class="license-copy">
+        <p class="eyebrow">{{T "Open source"}}</p>
+        <h2 id="license-title">{{T "Free to use. Credit where it is due."}}</h2>
+        <p>{{T "sap13ns is released under the CPAL‑1.0 licence. Use it for anything, commercial work included, as long as the visible “Powered by sap13ns” link stays and modified versions offered over a network publish their source."}}</p>
+        <div class="license-actions">
+          <a class="button button-light" href="https://github.com/vicktor/sap13ns" rel="noopener">{{icon "code"}} {{T "Source on GitHub"}}</a>
+          {{template "sap/more" (dict "M" $landing "N" 6 "Text" (T "What the licence asks"))}}
+        </div>
+      </div>
+      <ul class="license-points">
+        <li><span>{{icon "check"}}</span>{{T "Any use, including commercial"}}</li>
+        <li><span>{{icon "link"}}</span>{{T "Keep the “Powered by sap13ns” link"}}</li>
+        <li><span>{{icon "server"}}</span>{{T "Share changes you run as a service"}}</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+{{if .Posts}}
+<section class="section latest" aria-labelledby="latest-title">
+  <div class="wrap">
+    <div class="section-head split">
+      <div>
+        <p class="eyebrow">{{T "Blog"}}</p>
+        <h2 id="latest-title">{{T "Notes from the team"}}</h2>
+      </div>
+      <p class="section-lead"><a class="more-link" href="{{.Site.Home}}blog">{{T "All posts"}} {{icon "arrow-right"}}</a></p>
+    </div>
+    <div class="post-grid">{{range $i, $p := .Posts}}{{if lt $i 3}}{{template "sap/card" $p}}{{end}}{{end}}</div>
+  </div>
+</section>
+{{end}}
+
+<section class="section final" aria-labelledby="final-title">
+  <div class="wrap">
+    <div class="final-panel">
+      {{template "sap/mark" .}}
+      <h2 id="final-title">{{T "Your next site is one file away."}}</h2>
+      <p>{{T "Install it on your own server in minutes, or let us host it for you."}}</p>
+      <div class="hero-actions">
+        {{range $i, $l := .Site.Menu "cta"}}<a class="button {{if eq $i 0}}button-primary{{else}}button-ghost{{end}} button-lg" href="{{$l.URL}}">{{$l.Label}}{{if eq $i 0}} {{icon "arrow-right"}}{{end}}</a>{{end}}
+      </div>
+    </div>
+  </div>
+</section>
+
+{{else}}
+<section class="page-head">
+  <div class="wrap">
+    <p class="eyebrow">{{T "Blog"}}</p>
+    <h1>{{or .Heading (T "Blog")}}</h1>
+    <p class="page-lead">{{T "Release notes, engineering write-ups and the reasoning behind sap13ns."}}</p>
+  </div>
+</section>
+<section class="section listing" aria-label="{{T "Latest posts"}}">
+  <div class="wrap">
+    {{if .Posts}}{{template "sap/grid" .Posts}}<div class="pager">{{template "shared/pagination" .Pagination}}</div>
+    {{else}}{{template "shared/no-results" .}}{{end}}
+  </div>
+</section>
+{{end}}
+{{end}}

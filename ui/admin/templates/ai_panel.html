@@ -1,0 +1,50 @@
+{{define "ai-panel"}}{{$d := .D}}{{$p := $d.Post}}
+<div class="card ai-panel" data-ai data-post-id="{{$p.ID}}" data-lang="{{or $p.Lang $.Site.Language}}"
+  data-msg-working="{{T "Working…"}}" data-msg-error="{{T "Something went wrong."}}" data-msg-undo="{{T "Undo"}}"
+  data-msg-excerpt="{{T "Excerpt written."}}" data-msg-meta="{{T "Meta description written."}}" data-msg-use="{{T "Use"}}"
+  data-msg-slug="{{T "Address"}}" data-msg-seo-title="{{T "SEO title"}}" data-msg-og-title="{{T "Social title"}}" data-msg-keywords="{{T "Keywords"}}"
+  data-msg-insert="{{T "Insert"}}" data-msg-replace="{{T "Replace selection"}}" data-msg-copy="{{T "Copy"}}" data-msg-copied="{{T "Copied"}}"
+  data-msg-image="{{T "Image added to the media library."}}" data-msg-featured="{{T "Set as the featured image."}}"
+  data-msg-translated="{{T "Translation saved as a draft."}}" data-msg-open="{{T "Open it"}}"
+  data-msg-clean="{{T "No stock phrases found."}}" data-msg-findings="{{T "%d phrases to review"}}" data-msg-select="{{T "Select some text first."}}"
+  data-msg-brief="{{T "Describe what the piece should cover."}}">
+  <header><h2>{{icon "sparkles"}} {{T "Assistant"}}</h2>{{if not $d.AI}}<p>{{T "Style check only. An administrator can connect an AI provider in Settings → AI."}}</p>{{end}}</header>
+  <section class="stack">
+    <div class="ai-actions">
+      {{if $d.AI}}
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ai-task="summary">{{icon "pen-line"}}{{T "Write the excerpt"}}</button>
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ai-task="seo">{{icon "scan-eye"}}{{T "Suggest SEO"}}</button>
+      {{if $.Can "media.upload"}}
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ai-task="header">{{icon "image-plus"}}{{T "Header image"}}</button>
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ai-task="inline">{{icon "image"}}{{T "Image for the selection"}}</button>
+      {{end}}
+      {{end}}
+      <button type="button" class="btn" data-variant="outline" data-size="sm" data-ai-task="lint">{{icon "badge-check"}}{{T "Check style"}}</button>
+    </div>
+    {{if $d.AI}}
+    <details class="ai-write">
+      <summary>{{icon "wand-sparkles"}} {{T "Writing help"}}</summary>
+      <div class="form">
+        <div class="field"><label for="ai-mode">{{T "What to do"}}</label>
+          <select id="ai-mode" class="select w-full" data-ai-mode>
+            <option value="improve">{{T "Improve the selected text"}}</option>
+            <option value="shorten">{{T "Shorten the selected text"}}</option>
+            <option value="continue">{{T "Continue from the end"}}</option>
+            <option value="outline">{{T "Outline from a brief"}}</option>
+            <option value="draft">{{T "First draft from a brief"}}</option>
+          </select></div>
+        <div class="field"><label for="ai-brief">{{T "Brief or instructions (optional)"}}</label><textarea id="ai-brief" class="textarea" rows="3" maxlength="4000" data-ai-brief></textarea></div>
+        <div class="field"><label for="ai-tone">{{T "Tone (optional)"}}</label><input id="ai-tone" class="input" maxlength="60" data-ai-tone placeholder="{{T "e.g. close, formal, technical"}}"></div>
+        <button type="button" class="btn" data-size="sm" data-ai-task="write">{{icon "wand-sparkles"}}{{T "Generate"}}</button>
+      </div>
+    </details>
+    {{if and (not $d.New) $d.Missing}}
+    <div class="field"><label for="ai-to">{{T "Translate with AI into"}}</label>
+      <div class="flex gap-2"><select id="ai-to" class="select grow" data-ai-to>{{range $d.Missing}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</select>
+      <button type="button" class="btn" data-size="sm" data-variant="outline" data-ai-task="translate">{{icon "languages"}}{{T "Translate"}}</button></div></div>
+    {{end}}
+    {{end}}
+    <div class="ai-result" data-ai-result hidden aria-live="polite"></div>
+  </section>
+</div>
+{{end}}

@@ -1,0 +1,34 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}}">
+<head>{{template "shared/head" .}}</head>
+<body class="kind-{{.Kind}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+<header class="globalnav">
+  <nav class="globalnav-inner" aria-label="{{T "Main menu"}}">
+    <a class="globalnav-brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
+      <span class="brand-dot" aria-hidden="true"></span><span>{{.Site.Title}}</span>
+    </a>
+    <ul id="primary-menu" class="globalnav-menu">{{template "shared/menu" (.Site.Menu "primary")}}</ul>
+    <div class="globalnav-actions">
+      <a class="globalnav-icon" href="{{link "/search"}}" aria-label="{{T "Search"}}">{{icon "search"}}</a>
+      {{template "shared/lang-switch" .}}
+      {{template "shared/theme-toggle"}}
+      {{template "shared/nav-toggle" "primary-menu"}}
+    </div>
+  </nav>
+</header>
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+    <div class="footer-bottom">
+      {{with .Site.Menu "footer"}}<ul class="footer-menu">{{template "shared/menu" .}}</ul>{{end}}
+      {{template "shared/footer-meta" .}}
+    </div>
+  </div>
+</footer>
+</body>
+</html>{{end}}

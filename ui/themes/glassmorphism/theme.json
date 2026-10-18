@@ -1,0 +1,33 @@
+{
+  "name": "Glassmorphism",
+  "version": "1.0.0",
+  "description": "Frosted, translucent panels floating over a slow-drifting aurora of colour. Luminous pastels by day, neon on deep indigo by night.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "sidebar", "label": "Sidebar", "description": "Glass cards beside posts, archives and search results."},
+    {"id": "footer", "label": "Footer", "description": "Columns inside the footer panel."}
+  ],
+  "options": [
+    {"key": "palette", "label": "Aurora palette", "type": "select", "default": "aurora", "help": "Colours of the background glow and the accent.", "choices": [
+      {"value": "aurora", "label": "Aurora (violet, pink, cyan)"},
+      {"value": "sunset", "label": "Sunset (coral, amber, magenta)"},
+      {"value": "ocean", "label": "Ocean (blue, teal, aqua)"},
+      {"value": "mono", "label": "Mono (graphite and silver)"}
+    ]},
+    {"key": "glass", "label": "Glass strength", "type": "select", "default": "frosted", "help": "Solid turns every panel opaque, for maximum legibility.", "choices": [
+      {"value": "clear", "label": "Clear"},
+      {"value": "frosted", "label": "Frosted"},
+      {"value": "solid", "label": "Solid"}
+    ]},
+    {"key": "hero", "label": "Show the glass introduction on the homepage", "type": "bool", "default": "true"},
+    {"key": "hero_title", "label": "Introduction headline", "type": "text", "default": "", "help": "Empty uses the site title."},
+    {"key": "sidebar", "label": "Show the sidebar on posts, archives and search", "type": "bool", "default": "true"},
+    {"key": "motion", "label": "Let the background drift slowly", "type": "bool", "default": "true", "help": "Always still for visitors who ask their system for reduced motion."}
+  ],
+  "swatches": ["#f3f0ff", "#c4b5fd", "#f9a8d4", "#0b0e24"]
+}

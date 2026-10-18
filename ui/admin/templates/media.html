@@ -1,0 +1,51 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Media"}}</h1>
+    <p>{{T "Images are resized automatically and their metadata (location, camera) is removed."}}</p>
+  </div>
+</div>
+
+<form method="post" action="/admin/media" enctype="multipart/form-data" class="card dropzone" data-upload-form data-dropzone>
+  {{.CSRFField}}
+  <div class="dropzone-inner">
+    <span class="dropzone-icon" aria-hidden="true">{{icon "upload"}}</span>
+    <p><strong>{{T "Drop files here"}}</strong> {{T "or"}}
+      <label class="link-like">{{T "browse"}}<input type="file" name="file" multiple accept="{{$d.Accept}}" hidden data-autosubmit></label></p>
+    <p class="hint">{{T "Images, PDF, audio and video up to %s each." (filesize $d.Max)}}</p>
+    <div class="progress" data-upload-progress hidden><div></div></div>
+  </div>
+  <noscript><button class="btn" type="submit">{{T "Upload"}}</button></noscript>
+</form>
+
+<div class="toolbar">
+  <nav class="filter-tabs" aria-label="{{T "Filter"}}">
+    <a href="/admin/media"{{if not $d.Images}} aria-current="page"{{end}}>{{T "All"}}</a>
+    <a href="/admin/media?type=image"{{if $d.Images}} aria-current="page"{{end}}>{{T "Images"}}</a>
+  </nav>
+  <form method="get" action="/admin/media" class="search-inline" role="search">
+    {{if $d.Images}}<input type="hidden" name="type" value="image">{{end}}
+    <label class="sr-only" for="q">{{T "Search"}}</label>
+    <div class="input-icon">{{icon "search"}}<input class="input" type="search" id="q" name="q" value="{{$d.Query}}" placeholder="{{T "Search…"}}"></div>
+  </form>
+</div>
+
+{{if $d.Items}}
+<ul class="media-grid">
+  {{range $d.Items}}
+  <li>
+    <a href="/admin/media/{{.ID}}" class="media-tile" title="{{.OriginalName}}">
+      {{if .IsImage}}<img src="{{.VariantURL "thumb"}}" alt="{{.Alt}}" loading="lazy" width="240" height="240">
+      {{else}}<span class="media-file">{{icon "file"}}<small>{{.MIME}}</small></span>{{end}}
+      <span class="media-name">{{.OriginalName}}</span>
+    </a>
+  </li>
+  {{end}}
+</ul>
+{{template "pagination" $d.Page}}
+{{else}}
+<div class="card">{{template "empty" (dict "Icon" "images" "Title" (T "No files yet") "Text" (T "Upload images and documents to use them in your posts."))}}</div>
+{{end}}
+{{end}}

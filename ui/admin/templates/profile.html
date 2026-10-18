@@ -1,0 +1,130 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$u := $d.User}}{{$pk := $d.Passkeys}}
+<div class="page-header">
+  <div class="profile-head">
+    <span class="avatar-initials lg" aria-hidden="true">{{initials $u.Name}}</span>
+    <div><h1>{{$u.Name}}</h1><p>@{{$u.Username}} · {{roleLabel $u.Role}}</p></div>
+  </div>
+</div>
+{{template "form-error" $d.Error}}
+<div class="split">
+  <section class="card">
+    <header><h2>{{T "Profile"}}</h2><p>{{T "Your public name and biography appear on your posts."}}</p></header>
+    <section>
+      <form method="post" action="/admin/profile" class="form" data-unsaved>
+        {{.CSRFField}}
+        <div class="grid-2">
+          <div class="field"><label for="display_name">{{T "Public name"}}</label><input class="input" id="display_name" name="display_name" value="{{$u.DisplayName}}" maxlength="100"></div>
+          <div class="field"><label for="email">{{T "E-mail"}}</label><input class="input" id="email" name="email" type="email" value="{{$u.Email}}" required maxlength="254" data-reveal-on-change="email-password"></div>
+        </div>
+        <div class="field" id="email-password" hidden>
+          <label for="current_password_email">{{T "Current password"}}</label>
+          <input class="input" id="current_password_email" name="current_password" type="password" autocomplete="current-password" maxlength="256">
+          <p class="hint">{{T "Required to change your e-mail address."}}</p>
+        </div>
+        <div class="field"><label for="website">{{T "Website"}}</label><input class="input" id="website" name="website" type="url" value="{{$u.Website}}" maxlength="300" placeholder="https://"></div>
+        <div class="field"><label for="bio">{{T "Biography"}}</label><textarea class="textarea" id="bio" name="bio" rows="4" maxlength="2000">{{$u.Bio}}</textarea></div>
+        <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button></div>
+      </form>
+    </section>
+  </section>
+
+  <div class="stack" id="security">
+    <section class="card">
+      <header><h2>{{T "Password"}}</h2></header>
+      <section>
+        <form method="post" action="/admin/profile/password" class="form">
+          {{.CSRFField}}
+          <input type="text" name="username" value="{{$u.Username}}" autocomplete="username" hidden>
+          <div class="field"><label for="current_password">{{T "Current password"}}</label><input class="input" id="current_password" name="current_password" type="password" autocomplete="current-password" required maxlength="256"></div>
+          <div class="field"><label for="password">{{T "New password"}}</label><input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="256" data-strength="pw-strength"><div class="strength" id="pw-strength" aria-live="polite"><span></span></div></div>
+          <div class="field"><label for="password_confirm">{{T "Repeat the password"}}</label><input class="input" id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required maxlength="256"></div>
+          <div class="form-actions"><button class="btn" type="submit">{{icon "key-round"}}{{T "Change password"}}</button></div>
+        </form>
+      </section>
+    </section>
+
+    {{if $pk.Available}}
+    <section class="card" id="passkeys">
+      <header><h2>{{T "Passkeys"}}</h2><p>{{T "Sign in with your fingerprint, face or screen lock instead of typing your password. Passkeys cannot be phished and count as two-factor authentication."}}</p></header>
+      <section>
+        {{if $pk.List}}
+        <ul class="session-list passkey-list">
+          {{range $pk.List}}
+          <li>
+            <span class="session-icon" aria-hidden="true">{{icon "key-round"}}</span>
+            <div>
+              <strong class="truncate">{{.Name}}</strong>
+              <small class="muted">{{T "Added %s" (shortDate .CreatedAt)}} · {{if .Used}}{{T "last used"}} {{ago .LastUsedAt}}{{else}}{{T "never used"}}{{end}}</small>
+            </div>
+            {{if .CloneWarning}}<span class="badge" data-variant="warning" title="{{T "Its signature counter went backwards once: it may have been copied. Delete it if you do not recognise recent sign-ins."}}">{{T "Check"}}</span>
+            {{else if .Synced}}<span class="badge" data-variant="secondary" title="{{T "Backed up by your passkey provider and available on your other devices."}}">{{T "Synced"}}</span>{{end}}
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-dialog-open="passkey-dialog-{{.ID}}" aria-label="{{T "Manage"}}" title="{{T "Manage"}}">{{icon "pencil"}}</button>
+            <dialog id="passkey-dialog-{{.ID}}" class="dialog" aria-labelledby="passkey-dialog-{{.ID}}-title" data-overlay-close>
+              <div>
+                <header><h2 id="passkey-dialog-{{.ID}}-title">{{.Name}}</h2><p>{{T "Added %s" (shortDate .CreatedAt)}}</p></header>
+                <section class="passkey-dialog">
+                  <form method="post" action="/admin/profile/passkeys/{{.ID}}/rename" class="form" id="passkey-rename-{{.ID}}">
+                    {{$.CSRFField}}
+                    <div class="field"><label for="passkey-name-{{.ID}}">{{T "Name"}}</label><input class="input" id="passkey-name-{{.ID}}" name="name" value="{{.Name}}" maxlength="100" required></div>
+                  </form>
+                  <form method="post" action="/admin/profile/passkeys/{{.ID}}/delete" class="form passkey-delete" id="passkey-delete-{{.ID}}">
+                    {{$.CSRFField}}
+                    <p class="hint">{{T "Deleting it here does not remove it from your device or password manager; it just stops working on this site."}}</p>
+                    {{if and $pk.LastFactor (not $pk.Recent)}}<div class="field"><label for="passkey-delete-pw-{{.ID}}">{{T "Current password"}}</label><input class="input" id="passkey-delete-pw-{{.ID}}" name="current_password" type="password" autocomplete="current-password" required maxlength="256"></div>{{end}}
+                  </form>
+                </section>
+                <footer>
+                  <button type="submit" form="passkey-delete-{{.ID}}" class="btn mr-auto" data-variant="destructive">{{icon "trash-2"}}{{T "Delete"}}</button>
+                  <button type="button" class="btn" data-variant="outline" data-dialog-close>{{T "Cancel"}}</button>
+                  <button type="submit" form="passkey-rename-{{.ID}}" class="btn">{{T "Save"}}</button>
+                </footer>
+              </div>
+            </dialog>
+          </li>
+          {{end}}
+        </ul>
+        {{else}}<p class="muted text-sm">{{T "You have not added any passkeys yet."}}</p>{{end}}
+      </section>
+      <footer class="passkey-footer">
+        {{if $pk.Max}}<p class="hint">{{T "You have reached the maximum number of passkeys. Delete one first."}}</p>
+        {{else}}{{template "passkey-add" (dict "Recent" $pk.Recent "Next" "/admin/profile#passkeys")}}{{end}}
+      </footer>
+    </section>
+    <script src="{{asset "passkey.js"}}" defer></script>
+    {{end}}
+
+    <section class="card">
+      <header><h2>{{T "Two-factor authentication"}}</h2></header>
+      <section class="twofa-summary">
+        {{if $u.TOTPEnabled}}<span class="text-success">{{icon "shield-check"}}</span><p>{{T "Enabled. You will be asked for a code from your phone when you log in."}}</p>
+        {{else if and $pk.Available $pk.List}}<span class="text-success">{{icon "shield-check"}}</span><p>{{T "Protected by your passkeys. After a password login you confirm with a passkey; you can also add an authenticator app."}}</p>
+        {{else}}<span class="text-warning">{{icon "shield"}}</span><p>{{T "Not enabled. Add a second step to protect your account even if your password leaks."}}</p>{{end}}
+      </section>
+      <footer><a class="btn" data-variant="{{if $u.TOTPEnabled}}outline{{else}}default{{end}}" data-size="sm" href="/admin/profile/2fa">{{if $u.TOTPEnabled}}{{T "Manage"}}{{else}}{{T "Set up"}}{{end}}</a></footer>
+    </section>
+
+    <section class="card">
+      <header><h2>{{T "Sessions"}}</h2><p>{{T "Devices where you are logged in."}}</p></header>
+      <section>
+        <ul class="session-list">
+          {{range $d.Sessions}}
+          <li>
+            <span class="session-icon" aria-hidden="true">{{if or (contains .UserAgent "Mobile") (contains .UserAgent "Android")}}{{icon "smartphone"}}{{else}}{{icon "monitor"}}{{end}}</span>
+            <div>
+              <strong class="truncate" title="{{.UserAgent}}">{{truncate .UserAgent 60}}</strong>
+              <small class="muted">{{.IP}} · {{T "active"}} {{ago .LastSeenAt}}</small>
+            </div>
+            {{if eq (printf "%x" .TokenHash) (printf "%x" $d.Current)}}<span class="badge" data-variant="success">{{T "This device"}}</span>{{end}}
+          </li>
+          {{end}}
+        </ul>
+      </section>
+      <footer>
+        <form method="post" action="/admin/profile/sessions/revoke">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "log-out"}}{{T "Log out other devices"}}</button></form>
+      </footer>
+    </section>
+  </div>
+</div>
+{{end}}

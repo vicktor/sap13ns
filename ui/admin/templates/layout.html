@@ -1,0 +1,145 @@
+{{define "head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="same-origin">
+<title>{{.Title}} · {{.Site.SiteTitle}}</title>
+<script src="{{asset "theme-init.js"}}"></script>
+<link rel="stylesheet" href="{{asset "admin.css"}}">
+<link rel="icon" href="{{asset "favicon.svg"}}" type="image/svg+xml">
+<script src="{{asset "vendor/basecoat/basecoat.min.js"}}" defer></script>
+<script src="{{asset "vendor/basecoat/popover.min.js"}}" defer></script>
+<script src="{{asset "vendor/basecoat/dropdown-menu.min.js"}}" defer></script>
+<script src="{{asset "vendor/basecoat/sidebar.min.js"}}" defer></script>
+<script src="{{asset "vendor/basecoat/tabs.min.js"}}" defer></script>
+<script src="{{asset "vendor/basecoat/toast.min.js"}}" defer></script>
+<script src="{{asset "admin.js"}}" defer></script>
+<script src="{{asset "autosave.js"}}" defer></script>
+<script src="{{asset "jobs.js"}}" defer></script>
+<script src="{{asset "ai.js"}}" defer></script>
+{{end}}
+
+{{define "nav-item"}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{icon .Icon}}<span>{{.Label}}</span>{{if .Badge}}<span class="badge ml-auto" data-variant="secondary">{{.Badge}}</span>{{end}}</a></li>{{end}}
+
+{{define "admin"}}<!doctype html>
+<html lang="{{.Site.Language}}">
+<head>{{template "head" .}}</head>
+<body class="admin">
+<a class="skip-link" href="#main">{{T "Skip to content"}}</a>
+<aside id="admin-sidebar" class="sidebar" data-side="left" aria-hidden="false">
+  <nav aria-label="{{T "Administration"}}">
+    <header>
+      <a href="/admin/" class="brand">
+        <span class="brand-mark" aria-hidden="true">{{initials .Site.SiteTitle}}</span>
+        <span class="brand-text"><strong>{{.Site.SiteTitle}}</strong><small>sap13ns</small></span>
+      </a>
+    </header>
+    <section class="scrollbar">
+      {{if .Can "posts.edit_own"}}
+      <div role="group" aria-labelledby="nav-content">
+        <h3 id="nav-content">{{T "Content"}}</h3>
+        <ul>
+          {{template "nav-item" (dict "URL" "/admin/" "Icon" "layout-dashboard" "Label" (T "Dashboard") "Current" (.Active "dashboard"))}}
+          {{template "nav-item" (dict "URL" "/admin/posts" "Icon" "file-text" "Label" (T "Posts") "Current" (.Active "posts"))}}
+          {{if .Can "pages.manage"}}{{template "nav-item" (dict "URL" "/admin/pages" "Icon" "files" "Label" (T "Pages") "Current" (.Active "pages"))}}{{end}}
+          {{if .Can "media.upload"}}{{template "nav-item" (dict "URL" "/admin/media" "Icon" "images" "Label" (T "Media") "Current" (.Active "media"))}}{{end}}
+          {{if .Can "terms.manage"}}
+          {{template "nav-item" (dict "URL" "/admin/terms/category" "Icon" "folder" "Label" (T "Categories") "Current" (.Active "category"))}}
+          {{template "nav-item" (dict "URL" "/admin/terms/tag" "Icon" "tags" "Label" (T "Tags") "Current" (.Active "tag"))}}
+          {{end}}
+          {{if .Can "comments.moderate"}}{{template "nav-item" (dict "URL" "/admin/comments" "Icon" "message-square" "Label" (T "Comments") "Current" (.Active "comments") "Badge" .Pending)}}{{end}}
+        </ul>
+      </div>
+      {{end}}
+      {{if .Can "appearance.manage"}}
+      <div role="group" aria-labelledby="nav-appearance">
+        <h3 id="nav-appearance">{{T "Appearance"}}</h3>
+        <ul>
+          {{template "nav-item" (dict "URL" "/admin/appearance/themes" "Icon" "palette" "Label" (T "Themes") "Current" (.Active "themes"))}}
+          {{template "nav-item" (dict "URL" "/admin/appearance/menus" "Icon" "list" "Label" (T "Menus") "Current" (.Active "menus"))}}
+          {{template "nav-item" (dict "URL" "/admin/appearance/widgets" "Icon" "layout-grid" "Label" (T "Widgets") "Current" (.Active "widgets"))}}
+        </ul>
+      </div>
+      {{end}}
+      {{if or (.Can "users.manage") (.Can "plugins.manage") (.Can "settings.manage")}}
+      <div role="group" aria-labelledby="nav-admin">
+        <h3 id="nav-admin">{{T "Administration"}}</h3>
+        <ul>
+          {{if .Can "plugins.manage"}}{{template "nav-item" (dict "URL" "/admin/plugins" "Icon" "puzzle" "Label" (T "Plugins") "Current" (.Active "plugins"))}}{{end}}
+          {{if .Can "users.manage"}}{{template "nav-item" (dict "URL" "/admin/users" "Icon" "users" "Label" (T "Users") "Current" (.Active "users"))}}{{end}}
+          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings" "Icon" "settings" "Label" (T "Settings") "Current" (.Active "settings"))}}{{end}}
+          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/tools/redirects" "Icon" "arrow-right-left" "Label" (T "Redirects") "Current" (.Active "redirects"))}}
+          {{template "nav-item" (dict "URL" "/admin/tools/import" "Icon" "file-input" "Label" (T "Import") "Current" (.Active "import"))}}{{end}}
+          {{if .Can "audit.view"}}{{template "nav-item" (dict "URL" "/admin/audit" "Icon" "history" "Label" (T "Audit log") "Current" (.Active "audit"))}}{{end}}
+          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/system" "Icon" "server" "Label" (T "System") "Current" (.Active "system"))}}{{end}}
+        </ul>
+      </div>
+      {{end}}
+    </section>
+    <footer>
+      <div id="user-menu" class="dropdown-menu">
+        <button type="button" id="user-menu-trigger" class="user-button" aria-haspopup="menu" aria-controls="user-menu-menu" aria-expanded="false">
+          <span class="avatar-initials" aria-hidden="true">{{initials .User.Name}}</span>
+          <span class="user-meta"><strong>{{.User.Name}}</strong><small>{{roleLabel .User.Role}}</small></span>
+          {{icon "ellipsis-vertical" "ml-auto"}}
+        </button>
+        <div id="user-menu-popover" data-popover aria-hidden="true" data-side="top" data-align="start">
+          <div role="menu" id="user-menu-menu" aria-labelledby="user-menu-trigger">
+            <a role="menuitem" href="/admin/profile">{{icon "circle-user"}}{{T "Your profile"}}</a>
+            <a role="menuitem" href="/admin/profile/2fa">{{icon "shield-check"}}{{T "Two-factor authentication"}}</a>
+            <a role="menuitem" href="/" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View site"}}</a>
+            <hr role="separator">
+            <button type="submit" role="menuitem" form="logout-form">{{icon "log-out"}}{{T "Log out"}}</button>
+          </div>
+        </div>
+      </div>
+      <form id="logout-form" method="post" action="/logout" hidden>{{.CSRFField}}</form>
+    </footer>
+  </nav>
+</aside>
+<div class="admin-main">
+  <header class="topbar">
+    <button type="button" class="btn" data-variant="ghost" data-size="icon" data-sidebar-toggle="admin-sidebar" aria-label="{{T "Toggle navigation"}}">{{icon "panel-left"}}</button>
+    <div class="topbar-title">{{.Title}}</div>
+    <div class="topbar-actions">
+      {{if .Can "posts.edit_own"}}<a class="btn max-sm:hidden" data-size="sm" href="/admin/posts/new">{{icon "plus"}}{{T "New post"}}</a>{{end}}
+      <a class="btn" data-variant="ghost" data-size="icon" href="/" target="_blank" rel="noopener" aria-label="{{T "View site"}}" title="{{T "View site"}}">{{icon "globe"}}</a>
+      <button type="button" class="btn" data-variant="ghost" data-size="icon" data-theme-toggle aria-label="{{T "Toggle dark mode"}}" title="{{T "Toggle dark mode"}}">{{icon "sun" "theme-icon-light"}}{{icon "moon" "theme-icon-dark"}}</button>
+    </div>
+  </header>
+  <main id="main" class="admin-content" tabindex="-1">
+    {{template "content" .}}
+  </main>
+</div>
+{{template "toaster" .}}
+{{template "confirm-dialog" .}}
+</body>
+</html>{{end}}
+
+{{define "toaster"}}
+<div id="toaster" class="toaster" aria-live="polite">
+  {{range .Flashes}}
+  <div class="toast" role="{{if eq .Kind "error"}}alert{{else}}status{{end}}" aria-atomic="true" aria-hidden="false" data-category="{{.Kind}}"{{if eq .Kind "error"}} data-duration="8000"{{end}}>
+    <div class="toast-content">
+      {{if eq .Kind "success"}}{{icon "circle-check"}}{{else if eq .Kind "error"}}{{icon "circle-alert"}}{{else if eq .Kind "warning"}}{{icon "triangle-alert"}}{{else}}{{icon "info"}}{{end}}
+      <section><h2>{{.Text}}</h2></section>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "confirm-dialog"}}
+<dialog id="confirm-dialog" class="dialog" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-description" data-overlay-close>
+  <div>
+    <header>
+      <h2 id="confirm-dialog-title">{{T "Are you sure?"}}</h2>
+      <p id="confirm-dialog-description"></p>
+    </header>
+    <footer>
+      <button type="button" class="btn" data-variant="outline" data-dialog-close>{{T "Cancel"}}</button>
+      <button type="button" class="btn" data-variant="destructive" data-confirm-accept>{{T "Confirm"}}</button>
+    </footer>
+  </div>
+</dialog>
+{{end}}

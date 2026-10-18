@@ -1,0 +1,57 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$m := .D.Item}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/media">{{icon "arrow-left" "size-3.5"}} {{T "Media"}}</a></p>
+    <h1 class="break-all">{{$m.OriginalName}}</h1>
+  </div>
+</div>
+<div class="split media-detail">
+  <section class="card media-preview">
+    {{if $m.IsImage}}<img src="{{$m.VariantURL "large"}}" alt="{{$m.Alt}}" width="{{$m.Width}}" height="{{$m.Height}}">
+    {{else if hasPrefix $m.MIME "video/"}}<video src="{{$m.URL}}" controls preload="metadata"></video>
+    {{else if hasPrefix $m.MIME "audio/"}}<audio src="{{$m.URL}}" controls preload="metadata"></audio>
+    {{else}}<div class="media-file big">{{icon "file-text"}}<small>{{$m.MIME}}</small></div>{{end}}
+  </section>
+  <section class="card">
+    <section>
+      <dl class="meta-list">
+        <div><dt>{{T "Type"}}</dt><dd>{{$m.MIME}}</dd></div>
+        <div><dt>{{T "Size"}}</dt><dd>{{filesize $m.Size}}</dd></div>
+        {{if $m.Width}}<div><dt>{{T "Dimensions"}}</dt><dd>{{$m.Width}} × {{$m.Height}}</dd></div>{{end}}
+        <div><dt>{{T "Uploaded"}}</dt><dd>{{dateTime $m.CreatedAt}}</dd></div>
+        <div><dt>SHA-256</dt><dd class="mono truncate" title="{{$m.SHA256}}">{{$m.SHA256}}</dd></div>
+      </dl>
+      <div class="field">
+        <label for="file-url">{{T "File address"}}</label>
+        <div class="copy-field"><input class="input mono" id="file-url" type="text" readonly value="{{.SiteURL}}{{$m.URL}}"><button type="button" class="btn" data-variant="outline" data-size="icon" data-copy="file-url" aria-label="{{T "Copy"}}">{{icon "copy"}}</button></div>
+      </div>
+      {{if $m.IsImage}}
+      <div class="field">
+        <label for="file-md">{{T "Markdown"}}</label>
+        <div class="copy-field"><input class="input mono" id="file-md" type="text" readonly value="![{{$m.Alt}}]({{$m.VariantURL "large"}})"><button type="button" class="btn" data-variant="outline" data-size="icon" data-copy="file-md" aria-label="{{T "Copy"}}">{{icon "copy"}}</button></div>
+      </div>
+      {{end}}
+      <form method="post" action="/admin/media/{{$m.ID}}" class="form" data-unsaved>
+        {{.CSRFField}}
+        <div class="field">
+          <label for="alt">{{T "Alternative text"}}</label>
+          <input class="input" id="alt" name="alt" type="text" value="{{$m.Alt}}" maxlength="500">
+          <p class="hint">{{T "Describe the image for people who cannot see it. Leave empty if it is purely decorative."}}</p>
+        </div>
+        <div class="field">
+          <label for="caption">{{T "Caption"}}</label>
+          <textarea class="textarea" id="caption" name="caption" rows="2" maxlength="1000">{{$m.Caption}}</textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
+          <a class="btn" data-variant="outline" href="{{$m.URL}}" target="_blank" rel="noopener">{{icon "download"}}{{T "Original"}}</a>
+          <button class="btn ml-auto" data-variant="destructive" type="submit" form="delete-media" data-confirm="{{T "Delete this file permanently? Posts that use it will show a broken image."}}">{{icon "trash-2"}}{{T "Delete"}}</button>
+        </div>
+      </form>
+      <form id="delete-media" method="post" action="/admin/media/{{$m.ID}}/delete" hidden>{{.CSRFField}}</form>
+    </section>
+  </section>
+</div>
+{{end}}

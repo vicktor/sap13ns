@@ -1,0 +1,61 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$st := $d.Status}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Import from WordPress"}}</h1>
+    <p>{{T "Bring posts, pages, categories, tags, comments, authors and images from a WordPress export (Tools → Export → All content)."}}</p>
+  </div>
+</div>
+{{if $st.Running}}
+<section class="card" data-poll="3000">
+  <header><h2>{{icon "timer"}} {{T "Import running"}}</h2><p>{{T "%s started importing %s %s. This page refreshes by itself." $st.User $st.File (ago $st.Started)}}</p></header>
+</section>
+{{else}}
+<div class="split">
+  <section class="card">
+    <header><h2>{{T "New import"}}</h2></header>
+    <section>
+      {{template "form-error" $d.Error}}
+      <form method="post" action="/admin/tools/import" enctype="multipart/form-data" class="form">
+        {{.CSRFField}}
+        <div class="field"><label for="wxr">{{T "Export file (.xml)"}}</label><input class="input" id="wxr" name="wxr" type="file" accept=".xml,application/xml,text/xml" required></div>
+        <div class="field"><label for="author_id">{{T "Author for content without a matching user"}}</label>
+          <select class="select w-full" id="author_id" name="author_id">{{range $d.Authors}}<option value="{{.ID}}"{{if eq .ID $.User.ID}} selected{{end}}>{{.Name}} ({{roleLabel .Role}})</option>{{end}}</select></div>
+        {{with $d.Langs}}<div class="field"><label for="lang">{{T "Language of the imported content"}}</label>
+          <select class="select w-full" id="lang" name="lang">{{range .}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</select></div>{{end}}
+        <label class="check"><input type="checkbox" class="input" role="switch" name="media" value="1" checked> {{T "Download images and attachments"}}</label>
+        <div class="field"><label for="media_hosts">{{T "Extra media hosts"}}</label><input class="input mono" id="media_hosts" name="media_hosts" placeholder="cdn.example.com" maxlength="500" spellcheck="false" autocapitalize="none"><p class="hint">{{T "Only files on the exported site's own domain are downloaded, plus these hosts (a CDN, for example)."}}</p></div>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="skip_existing" value="1"> {{T "Skip posts whose address already exists (otherwise a new address is chosen)"}}</label>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="dry_run" value="1" checked> {{T "Dry run: show what would be imported without changing anything"}}</label>
+        <button class="btn" type="submit">{{icon "file-input"}}{{T "Start"}}</button>
+      </form>
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "What happens"}}</h2></header>
+    <section class="prose prose-sm">
+      <ul>
+        <li>{{T "Content is converted to Markdown; WordPress shortcodes the site does not know are kept as they are."}}</li>
+        <li>{{T "Old addresses redirect to the new ones, so links and search results keep working."}}</li>
+        <li>{{T "Authors become contributor accounts without a password; they can set one with “Forgot your password?”."}}</li>
+        <li>{{T "Private and password-protected posts are imported as drafts."}}</li>
+      </ul>
+    </section>
+  </section>
+</div>
+{{end}}
+{{if or $st.Summary $st.Error}}
+<section class="card">
+  <header><h2>{{if $st.DryRun}}{{T "Dry run result"}}{{else}}{{T "Last import"}}{{end}}</h2><p>{{$st.File}} · {{$st.User}} · {{ago $st.Finished}}</p></header>
+  <section class="stack">
+    {{with $st.Error}}<div class="alert" data-variant="destructive">{{icon "circle-alert"}}<h2>{{.}}</h2></div>{{end}}
+    {{with $st.Summary}}<pre class="report">{{.}}</pre>{{end}}
+    {{if $st.Warnings}}
+    <details><summary>{{T "%d warnings" (len $st.Warnings)}}{{if $st.Dropped}} (+{{$st.Dropped}}){{end}}</summary>
+      <ul class="warnings">{{range $st.Warnings}}<li>{{.}}</li>{{end}}</ul></details>
+    {{end}}
+  </section>
+</section>
+{{end}}
+{{end}}

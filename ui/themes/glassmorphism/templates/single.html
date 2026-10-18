@@ -1,0 +1,31 @@
+{{define "content"}}
+{{$side := and (eq (index .Site.Options "sidebar") "true") (.Area "sidebar")}}
+<div class="wrap layout{{if $side}} with-sidebar{{else}} is-centered{{end}}">
+  <div class="main-col">
+    {{with .Post}}
+    <article class="article panel-read">
+      <header class="article-head">
+        {{template "shared/categories" .}}
+        <h1>{{.Title}}</h1>
+        {{with .Summary}}<p class="article-dek">{{.}}</p>{{end}}
+        <div class="byline">
+          {{with .Author.Initials}}{{if $.Post.Author.Name}}<span class="byline-avatar" aria-hidden="true">{{.}}</span>{{end}}{{end}}
+          {{template "shared/post-meta" .}}
+        </div>
+      </header>
+      {{if .Image}}{{template "shared/featured-image" .}}{{end}}
+      <div class="article-body">
+        {{template "shared/content" .}}
+        <footer class="article-foot">
+          {{template "shared/tags" .}}
+          {{template "shared/share" .}}
+        </footer>
+      </div>
+    </article>
+    {{end}}
+    {{template "shared/post-nav" .}}
+    {{template "shared/comments" .}}
+  </div>
+  {{if $side}}{{template "sidebar" .}}{{end}}
+</div>
+{{end}}

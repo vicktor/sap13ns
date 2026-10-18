@@ -1,0 +1,49 @@
+{{define "content"}}
+{{with .Post}}
+<div class="wrap reading">
+  <div class="reading-main">
+    <article class="reading-article" aria-labelledby="post-title">
+      <header class="tile tile-tint title-tile">
+        {{with .Categories}}<p class="title-cats">{{range .}}<a class="chip" href="{{.URL}}" rel="category">{{.Name}}</a>{{end}}</p>{{end}}
+        <h1 id="post-title" class="title-h1">{{.Title}}</h1>
+        {{with .Summary}}<p class="title-dek">{{.}}</p>{{end}}
+        {{template "shared/post-meta" .}}
+      </header>
+      <div class="tile reading-tile{{if .Image}} has-image{{end}}">
+        {{if .Image}}{{template "shared/featured-image" .}}{{end}}
+        {{template "shared/content" .}}
+      </div>
+    </article>
+    {{template "shared/comments" $}}
+  </div>
+
+  <aside class="reading-side" aria-label="{{T "About this post"}}">
+    {{if .Author.Name}}
+    <section class="tile tile-ink side-author" aria-labelledby="author-title">
+      <p class="tile-label">{{icon "pen-line"}}<span>{{T "Written by"}}</span></p>
+      <div class="author-row">
+        <span class="avatar" aria-hidden="true">{{.Author.Initials}}</span>
+        <div>
+          <h2 id="author-title" class="author-name">{{if .Author.URL}}<a href="{{.Author.URL}}" rel="author">{{.Author.Name}}</a>{{else}}{{.Author.Name}}{{end}}</h2>
+          {{if eq .Type "post"}}<p class="author-sub">{{T "%d min read" .ReadingMinutes}}{{if .CommentCount}} · {{plural .CommentCount "%d comment" "%d comments"}}{{end}}</p>{{end}}
+        </div>
+      </div>
+      {{with .Author.URL}}<a class="tile-more" href="{{.}}">{{T "More from this author"}} {{icon "arrow-right"}}</a>{{end}}
+    </section>
+    {{end}}
+
+    {{if or .Categories .Tags}}
+    <section class="tile side-terms" aria-labelledby="terms-title">
+      <h2 id="terms-title" class="tile-label">{{icon "tags"}}<span>{{T "Filed under"}}</span></h2>
+      {{template "shared/categories" .}}
+      {{template "shared/tags" .}}
+    </section>
+    {{end}}
+
+    {{template "shared/share" .}}
+    {{template "shared/post-nav" $}}
+    {{template "shared/widget-area" (dict "Page" $ "Area" "sidebar")}}
+  </aside>
+</div>
+{{end}}
+{{end}}

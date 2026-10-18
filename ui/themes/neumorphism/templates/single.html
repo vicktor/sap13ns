@@ -1,0 +1,27 @@
+{{define "content"}}
+{{with .Post}}
+<article class="nm-article">
+  <header class="wrap nm-article-head">
+    {{with .Categories}}<ul class="nm-chips" aria-label="{{T "Categories"}}">{{range .}}<li><a class="nm-chip" href="{{.URL}}" rel="category">{{.Name}}</a></li>{{end}}</ul>{{end}}
+    <h1>{{.Title}}</h1>
+    {{with .Summary}}<p class="nm-dek">{{.}}</p>{{end}}
+    <div class="nm-byline">
+      {{if .Author.Name}}<span class="nm-avatar" aria-hidden="true">{{.Author.Initials}}</span>{{end}}
+      {{template "shared/post-meta" .}}
+    </div>
+  </header>
+  {{if .Image}}<div class="wrap nm-wide"><div class="nm-well nm-figure-well">{{template "shared/featured-image" .}}</div></div>{{end}}
+  <div class="wrap nm-measure">
+    {{template "shared/content" .}}
+    <footer class="nm-article-foot">
+      {{template "shared/tags" .}}
+      {{template "shared/share" .}}
+    </footer>
+  </div>
+</article>
+{{end}}
+<div class="wrap nm-measure nm-after">
+  {{template "shared/post-nav" .}}
+  {{template "shared/comments" .}}
+</div>
+{{end}}

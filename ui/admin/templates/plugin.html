@@ -1,0 +1,118 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$p := $d.Plugin}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/plugins">{{icon "arrow-left" "size-3.5"}} {{T "Plugins"}}</a></p>
+    <h1>{{or $p.Name $p.ID}}</h1>
+    <p>{{$p.Description}}</p>
+  </div>
+  <div class="page-actions">
+    {{if eq $p.Status "enabled"}}
+    <form method="post" action="/admin/plugins/{{$p.ID}}/disable">{{.CSRFField}}<button class="btn" data-variant="outline" type="submit">{{icon "ban"}}{{T "Disable"}}</button></form>
+    {{end}}
+  </div>
+</div>
+
+{{if $p.Err}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "This plugin cannot be loaded"}}</h2><section><p class="mono">{{$p.Err}}</p></section></div>{{end}}
+
+<div class="split">
+  <div class="stack">
+    {{if and (ne $p.Status "enabled") (ne $p.Status "invalid") (ne $p.Status "error")}}
+    <section class="card review">
+      <header>
+        <h2>{{icon "shield-check"}} {{if eq $p.Status "modified"}}{{T "Review the new version"}}{{else}}{{T "Review and enable"}}{{end}}</h2>
+        <p>{{T "Enabling pins this exact build. If the file changes, the plugin is stopped until you approve it again."}}</p>
+      </header>
+      <section>
+        <h3 class="text-sm font-medium mb-2">{{T "Requested permissions"}}</h3>
+        {{if $d.Perms}}
+        <ul class="perm-list">
+          {{range $d.Perms}}
+          <li data-risk="{{.Risk}}">
+            {{if eq .Risk "high"}}{{icon "triangle-alert"}}{{else if eq .Risk "medium"}}{{icon "circle-alert"}}{{else}}{{icon "circle-check"}}{{end}}
+            <span><code>{{.Name}}</code>
+            {{if eq .Name "kv"}}{{T "Store its own small key-value data."}}
+            {{else if eq .Name "posts:read"}}{{T "Read published posts (never drafts or private data)."}}
+            {{else if eq .Name "http:*"}}{{T "Make HTTPS requests to any public address."}}
+            {{else if hasPrefix .Name "http:"}}{{T "Make HTTPS requests to this host only."}}{{end}}</span>
+            {{if .Granted}}<span class="badge" data-variant="outline">{{T "previously granted"}}</span>{{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{else}}<p class="muted text-sm">{{T "No permissions: it can only transform the content it receives."}}</p>{{end}}
+        <dl class="meta-list mt-4">
+          <div><dt>SHA-256</dt><dd class="mono break-all text-xs">{{$p.SHA256}}</dd></div>
+        </dl>
+      </section>
+      <footer>
+        <form method="post" action="/admin/plugins/{{$p.ID}}/approve">
+          {{.CSRFField}}
+          <input type="hidden" name="sha256" value="{{$p.SHA256}}">
+          <button class="btn" type="submit" data-confirm="{{T "Enable this plugin with the permissions listed?"}}">{{icon "check"}}{{T "Enable plugin"}}</button>
+        </form>
+      </footer>
+    </section>
+    {{end}}
+
+    {{if and $p.Settings $p.Record}}
+    <section class="card" id="settings">
+      <header><h2>{{T "Settings"}}</h2></header>
+      <section>
+        <form method="post" action="/admin/plugins/{{$p.ID}}/settings" class="form" data-unsaved>
+          {{.CSRFField}}
+          {{range $p.Settings}}
+          <div class="field">
+            {{if eq .Type "bool"}}
+            <label class="check"><input type="checkbox" class="input" role="switch" name="set_{{.Key}}" value="true"{{if eq (index $d.Values .Key) "true"}} checked{{end}}> {{.Label}}</label>
+            {{else}}
+            <label for="set_{{.Key}}">{{.Label}}{{if .Required}} *{{end}}</label>
+            {{if eq .Type "select"}}
+            <select class="select w-full" id="set_{{.Key}}" name="set_{{.Key}}">{{$cur := index $d.Values .Key}}{{range .Choices}}<option{{if eq . $cur}} selected{{end}}>{{.}}</option>{{end}}</select>
+            {{else if eq .Type "textarea"}}
+            <textarea class="textarea" id="set_{{.Key}}" name="set_{{.Key}}" rows="4" maxlength="4000">{{index $d.Values .Key}}</textarea>
+            {{else if eq .Type "secret"}}
+            <input class="input" id="set_{{.Key}}" name="set_{{.Key}}" type="password" autocomplete="off" placeholder="{{if index $p.Record.Settings .Key}}{{T "•••••• (stored — leave empty to keep)"}}{{end}}" maxlength="4000">
+            {{else}}
+            <input class="input" id="set_{{.Key}}" name="set_{{.Key}}" type="{{if eq .Type "number"}}number{{else if eq .Type "url"}}url{{else}}text{{end}}" value="{{index $d.Values .Key}}" maxlength="4000"{{if .Required}} required{{end}}>
+            {{end}}
+            {{end}}
+            {{with .Help}}<p class="hint">{{.}}</p>{{end}}
+          </div>
+          {{end}}
+          <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button></div>
+        </form>
+      </section>
+    </section>
+    {{end}}
+
+    <section class="card">
+      <header><h2>{{T "Activity"}}</h2><p>{{T "Latest messages written by the plugin."}}</p></header>
+      <section>
+        {{if $d.Logs}}
+        <ol class="log-list mono">{{range $d.Logs}}<li data-level="{{.Level}}"><time>{{dateTime .At}}</time> <span class="lvl">{{.Level}}</span> {{.Text}}</li>{{end}}</ol>
+        {{else}}<p class="muted text-sm">{{T "Nothing logged yet."}}</p>{{end}}
+      </section>
+    </section>
+  </div>
+
+  <section class="card">
+    <header><h2>{{T "Details"}}</h2></header>
+    <section>
+      <dl class="meta-list">
+        <div><dt>ID</dt><dd class="mono">{{$p.ID}}</dd></div>
+        {{if $p.Version}}<div><dt>{{T "Version"}}</dt><dd>{{$p.Version}}</dd></div>{{end}}
+        {{if $p.Author}}<div><dt>{{T "Author"}}</dt><dd>{{$p.Author}}</dd></div>{{end}}
+        {{if $p.License}}<div><dt>{{T "License"}}</dt><dd>{{$p.License}}</dd></div>{{end}}
+        {{if $p.Homepage}}<div><dt>{{T "Website"}}</dt><dd><a href="{{$p.Homepage}}" rel="noopener nofollow" target="_blank">{{$p.Homepage}}</a></dd></div>{{end}}
+        <div><dt>{{T "Status"}}</dt><dd>{{$p.Status}}</dd></div>
+        {{if $p.Hooks}}<div><dt>{{T "Hooks"}}</dt><dd>{{join $p.Hooks ", "}}</dd></div>{{end}}
+        {{if $p.Events}}<div><dt>{{T "Events"}}</dt><dd>{{join $p.Events ", "}}</dd></div>{{end}}
+        {{if $p.Shortcodes}}<div><dt>{{T "Shortcodes"}}</dt><dd class="mono">{{range $p.Shortcodes}}[{{.}}] {{end}}</dd></div>{{end}}
+        {{if $p.Widgets}}<div><dt>{{T "Widgets"}}</dt><dd>{{range $i, $w := $p.Widgets}}{{if $i}}, {{end}}{{$w.Title}}{{end}}</dd></div>{{end}}
+        <div><dt>{{T "Folder"}}</dt><dd class="mono break-all text-xs">{{$p.Dir}}</dd></div>
+      </dl>
+    </section>
+  </section>
+</div>
+{{end}}

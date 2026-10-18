@@ -1,0 +1,33 @@
+{{define "content"}}
+{{$side := and (eq (index .Site.Options "sidebar") "true") (.Area "sidebar")}}
+<section class="wrap intro">
+  <span class="orb orb-intro" aria-hidden="true"></span>
+  <span class="orb orb-intro-2" aria-hidden="true"></span>
+  <div class="intro-card glass search-card">
+    <p class="intro-kind">{{icon "search"}} {{T "Search"}}</p>
+    <h1>{{if .Query}}{{.Heading}}{{else}}{{T "What are you looking for?"}}{{end}}</h1>
+    {{template "shared/search-form" .}}
+    {{with .Pagination}}<p class="intro-meta">{{plural .Total "%d result" "%d results"}}</p>{{else}}{{if .Posts}}<p class="intro-meta">{{plural (len .Posts) "%d result" "%d results"}}</p>{{end}}{{end}}
+  </div>
+</section>
+{{if or .Posts .Query}}
+<div class="wrap section layout{{if $side}} with-sidebar{{end}}">
+  <div class="main-col">
+    {{if .Posts}}
+      {{template "grid" (dict "Posts" .Posts)}}
+      {{template "pager" .Pagination}}
+    {{else}}
+      {{/* Not shared/no-results: it repeats the search form above (duplicate id). */}}
+      <div class="glass empty-card">
+        <section class="no-results">
+          <h2>{{T "Nothing found for “%s”" .Query}}</h2>
+          <p>{{T "Try other words or browse the categories."}}</p>
+          {{with .Site.Categories}}<ul class="topic-chips" aria-label="{{T "Categories"}}">{{range .}}<li><a href="{{.URL}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
+        </section>
+      </div>
+    {{end}}
+  </div>
+  {{if $side}}{{template "sidebar" .}}{{end}}
+</div>
+{{end}}
+{{end}}

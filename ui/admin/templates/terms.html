@@ -1,0 +1,80 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{.Title}}</h1>
+    <p>{{if eq $d.Taxonomy "tag"}}{{T "Tags describe details of a post and help readers find related content."}}{{else}}{{T "Categories group your posts into broad topics. Each one has its own page and feed."}}{{end}}</p>
+  </div>
+</div>
+<div class="split">
+  <section class="card">
+    <header><h2>{{if eq $d.Taxonomy "tag"}}{{T "Add tag"}}{{else}}{{T "Add category"}}{{end}}</h2></header>
+    <section>
+      {{template "form-error" $d.Error}}
+      <form method="post" action="/admin/terms/{{$d.Taxonomy}}" class="form">
+        {{.CSRFField}}
+        {{template "term-fields" (dict "D" $d "T" $d.Form "Self" 0)}}
+        <button class="btn" type="submit">{{icon "plus"}}{{T "Add"}}</button>
+      </form>
+    </section>
+  </section>
+  <section class="card table-wrap">
+    {{if $d.Terms}}
+    <table class="table">
+      <thead><tr><th>{{T "Name"}}</th><th class="max-sm:hidden">{{T "Address"}}</th><th class="text-right">{{T "Posts"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+      <tbody>
+        {{range $d.Terms}}
+        <tr>
+          <td><a class="row-title" href="/admin/terms/{{$d.Taxonomy}}/{{.ID}}">{{.Name}}</a>{{with .Description}}<div class="row-sub muted">{{truncate . 90}}</div>{{end}}</td>
+          <td class="max-sm:hidden muted">/{{$d.Taxonomy}}/{{.Slug}}</td>
+          <td class="text-right tabular">{{.Count}}</td>
+          <td class="text-right nowrap">
+            <a class="btn" data-variant="ghost" data-size="icon-sm" href="/{{$d.Taxonomy}}/{{.Slug}}" target="_blank" rel="noopener" aria-label="{{T "View"}}">{{icon "external-link"}}</a>
+            <a class="btn" data-variant="ghost" data-size="icon-sm" href="/admin/terms/{{$d.Taxonomy}}/{{.ID}}" aria-label="{{T "Edit"}}">{{icon "pencil"}}</a>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    {{template "empty" (dict "Icon" (or (and (eq $d.Taxonomy "tag") "tags") "folder") "Title" (T "Nothing here yet"))}}
+    {{end}}
+  </section>
+</div>
+{{end}}
+{{define "term-fields"}}
+<div class="field">
+  <label for="name">{{T "Name"}}</label>
+  <input class="input" id="name" name="name" type="text" value="{{.T.Name}}" required maxlength="100" data-slug-source>
+</div>
+<div class="field">
+  <label for="slug">{{T "Address"}}</label>
+  <input class="input" id="slug" name="slug" type="text" value="{{.T.Slug}}" maxlength="120" pattern="[a-z0-9\-]*" data-slug-target data-slug-local{{if .T.Slug}} data-slug-locked{{end}} spellcheck="false" autocapitalize="none">
+  <p class="hint">{{T "Lowercase letters, numbers and dashes. Generated from the name if empty."}}</p>
+</div>
+{{if eq .D.Taxonomy "category"}}
+<div class="field">
+  <label for="parent_id">{{T "Parent"}}</label>
+  <select class="select w-full" id="parent_id" name="parent_id">
+    <option value="">{{T "(none)"}}</option>
+    {{$cur := .T}}{{$self := .Self}}
+    {{range .D.Terms}}{{if ne .ID $self}}<option value="{{.ID}}"{{if eq (derefInt $cur.ParentID) .ID}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+  </select>
+</div>
+{{end}}
+<div class="field">
+  <label for="description">{{T "Description"}}</label>
+  <textarea class="textarea" id="description" name="description" rows="3" maxlength="1000">{{.T.Description}}</textarea>
+</div>
+{{if .D.Langs}}{{$i := .T.I18n}}
+<fieldset class="fieldset">
+  <legend>{{T "Translations"}}</legend>
+  {{range .D.Langs}}{{$tx := index $i .Code}}
+  <div class="field"><label for="i18n-{{.Code}}-name">{{T "Name"}} · {{.Name}}</label><input class="input" id="i18n-{{.Code}}-name" name="i18n_{{.Code}}_name" type="text" value="{{$tx.Name}}" maxlength="100" lang="{{.Code}}"></div>
+  <div class="field"><label for="i18n-{{.Code}}-description">{{T "Description"}} · {{.Name}}</label><textarea class="textarea" id="i18n-{{.Code}}-description" name="i18n_{{.Code}}_description" rows="2" maxlength="1000" lang="{{.Code}}">{{$tx.Description}}</textarea></div>
+  {{end}}
+  <p class="hint">{{T "Leave a name empty to use the main-language one."}}</p>
+</fieldset>
+{{end}}
+{{end}}
