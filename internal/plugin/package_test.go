@@ -372,6 +372,14 @@ func TestInstallLifecycle(t *testing.T) {
 	if err := h.Approve(ctx, "life", p.ReviewPin(), uid); err != nil {
 		t.Fatal(err)
 	}
+	compiled := func() int {
+		h.mu.RLock()
+		defer h.mu.RUnlock()
+		return len(h.compiled)
+	}
+	if n := compiled(); n != 1 {
+		t.Fatalf("%d compiled modules after approval", n)
+	}
 	if err := h.SaveSettings(ctx, "life", map[string]string{"greeting": "Hola"}); err != nil {
 		t.Fatal(err)
 	}
@@ -405,6 +413,9 @@ func TestInstallLifecycle(t *testing.T) {
 	p = h.Get("life")
 	if p.Status != StatusModified || p.Version != "1.2.0" || p.Record.Settings["greeting"] != "Hola" {
 		t.Fatalf("after a changed build: %s %s %v", p.Status, p.Version, p.Record.Settings)
+	}
+	if n := compiled(); n != 0 {
+		t.Fatalf("%d compiled modules kept after the build changed", n)
 	}
 	if v, _ := st.PluginKVGet(ctx, "life", "count"); string(v) != "7" {
 		t.Fatalf("kv after update: %q", v)

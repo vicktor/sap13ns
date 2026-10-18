@@ -250,6 +250,7 @@ type Host struct {
 	mailq       chan mailJob
 	blocklist   string // optional extra list of known-bad SHA-256 hashes
 	installMu   sync.Mutex
+	loadMu      sync.Mutex // one Load at a time: each prunes the compiled cache to what it installs
 	mailPerHour int
 
 	tzMu   sync.Mutex
@@ -346,6 +347,8 @@ func (h *Host) Generation() uint64 { return h.gen.Load() }
 
 // Load scans the plugins directory and (re)compiles approved plugins.
 func (h *Host) Load(ctx context.Context) error {
+	h.loadMu.Lock()
+	defer h.loadMu.Unlock()
 	records, err := h.store.ListPluginRecords(ctx)
 	if err != nil {
 		return err
@@ -404,6 +407,20 @@ func (h *Host) Load(ctx context.Context) error {
 	h.plugins = found
 	h.shortcodes = shortcodes
 	h.csp = csp
+	// Builds no loaded plugin uses any more (updated, disabled or removed)
+	// are released. Calls still running on them finish normally.
+	inUse := map[wazero.CompiledModule]bool{}
+	for _, p := range found {
+		if p.compiled != nil {
+			inUse[p.compiled] = true
+		}
+	}
+	for sha, c := range h.compiled {
+		if !inUse[c] {
+			delete(h.compiled, sha)
+			c.Close(ctx)
+		}
+	}
 	h.mu.Unlock()
 	h.gen.Add(1)
 
@@ -549,6 +566,11 @@ func (h *Host) compile(ctx context.Context, sha string, wasm []byte) (wazero.Com
 		return nil, errors.New("module does not export its memory")
 	}
 	h.mu.Lock()
+	if prev, ok := h.compiled[sha]; ok { // compiled meanwhile by another caller
+		h.mu.Unlock()
+		c.Close(ctx)
+		return prev, nil
+	}
 	h.compiled[sha] = c
 	h.mu.Unlock()
 	return c, nil
