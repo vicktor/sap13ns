@@ -14,8 +14,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type SMTP struct {
@@ -51,6 +54,53 @@ type Config struct {
 	LogFormat    string // "json" | "text"
 	SMTP         SMTP
 	DBMaxConns   int32
+
+	// Multisite settings. They are read only when SAP13NS_MULTISITE is
+	// true, so a single-site install gets the zero values whatever else
+	// its environment contains.
+	Multisite      bool
+	SitesDomain    string        // default site hosts are <slug>.<SitesDomain>
+	UnknownHost    string        // "404", or "redirect" (302 to BaseURL)
+	MaxLoadedSites int           // sites kept in memory at once
+	SiteIdle       time.Duration // a site is unloaded after this long without requests
+	MemoryLimitMB  int           // soft heap limit of the process; 0 = none
+	TLS            string        // "proxy" (nginx or Caddy terminate TLS) or "autocert"
+	Stripe         Stripe        // billing; off when Stripe.SecretKey is empty
+
+	// Set by ForSite for one site of a network. The zero values keep the
+	// single-site behaviour: HSTS covers subdomains, and passkeys use the
+	// BaseURL host as RP ID and the BaseURL origin.
+	HSTSNoSubdomains bool     // a custom domain: never force HTTPS on the owner's other hosts
+	PasskeyRPID      string   // WebAuthn RP ID
+	PasskeyOrigins   []string // accepted WebAuthn origins
+}
+
+// Stripe holds the billing settings of a network (docs/BILLING.md §6).
+type Stripe struct {
+	SecretKey       string
+	WebhookSecrets  []string                // more than one during a rotation
+	Prices          map[string]StripePrices // by plan slug
+	APIVersion      string                  // "" = the version pinned by internal/billing
+	AutomaticTax    bool
+	TaxIDCollection bool
+	TrialDays       int
+	GraceDays       int // days a site stays online after a failed renewal
+}
+
+// StripePrices are the price IDs of one plan.
+type StripePrices struct {
+	Monthly string
+	Yearly  string // optional
+}
+
+func (s Stripe) Enabled() bool { return s.SecretKey != "" }
+
+// String keeps the API key and the webhook secrets out of logs.
+func (s Stripe) String() string {
+	if !s.Enabled() {
+		return "stripe(off)"
+	}
+	return fmt.Sprintf("stripe(%d plans)", len(s.Prices))
 }
 
 // LoadEnvFile reads KEY=VALUE lines into the process environment without
@@ -88,6 +138,20 @@ func env(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envStrictBool is envBool for the newer settings, where a typo is an
+// error instead of the default.
+func envStrictBool(key string, def bool) (bool, error) {
+	v := env(key, "")
+	if v == "" {
+		return def, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("SAP13NS_%s must be true or false, got %q", key, v)
+	}
+	return b, nil
 }
 
 func envBool(key string, def bool) bool {
@@ -167,7 +231,15 @@ func Load(requireSecret bool) (*Config, error) {
 	}
 	c.MaxUploadBytes = int64(mb) << 20
 
-	conns, err := strconv.Atoi(env("DB_MAX_CONNS", "16"))
+	c.Multisite, err = envStrictBool("MULTISITE", false)
+	if err != nil {
+		return nil, err
+	}
+	defConns := "16"
+	if c.Multisite {
+		defConns = "32" // every site of the network shares the pool
+	}
+	conns, err := strconv.Atoi(env("DB_MAX_CONNS", defConns))
 	if err != nil || conns < 2 {
 		return nil, errors.New("SAP13NS_DB_MAX_CONNS must be an integer >= 2")
 	}
@@ -196,7 +268,211 @@ func Load(requireSecret bool) (*Config, error) {
 		Password: env("SMTP_PASSWORD", ""),
 		From:     env("SMTP_FROM", ""),
 	}
+	if c.Multisite {
+		if err := c.loadMultisite(); err != nil {
+			return nil, err
+		}
+	}
 	return c, nil
+}
+
+// hostRe matches a host name in lower-case A-label form, without port or
+// trailing dot.
+var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
+
+// ValidHost reports whether h is a host name a network can route: lower
+// case, ASCII (A-label), without port or trailing dot, not an IP address.
+func ValidHost(h string) bool {
+	if len(h) > 253 || !hostRe.MatchString(h) {
+		return false
+	}
+	_, err := netip.ParseAddr(h)
+	return err != nil
+}
+
+func (c *Config) loadMultisite() error {
+	c.SitesDomain = strings.ToLower(env("SITES_DOMAIN", c.BaseURL.Hostname()))
+	if !ValidHost(c.SitesDomain) {
+		return fmt.Errorf("SAP13NS_SITES_DOMAIN must be a host name in lower-case ASCII, without port, got %q", c.SitesDomain)
+	}
+	c.UnknownHost = env("UNKNOWN_HOST", "404")
+	if c.UnknownHost != "404" && c.UnknownHost != "redirect" {
+		return fmt.Errorf("SAP13NS_UNKNOWN_HOST must be 404 or redirect, got %q", c.UnknownHost)
+	}
+	n, err := strconv.Atoi(env("MAX_LOADED_SITES", "50"))
+	if err != nil || n < 1 || n > 100000 {
+		return errors.New("SAP13NS_MAX_LOADED_SITES must be between 1 and 100000")
+	}
+	c.MaxLoadedSites = n
+	c.SiteIdle, err = time.ParseDuration(env("SITE_IDLE", "15m"))
+	if err != nil || c.SiteIdle < time.Minute {
+		return errors.New("SAP13NS_SITE_IDLE must be a duration of at least 1m, such as 15m")
+	}
+	c.MemoryLimitMB, err = strconv.Atoi(env("MEMORY_LIMIT_MB", "0"))
+	if err != nil || c.MemoryLimitMB < 0 || c.MemoryLimitMB > 0 && c.MemoryLimitMB < 64 {
+		return errors.New("SAP13NS_MEMORY_LIMIT_MB must be 0 (no limit) or at least 64")
+	}
+	c.TLS = env("TLS", "proxy")
+	switch {
+	case c.TLS != "proxy" && c.TLS != "autocert":
+		return fmt.Errorf("SAP13NS_TLS must be proxy or autocert, got %q", c.TLS)
+	case c.TLS == "autocert" && c.BaseURL.Scheme != "https":
+		return errors.New("SAP13NS_TLS=autocert needs an https SAP13NS_BASE_URL")
+	}
+	c.Stripe, err = loadStripe()
+	return err
+}
+
+var (
+	stripeKeyRe = regexp.MustCompile(`^(sk|rk)_(live|test)_[A-Za-z0-9]{8,}$`)
+	stripeIDRe  = regexp.MustCompile(`^[A-Za-z0-9]{8,}$`)
+	planSlugRe  = regexp.MustCompile(`^[a-z][a-z0-9_]{1,31}$`) // as the CHECK on network.plans
+)
+
+const pricePrefix = "SAP13NS_STRIPE_PRICE_"
+
+// requiredPlans need a monthly price when billing is on.
+var requiredPlans = []string{"pro", "business"}
+
+// loadStripe reads the billing settings. Billing is off when
+// SAP13NS_STRIPE_SECRET_KEY is unset, and the other variables are then
+// ignored.
+func loadStripe() (Stripe, error) {
+	key := env("STRIPE_SECRET_KEY", "")
+	if key == "" {
+		return Stripe{}, nil
+	}
+	if !stripeKeyRe.MatchString(key) {
+		return Stripe{}, errors.New("SAP13NS_STRIPE_SECRET_KEY must be a Stripe secret (sk_) or restricted (rk_) key")
+	}
+	s := Stripe{SecretKey: key, APIVersion: env("STRIPE_API_VERSION", ""), Prices: map[string]StripePrices{}}
+	for _, w := range strings.Split(env("STRIPE_WEBHOOK_SECRET", ""), ",") {
+		if w = strings.TrimSpace(w); w == "" {
+			continue
+		}
+		if id, ok := strings.CutPrefix(w, "whsec_"); !ok || !stripeIDRe.MatchString(id) {
+			return Stripe{}, errors.New("SAP13NS_STRIPE_WEBHOOK_SECRET must be one or more comma-separated whsec_ secrets")
+		}
+		s.WebhookSecrets = append(s.WebhookSecrets, w)
+	}
+	if len(s.WebhookSecrets) == 0 {
+		return Stripe{}, errors.New("SAP13NS_STRIPE_WEBHOOK_SECRET is required when SAP13NS_STRIPE_SECRET_KEY is set")
+	}
+	// SAP13NS_STRIPE_PRICE_<PLAN> and SAP13NS_STRIPE_PRICE_<PLAN>_YEARLY.
+	for _, kv := range os.Environ() {
+		k, v, _ := strings.Cut(kv, "=")
+		rest, ok := strings.CutPrefix(k, pricePrefix)
+		if !ok || v == "" {
+			continue
+		}
+		plan, yearly := strings.CutSuffix(rest, "_YEARLY")
+		plan = strings.ToLower(plan)
+		if !planSlugRe.MatchString(plan) {
+			return Stripe{}, fmt.Errorf("%s: %q is not a plan name", k, plan)
+		}
+		if id, ok := strings.CutPrefix(v, "price_"); !ok || !stripeIDRe.MatchString(id) {
+			return Stripe{}, fmt.Errorf("%s must be a Stripe price ID (price_...)", k)
+		}
+		p := s.Prices[plan]
+		if yearly {
+			p.Yearly = v
+		} else {
+			p.Monthly = v
+		}
+		s.Prices[plan] = p
+	}
+	for plan, p := range s.Prices {
+		if p.Monthly == "" {
+			name := pricePrefix + strings.ToUpper(plan)
+			return Stripe{}, fmt.Errorf("%s_YEARLY is set without %s", name, name)
+		}
+	}
+	for _, plan := range requiredPlans {
+		if s.Prices[plan].Monthly == "" {
+			return Stripe{}, fmt.Errorf("%s%s is required when billing is on", pricePrefix, strings.ToUpper(plan))
+		}
+	}
+	var err error
+	if s.AutomaticTax, err = envStrictBool("STRIPE_AUTOMATIC_TAX", false); err != nil {
+		return Stripe{}, err
+	}
+	if s.TaxIDCollection, err = envStrictBool("STRIPE_TAX_ID_COLLECTION", true); err != nil {
+		return Stripe{}, err
+	}
+	s.TrialDays, err = strconv.Atoi(env("STRIPE_TRIAL_DAYS", "0"))
+	if err != nil || s.TrialDays < 0 || s.TrialDays > 730 {
+		return Stripe{}, errors.New("SAP13NS_STRIPE_TRIAL_DAYS must be between 0 and 730")
+	}
+	s.GraceDays, err = strconv.Atoi(env("BILLING_GRACE_DAYS", "14"))
+	if err != nil || s.GraceDays < 0 || s.GraceDays > 90 {
+		return Stripe{}, errors.New("SAP13NS_BILLING_GRACE_DAYS must be between 0 and 90")
+	}
+	return s, nil
+}
+
+// SiteParams describes one site of a network for ForSite.
+type SiteParams struct {
+	ID     int64
+	Host   string // primary host: lower-case A-label without port
+	Custom bool   // Host is a custom domain, not a subdomain of SitesDomain
+	Secret []byte // the site's own 32-byte secret, unwrapped
+	RPID   string // WebAuthn RP ID fixed when the site was created; "" = Host
+}
+
+// ForSite returns the configuration of one site of a network: a deep copy
+// of base with the site's URL, data directory and secret. The site keeps
+// the network's scheme and port (http://blog.localhost:8137 in
+// development), so CookieSecure and HSTS stay as the network has them.
+// The billing settings are dropped: billing runs in the network, never in
+// a site's server.
+func ForSite(base *Config, p SiteParams) (*Config, error) {
+	switch {
+	case !base.Multisite:
+		return nil, errors.New("config: ForSite needs a multisite configuration")
+	case p.ID < 1:
+		return nil, fmt.Errorf("config: invalid site id %d", p.ID)
+	case !ValidHost(p.Host):
+		return nil, fmt.Errorf("config: invalid site host %q", p.Host)
+	case len(p.Secret) != 32:
+		return nil, errors.New("config: a site secret must be 32 bytes")
+	}
+	rpID := p.RPID
+	if rpID == "" {
+		rpID = p.Host
+	}
+	switch {
+	case !ValidHost(rpID):
+		return nil, fmt.Errorf("config: invalid passkey RP ID %q", rpID)
+	case rpID == base.SitesDomain || rpID == base.BaseURL.Hostname():
+		// A passkey for the shared parent domain would work on every site.
+		return nil, fmt.Errorf("config: a site cannot use %q as passkey RP ID", rpID)
+	}
+
+	c := *base
+	c.Stripe = Stripe{}
+	c.TrustedProxies = slices.Clone(base.TrustedProxies)
+	c.SecretKey = slices.Clone(p.Secret)
+	origin := func(host string) *url.URL {
+		u := &url.URL{Scheme: base.BaseURL.Scheme, Host: host}
+		if port := base.BaseURL.Port(); port != "" {
+			u.Host += ":" + port
+		}
+		return u
+	}
+	c.BaseURL = origin(p.Host)
+	c.DataDir = filepath.Join(base.DataDir, "sites", strconv.FormatInt(p.ID, 10))
+	c.UploadsDir = filepath.Join(c.DataDir, "uploads")
+	c.PluginsDir = filepath.Join(c.DataDir, "plugins")
+	c.ThemesDir = filepath.Join(c.DataDir, "themes")
+	c.HSTSNoSubdomains = p.Custom
+	c.PasskeyRPID = rpID
+	c.PasskeyOrigins = []string{c.BaseURL.String()}
+	if rpID != p.Host {
+		// The RP ID host serves /.well-known/webauthn naming the primary
+		// origin (Related Origin Requests), so both origins are accepted.
+		c.PasskeyOrigins = append(c.PasskeyOrigins, origin(rpID).String())
+	}
+	return &c, nil
 }
 
 // AbsURL joins a site-relative path with the configured base URL.
