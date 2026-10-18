@@ -11,12 +11,17 @@ nodes linked by `@id`:
 | --- | --- | --- |
 | `WebSite` | every page | The site of the page's language (`/` or `/<lang>/`), its name and publisher. On the home page it adds a `SearchAction` pointing at the site search (`/search?q=…`, `/es/search?q=…`). |
 | `Organization` or `Person` | every page | The publisher: name, address, logo (or photo) and official profiles (`sameAs`). |
-| `WebPage` | every page | `CollectionPage` for the home listing and archives, `SearchResultsPage` for search, `WebPage` otherwise. Name, description, language, primary image and publication date. |
-| `BlogPosting`, `Article` or `NewsArticle` | posts | Headline, description, dates, author, image, first category (`articleSection`), tags (`keywords`) and word count. Pages get no article node: they are a `WebPage`. |
+| `WebPage` | every page | `CollectionPage` for the home listing and archives, `SearchResultsPage` for search, `WebPage` otherwise. Name, description, language, primary image, and publication and modification dates. |
+| `BlogPosting`, `Article` or `NewsArticle` | posts | Headline, description, dates (`datePublished`, `dateModified`), author, image, first category (`articleSection`), tags (`keywords`) and word count. Pages get no article node: they are a `WebPage`. |
 | `ImageObject` | posts and pages with a featured image | The image, referenced by the page and the article. |
 | `BreadcrumbList` | everything but the home page and search | Home → category → post (the post's first category), or Home → page. |
 
 404 pages get nothing. A static front page is treated as the home page.
+Values the host leaves empty (a post without a featured image or without
+categories) are left out, never invented.
+
+When the plugin returns JSON-LD for a page, the host leaves its own
+`WebSite` and `BlogPosting` out, so nothing is described twice.
 
 Text values are cut to what search engines use (headlines at 110 characters,
 descriptions at 300), whitespace is collapsed, tags are deduplicated
@@ -28,13 +33,9 @@ enough.
 
 ## Permissions
 
-| Permission | Why |
-| --- | --- |
-| `posts:read` | To read the publication date, featured image, categories, tags and word count of the post being rendered. The host currently passes `head.meta` a shortened post without them (see [Host gaps](#host-gaps)), so the plugin finds the full post with one title search and matches it by id. |
-
-Without `posts:read` the plugin still works: dates, images, breadcrumb
-categories and keywords are left out, and it logs once "posts:read is not
-granted". When a future host sends the complete post, the search is skipped.
+None. The plugin reads only the page object the host sends to `head.meta`,
+which carries the full post: dates, featured image, categories, tags and
+word count. It makes no host calls besides logging.
 
 ## Settings
 
@@ -66,8 +67,7 @@ data.
 
 Real output (`go test`, pretty-printed; the host compacts it) for a post
 with a featured image, a category and two tags, with `publisher_name`,
-`publisher_logo` and two `same_as` profiles set. The host had sent the
-shortened post, so the date, image and terms come from the lookup:
+`publisher_logo` and two `same_as` profiles set:
 
 ```json
 {
@@ -113,6 +113,7 @@ shortened post, so the date, image and terms come from the lookup:
         "@id": "https://example.test/blog/hello-world#primaryimage"
       },
       "datePublished": "2026-05-01T10:00:00Z",
+      "dateModified": "2026-05-03T08:30:00Z",
       "breadcrumb": {
         "@id": "https://example.test/blog/hello-world#breadcrumb"
       }
@@ -137,6 +138,7 @@ shortened post, so the date, image and terms come from the lookup:
       },
       "inLanguage": "en",
       "datePublished": "2026-05-01T10:00:00Z",
+      "dateModified": "2026-05-03T08:30:00Z",
       "publisher": {
         "@id": "https://example.test/#publisher"
       },
@@ -227,28 +229,6 @@ The Spanish home page (`/es/`) with the default settings:
 }
 ```
 
-## Host gaps
-
-- **Shortened post in `head.meta`.** `internal/web/public.go` (`renderPage`)
-  builds the post with only id, type, title, slug, lang, URL, excerpt and
-  author, while docs/PLUGINS.md promises the full post object. The plugin
-  works around it with one `posts_query` per post page (title search, matched
-  by id, at most 20 results). If the post is not found (a title made only of
-  symbols, or more than 20 newer posts containing all of its title words),
-  the JSON-LD is still written without the missing fields.
-- **The host writes its own JSON-LD.** The theme already gets a `WebSite`
-  with a `SearchAction` on the home page and a `BlogPosting` on posts. With
-  this plugin enabled those entities appear twice (with different `@id`s).
-  Search engines tolerate it, but the host should leave its own JSON-LD out
-  when a plugin provides some.
-- **No featured image in practice.** The `posts_query` host function
-  (`internal/plugin/hostfuncs.go`) loads terms but not featured images, so
-  the lookup never finds an image and no `ImageObject` is written yet. The
-  plugin needs no change once the host fills `image` (in `head.meta` or in
-  `posts_query`).
-- **No modification date.** The post object has no `updated_at`, so
-  `dateModified` is not written.
-
 ## Build and install
 
 ```sh
@@ -258,6 +238,6 @@ make install PLUGINS_DIR=/path/to/data/plugins
 ```
 
 Then open Admin → Plugins, use **Reload**, enable the plugin (approving pins
-the hash of `plugin.wasm` and grants `posts:read`) and fill in the publisher
-settings. Check the result with the Schema.org validator or Google's Rich
-Results Test on a public page.
+the hash of `plugin.wasm`; there are no permissions to grant) and fill in
+the publisher settings. Check the result with the Schema.org validator or
+Google's Rich Results Test on a public page.

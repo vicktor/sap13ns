@@ -6,8 +6,10 @@
 // listings, SearchResultsPage for search), a BlogPosting/Article/NewsArticle
 // for posts, the primary image and a BreadcrumbList.
 //
-// This file and lookup.go are plain Go so they can be tested natively;
-// handler.go adapts the plugin SDK and main.go registers it (wasip1 only).
+// Everything comes from the page object the host sends to head.meta; the
+// plugin makes no host calls besides logging. This file is plain Go so it
+// can be tested natively; handler.go adapts the plugin SDK and main.go
+// registers it (wasip1 only).
 package main
 
 import (
@@ -255,8 +257,8 @@ func Build(page pluginsdk.Page, c Config) *Node {
 		webpage.set("primaryImageOfPage", ref(ids.image))
 		graph = append(graph, image)
 	}
-	if post != nil && post.PublishedAt != "" {
-		webpage.set("datePublished", post.PublishedAt)
+	if post != nil {
+		webpage.set("datePublished", post.PublishedAt).set("dateModified", post.UpdatedAt)
 	}
 
 	// The post.
@@ -273,6 +275,7 @@ func Build(page pluginsdk.Page, c Config) *Node {
 			set("isPartOf", ref(ids.webpage)).
 			set("inLanguage", postLang).
 			set("datePublished", post.PublishedAt).
+			set("dateModified", post.UpdatedAt).
 			set("publisher", ref(ids.publisher))
 		if a := strings.TrimSpace(post.Author); a != "" {
 			article.set("author", node("Person", "").set("name", truncateRunes(a, maxNameRunes)))

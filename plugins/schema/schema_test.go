@@ -23,7 +23,7 @@ func samplePost() *pluginsdk.Post {
 		Categories: []string{"News"}, Tags: []string{"go", "cms", "Go"},
 		Terms: []pluginsdk.Term{{Taxonomy: "category", Slug: "news", Name: "News", URL: site + "/category/news"},
 			{Taxonomy: "tag", Slug: "go", Name: "go", URL: site + "/tag/go"}},
-		Image: site + "/uploads/hello.jpg", PublishedAt: "2026-05-01T10:00:00Z", WordCount: 420}
+		Image: site + "/uploads/hello.jpg", PublishedAt: "2026-05-01T10:00:00Z", UpdatedAt: "2026-05-03T08:30:00Z", WordCount: 420}
 }
 
 // graphOf marshals ld and returns its nodes by @type (several nodes of a
@@ -178,7 +178,8 @@ func TestBuildPost(t *testing.T) {
 	a := g["BlogPosting"][0]
 	want := map[string]any{
 		"@id": post.URL + "#article", "headline": "Hello world", "description": "Meta description", "url": post.URL,
-		"inLanguage": "en", "datePublished": "2026-05-01T10:00:00Z", "articleSection": "News", "wordCount": float64(420),
+		"inLanguage": "en", "datePublished": "2026-05-01T10:00:00Z", "dateModified": "2026-05-03T08:30:00Z",
+		"articleSection": "News", "wordCount": float64(420),
 	}
 	for k, v := range want {
 		if a[k] != v {
@@ -194,10 +195,10 @@ func TestBuildPost(t *testing.T) {
 	if kw := a["keywords"].([]any); len(kw) != 2 || kw[0] != "go" || kw[1] != "cms" {
 		t.Errorf("keywords = %v (duplicates must go)", kw)
 	}
-	if _, ok := a["dateModified"]; ok {
-		t.Error("dateModified is not known to plugins and must not be invented")
-	}
 	wp := g["WebPage"][0]
+	if wp["datePublished"] != post.PublishedAt || wp["dateModified"] != post.UpdatedAt {
+		t.Errorf("webpage dates: %v", wp)
+	}
 	if refID(wp["breadcrumb"]) != post.URL+"#breadcrumb" || refID(wp["isPartOf"]) != site+"/#website" || refID(wp["primaryImageOfPage"]) != post.URL+"#primaryimage" {
 		t.Errorf("webpage references: %v", wp)
 	}
@@ -207,17 +208,46 @@ func TestBuildPost(t *testing.T) {
 }
 
 func TestBuildWithoutDates(t *testing.T) {
-	// What the host sends today when the lookup is not possible.
+	// A post without dates, image, terms or word count: nothing is invented.
 	post := &pluginsdk.Post{ID: 7, Type: "post", Title: "Hello", Lang: "en", URL: site + "/blog/hello", Author: "Ada"}
 	g := graphOf(t, Build(pluginsdk.Page{Kind: "single", URL: post.URL, Lang: "en", Title: "Hello", Post: post}, cfgWith(nil)))
 	a := g["BlogPosting"][0]
-	for _, k := range []string{"datePublished", "image", "articleSection", "keywords", "wordCount"} {
+	for _, k := range []string{"datePublished", "dateModified", "image", "articleSection", "keywords", "wordCount"} {
 		if _, ok := a[k]; ok {
 			t.Errorf("%s present without data: %v", k, a[k])
 		}
 	}
+	for _, k := range []string{"datePublished", "dateModified", "primaryImageOfPage"} {
+		if _, ok := g["WebPage"][0][k]; ok {
+			t.Errorf("webpage %s present without data", k)
+		}
+	}
 	if len(g["ImageObject"]) != 0 {
 		t.Error("image node without an image")
+	}
+}
+
+func TestBuildDates(t *testing.T) {
+	// A page has no article node: its dates go on the WebPage.
+	page := &pluginsdk.Post{ID: 3, Type: "page", Title: "About", Lang: "en", URL: site + "/about",
+		PublishedAt: "2026-01-02T00:00:00Z", UpdatedAt: "2026-03-04T12:00:00+01:00"}
+	g := graphOf(t, Build(pluginsdk.Page{Kind: "page", URL: page.URL, Lang: "en", Title: "About", Post: page}, cfgWith(nil)))
+	if wp := g["WebPage"][0]; wp["datePublished"] != page.PublishedAt || wp["dateModified"] != page.UpdatedAt {
+		t.Errorf("page dates: %v", wp)
+	}
+	// Only the publication date known: no dateModified.
+	post := samplePost()
+	post.UpdatedAt = ""
+	g = graphOf(t, Build(pluginsdk.Page{Kind: "single", URL: post.URL, Lang: "en", Title: post.Title, Post: post}, cfgWith(nil)))
+	for _, n := range []map[string]any{g["BlogPosting"][0], g["WebPage"][0]} {
+		if _, ok := n["dateModified"]; ok || n["datePublished"] != post.PublishedAt {
+			t.Errorf("%s dates: %v", n["@type"], n)
+		}
+	}
+	// Listings describe no single post: no dates.
+	g = graphOf(t, Build(pluginsdk.Page{Kind: "archive", URL: site + "/category/news", Lang: "en", Title: "News"}, cfgWith(nil)))
+	if _, ok := g["CollectionPage"][0]["dateModified"]; ok {
+		t.Error("an archive has a dateModified")
 	}
 }
 

@@ -7,7 +7,7 @@
   "author": "sap13ns",
   "license": "MIT",
   "hooks": ["head.meta"],
-  "permissions": ["posts:read"],
+  "permissions": [],
   "settings": [
     {"key": "article_type", "label": "Type of posts", "type": "select", "default": "BlogPosting", "choices": ["BlogPosting", "Article", "NewsArticle"], "help": "BlogPosting suits most blogs; NewsArticle is for news sites."},
     {"key": "publisher_type", "label": "Published by", "type": "select", "default": "Organization", "choices": ["Organization", "Person"], "help": "Whether the site belongs to an organization or to one person."},
