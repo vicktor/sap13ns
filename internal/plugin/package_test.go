@@ -303,6 +303,30 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
+func TestPinnedCapabilities(t *testing.T) {
+	m, err := ParseManifest([]byte(`{"abi": 1, "id": "pin", "name": "P", "version": "1.0.0", "permissions": ["kv"],
+		"hooks": ["shortcode", "widget", "form.submit"], "shortcodes": ["tip"], "widgets": [{"id": "recent", "title": "Recent"}],
+		"forms": [{"id": "contact", "fields": [{"name": "email", "label": "E-mail", "type": "email", "required": true}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(m.Pinned(), " ")
+	for _, want := range []string{"kv", "hook:form.submit", "hook:shortcode", "hook:widget", "shortcode:tip", "widget:recent", "form:contact:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("pinned %q lacks %q", got, want)
+		}
+	}
+	form := m.Capabilities()[0]
+	m.Forms[0].Fields[0].Label = LocalText{"en": "Your e-mail"}
+	if m.Capabilities()[0] != form {
+		t.Error("a new label changed the form pin")
+	}
+	m.Forms[0].Fields[0].Type = "textarea"
+	if m.Capabilities()[0] == form {
+		t.Error("a new field type kept the form pin")
+	}
+}
+
 func TestInstallLifecycle(t *testing.T) {
 	st := testutil.Store(t)
 	dir := t.TempDir()

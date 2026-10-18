@@ -384,11 +384,12 @@ Plugins never write `<form>` HTML. They declare forms in the manifest, and the h
 
 1. the cross-origin protection (`Sec-Fetch-Site` and `Origin`);
 2. `application/x-www-form-urlencoded`, at most 64 KiB;
-3. 10 submissions per IP every 10 minutes;
+3. 10 submissions per IP every 10 minutes (per /64 for IPv6);
 4. the honeypot (bots get a fake success);
-5. the token (expired or reused tokens are refused);
-6. a minimum of 3 seconds between rendering and sending;
-7. every field: required, length, e-mail, `http(s)` URL, phone, number, choice, and checkbox.
+5. the token's signature and age;
+6. a minimum of 3 seconds between rendering and sending (the token is not spent, so the same form can be sent again);
+7. the token's single use (reused tokens are refused);
+8. every field: required, length, e-mail, `http(s)` URL, phone, number, choice, and checkbox.
 
 Values are trimmed and control characters are removed (newlines are kept in `textarea`). Only then does `form.submit` run.
 
@@ -516,13 +517,13 @@ The scanner checks, in order:
 1. **Upload.** In **Plugins → Upload a plugin**, or with `sap13ns plugin install`. The package is extracted, scanned, and installed **disabled**. The uploader, the source (`upload` or `cli`) and the time are recorded.
 2. **Refusal.** A blocked package is refused with its report (HTTP 422), and nothing is written.
 3. **Review.** The plugin page shows the requested permissions with their risk, the assets, the SHA-256 of the module and the assets, and the scan report.
-4. **Enable.** The form carries a pin of what the administrator saw: the module and asset hashes, the permissions, and the hooks, events and forms. If any of them changed in the meantime, enabling is refused. High-risk permissions or high findings need the confirmation box. Enabling pins all of them.
+4. **Enable.** The form carries a pin of what the administrator saw: the module and asset hashes, the permissions, and the hooks, events, shortcodes, widgets and form fields (names, types and limits). If any of them changed in the meantime, enabling is refused. High-risk permissions or high findings need the confirmation box. Enabling pins all of them.
 5. **Use.** Configure the settings, place widgets under **Appearance → Widgets**, and use shortcodes in content.
 
 **Updating** means uploading a package with the same id.
 
 - **What is kept:** settings and key-value data.
-- **When it stops:** if the module or assets changed, or the manifest asks for a permission, hook, event or form that was not approved, the plugin becomes `modified` and must be enabled again. A new version with the same build stays enabled.
+- **When it stops:** if the module or assets changed, or the manifest asks for a permission, hook, event, shortcode, widget or form (or form field) that was not approved, the plugin becomes `modified` and must be enabled again. A new version with the same build stays enabled.
 - **Older versions** are refused unless **Allow an older version** is ticked (`-allow-downgrade` on the command line).
 - **Atomic swap:** the update replaces the directory in two renames.
 

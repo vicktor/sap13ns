@@ -627,7 +627,7 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ip := clientIP(r)
-	if !s.commentIP.Allow(ip.String()) {
+	if !s.commentIP.Allow(ipKey(ip)) {
 		done("ratelimit")
 		return
 	}

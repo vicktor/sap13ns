@@ -178,7 +178,7 @@ func (s *Server) admitQuestion(r *http.Request, as store.AssistantSettings, ques
 	if analytics.IsBot(r.UserAgent()) {
 		return &assistantError{http.StatusForbidden, s.i18n.T(lang, "Automated clients cannot use the assistant.")}
 	}
-	if as.PerIPHour > 0 && !s.ipLimiter(as.PerIPHour).Allow(clientIP(r).String()) {
+	if as.PerIPHour > 0 && !s.ipLimiter(as.PerIPHour).Allow(ipKey(clientIP(r))) {
 		return &assistantError{http.StatusTooManyRequests, s.i18n.T(lang, "Too many questions. Please wait a while and try again.")}
 	}
 	if strings.TrimSpace(question) == "" {

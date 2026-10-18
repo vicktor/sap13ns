@@ -38,6 +38,17 @@ func rctx(r *http.Request) *reqCtx {
 
 func clientIP(r *http.Request) netip.Addr { return rctx(r).IP }
 
+// ipKey is the rate-limit key of an address: the address itself for IPv4,
+// its /64 for IPv6, where one host usually holds the whole prefix.
+func ipKey(ip netip.Addr) string {
+	ip = ip.Unmap()
+	if ip.Is4() || !ip.IsValid() {
+		return ip.String()
+	}
+	p, _ := ip.Prefix(64)
+	return p.String()
+}
+
 func currentUser(r *http.Request) *store.User { return rctx(r).User }
 
 // statusWriter records the status code for logging.

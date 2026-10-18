@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/exec"
@@ -95,19 +97,26 @@ func TestSafePublicPath(t *testing.T) {
 
 func TestFormTokens(t *testing.T) {
 	s := &Server{keys: auth.NewKeys([]byte("0123456789abcdef0123456789abcdef"))}
+	use := func(key, tok string) (time.Duration, bool) {
+		nonce, age, ok := s.checkFormToken(key, tok)
+		return age, ok && s.spendFormNonce(nonce)
+	}
 	tok := s.newFormToken("pp.f")
-	if age, ok := s.useFormToken("pp.f", tok); !ok || age > time.Second {
+	if _, age, ok := s.checkFormToken("pp.f", tok); !ok || age > time.Second {
 		t.Fatalf("fresh token: %v %s", ok, age)
 	}
-	if _, ok := s.useFormToken("pp.f", tok); ok {
+	if age, ok := use("pp.f", tok); !ok || age > time.Second {
+		t.Fatalf("checked token not usable: %v %s", ok, age)
+	}
+	if _, ok := use("pp.f", tok); ok {
 		t.Fatal("a token was accepted twice")
 	}
-	if _, ok := s.useFormToken("other.f", s.newFormToken("pp.f")); ok {
+	if _, ok := use("other.f", s.newFormToken("pp.f")); ok {
 		t.Fatal("a token was accepted for another form")
 	}
 	tok = s.newFormToken("pp.f")
 	for _, bad := range []string{"", "x~y", tok[:len(tok)-2] + "zz", strings.Replace(tok, tok[:4], "0000", 1)} {
-		if _, ok := s.useFormToken("pp.f", bad); ok {
+		if _, ok := use("pp.f", bad); ok {
 			t.Errorf("accepted %q", bad)
 		}
 	}
@@ -116,8 +125,35 @@ func TestFormTokens(t *testing.T) {
 	if len(m) != 2 || bytes.Equal(m[0][1], m[1][1]) || bytes.Contains(body, []byte(formTokenSlot)) {
 		t.Fatalf("filled body %s", body)
 	}
-	if _, ok := s.useFormToken("pp.f", string(m[1][1])); !ok {
+	if _, ok := use("pp.f", string(m[1][1])); !ok {
 		t.Fatal("filled token rejected")
+	}
+
+	// A full generation is rotated out instead of refusing new nonces.
+	spent := fmt.Sprintf("%024d", 0)
+	for i := range maxNonces {
+		if !s.spendFormNonce(fmt.Sprintf("%024d", i)) {
+			t.Fatalf("nonce %d refused", i)
+		}
+	}
+	if !s.spendFormNonce("n-after-a-full-generation") {
+		t.Fatal("a new nonce was refused once the table was full")
+	}
+	if s.spendFormNonce(spent) {
+		t.Fatal("a nonce of the previous generation was accepted again")
+	}
+}
+
+func TestIPKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"203.0.113.7":                   "203.0.113.7",
+		"::ffff:203.0.113.7":            "203.0.113.7",
+		"2001:db8:1:2:3:4:5:6":          "2001:db8:1:2::/64",
+		"2001:db8:1:2:ffff:ffff:ffff:1": "2001:db8:1:2::/64",
+	} {
+		if got := ipKey(netip.MustParseAddr(in)); got != want {
+			t.Errorf("ipKey(%s) = %s, want %s", in, got, want)
+		}
 	}
 }
 

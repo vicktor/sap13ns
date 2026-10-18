@@ -35,7 +35,7 @@ sap13ns assumes the server, its operator and its administrators are trusted. Eve
   | Comments, per IP | 6 per 10 minutes |
   | Registration and password reset | 5 per hour |
 
-  Repeated failures lock the account for a while. Every outcome is written to the audit log.
+  Limits per IP count an IPv6 /64 as one address. Repeated failures lock the account for a while. Every outcome is written to the audit log.
 - **Sessions:**
   - random tokens stored only as hashes;
   - `HttpOnly` cookies, `Secure` over https, `SameSite=Lax`;

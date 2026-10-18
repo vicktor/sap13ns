@@ -314,30 +314,34 @@ func (s *Server) fillFormTokens(body []byte) []byte {
 	})
 }
 
-// useFormToken checks a token and spends its nonce. It returns the age of
-// the token.
-func (s *Server) useFormToken(key, token string) (time.Duration, bool) {
+// checkFormToken verifies a token's signature and returns its nonce and
+// age, without spending it.
+func (s *Server) checkFormToken(key, token string) (string, time.Duration, bool) {
 	nonce, sig, ok := strings.Cut(token, "~")
 	if !ok || len(nonce) != 24 {
-		return 0, false
+		return "", 0, false
 	}
 	age, valid := s.keys.Verify("plugin-form", key+"/"+nonce, sig, formTokenTTL)
-	if !valid {
-		return 0, false
-	}
+	return nonce, age, valid
+}
+
+// spendFormNonce records a nonce as used, reporting false when it was used
+// before. A full generation is rotated out early: the oldest nonces are
+// forgotten rather than refusing every new submission.
+func (s *Server) spendFormNonce(nonce string) bool {
 	st := s.plugWeb()
 	st.nonceMu.Lock()
 	defer st.nonceMu.Unlock()
-	if time.Since(st.rotated) > formTokenTTL {
+	if time.Since(st.rotated) > formTokenTTL || len(st.nonces) >= maxNonces {
 		st.oldNonces, st.nonces, st.rotated = st.nonces, map[string]struct{}{}, time.Now()
 	}
 	_, used := st.nonces[nonce]
 	_, usedOld := st.oldNonces[nonce]
-	if used || usedOld || len(st.nonces) >= maxNonces {
-		return 0, false
+	if used || usedOld {
+		return false
 	}
 	st.nonces[nonce] = struct{}{}
-	return age, true
+	return true
 }
 
 // handlePluginForm receives POST /plugin-forms/{plugin}/{form}. The
@@ -382,7 +386,7 @@ func (s *Server) handlePluginForm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, setQuery(back, "pf", key)+"#"+formAnchor(pid, fid), http.StatusSeeOther)
 	}
 	ip := clientIP(r).String()
-	if !s.plugWeb().formIP.Allow(ip) {
+	if !s.plugWeb().formIP.Allow(ipKey(clientIP(r))) {
 		finish(false, T("Too many submissions. Wait a few minutes and try again."), nil)
 		return
 	}
@@ -391,14 +395,16 @@ func (s *Server) handlePluginForm(w http.ResponseWriter, r *http.Request) {
 		finish(true, T("Thanks! Your message was sent."), nil) // do not tell bots
 		return
 	}
-	age, valid := s.useFormToken(key, r.PostFormValue("_token"))
-	if !valid {
-		finish(false, T("This form expired. Check the fields and send it again."), nil)
-		return
-	}
-	if age < formMinAge {
+	// The age is checked before the nonce is spent, so a submission that
+	// was too fast can be sent again with the same token.
+	nonce, age, valid := s.checkFormToken(key, r.PostFormValue("_token"))
+	if valid && age < formMinAge {
 		s.log.Info("plugin form rejected as spam", "form", key, "ip", ip, "reason", "too fast")
 		finish(false, T("That was too fast. Wait a moment and send the form again."), nil)
+		return
+	}
+	if !valid || !s.spendFormNonce(nonce) {
+		finish(false, T("This form expired. Check the fields and send it again."), nil)
 		return
 	}
 	fields, errs := validateFormFields(f, values, T)

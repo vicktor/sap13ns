@@ -17,6 +17,8 @@
 package plugin
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -489,9 +491,11 @@ func (m *Manifest) EffectivePermissions() []string {
 	return slices.Compact(out)
 }
 
-// Capabilities are the hooks, events and forms the manifest subscribes to,
-// as the entries an approval pins next to the permissions ("hook:widget",
-// "event:post.published", "form:contact").
+// Capabilities are what the manifest hooks into, as the entries an
+// approval pins next to the permissions: "hook:widget",
+// "event:post.published", "shortcode:tip", "widget:recent" and
+// "form:contact:<digest>", where the digest covers the names, types and
+// limits of the form's fields (not their labels).
 func (m *Manifest) Capabilities() []string {
 	var out []string
 	for _, h := range m.Hooks {
@@ -500,8 +504,18 @@ func (m *Manifest) Capabilities() []string {
 	for _, e := range m.Events {
 		out = append(out, "event:"+e)
 	}
+	for _, sc := range m.Shortcodes {
+		out = append(out, "shortcode:"+sc)
+	}
+	for _, w := range m.Widgets {
+		out = append(out, "widget:"+w.ID)
+	}
 	for _, f := range m.Forms {
-		out = append(out, "form:"+f.ID)
+		h := sha256.New()
+		for _, fd := range f.Fields {
+			fmt.Fprintf(h, "%s\x00%s\x00%d\x00%s\n", fd.Name, fd.Type, fd.Limit(), strings.Join(fd.Choices, "\x00"))
+		}
+		out = append(out, "form:"+f.ID+":"+hex.EncodeToString(h.Sum(nil))[:16])
 	}
 	sort.Strings(out)
 	return slices.Compact(out)

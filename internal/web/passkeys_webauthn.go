@@ -253,7 +253,7 @@ func (s *Server) loginPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, 4<<10, &req) {
 		return
 	}
-	if !s.passkeys().begin.Allow("ip:" + clientIP(r).String()) {
+	if !s.passkeys().begin.Allow("ip:" + ipKey(clientIP(r))) {
 		passkeyFail(w, http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
 		return
 	}
@@ -311,7 +311,7 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, 64<<10, &req) {
 		return
 	}
-	ip := clientIP(r).String()
+	ip := ipKey(clientIP(r))
 	c, ok := s.takeCeremony(w, r, "login")
 	session, _ := c.Session.(*webauthn.SessionData)
 	if !s.loginIP.Allow(ip) {

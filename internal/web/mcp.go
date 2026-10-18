@@ -383,7 +383,7 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.assistant() // creates the limiter
-	if !s.bot.mcpIP.Allow(clientIP(r).String()) {
+	if !s.bot.mcpIP.Allow(ipKey(clientIP(r))) {
 		w.Header().Set("Retry-After", "60")
 		http.Error(w, "too many requests", http.StatusTooManyRequests)
 		return

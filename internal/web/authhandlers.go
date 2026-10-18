@@ -75,7 +75,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	login := strings.ToLower(strings.TrimSpace(r.PostFormValue("login")))
 	password := r.PostFormValue("password")
 	next := safeNext(r.PostFormValue("next"))
-	ip := clientIP(r).String()
+	ip := ipKey(clientIP(r))
 	form := &authForm{Next: next, Values: map[string]string{"login": login}}
 	fail := func(status int, msg string) {
 		form.Error = msg
@@ -283,7 +283,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusBadRequest, s.t("The form could not be verified. Please try again."))
 		return
 	}
-	if !s.registerIP.Allow(clientIP(r).String()) {
+	if !s.registerIP.Allow(ipKey(clientIP(r))) {
 		fail(http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
 		return
 	}
@@ -364,7 +364,7 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	email := strings.TrimSpace(r.PostFormValue("email"))
 	form := &authForm{Notice: s.t("If the address belongs to an account, you will receive a link to choose a new password. It is valid for one hour.")}
-	if !s.resetIP.Allow(clientIP(r).String()) || !s.resetIP.Allow("email:"+strings.ToLower(email)) {
+	if !s.resetIP.Allow(ipKey(clientIP(r))) || !s.resetIP.Allow("email:"+strings.ToLower(email)) {
 		form.Notice, form.Error = "", s.t("Too many attempts. Wait a few minutes and try again.")
 		s.renderAuth(w, r, http.StatusTooManyRequests, "forgot", s.t("Reset your password"), form)
 		return
