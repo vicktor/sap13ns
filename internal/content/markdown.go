@@ -19,6 +19,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
+	xhtml "golang.org/x/net/html"
 )
 
 // lazyImages marks every image as lazily loaded and asynchronously decoded.
@@ -179,13 +180,40 @@ func Render(src string, isRegistered func(name string) bool, shortcode Shortcode
 	if len(replacements) == 0 {
 		return template.HTML(out)
 	}
-	s := string(out)
-	for token, html := range replacements {
-		// Block-level shortcodes end up wrapped in a paragraph.
-		s = strings.ReplaceAll(s, "<p>"+token+"</p>", html)
-		s = strings.ReplaceAll(s, token, html)
+	return template.HTML(substituteTokens(string(out), replacements))
+}
+
+// substituteTokens puts each shortcode's HTML where its token is, in text
+// only. A token inside a tag (an author can put a shortcode in a link title
+// or an image's alt text) is dropped: HTML spliced into an attribute value
+// would break out of it.
+func substituteTokens(s string, replacements map[string]string) string {
+	for token := range replacements {
+		// Block-level shortcodes end up wrapped in a paragraph. "<p>" is
+		// always markup here: the sanitizer escapes "<" in attribute values.
+		s = strings.ReplaceAll(s, "<p>"+token+"</p>", token)
 	}
-	return template.HTML(s)
+	var b strings.Builder
+	z := xhtml.NewTokenizer(strings.NewReader(s))
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			break // io.EOF: the sanitizer's output is well formed
+		}
+		raw := string(z.Raw())
+		for token, h := range replacements {
+			if !strings.Contains(raw, token) {
+				continue
+			}
+			if tt == xhtml.TextToken {
+				raw = strings.ReplaceAll(raw, token, h)
+			} else {
+				raw = strings.ReplaceAll(raw, token, "")
+			}
+		}
+		b.WriteString(raw)
+	}
+	return b.String()
 }
 
 // RenderPlain renders Markdown without shortcodes (previews of excerpts,

@@ -3,6 +3,8 @@ package content
 import (
 	"strings"
 	"testing"
+
+	xhtml "golang.org/x/net/html"
 )
 
 func TestRenderLinks(t *testing.T) {
@@ -58,5 +60,43 @@ func TestPluginFormPlaceholder(t *testing.T) {
 	got := string(SanitizePluginHTML(`<div data-form="contact.main"></div><div data-form="bad form"></div>`, nil))
 	if !strings.Contains(got, `<div data-form="contact.main"></div>`) || strings.Contains(got, "bad form") {
 		t.Errorf("form placeholders: %s", got)
+	}
+}
+
+// A shortcode inside an attribute (a link title, an image's alt text) must
+// not splice its HTML into the attribute value.
+func TestShortcodeInAttribute(t *testing.T) {
+	isTip := func(name string) bool { return name == "tip" }
+	tip := func(sc Shortcode) (string, error) { return `<span aria-label="` + sc.Attrs["text"] + `">tip</span>`, nil }
+	for _, src := range []string{
+		`[click](https://x.example "[tip text='a ping=https://evil.example/p id=sap-assistant']")`,
+		`![[tip text='x onerror=alert(1)']](/x.png)`,
+	} {
+		out := string(Render(src, isTip, tip, nil))
+		doc, err := xhtml.Parse(strings.NewReader(out))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var walk func(n *xhtml.Node)
+		walk = func(n *xhtml.Node) {
+			for _, a := range n.Attr {
+				switch a.Key {
+				case "ping", "onerror", "id", "srcset", "data-copy-url":
+					t.Errorf("%s: injected attribute %s in %s", src, a.Key, out)
+				}
+				if strings.Contains(a.Val, "<") || strings.Contains(a.Val, "sc") && strings.Contains(a.Val, "x0") {
+					t.Errorf("%s: markup or token in attribute %s=%q", src, a.Key, a.Val)
+				}
+			}
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				walk(c)
+			}
+		}
+		walk(doc)
+	}
+	// In text, inline and as a block, it is still expanded.
+	out := string(Render("Say [tip text='hi'] now\n\n[tip text='block']", isTip, tip, nil))
+	if !strings.Contains(out, `<p>Say <span aria-label="hi">tip</span> now</p>`) || !strings.Contains(out, `<span aria-label="block">tip</span>`) || strings.Contains(out, `<p><span aria-label="block">`) {
+		t.Errorf("expansion: %s", out)
 	}
 }
