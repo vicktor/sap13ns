@@ -56,13 +56,14 @@ type Engine struct {
 // backend is the resolved search setup: the embedder (nil for full-text
 // only) and the vector column it fills (nil without pgvector).
 type backend struct {
-	key      string
-	embedder ai.Embedder
-	model    string // configured embedding model
-	vec      *store.AssistantVector
-	pgvector string // version and schema, or why it is missing
-	problem  string // why semantic search is off, for the status page
-	checked  time.Time
+	key         string
+	embedder    ai.Embedder
+	model       string // configured embedding model
+	vec         *store.AssistantVector
+	pgvector    string // version and schema, or why it is missing
+	hasPgvector bool
+	problem     string // why semantic search is off, for the status page
+	checked     time.Time
 }
 
 // model is the embedding model whose vectors the index holds right now.
@@ -240,6 +241,7 @@ func (e *Engine) resolve(ctx context.Context, maxAge time.Duration) (*backend, e
 			return nil, err
 		}
 	}
+	b.hasPgvector = ok
 	if ok {
 		b.pgvector = version + " (schema " + schema + ")"
 	} else if b.pgvector == "" {
@@ -625,13 +627,14 @@ func snippet(md string, n int) string {
 // Status describes the index for the admin page and the CLI.
 type Status struct {
 	store.AssistantStats
-	State    store.AssistantIndexState
-	Model    string // configured embedding model ("" for none)
-	Vector   string // column type in use, "" without semantic search
-	Pgvector string
-	Problem  string // why semantic search is off
-	Semantic bool
-	Failures []store.AssistantFailure
+	State       store.AssistantIndexState
+	Model       string // configured embedding model ("" for none)
+	Vector      string // column type in use, "" without semantic search
+	Pgvector    string
+	HasPgvector bool
+	Problem     string // why semantic search is off
+	Semantic    bool
+	Failures    []store.AssistantFailure
 }
 
 // Status reports the index. It resolves the backend afresh, which can
@@ -643,6 +646,7 @@ func (e *Engine) Status(ctx context.Context) (Status, error) {
 		return st, err
 	}
 	st.Model, st.Pgvector, st.Problem, st.Semantic = b.model, b.pgvector, b.problem, b.vec != nil
+	st.HasPgvector = b.hasPgvector
 	if b.vec != nil {
 		st.Vector = b.vec.String()
 	}

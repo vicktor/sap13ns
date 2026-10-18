@@ -328,7 +328,9 @@ type sysRow struct {
 }
 
 type systemData struct {
-	Groups []sysGroup
+	Groups  []sysGroup
+	Updates []sysRow
+	Checks  bool // release checks are on: offer "Check now"
 }
 
 type sysGroup struct {
@@ -380,7 +382,7 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 			{Label: s.t("Public URL"), Value: s.cfg.BaseURL.String(), OK: flag(https)},
 			{Label: s.t("Secure cookies"), Value: fmt.Sprint(s.cfg.CookieSecure), OK: flag(s.cfg.CookieSecure)},
 			{Label: "HSTS", Value: fmt.Sprint(s.cfg.HSTS), OK: flag(s.cfg.HSTS || !https)},
-			{Label: s.t("Two-factor authentication"), Value: s.t("Required"), OK: flag(true)},
+			{Label: s.t("Two-factor authentication"), Value: s.twoFactorDescription(), OK: flag(!(s.cfg.Dev && s.cfg.DevSkip2FA))},
 			{Label: s.t("E-mail delivery"), Value: s.mailDescription(), OK: flag(s.mailer.Enabled())},
 			{Label: s.t("Trusted proxies"), Value: fmt.Sprint(s.cfg.TrustedProxies)},
 		}},
@@ -400,7 +402,18 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 			{Label: s.t("Maximum upload"), Value: filesize(s.cfg.MaxUploadBytes)},
 		}},
 	}}
+	d.Updates, d.Checks = s.updateRows(), s.updates != nil && !s.updates.Disabled
 	s.renderAdmin(w, r, "system", s.t("System"), "system", d)
+}
+
+func (s *Server) twoFactorDescription() string {
+	switch {
+	case s.cfg.Dev && s.cfg.DevSkip2FA:
+		return s.t("Skipped (development mode)")
+	case s.settings().TwoFactor == "editors":
+		return s.t("Required for administrators and editors")
+	}
+	return s.t("Required for all staff")
 }
 
 func (s *Server) mailDescription() string {

@@ -479,3 +479,20 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 
 /* Visual editor: surface, opaque blocks and popovers. */
 @import "./editor.css";
+
+/* Analytics */
+.stats-chart svg { @apply h-auto w-full overflow-visible; }
+.stats-chart .bar { fill: var(--primary); }
+.stats-chart .bar:hover { opacity: 0.75; }
+.stats-chart .tick { stroke: var(--border); stroke-width: 1; }
+.stats-chart .tick-label { fill: var(--muted-foreground); font-size: 11px; text-anchor: end; dominant-baseline: middle; }
+.stats-table { @apply mt-4 text-sm; }
+.stats-table summary { @apply cursor-pointer text-muted-foreground; }
+.stats-table .num, .stats-list .stats-num { @apply text-right tabular-nums; }
+.stats-list { @apply grid gap-3 text-sm; }
+.stats-list li { @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1; }
+.stats-list .stats-name { @apply truncate; }
+.stats-list meter { @apply col-span-2 h-1.5 w-full appearance-none rounded-full border-0 bg-muted; }
+.stats-list meter::-webkit-meter-bar { @apply h-1.5 rounded-full border-0 bg-muted; }
+.stats-list meter::-webkit-meter-optimum-value { @apply rounded-full bg-primary; }
+.stats-list meter::-moz-meter-bar { @apply rounded-full bg-primary; }

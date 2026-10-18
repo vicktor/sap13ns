@@ -26,6 +26,7 @@ type dashboardData struct {
 	Users    int
 	Plugins  int
 	Theme    string
+	Stats    *dashStats // last 7 days; nil when analytics are off or not allowed
 	Now      time.Time
 }
 
@@ -41,6 +42,9 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 		authorID = u.ID
 	}
 	d := dashboardData{Now: time.Now(), Theme: s.themes.Active(s.settings().ActiveTheme).Name}
+	if auth.Can(u.Role, auth.CapEditOthersPosts) {
+		d.Stats = s.dashboardStats(ctx)
+	}
 	var err error
 	if d.Posts, err = s.store.CountPostsByStatus(ctx, store.TypePost, authorID); err != nil {
 		s.serverError(w, r, err)

@@ -1377,19 +1377,26 @@ export function htmlToBlocks(root) {
   const ctx = { paste: true, images: { data: [], dropped: 0 } };
   const B = newB(ctx);
   walk(root, {}, B);
-  const blocks = bFinish(B);
+  return { blocks: normalizeHeadings(bFinish(B)), images: ctx.images };
+}
+// normalizeHeadings shifts pasted headings so the top level becomes h2 (h1 is
+// the post title) and clamps the rest to h4.
+export function normalizeHeadings(blocks) {
   let min = 7;
   eachBlock(blocks, (b) => { if (b.type === "h") min = Math.min(min, b.level); });
   const shift = min < 2 ? 2 - min : 0;
   eachBlock(blocks, (b) => { if (b.type === "h") b.level = Math.min(4, b.level + shift); });
-  return { blocks, images: ctx.images };
+  return blocks;
 }
 // Plain text that looks like Markdown is parsed as such when pasted visually.
 export function looksLikeMarkdown(t) {
   return /^(?:#{1,6} |[-*+] |\d{1,9}[.)] |> |```|~~~|\|.*\|$)/m.test(t) || /\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\s]+\)|`[^`\n]+`/.test(t);
 }
+// textToBlocks: one line is inserted as is; several become one paragraph each.
 export function textToBlocks(t) {
-  return String(t).replace(/\r\n?/g, "\n").split("\n").filter((p) => p.trim()).map((p) => ({ type: "p", runs: [{ t: p.trim(), m: {} }] }));
+  const lines = String(t).replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
+  if (lines.length === 1) return lines[0] ? [{ type: "p", runs: [{ t: lines[0], m: {} }] }] : [];
+  return lines.filter((p) => p.trim()).map((p) => ({ type: "p", runs: [{ t: p.trim(), m: {} }] }));
 }
 export const _internal = { parseInline, nest, inlineMd, ZW, M1, M2 };
 
@@ -2518,6 +2525,7 @@ function setupEditor() {
         return;
       }
     }
+    if (/Composition/.test(t)) return; // IME: let the browser compose, fix up on compositionend
     if (t.startsWith("delete")) {
       if (cross) { e.preventDefault(); command(deleteSelection); return; }
       if (r.collapsed && hs) {
@@ -2528,7 +2536,8 @@ function setupEditor() {
       beginTyping();
       return;
     }
-    if (t.startsWith("format") || t.startsWith("insert")) e.preventDefault();
+    // Native rich-text commands would inject markup outside the model.
+    if (t.startsWith("format") || /^insert(?:OrderedList|UnorderedList|HorizontalRule|Link|FromYank)$/.test(t)) e.preventDefault();
   }
   surface.addEventListener("beforeinput", onBeforeInput);
 
@@ -2660,7 +2669,7 @@ function setupEditor() {
       if (!(files.length && (onlyImage(res.blocks) || !res.blocks.length))) return { blocks: res.blocks, images: res.images, text };
     }
     if (files.length) return { files, text };
-    if (text) return { blocks: looksLikeMarkdown(text) ? parseMarkdown(text) : textToBlocks(text), text, plain: true };
+    if (text) return { blocks: looksLikeMarkdown(text) ? normalizeHeadings(parseMarkdown(text)) : textToBlocks(text), text, plain: true };
     return { text };
   }
   function pasteData(dt) {
@@ -3204,6 +3213,8 @@ function setupEditor() {
     $$("[data-editor-mode]").forEach((b) => { const on = b.dataset.editorMode === m; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); });
     if (tools) tools.classList.toggle("invisible", m === "preview");
     $$("[data-visual-only]").forEach((b) => { b.hidden = m !== "visual"; });
+    const hb = $('[data-md="heading"]');
+    if (hb) { if (m === "visual") hb.setAttribute("aria-haspopup", "menu"); else { hb.removeAttribute("aria-haspopup"); hb.removeAttribute("aria-expanded"); } }
     if (m !== "preview") { try { localStorage.setItem(storeKey, m); } catch (_) { /* private mode */ } }
     if (m === "preview") loadPreview(h);
     if (focus && m === "visual") {
@@ -3311,11 +3322,9 @@ function setupEditor() {
     return { markdown: md, start: -1, end: -1 };
   }
   function mdInsertAt(md) {
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    ta.focus({ preventScroll: true });
+    const e = ta.selectionEnd;
     ta.setSelectionRange(e, e);
-    mdInsertBlock(md.replace(/^\n+|\n+$/g, ""));
-    void s;
+    mdInsertBlock(md);
   }
   window.sapEditor = {
     mode: () => mode,
@@ -3324,7 +3333,6 @@ function setupEditor() {
       md = String(md == null ? "" : md);
       if (mode !== "visual") {
         ta.setRangeText(md, ta.selectionStart, ta.selectionEnd, "end");
-        lastMd = mode === "visual" ? lastMd : lastMd;
         stale = true;
         emitInput();
         return;
@@ -3366,7 +3374,6 @@ function setupEditor() {
     },
     reveal: (start, end) => reveal(start, end, false),
     flush: () => flushSync(),
-    _debug: () => { const r = curRange() || lastRange; return { segs: tops().map((n) => segMap.get(n) || null), a: r && pointSource(r.startContainer, r.startOffset), b: r && pointSource(r.endContainer, r.endOffset), span: sourceRangeOfSelection() }; },
   };
 
   /* ------------------------------------------------------------------ init */

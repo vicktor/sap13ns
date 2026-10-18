@@ -1,0 +1,130 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.S}}{{$st := $d.Status}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
+    <h1>{{T "Site assistant"}}</h1>
+    <p>{{T "A chat on the public site that answers visitors from your published posts and pages only, with links to them. Posts marked “Hide from the site assistant” are never used."}}</p>
+  </div>
+</div>
+{{template "form-error" $d.Error}}
+{{with $d.Notice}}<div class="alert" data-variant="success">{{icon "circle-check"}}<h2>{{.}}</h2></div>{{end}}
+{{with $d.NewToken}}
+<div class="alert" data-variant="warning">{{icon "key-round"}}<h2>{{T "MCP access token"}}</h2>
+  <section><p>{{T "Send it as “Authorization: Bearer …”. It is shown only now."}}</p><p><code class="mono break-all">{{.}}</code></p></section></div>
+{{end}}
+{{if not $d.AIOn}}<div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The AI provider is off"}}</h2>
+  <section><p>{{T "Answers are written by the provider of"}} <a href="/admin/settings/ai">{{T "AI assistant"}}</a>. {{T "Turn it on there for visitors to see the chat. Search over MCP works without it."}}</p></section></div>{{end}}
+
+<section class="card">
+  <header><h2>{{T "Index"}}</h2>
+    <p>{{T "Public posts and pages are cut into passages for full-text search and, with embeddings and pgvector, semantic search. The index follows every save and is checked every 10 minutes."}}</p></header>
+  <section class="stack">
+    {{with $d.StatusErr}}<div class="alert" data-variant="destructive">{{icon "triangle-alert"}}<h2>{{.}}</h2></div>{{end}}
+    {{with $st}}
+    <div class="stat-grid">
+      <div class="card stat"><span class="stat-icon" aria-hidden="true">{{icon "circle-check"}}</span><span class="stat-label">{{T "Indexed"}}</span><strong class="stat-value">{{.Indexed}}</strong><span class="stat-foot">{{T "of %d public posts and pages" .Eligible}}</span></div>
+      <div class="card stat"><span class="stat-icon" aria-hidden="true">{{icon "refresh-cw"}}</span><span class="stat-label">{{T "Pending"}}</span><strong class="stat-value">{{.Pending}}</strong><span class="stat-foot">{{T "%d passages" .Chunks}}</span></div>
+      <div class="card stat"><span class="stat-icon" aria-hidden="true">{{icon "triangle-alert"}}</span><span class="stat-label">{{T "Failed"}}</span><strong class="stat-value">{{.Failed}}</strong><span class="stat-foot">{{T "searchable by full text"}}</span></div>
+      <div class="card stat"><span class="stat-icon" aria-hidden="true">{{icon "eye-off"}}</span><span class="stat-label">{{T "Hidden"}}</span><strong class="stat-value">{{.Excluded}}</strong><span class="stat-foot">{{T "public, excluded by their editor"}}</span></div>
+    </div>
+    <dl class="meta-list">
+      <div><dt>{{T "Search"}}</dt><dd>{{if .Semantic}}<span class="text-success">{{icon "circle-check" "size-4"}}</span> {{T "Hybrid: full text and semantic"}}{{else}}<span class="text-warning">{{icon "info" "size-4"}}</span> {{T "Full text only"}}{{with .Problem}} — {{.}}{{end}}{{end}}</dd></div>
+      <div><dt>{{T "Embedding model"}}</dt><dd class="mono">{{with .Model}}{{.}}{{else}}—{{end}}{{with .Vector}} · {{.}}{{end}}</dd></div>
+      <div><dt>pgvector</dt><dd>{{.Pgvector}}</dd></div>
+      <div><dt>{{T "Embedded passages"}}</dt><dd class="tabular">{{.Embedded}} / {{.Chunks}}</dd></div>
+      <div><dt>{{T "Last pass"}}</dt><dd>{{if .State.LastRun.IsZero}}—{{else}}{{date .State.LastRun}} {{.State.LastRun.Format "15:04"}} · {{.State.Duration}} · {{T "%d indexed" .State.Indexed}}{{end}}</dd></div>
+      {{with .State.LastError}}<div><dt>{{T "Last error"}}</dt><dd class="break-all">{{.}}</dd></div>{{end}}
+    </dl>
+    {{if not .HasPgvector}}
+    <div class="alert">{{icon "info"}}<h2>{{T "Semantic search needs the pgvector extension"}}</h2>
+      <section><p>{{T "Install pgvector on the database server (for example the postgresql-18-pgvector package), then run once, as a superuser, in this site's database:"}}</p>
+        <p><code class="mono">CREATE EXTENSION vector SCHEMA public;</code></p>
+        <p>{{T "Each site schema reaches it by name, so multisite installs need it only once per database. Until then the assistant uses full-text search."}}</p></section></div>
+    {{end}}
+    {{with .Failures}}
+    <table class="table">
+      <thead><tr><th>{{T "Failed posts"}}</th><th>{{T "Error"}}</th><th class="text-right">{{T "Attempts"}}</th></tr></thead>
+      <tbody>{{range .}}<tr><td><a href="/admin/posts/{{.PostID}}">{{.Title}}</a></td><td class="break-all">{{.Error}}</td><td class="text-right tabular">{{.Attempts}}</td></tr>{{end}}</tbody>
+    </table>
+    {{end}}
+    {{end}}
+    <form method="post" action="/admin/settings/assistant/rebuild" class="flex flex-wrap items-center gap-3">
+      {{$.CSRFField}}
+      <button class="btn" data-variant="outline" type="submit">{{icon "refresh-cw"}}{{T "Rebuild index"}}</button>
+      <label class="check"><input type="checkbox" class="input" name="reembed" value="1"> {{T "Embed everything again (uses the embeddings API for every passage)"}}</label>
+    </form>
+  </section>
+</section>
+
+<form method="post" action="/admin/settings/assistant" class="stack" data-unsaved>
+  {{.CSRFField}}
+  <section class="card">
+    <header><h2>{{T "Chat"}}</h2></header>
+    <section class="form">
+      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Show the assistant on the site"}}</label>
+      <div class="field"><label for="name">{{T "Name"}}</label><input class="input" id="name" name="name" value="{{$s.Name}}" maxlength="60" placeholder="{{T "Site assistant"}}"></div>
+      <div class="field"><label for="greeting">{{T "Greeting"}}</label><textarea class="textarea" id="greeting" name="greeting" rows="2" maxlength="300" placeholder="{{T "Hi! Ask me anything about this site and I will answer from its pages."}}">{{$s.Greeting}}</textarea></div>
+      <div class="field"><label for="suggestions">{{T "Suggested questions"}}</label><textarea class="textarea" id="suggestions" name="suggestions" rows="3" maxlength="800">{{join $s.Suggestions "\n"}}</textarea><p class="hint">{{T "One per line, up to 6."}}</p></div>
+      {{range $d.Langs}}{{$t := index $d.Texts .Code}}
+      <details class="field">
+        <summary>{{T "Greeting and questions in %s" .Name}}</summary>
+        <div class="field"><label for="greeting_{{.Code}}">{{T "Greeting"}} ({{.Code}})</label><textarea class="textarea" id="greeting_{{.Code}}" name="greeting_{{.Code}}" rows="2" maxlength="300" lang="{{.Code}}">{{$t.Greeting}}</textarea></div>
+        <div class="field"><label for="suggestions_{{.Code}}">{{T "Suggested questions"}} ({{.Code}})</label><textarea class="textarea" id="suggestions_{{.Code}}" name="suggestions_{{.Code}}" rows="3" maxlength="800" lang="{{.Code}}">{{$t.Suggestions}}</textarea></div>
+      </details>
+      {{end}}
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "Limits"}}</h2><p>{{T "Questions are not stored. Known bots cannot ask. 0 means no limit."}}</p></header>
+    <section class="form">
+      <div class="grid-2">
+        <div class="field"><label for="per_ip_hour">{{T "Questions per visitor and hour"}}</label><input class="input" id="per_ip_hour" name="per_ip_hour" type="number" min="0" max="10000" value="{{$s.PerIPHour}}"></div>
+        <div class="field"><label for="daily_requests">{{T "Questions per day, whole site"}}</label><input class="input" id="daily_requests" name="daily_requests" type="number" min="0" value="{{$s.DailyRequests}}"></div>
+        <div class="field"><label for="monthly_requests">{{T "Questions per month, whole site"}}</label><input class="input" id="monthly_requests" name="monthly_requests" type="number" min="0" value="{{$s.MonthlyRequests}}"></div>
+      </div>
+      <table class="table">
+        <thead><tr><th>{{T "Usage"}}</th><th class="text-right">{{T "Questions"}}</th><th class="text-right">{{T "Input tokens"}}</th><th class="text-right">{{T "Output tokens"}}</th><th class="text-right">{{T "Embeddings"}}</th></tr></thead>
+        <tbody>
+          <tr><td>{{T "Today"}}</td><td class="text-right tabular">{{$d.Today.Requests}}</td><td class="text-right tabular">{{$d.Today.InputTokens}}</td><td class="text-right tabular">{{$d.Today.OutputTokens}}</td><td class="text-right tabular">{{$d.Today.Embeddings}}</td></tr>
+          <tr><td>{{T "This month"}}</td><td class="text-right tabular">{{$d.Month.Requests}}</td><td class="text-right tabular">{{$d.Month.InputTokens}}</td><td class="text-right tabular">{{$d.Month.OutputTokens}}</td><td class="text-right tabular">{{$d.Month.Embeddings}}</td></tr>
+          {{range $d.Days}}<tr class="text-muted-foreground"><td>{{shortDate .Day}}</td><td class="text-right tabular">{{.Requests}}</td><td class="text-right tabular">{{.InputTokens}}</td><td class="text-right tabular">{{.OutputTokens}}</td><td class="text-right tabular">{{.Embeddings}}</td></tr>{{end}}
+        </tbody>
+      </table>
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "Embeddings"}}</h2><p>{{T "Semantic search finds passages by meaning, across languages. Claude has no embeddings API: with Claude for answers, choose another provider here or use full-text search."}}</p></header>
+    <section class="form">
+      <div class="field"><label for="embed_provider">{{T "Provider"}}</label>
+        <select class="select w-full" id="embed_provider" name="embed_provider">{{range $d.Providers}}<option value="{{.Code}}"{{if eq .Code $s.EmbedProvider}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+        {{if eq $s.EmbedProvider "same"}}<p class="hint">{{T "Now: %s, with the key and address of Settings › AI." $d.AIProvider}}</p>{{end}}</div>
+      <div class="field"><label for="embed_base_url">{{T "API address (optional)"}}</label>
+        <input class="input mono" id="embed_base_url" name="embed_base_url" value="{{$s.EmbedBaseURL}}" maxlength="300" placeholder="http://127.0.0.1:1234/v1" spellcheck="false" autocapitalize="none">
+        <p class="hint">{{T "For OpenAI-compatible servers. Ignored with “The AI provider”."}}</p></div>
+      <div class="field"><label for="embed_api_key">{{T "API key"}}</label>
+        <input class="input mono" id="embed_api_key" name="embed_api_key" type="password" autocomplete="off" maxlength="500" placeholder="{{if $d.HasKey}}{{T "Saved (leave empty to keep it)"}}{{end}}">
+        {{if $d.HasKey}}<label class="check"><input type="checkbox" class="input" name="remove_embed_key" value="1"> {{T "Remove the saved key"}}</label>{{end}}</div>
+      <label class="check"><input type="checkbox" class="input" role="switch" name="embed_allow_local" value="1"{{if $s.EmbedAllowLocal}} checked{{end}}> {{T "Allow plain http:// to this machine (local models)"}}</label>
+      <div class="grid-2">
+        <div class="field"><label for="embed_model">{{T "Model"}}</label><input class="input mono" id="embed_model" name="embed_model" value="{{$s.EmbedModel}}" list="embed-models" maxlength="100" placeholder="{{T "Default"}}"></div>
+        <div class="field"><label for="embed_dimensions">{{T "Dimensions"}}</label><input class="input" id="embed_dimensions" name="embed_dimensions" type="number" min="0" max="4000" value="{{$s.EmbedDimensions}}"><p class="hint">{{T "0 uses the model's own. Changing the model or this number embeds everything again."}}</p></div>
+      </div>
+      <datalist id="embed-models">{{range $d.Models}}<option value="{{.ID}}">{{.Label}}</option>{{end}}</datalist>
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "MCP server"}}</h2><p>{{T "Lets AI agents search and read your public posts with the same rules as the assistant (tools search_posts and get_post). Read-only. Closed while AI access is blocked in Settings."}}</p></header>
+    <section class="form">
+      <label class="check"><input type="checkbox" class="input" role="switch" name="mcp_enabled" value="1"{{if $s.MCPEnabled}} checked{{end}}> {{T "Serve MCP at"}} <code class="mono">{{$d.MCPURL}}</code></label>
+      <p class="hint">{{if $s.MCPTokenHash}}{{T "A bearer token is required."}}{{else}}{{T "Open to anyone, rate limited per address. Generate a token to restrict it."}}{{end}}</p>
+      <label class="check"><input type="checkbox" class="input" name="mcp_new_token" value="1"> {{if $s.MCPTokenHash}}{{T "Replace the token"}}{{else}}{{T "Require a token (generated on save)"}}{{end}}</label>
+      {{if $s.MCPTokenHash}}<label class="check"><input type="checkbox" class="input" name="mcp_remove_token" value="1"> {{T "Remove the token (open access)"}}</label>{{end}}
+    </section>
+  </section>
+  <div class="sticky-actions">
+    <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
+  </div>
+</form>
+{{end}}

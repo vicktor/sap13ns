@@ -52,32 +52,94 @@
       </section>
     </div>
 
-    <div class="card editor-card" data-editor>
+    <div class="card editor-card" data-editor data-editor-user="{{.User.ID}}"
+      data-msg-uploading="{{T "Uploading…"}}" data-msg-upload-failed="{{T "Upload failed"}}" data-msg-loading="{{T "Loading…"}}" data-msg-preview-failed="{{T "Preview failed"}}"
+      data-msg-images-dropped="{{T "Some pasted images could not be kept. Upload them from the media library."}}" data-msg-bad-url="{{T "Enter a valid web address."}}" data-msg-text="{{T "text"}}" data-msg-markup="{{T "Markup"}}">
       <div class="editor-toolbar" role="toolbar" aria-label="{{T "Formatting"}}">
-        <div class="segmented" role="group">
-          <button type="button" class="active" data-editor-tab="write" aria-pressed="true">{{icon "pencil"}}<span>{{T "Write"}}</span></button>
-          <button type="button" data-editor-tab="preview" aria-pressed="false">{{icon "eye"}}<span>{{T "Preview"}}</span></button>
+        <div class="segmented" role="group" aria-label="{{T "Editing mode"}}">
+          <button type="button" data-editor-mode="visual" aria-pressed="false" title="{{T "Edit the formatted text"}}">{{icon "pen-line"}}<span>{{T "Visual"}}</span></button>
+          <button type="button" class="active" data-editor-mode="markdown" aria-pressed="true" title="{{T "Edit the Markdown source"}}">{{icon "hash"}}<span>{{T "Markdown"}}</span></button>
+          <button type="button" data-editor-mode="preview" aria-pressed="false" title="{{T "Preview as published"}}">{{icon "eye"}}<span>{{T "Preview"}}</span></button>
         </div>
         <div class="toolbar-buttons" data-editor-tools>
-          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="heading" title="{{T "Heading"}}" aria-label="{{T "Heading"}}">{{icon "heading"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="heading" aria-haspopup="menu" title="{{T "Text style"}} (Ctrl+Alt+0…4)" aria-label="{{T "Heading"}}">{{icon "heading"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="bold" title="{{T "Bold"}} (Ctrl+B)" aria-label="{{T "Bold"}}">{{icon "bold"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="italic" title="{{T "Italic"}} (Ctrl+I)" aria-label="{{T "Italic"}}">{{icon "italic"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="strike" title="{{T "Strikethrough"}} (Ctrl+Shift+X)" aria-label="{{T "Strikethrough"}}">{{icon "strikethrough"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="link" title="{{T "Link"}} (Ctrl+K)" aria-label="{{T "Link"}}">{{icon "link"}}</button>
-          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="quote" title="{{T "Quote"}}" aria-label="{{T "Quote"}}">{{icon "quote"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="code" title="{{T "Code"}}" aria-label="{{T "Code"}}">{{icon "code"}}</button>
-          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="ul" title="{{T "Bulleted list"}}" aria-label="{{T "Bulleted list"}}">{{icon "list"}}</button>
-          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="ol" title="{{T "Numbered list"}}" aria-label="{{T "Numbered list"}}">{{icon "list-ordered"}}</button>
+          <span class="toolbar-sep" aria-hidden="true"></span>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="ul" title="{{T "Bulleted list"}} (Ctrl+Shift+8)" aria-label="{{T "Bulleted list"}}">{{icon "list"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="ol" title="{{T "Numbered list"}} (Ctrl+Shift+7)" aria-label="{{T "Numbered list"}}">{{icon "list-ordered"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="quote" title="{{T "Quote"}}" aria-label="{{T "Quote"}}">{{icon "quote"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="codeblock" title="{{T "Code block"}}" aria-label="{{T "Code block"}}">{{icon "square-code"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="table" title="{{T "Table"}}" aria-label="{{T "Table"}}">{{icon "table"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="hr" title="{{T "Divider"}}" aria-label="{{T "Divider"}}">{{icon "separator-horizontal"}}</button>
+          <span class="toolbar-sep" aria-hidden="true" data-visual-only hidden></span>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="undo" title="{{T "Undo"}} (Ctrl+Z)" aria-label="{{T "Undo"}}" data-visual-only hidden>{{icon "undo-2"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="redo" title="{{T "Redo"}} (Ctrl+Shift+Z)" aria-label="{{T "Redo"}}" data-visual-only hidden>{{icon "redo-2"}}</button>
           <span class="toolbar-sep" aria-hidden="true"></span>
           <button type="button" class="btn" data-variant="ghost" data-size="sm" data-media-picker="insert">{{icon "image-plus"}}<span class="max-sm:sr-only">{{T "Media"}}</span></button>
         </div>
       </div>
       <label class="sr-only" for="content">{{T "Content"}}</label>
       <textarea class="editor-text" id="content" name="content" rows="22" spellcheck="true" placeholder="{{T "Write in Markdown…"}}" data-editor-text data-dropzone>{{$p.Content}}</textarea>
+      <div class="editor-visual prose" data-editor-visual contenteditable="true" role="textbox" aria-multiline="true" aria-label="{{T "Content"}}" aria-describedby="editor-visual-help" spellcheck="true" data-placeholder="{{T "Start writing…"}}" hidden></div>
+      <p class="sr-only" id="editor-visual-help">{{T "Rich text editor. Markdown shortcuts work: type ## and a space for a heading, - for a list, > for a quote. Press Escape and then Tab to leave the editor."}}</p>
       <div class="editor-preview prose" data-editor-preview hidden aria-live="polite"></div>
+
+      <div class="editor-pop" data-editor-pop="link" role="dialog" aria-label="{{T "Link"}}" hidden>
+        <label class="editor-pop-field"><span>{{T "Address"}}</span><input class="input" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://" data-pop-url></label>
+        <label class="editor-pop-field" data-pop-textrow><span>{{T "Text"}}</span><input class="input" type="text" autocomplete="off" data-pop-text></label>
+        <p class="editor-pop-error" role="alert" data-pop-error hidden></p>
+        <div class="editor-pop-actions">
+          <a class="btn" data-variant="ghost" data-size="icon-sm" href="#" target="_blank" rel="noopener noreferrer" title="{{T "Open link"}}" aria-label="{{T "Open link"}}" data-pop-open>{{icon "external-link"}}</a>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Remove link"}}" aria-label="{{T "Remove link"}}" data-pop-unlink>{{icon "unlink"}}</button>
+          <span class="grow"></span>
+          <button type="button" class="btn" data-variant="outline" data-size="sm" data-pop-cancel>{{T "Cancel"}}</button>
+          <button type="button" class="btn" data-size="sm" data-pop-apply>{{T "Apply"}}</button>
+        </div>
+      </div>
+      <div class="editor-pop" data-editor-pop="image" role="dialog" aria-label="{{T "Image"}}" hidden>
+        <label class="editor-pop-field"><span>{{T "Alternative text"}}</span><input class="input" type="text" autocomplete="off" placeholder="{{T "Describe the image for people who cannot see it"}}" data-pop-alt></label>
+        <div class="editor-pop-actions">
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Remove image"}}" aria-label="{{T "Remove image"}}" data-pop-remove>{{icon "trash-2"}}</button>
+          <span class="grow"></span>
+          <button type="button" class="btn" data-variant="outline" data-size="sm" data-pop-cancel>{{T "Cancel"}}</button>
+          <button type="button" class="btn" data-size="sm" data-pop-apply>{{T "Apply"}}</button>
+        </div>
+      </div>
+      <div class="editor-pop editor-menu" data-editor-pop="heading" role="menu" aria-label="{{T "Text style"}}" hidden>
+        <button type="button" role="menuitemradio" aria-checked="false" data-block="0">{{icon "pilcrow"}}<span>{{T "Paragraph"}}</span><kbd>Ctrl+Alt+0</kbd></button>
+        <button type="button" role="menuitemradio" aria-checked="false" data-block="2">{{icon "heading-2"}}<span class="menu-h2">{{T "Heading 2"}}</span><kbd>Ctrl+Alt+2</kbd></button>
+        <button type="button" role="menuitemradio" aria-checked="false" data-block="3">{{icon "heading-3"}}<span class="menu-h3">{{T "Heading 3"}}</span><kbd>Ctrl+Alt+3</kbd></button>
+        <button type="button" role="menuitemradio" aria-checked="false" data-block="4">{{icon "heading-4"}}<span class="menu-h4">{{T "Heading 4"}}</span><kbd>Ctrl+Alt+4</kbd></button>
+      </div>
+      <div class="editor-pop is-bar" data-editor-pop="code" role="toolbar" aria-label="{{T "Code block"}}" hidden>
+        <label class="sr-only" for="editor-code-lang">{{T "Language"}}</label>
+        <input class="input" id="editor-code-lang" type="text" list="editor-code-langs" placeholder="{{T "Language"}}" autocomplete="off" spellcheck="false" maxlength="30" data-pop-lang>
+        <datalist id="editor-code-langs"><option value="bash"><option value="css"><option value="go"><option value="html"><option value="javascript"><option value="json"><option value="php"><option value="python"><option value="sql"><option value="typescript"><option value="yaml"></datalist>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Convert to text"}}" aria-label="{{T "Convert to text"}}" data-pop-uncode>{{icon "pilcrow"}}</button>
+      </div>
+      <div class="editor-pop is-bar" data-editor-pop="table" role="toolbar" aria-label="{{T "Table"}}" hidden>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" title="{{T "Add a row below"}}" data-table="row-add">{{icon "plus"}}<span>{{T "Row"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" title="{{T "Add a column to the right"}}" data-table="col-add">{{icon "plus"}}<span>{{T "Column"}}</span></button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" title="{{T "Delete this row"}}" data-table="row-del">{{icon "minus"}}<span>{{T "Row"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" title="{{T "Delete this column"}}" data-table="col-del">{{icon "minus"}}<span>{{T "Column"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Delete table"}}" aria-label="{{T "Delete table"}}" data-table="table-del">{{icon "trash-2"}}</button>
+      </div>
+      <div class="editor-pop is-bar" data-editor-pop="raw" role="toolbar" aria-label="{{T "Markup"}}" hidden>
+        <span class="editor-pop-label" data-pop-label></span>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-pop-source>{{icon "hash"}}<span>{{T "Edit in Markdown"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Delete"}}" aria-label="{{T "Delete"}}" data-pop-delete>{{icon "trash-2"}}</button>
+      </div>
+
       <div class="editor-status muted" data-editor-status>
         <span data-word-count></span>
         <a href="https://commonmark.org/help/" target="_blank" rel="noopener">{{icon "info" "size-3.5"}} {{T "Markdown help"}}</a>
       </div>
+      <script type="module" src="{{asset "editor.js"}}"></script>
     </div>
 
     <div class="card">
@@ -126,6 +188,7 @@
         <input type="hidden" name="status" value="{{if eq $p.Status "pending"}}pending{{else}}draft{{end}}">
         <p class="hint">{{T "An editor will review your work before it is published."}}</p>
         {{end}}
+        <label class="check" title="{{T "The site assistant and MCP will never use or cite it."}}"><input type="checkbox" class="input" role="switch" name="assistant_exclude" value="1"{{if $p.AssistantExclude}} checked{{end}}> {{T "Hide from the site assistant"}}</label>
       </section>
       <footer class="publish-actions">
         {{if $d.CanPublish}}

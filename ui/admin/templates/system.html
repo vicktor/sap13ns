@@ -16,5 +16,20 @@
     </section>
   </section>
   {{end}}
+  <section class="card" id="updates">
+    <header><h2>{{T "Updates"}}</h2></header>
+    <section>
+      <dl class="meta-list">
+        <div><dt>{{T "Running version"}}</dt><dd>{{.Version}}</dd></div>
+        {{range .D.Updates}}
+        <div><dt>{{.Label}}</dt><dd>{{if .OK}}{{if deref .OK}}<span class="text-success" aria-label="OK">{{icon "circle-check" "size-4"}}</span>{{else}}<span class="text-warning" aria-label="{{T "Attention"}}">{{icon "triangle-alert" "size-4"}}</span>{{end}} {{end}}<span class="break-all">{{.Value}}</span></dd></div>
+        {{end}}
+      </dl>
+      <p class="hint">{{T "To install a release, take a backup and run on the server:"}}</p>
+      <pre class="report">sudo sap13ns update
+sudo systemctl restart sap13ns</pre>
+    </section>
+    {{if .D.Checks}}<footer><form method="post" action="/admin/system/update-check">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm">{{icon "refresh-cw"}}{{T "Check now"}}</button></form></footer>{{end}}
+  </section>
 </div>
 {{end}}

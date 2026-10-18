@@ -1,0 +1,63 @@
+{{/* shared/assistant: the site assistant's floating button and chat panel.
+     Data: PageData. Renders nothing while the assistant is off. Without
+     JavaScript the button links to the /ask page; assistant.js turns it into
+     a modal chat (native <dialog>: focus trap, Escape closes). Every string
+     the script shows comes from the data-t-* attributes. Themes include it
+     once, before </body>. */}}
+{{define "shared/assistant"}}{{with .Site.Assistant}}{{if not $.Ask}}
+<div class="sap-assistant" data-assistant data-endpoint="{{.Endpoint}}" data-lang="{{.Lang}}"
+  data-t-thinking="{{T "Thinking…"}}" data-t-error="{{T "The assistant could not answer. Please try again later."}}"
+  data-t-sources="{{T "Sources"}}" data-t-offline="{{T "No connection. Check your network and try again."}}">
+  <a class="sap-assistant-fab" href="{{.AskURL}}" data-assistant-open aria-haspopup="dialog" aria-label="{{.Name}}" title="{{.Name}}">{{icon "message-circle"}}</a>
+  <dialog class="sap-assistant-panel" aria-labelledby="sap-assistant-title" data-assistant-dialog>
+    <header class="sap-assistant-head">
+      <span class="sap-assistant-avatar" aria-hidden="true">{{icon "message-circle"}}</span>
+      <h2 id="sap-assistant-title">{{.Name}}</h2>
+      <button type="button" class="sap-assistant-icon" data-assistant-reset aria-label="{{T "New conversation"}}" title="{{T "New conversation"}}">{{icon "rotate-ccw"}}</button>
+      <button type="button" class="sap-assistant-icon" data-assistant-close aria-label="{{T "Close"}}" title="{{T "Close"}}">{{icon "x"}}</button>
+    </header>
+    <div class="sap-assistant-log" role="log" aria-live="polite" aria-label="{{T "Conversation"}}" data-assistant-log>
+      <div class="sap-assistant-msg is-bot"><div class="sap-assistant-bubble"><p>{{.Greeting}}</p></div></div>
+    </div>
+    {{with .Suggestions}}<div class="sap-assistant-suggest" data-assistant-suggest>{{range .}}<button type="button">{{.}}</button>{{end}}</div>{{end}}
+    <form class="sap-assistant-form" method="post" action="{{.AskURL}}" data-assistant-form>
+      <label class="sap-assistant-sr" for="sap-assistant-q">{{T "Your question"}}</label>
+      <textarea id="sap-assistant-q" name="q" rows="1" maxlength="1000" required placeholder="{{T "Ask about this site…"}}" data-assistant-input></textarea>
+      <button type="submit" class="sap-assistant-send" aria-label="{{T "Send"}}" title="{{T "Send"}}" data-assistant-send>{{icon "send"}}</button>
+    </form>
+    <p class="sap-assistant-note">{{T "Answers are written by AI from this site's pages and may contain mistakes."}}</p>
+  </dialog>
+  <script src="{{.Script}}" defer></script>
+</div>
+{{end}}{{end}}{{end}}
+
+{{/* shared/ask: the assistant without JavaScript, one question at a time.
+     Data: PageData with .Ask. Themes may wrap it in templates/ask.html. */}}
+{{define "shared/ask"}}{{with .Ask}}
+<section class="sap-ask" aria-labelledby="sap-ask-title">
+  <header class="sap-ask-head">
+    <span class="sap-assistant-avatar" aria-hidden="true">{{icon "message-circle"}}</span>
+    <div><h1 id="sap-ask-title">{{.Name}}</h1><p>{{.Greeting}}</p></div>
+  </header>
+  {{with .Question}}<div class="sap-assistant-msg is-user"><div class="sap-assistant-bubble"><p>{{.}}</p></div></div>{{end}}
+  {{with .Error}}<div class="sap-assistant-msg is-bot is-error" role="alert"><div class="sap-assistant-bubble"><p>{{.}}</p></div></div>{{end}}
+  {{if .Answer}}
+  <div class="sap-assistant-msg is-bot"><div class="sap-assistant-bubble">{{.Answer}}
+    {{with .Sources}}<nav class="sap-assistant-sources" aria-label="{{T "Sources"}}"><p class="sap-assistant-sources-title">{{T "Sources"}}</p>
+      <ol>{{range .}}<li><a href="{{.URL}}"><span class="sap-assistant-n">{{.N}}</span><span>{{.Title}}{{with .Heading}} · {{.}}{{end}}</span></a></li>{{end}}</ol></nav>{{end}}
+  </div></div>
+  {{end}}
+  <form class="sap-ask-form" method="post" action="{{.AskURL}}">
+    <label for="sap-ask-q">{{if .Answer}}{{T "Ask another question"}}{{else}}{{T "Your question"}}{{end}}</label>
+    <textarea id="sap-ask-q" name="q" rows="3" maxlength="1000" required placeholder="{{T "Ask about this site…"}}"></textarea>
+    <button class="btn" type="submit">{{icon "send"}}{{T "Ask"}}</button>
+  </form>
+  {{if not .Question}}{{with .Suggestions}}
+  <form class="sap-ask-suggest" method="post" action="{{$.Ask.AskURL}}">
+    <p>{{T "For example:"}}</p>
+    <div class="sap-assistant-suggest">{{range .}}<button type="submit" name="q" value="{{.}}">{{.}}</button>{{end}}</div>
+  </form>
+  {{end}}{{end}}
+  <p class="sap-assistant-note">{{T "Answers are written by AI from this site's pages and may contain mistakes."}}</p>
+</section>
+{{end}}{{end}}

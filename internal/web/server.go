@@ -15,6 +15,7 @@ import (
 	"time"
 	_ "time/tzdata" // self-contained timezone database
 
+	"sap13ns/internal/analytics"
 	"sap13ns/internal/auth"
 	"sap13ns/internal/cache"
 	"sap13ns/internal/config"
@@ -24,6 +25,7 @@ import (
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
+	"sap13ns/internal/update"
 )
 
 // siteState is an immutable snapshot of the settings, swapped atomically.
@@ -69,6 +71,9 @@ type Server struct {
 	setupToken string
 
 	pk passkeyState // WebAuthn ceremonies (passkeys.go)
+
+	updates *update.Checker      // release checks (updates.go); nil in tests
+	stats   *analytics.Collector // cookie-less page views (stats.go)
 
 	bot botState // site assistant and MCP (assistant.go, mcp.go)
 }
@@ -118,6 +123,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	if err := s.ReloadSettings(ctx); err != nil {
 		return nil, err
 	}
+	s.stats = s.newStats()
 	s.static = hashFiles(d.UI, "static")
 
 	funcs := s.funcMap()
@@ -156,6 +162,8 @@ func (s *Server) ReloadSettings(ctx context.Context) error {
 		loc = time.UTC
 	}
 	s.state.Store(&siteState{S: st, Loc: loc})
+	s.stats.SetEnabled(!st.AnalyticsOff) // nil-safe: not created yet on the first load
+	s.stats.SetLocation(loc)
 	return nil
 }
 
@@ -194,6 +202,7 @@ func (s *Server) prepareSetup(ctx context.Context) error {
 // Background runs periodic maintenance until ctx is cancelled.
 func (s *Server) Background(ctx context.Context) {
 	go s.plugins.RunCron(ctx)
+	go s.stats.Run(ctx)
 	go s.assistant().Run(ctx)
 	go func() {
 		t := time.NewTicker(time.Minute)
@@ -220,6 +229,7 @@ func (s *Server) Background(ctx context.Context) {
 		if err := s.store.PruneAudit(ctx, 365); err != nil {
 			s.log.Error("prune audit log", "err", err)
 		}
+		s.pruneStats(ctx)
 		select {
 		case <-ctx.Done():
 			return

@@ -41,7 +41,7 @@
 
   // ----------------------------------------------------------- clicks --
   document.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-theme-toggle],[data-sidebar-toggle],[data-dialog-open],[data-dialog-close],[data-password-toggle],[data-copy],[data-copy-text],[data-download-text],[data-back],[data-confirm],[data-md],[data-editor-tab],[data-media-picker],[data-featured-clear],[data-media-more]");
+    const el = e.target.closest("[data-theme-toggle],[data-sidebar-toggle],[data-dialog-open],[data-dialog-close],[data-password-toggle],[data-copy],[data-copy-text],[data-download-text],[data-back],[data-confirm],[data-md],[data-media-picker],[data-featured-clear],[data-media-more]");
     // Clicking the backdrop of a dialog closes it.
     if (e.target instanceof HTMLDialogElement && e.target.hasAttribute("data-overlay-close")) { e.target.close(); return; }
     if (!el) return;
@@ -79,7 +79,6 @@
       return;
     }
     if (el.dataset.md) return editorFormat(el.closest("[data-editor]"), el.dataset.md);
-    if (el.dataset.editorTab) return editorTab(el.closest("[data-editor]"), el.dataset.editorTab);
     if (el.dataset.mediaPicker) return openPicker(el.dataset.mediaPicker);
     if (el.hasAttribute("data-featured-clear")) return setFeatured(null);
     if (el.hasAttribute("data-media-more")) return loadMedia(false);
@@ -215,29 +214,6 @@
     if (e.key === "Tab" && !e.shiftKey && !escPressed) { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); }
     escPressed = false;
   });
-
-  async function editorTab(root, tab) {
-    const ta = $("[data-editor-text]", root);
-    const pv = $("[data-editor-preview]", root);
-    $$("[data-editor-tab]", root).forEach((b) => { const on = b.dataset.editorTab === tab; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); });
-    $("[data-editor-tools]", root)?.classList.toggle("invisible", tab === "preview");
-    if (tab === "write") { pv.hidden = true; ta.hidden = false; ta.focus(); return; }
-    pv.innerHTML = `<p class="muted">${esc(t("Loading…"))}</p>`;
-    pv.style.minHeight = ta.offsetHeight + "px";
-    ta.hidden = true; pv.hidden = false;
-    try {
-      const res = await fetch("/admin/api/preview", {
-        method: "POST", credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf() },
-        body: JSON.stringify({ content: ta.value }),
-      });
-      if (!res.ok) throw new Error(res.status);
-      const data = await res.json();
-      pv.innerHTML = data.html; // sanitized server-side by the same pipeline as the public site
-    } catch (_) {
-      pv.innerHTML = `<p class="text-destructive">${esc(t("Preview failed"))}</p>`;
-    }
-  }
   function wordCount(ta) {
     const out = $("[data-word-count]", ta.closest("[data-editor]"));
     if (!out) return;

@@ -97,6 +97,17 @@ sudo sap13ns update
 sudo systemctl restart sap13ns
 ```
 
+| Flag | Effect |
+|---|---|
+| `-check` | Only report the running and latest versions |
+| `-yes` | Install without asking for confirmation (for scripts) |
+| `-force` | Reinstall the latest release even if it is not newer |
+
+Administrators see a banner in the admin when a newer release exists, and
+**System → Updates** shows the last check, its error if any, and a *Check
+now* button. The check reads the public GitHub API anonymously, so it only
+sees releases of a public repository.
+
 `sap13ns update` needs `sudo` because it replaces `/usr/local/bin/sap13ns`.
 It needs outbound HTTPS to `api.github.com`, `github.com`,
 `objects.githubusercontent.com` and `release-assets.githubusercontent.com`.

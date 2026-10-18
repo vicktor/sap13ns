@@ -326,6 +326,7 @@ type adminPage struct {
 	Path    string
 	Version string
 	SiteURL string
+	Update  *updateNotice // newer release, shown to administrators
 	D       any
 }
 
@@ -344,6 +345,9 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 		Version: Version, SiteURL: s.cfg.BaseURL.String(), D: d, Flashes: s.takeFlashes(w, r)}
 	if sess := rctx(r).Session; sess != nil {
 		p.CSRF = sess.CSRFToken
+	}
+	if p.User != nil && auth.Can(p.User.Role, auth.CapManageSettings) {
+		p.Update = s.updateNotice()
 	}
 	if p.User != nil && auth.Can(p.User.Role, auth.CapModerate) {
 		if counts, err := s.store.CountCommentsByStatus(r.Context()); err == nil {

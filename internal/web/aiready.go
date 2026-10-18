@@ -187,6 +187,10 @@ func (s *Server) handleLLMs(w http.ResponseWriter, r *http.Request) {
 	b.WriteString("## Optional\n\n")
 	fmt.Fprintf(&b, "- [%s](%s)\n", s.i18n.T(lang, "Full text of the site"), s.cfg.AbsURL(s.langPath(lang, "/llms-full.txt")))
 	fmt.Fprintf(&b, "- [RSS](%s)\n", s.cfg.AbsURL(s.langPath(lang, "/feed.xml")))
+	if _, on := s.mcpOn(r.Context()); on {
+		fmt.Fprintf(&b, "- [MCP](%s): %s\n", s.cfg.AbsURL("/mcp"),
+			s.i18n.T(lang, "read-only Model Context Protocol server (Streamable HTTP) with the tools search_posts and get_post"))
+	}
 	for _, l := range s.siteLangs() {
 		if l != lang {
 			fmt.Fprintf(&b, "- [%s](%s)\n", langName(l), s.cfg.AbsURL(s.langPath(l, "/llms.txt")))

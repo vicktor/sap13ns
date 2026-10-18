@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"net/netip"
 	"os"
 	"runtime/debug"
@@ -301,7 +302,7 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 				http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
 				return
 			}
-			http.Redirect(w, r, "/login?next="+safeNext(r.URL.RequestURI()), http.StatusSeeOther)
+			http.Redirect(w, r, "/login?next="+url.QueryEscape(safeNext(r.URL.RequestURI())), http.StatusSeeOther)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
@@ -350,12 +351,26 @@ func (s *Server) maxBody(r *http.Request) int64 {
 	return 4 << 20
 }
 
-// safeNext only allows local redirect targets.
+// safeNext only allows local redirect targets: an absolute path on this
+// host. Control characters and backslashes are refused anywhere, since
+// browsers strip the former and read "\\" as "/" ("/\\evil.example" would
+// leave the site), and the value is re-serialized from its parsed form.
 func safeNext(next string) string {
-	if next == "" || !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") || strings.ContainsAny(next, "\r\n") {
-		return "/admin/"
+	const fallback = "/admin/"
+	if next == "" || len(next) > 2048 || strings.ContainsRune(next, '\\') {
+		return fallback
 	}
-	return next
+	for i := 0; i < len(next); i++ {
+		if c := next[i]; c < 0x20 || c == 0x7f {
+			return fallback
+		}
+	}
+	u, err := url.Parse(next)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" ||
+		!strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
+		return fallback
+	}
+	return u.RequestURI()
 }
 
 // dirFS returns the directory as an fs.FS, or nil when it does not exist.

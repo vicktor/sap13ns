@@ -88,6 +88,7 @@ func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 		}
 		if cacheable {
 			if e, ok := s.pages.Get(key); ok {
+				s.recordView(r, e.Status, e.ContentType)
 				writeCached(w, r, s.fillTokens(e), "HIT")
 				return
 			}
@@ -103,6 +104,7 @@ func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 		if cacheable && (rec.status == http.StatusOK || rec.status == http.StatusNotFound) && rec.header.Get("Cache-Control") != "no-store" {
 			s.pages.Set(key, e)
 		}
+		s.recordView(r, e.Status, e.ContentType)
 		writeCached(w, r, s.fillTokens(e), "MISS")
 	}
 }

@@ -6,6 +6,7 @@
 //	sap13ns user create ...       create a user from the command line
 //	sap13ns user reset-password   set a new password for a user
 //	sap13ns plugin hash <dir>     print the SHA-256 of a plugin's wasm file
+//	sap13ns assistant reindex     rebuild the site assistant's search index
 //	sap13ns version               print the version
 //
 // Configuration comes from SAP13NS_* environment variables, optionally loaded
@@ -41,6 +42,7 @@ import (
 	"sap13ns/internal/mail"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
+	"sap13ns/internal/update"
 	"sap13ns/internal/web"
 	"sap13ns/ui"
 )
@@ -68,6 +70,10 @@ func main() {
 		err = pluginCmd(args)
 	case "backup":
 		err = backupCmd(args)
+	case "assistant":
+		err = assistantCmd(args)
+	case "update":
+		err = updateCmd(args)
 	case "version", "-v", "--version":
 		fmt.Printf("sap13ns %s (%s %s/%s)\n", web.Version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -99,6 +105,12 @@ Commands:
   backup create|list|verify|restore|prune
                                  Encrypted backups of the database and uploads
                                  (see docs/DEPLOY.md)
+  assistant reindex [-full] [-changed] | status
+                                 Rebuild the site assistant's search index, or
+                                 show its state (embeddings, pgvector, failures)
+  update [-check] [-yes] [-force]
+                                 Install the latest signed release over this
+                                 binary (see docs/RELEASES.md)
   version                        Print the version
 `)
 }
@@ -203,6 +215,9 @@ func serve(args []string) error {
 		log.Error("load plugins", "err", err)
 	}
 	go srv.Background(ctx)
+	checker := update.NewChecker(web.Version, nil, log)
+	srv.SetUpdateChecker(checker)
+	go checker.Run(ctx)
 
 	ln, err := listen(cfg.Listen)
 	if err != nil {
@@ -234,6 +249,9 @@ func serve(args []string) error {
 		defer cancel()
 		if err := hs.Shutdown(sctx); err != nil {
 			log.Error("shutdown", "err", err)
+		}
+		if err := srv.Close(sctx); err != nil {
+			log.Error("analytics final flush", "err", err)
 		}
 	}
 	return nil

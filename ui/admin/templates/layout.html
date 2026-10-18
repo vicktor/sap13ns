@@ -48,6 +48,7 @@
           {{template "nav-item" (dict "URL" "/admin/terms/tag" "Icon" "tags" "Label" (T "Tags") "Current" (.Active "tag"))}}
           {{end}}
           {{if .Can "comments.moderate"}}{{template "nav-item" (dict "URL" "/admin/comments" "Icon" "message-square" "Label" (T "Comments") "Current" (.Active "comments") "Badge" .Pending)}}{{end}}
+          {{if .Can "posts.edit_others"}}{{template "nav-item" (dict "URL" "/admin/analytics" "Icon" "chart-column" "Label" (T "Analytics") "Current" (.Active "analytics"))}}{{end}}
         </ul>
       </div>
       {{end}}
@@ -108,6 +109,8 @@
     </div>
   </header>
   <main id="main" class="admin-content" tabindex="-1">
+    {{with .Update}}<div class="alert update-notice" role="status">{{icon "download"}}<h2>{{T "sap13ns %s is available" .Latest}}</h2>
+      <section>{{T "This site runs %s." .Current}} {{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener">{{T "Release notes"}}</a> · {{end}}<a href="/admin/system#updates">{{T "How to update"}}</a></section></div>{{end}}
     {{template "content" .}}
   </main>
 </div>

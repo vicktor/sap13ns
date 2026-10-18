@@ -34,6 +34,14 @@
     <span class="stat-foot{{if index $d.Comments "pending"}} text-warning{{end}}">{{T "%d awaiting moderation" (index $d.Comments "pending")}}</span>
   </a>
   {{end}}
+  {{with $d.Stats}}
+  <a class="card stat" href="/admin/analytics?range=7d">
+    <span class="stat-icon" aria-hidden="true">{{icon "chart-column"}}</span>
+    <span class="stat-label">{{T "Visitors, last 7 days"}}</span>
+    <strong class="stat-value">{{.Visitors}}</strong>
+    <span class="stat-foot">{{T "%d views" .Views}}{{with .Change.String}} · <span class="{{if $d.Stats.Change.Up}}text-success{{else if $d.Stats.Change.Down}}text-warning{{end}}">{{.}}</span>{{end}}</span>
+  </a>
+  {{end}}
   {{if .Can "users.manage"}}
   <a class="card stat" href="/admin/users">
     <span class="stat-icon" aria-hidden="true">{{icon "users"}}</span>
