@@ -1345,6 +1345,7 @@ type CommentInput struct {
 	Post       *PostInfo
 	ParentID   int64
 	Registered bool
+	Returning  bool // the e-mail address had a comment approved before (checked by the host)
 	// Personal data, only sent to plugins granted "comments:pii".
 	Email     string
 	IP        string
@@ -1358,6 +1359,7 @@ type commentPayload struct {
 	Post       *PostInfo `json:"post,omitempty"`
 	ParentID   int64     `json:"parent_id,omitempty"`
 	Registered bool      `json:"registered"`
+	Returning  bool      `json:"returning"`
 	Email      string    `json:"email,omitempty"`
 	IP         string    `json:"ip,omitempty"`
 	UserAgent  string    `json:"user_agent,omitempty"`
@@ -1402,7 +1404,7 @@ func (h *Host) CheckComment(ctx context.Context, in CommentInput) CommentVerdict
 			hold(p, "not checked: time budget used up")
 			continue
 		}
-		pl := commentPayload{Author: in.Author, URL: in.URL, Content: in.Content, Post: in.Post, ParentID: in.ParentID, Registered: in.Registered}
+		pl := commentPayload{Author: in.Author, URL: in.URL, Content: in.Content, Post: in.Post, ParentID: in.ParentID, Registered: in.Registered, Returning: in.Returning}
 		if p.Granted(PermCommentsPII) {
 			pl.Email, pl.IP, pl.UserAgent = in.Email, in.IP, in.UserAgent
 		}

@@ -91,56 +91,24 @@ func TestLogOKOff(t *testing.T) {
 	}
 }
 
-func TestKnownCommenters(t *testing.T) {
+func TestReturningCommenters(t *testing.T) {
 	env := setup(t)
 	c := comment("Mira https://example.net/x")
 	if v, _, _ := env.CheckComment(c); v != "pending" {
 		t.Fatalf("first comment: %s", v)
 	}
-	// A moderator approves it.
-	if _, err := env.Event(pluginsdk.EventCommentApproved, map[string]any{"id": 9, "post_id": 3, "author": "ana  PÉREZ"}); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(logText(env), `comment 9 approved: "ana PÉREZ" is now a known commenter`) {
-		t.Errorf("log:\n%s", logText(env))
-	}
-	if strings.Contains(string(env.KV[keyKnown]), "ana") || strings.Contains(strings.ToLower(string(env.KV[keyKnown])), "perez") {
-		t.Errorf("the store holds the name: %q", env.KV[keyKnown])
-	}
+	// The host says this e-mail address had a comment approved before.
+	c.Returning = true
 	if v, _, _ := env.CheckComment(c); v != "ok" {
-		t.Errorf("known commenter: %s", v)
+		t.Errorf("returning commenter: %s", v)
 	}
 	if !strings.Contains(logText(env), "known commenter") {
 		t.Errorf("log:\n%s", logText(env))
 	}
-	// Approving again does not add a second entry.
-	env.Event(pluginsdk.EventCommentApproved, map[string]any{"id": 10, "post_id": 3, "author": "Ana Pérez"})
-	if n := len(strings.Fields(string(env.KV[keyKnown]))); n != 1 {
-		t.Errorf("%d entries", n)
-	}
-	// Another site with the same storage would not match (the hash is salted with the site address).
-	env.Site.URL = "https://other.test"
-	if v, _, _ := env.CheckComment(c); v != "pending" {
-		t.Errorf("other site: %s", v)
-	}
-}
-
-func TestKnownListIsCapped(t *testing.T) {
-	env := setup(t)
-	var keys []string
-	for i := range maxKnown {
-		keys = append(keys, nameKey(env.Site.URL, "user"+strings.Repeat("x", i%7)+string(rune('a'+i%26))+string(rune('a'+i/26%26))+string(rune('a'+i/676))))
-	}
-	env.KV[keyKnown] = []byte(strings.Join(keys, "\n"))
-	if _, err := learn(env.Site.URL, "Nuevo"); err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Fields(string(env.KV[keyKnown]))
-	if len(got) != maxKnown || got[len(got)-1] != nameKey(env.Site.URL, "Nuevo") || got[0] != keys[1] {
-		t.Errorf("len %d", len(got))
-	}
-	if len(env.KV[keyKnown]) > 256<<10 {
-		t.Errorf("%d bytes", len(env.KV[keyKnown]))
+	// Other signals still apply to returning commenters.
+	c.Content = strings.Repeat("https://a.example/x ", 6)
+	if v, _, _ := env.CheckComment(c); v != "spam" {
+		t.Errorf("returning commenter with six links: %s", v)
 	}
 }
 
@@ -262,11 +230,10 @@ func TestSFSDenied(t *testing.T) {
 	noPII(t, env)
 }
 
-// TestScannerDryRun replays the scanner's sample calls: storage and
-// network denied. Nothing may fail.
+// TestScannerDryRun replays the scanner's sample calls with the network
+// denied. Nothing may fail.
 func TestScannerDryRun(t *testing.T) {
 	env := setup(t)
-	env.Denied["kv"] = true
 	env.Denied["http"] = true
 	env.Plugin.Settings["sfs_enabled"] = "true"
 	v, _, err := env.CheckComment(pluginsdk.CommentCheck{Author: "Sample Visitor", URL: "https://visitor.example", Content: "Nice post, thanks!",
@@ -274,19 +241,8 @@ func TestScannerDryRun(t *testing.T) {
 	if err != nil || v != "ok" {
 		t.Fatalf("%s %v", v, err)
 	}
-	if _, err := env.Event(pluginsdk.EventCommentApproved, map[string]any{"id": 1, "post_id": 1, "author": "Sample Visitor", "status": "pending", "content": "Nice post!"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := env.Event(pluginsdk.EventCommentApproved, "garbage"); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := env.Call(pluginsdk.HookCommentCheck, "garbage"); err != nil {
 		t.Fatal(err)
-	}
-	for _, want := range []string{"the list of known commenters is not available", "could not remember \"Sample Visitor\""} {
-		if !strings.Contains(logText(env), want) {
-			t.Errorf("log lacks %q:\n%s", want, logText(env))
-		}
 	}
 }
 
@@ -300,7 +256,6 @@ func TestVerdictIsAlwaysExplicit(t *testing.T) {
 		payload any
 	}{
 		{"clean comment", nil, comment("Muy buen artículo.")},
-		{"storage denied", []string{"kv", "http"}, comment("Hola")},
 		{"StopForumSpam denied", []string{"http"}, comment("Hola")},
 		{"unreadable payload", nil, "garbage"},
 		{"empty payload", nil, map[string]any{}},

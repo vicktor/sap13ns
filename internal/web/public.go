@@ -677,26 +677,30 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 		in.ParentID = &pid
 	}
 	in.Status = "pending"
+	moderator := u != nil && auth.Can(u.Role, auth.CapModerate)
+	// returning: this e-mail address had a comment approved before.
+	returning := false
+	if !moderator && in.AuthorEmail != "" {
+		returning, _ = s.store.HasApprovedComment(ctx, in.AuthorEmail)
+	}
 	switch {
-	case u != nil && auth.Can(u.Role, auth.CapModerate):
+	case moderator:
 		in.Status = "approved"
 	case st.CommentModeration == "none":
 		in.Status = "approved"
-	case st.CommentModeration == "returning":
-		if ok, _ := s.store.HasApprovedComment(ctx, in.AuthorEmail); ok {
-			in.Status = "approved"
-		}
+	case st.CommentModeration == "returning" && returning:
+		in.Status = "approved"
 	}
 	// comment.check plugins (spam filters) may hold or reject the comment;
 	// moderators' own comments are not checked.
-	if u == nil || !auth.Can(u.Role, auth.CapModerate) {
+	if !moderator {
 		var parent int64
 		if in.ParentID != nil {
 			parent = *in.ParentID
 		}
 		pi := s.PostInfo(p)
 		v := s.plugins.CheckComment(ctx, plugin.CommentInput{Author: in.AuthorName, URL: in.AuthorURL, Content: in.Content, Post: &pi,
-			ParentID: parent, Registered: u != nil, Email: in.AuthorEmail, IP: ip.String(), UserAgent: in.UserAgent})
+			ParentID: parent, Registered: u != nil, Returning: returning, Email: in.AuthorEmail, IP: ip.String(), UserAgent: in.UserAgent})
 		switch v.Verdict {
 		case plugin.VerdictSpam:
 			in.Status = "spam"

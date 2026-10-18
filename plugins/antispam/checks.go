@@ -20,7 +20,7 @@ type Signal struct {
 type Comment struct {
 	Author, URL, Content, Email string
 	Registered                  bool
-	Known                       bool // a commenter whose comment was approved before
+	Known                       bool // the e-mail address had a comment approved before (host-checked)
 }
 
 var linkRe = regexp.MustCompile(`(?i)\bhttps?://\S+|\bwww\.\S+`)

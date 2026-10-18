@@ -183,9 +183,13 @@ type CommentCheck struct {
 	Post       *Post  `json:"post"`
 	ParentID   int64  `json:"parent_id"`
 	Registered bool   `json:"registered"` // written by a signed-in user
-	Email      string `json:"email"`
-	IP         string `json:"ip"`
-	UserAgent  string `json:"user_agent"`
+	// Returning: the commenter's e-mail address had a comment approved on
+	// this site before. The host checks it; the address itself is only
+	// sent with "comments:pii".
+	Returning bool   `json:"returning"`
+	Email     string `json:"email"`
+	IP        string `json:"ip"`
+	UserAgent string `json:"user_agent"`
 }
 
 // FormSubmission is the payload of HookFormSubmit. The host has already

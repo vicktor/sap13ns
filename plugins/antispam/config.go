@@ -3,9 +3,9 @@
 // comment.check runs the local checks of checks.go (links, blocklist,
 // alphabets, capitals, repetitions, first-time commenters with links) and,
 // when enabled and the comment looks clean, asks StopForumSpam (sfs.go).
-// comment.approved teaches the plugin the names of approved commenters
-// (known.go). The strictest signal decides the verdict, and the reason
-// lists every signal.
+// Known commenters are those whose e-mail address had a comment approved
+// before, as the host reports it. The strictest signal decides the verdict,
+// and the reason lists every signal.
 //
 // Everything except main.go is plain Go, tested natively with sdktest.
 package main

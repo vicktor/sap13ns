@@ -227,7 +227,8 @@ The payload objects below use these shapes:
 
 ### comment.check
 
-- **Payload:** `{"author": "…", "url": "…", "content": "…", "post": {…}, "parent_id": 0, "registered": false}`
+- **Payload:** `{"author": "…", "url": "…", "content": "…", "post": {…}, "parent_id": 0, "registered": false, "returning": false}`
+  - `returning` is true when the commenter's e-mail address had a comment approved on this site before. The host checks it, and every plugin gets it. A name can be copied, so a plugin that trusts known commenters should use this instead.
   - The plugin receives `email`, `ip` and `user_agent` as well only if it was granted `comments:pii`.
 - **Response:** `{"verdict": "ok" | "pending" | "spam", "reason": "…"}`
   - **The strictest verdict of all plugins wins.** `pending` holds the comment for moderation; `spam` stores it as spam.

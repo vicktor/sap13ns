@@ -28,7 +28,7 @@ seconds after the page loaded. Comments by moderators are never checked.
 | --- | --- | --- |
 | More links than **Links before holding** (2) in the content | pending | `max_links` |
 | At least **Links for spam** (6) links | spam | `spam_links` (0: off) |
-| A link from someone who is not signed in and has never had a comment approved | pending | `first_time_links` |
+| A link from someone who is not signed in and whose e-mail address has never had a comment approved | pending | `first_time_links` |
 | A blocklist entry in the content, the name, the website or the e-mail address | spam (or pending) | `blocklist`, `blocklist_action` |
 | A word mixing Latin with Cyrillic or Greek letters, such as "vіagra" with a Cyrillic "і" | pending | `script_check` = `mixed` or `latin` |
 | More than half of at least 10 letters outside the Latin script | pending | `script_check` = `latin` |
@@ -58,15 +58,16 @@ website field does not count as a link, but the reason mentions it.
   your readers write in Latin script; it would hold every comment in
   Russian, Greek, Chinese or Arabic.
 
-**Known commenters.** When a moderator approves a comment, the plugin
-remembers the author's name, so their next comments with a link are not
-held as first comments. Signed-in users always count as known.
+**Known commenters.** A commenter whose e-mail address had a comment
+approved before is known, so their comments with a link are not held as
+first comments. The server checks this and tells the plugin (`returning`);
+a name alone does not count, because anyone can type a regular's name.
+Signed-in users always count as known.
 
 ## Permissions
 
 | Permission | Why |
 | --- | --- |
-| `kv` | The list of known commenters: hashes of names, never the names. |
 | `comments:pii` | The commenter's e-mail address and IP address, needed only for the StopForumSpam lookup. |
 | `http:api.stopforumspam.org` | The StopForumSpam lookup. |
 
@@ -140,10 +141,7 @@ plugin sends, for each comment that passed every local check:
 - **No cache.** Answers are not cached, so the plugin stores no IP
   addresses or e-mail hashes.
 
-**What the plugin stores.** Only hashes of the names of approved
-commenters, at most 8000 and newest last: the first 12 bytes of SHA-256 of
-the site address and the name, with case and accents folded. Uninstalling
-with **Delete its data** removes them.
+**What the plugin stores.** Nothing.
 
 **What the log contains.**
 
@@ -174,7 +172,6 @@ comment.check: ok by "Ana Pérez": no spam signals; first comment
 comment.check: ok by "Ana Pérez": no spam signals; 1 link; signed-in user
 comment.check: ok by "Ana Pérez": no spam signals; first comment; not listed by StopForumSpam
 comment.check by "Ana Pérez": StopForumSpam: no answer in time; judged by the local checks only
-comment 9 approved: "ana PÉREZ" is now a known commenter
 ```
 
 **Where they appear.** The server writes held and spam comments to the
@@ -189,21 +186,6 @@ pass. Turn `log_ok` off to keep the log for the held ones.
   - **Fix.** An `elapsed_ms` field (time from page load to submission)
     would let a plugin hold submissions that were fast but not fast enough
     to reject.
-- **No "returning commenter" flag.** The server knows whether the e-mail
-  address had a comment approved before (`HasApprovedComment`, used by the
-  "returning" moderation mode), but `comment.check` does not say so.
-  - **Why it matters.** Events carry no e-mail address. So the plugin
-    recognises known commenters by **name**, which a spammer could copy.
-  - **Fix.** A `returning: true|false` field, computed by the server, would
-    be exact and expose no personal data.
-- **`comment.approved` fires only for moderator approval** in the admin
-  (`internal/web/admin_content.go`, `applyCommentAction`).
-  - **The gap.** Comments approved automatically (moderation `none` or
-    `returning`) emit only `comment.created` with status `approved`.
-  - **Why the plugin waits.** It deliberately learns names only from a
-    moderator's approval, so with moderation `none` nobody becomes known.
-  - **With moderation `returning`,** the first approval is a moderator's,
-    so it works.
 - **All-or-nothing permissions.** There are no optional permissions, so
   `comments:pii` is granted, and the high-risk confirmation asked, even when
   StopForumSpam stays off.
@@ -220,9 +202,6 @@ pass. Turn `log_ok` off to keep the log for the held ones.
     still hold a clean comment.
   - **Fix.** A `timeout_ms` per request, or a fetch capped at the remaining
     budget minus a margin, would remove the restriction.
-- **No compare-and-swap in the key-value store.** Two approvals handled at
-  the same moment by the two event workers can lose one learned name. That
-  is harmless: it is learned again at the next approval.
 
 ## Build and install
 
