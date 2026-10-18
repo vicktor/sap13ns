@@ -1,0 +1,15 @@
+{
+  "abi": 1,
+  "id": "callouts",
+  "name": "Callouts",
+  "version": "1.0.0",
+  "description": "Notes, tips and warnings styled by every theme: GitHub-style Markdown alerts (> [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]) plus the [callout] and [kbd] shortcodes.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["shortcode", "content.filter"],
+  "shortcodes": ["callout", "kbd"],
+  "permissions": [],
+  "settings": [
+    {"key": "markdown_alerts", "label": "Markdown alerts", "type": "bool", "default": "true", "help": "Turn blockquotes that start with [!NOTE], [!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] into callouts. The shortcodes work either way."}
+  ]
+}

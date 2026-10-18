@@ -1,0 +1,19 @@
+{
+  "abi": 1,
+  "id": "external-links",
+  "name": "External links",
+  "version": "1.0.0",
+  "description": "Marks links to other sites in posts and pages: rel=\"noopener noreferrer\", rel=\"sponsored nofollow\" for listed domains, optional new tab with screen-reader text, and UTM parameters for partner domains.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["content.filter"],
+  "permissions": [],
+  "settings": [
+    {"key": "new_tab", "label": "Open external links in a new tab", "type": "bool", "default": "false", "help": "Adds target=\"_blank\" and a visually hidden \"(opens in a new tab)\" for screen readers."},
+    {"key": "sponsored_domains", "label": "Sponsored domains", "type": "textarea", "default": "", "help": "One domain per line (or separated by commas). Links to these domains and their subdomains get rel=\"sponsored nofollow\"."},
+    {"key": "utm_domains", "label": "Domains that receive UTM parameters", "type": "textarea", "default": "", "help": "One domain per line. Subdomains are included. Existing parameters are never overwritten."},
+    {"key": "utm_source", "label": "utm_source", "type": "text", "default": "", "help": "Empty uses the site's host name."},
+    {"key": "utm_medium", "label": "utm_medium", "type": "text", "default": "referral", "help": "Empty leaves the parameter out."},
+    {"key": "utm_campaign", "label": "utm_campaign", "type": "text", "default": "", "help": "Empty leaves the parameter out."}
+  ]
+}

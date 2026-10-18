@@ -1,0 +1,27 @@
+{
+  "abi": 1,
+  "id": "announcement",
+  "name": "Announcement",
+  "version": "1.0.0",
+  "description": "A scheduled announcement widget: a short message with bold text and links, an optional button, start and end times, Spanish and English versions and three styles.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["widget"],
+  "widgets": [
+    {"id": "bar", "title": "Announcement", "description": "A scheduled announcement with an optional link."}
+  ],
+  "permissions": [],
+  "settings": [
+    {"key": "message", "label": "Message", "type": "textarea", "default": "", "help": "Markdown-lite: **bold** and [links](https://…). Used when there is no message for the visitor's language. Empty hides the announcement."},
+    {"key": "message_es", "label": "Message in Spanish", "type": "textarea", "default": "", "help": "Shown on Spanish pages instead of the message above."},
+    {"key": "message_en", "label": "Message in English", "type": "textarea", "default": "", "help": "Shown on English pages instead of the message above."},
+    {"key": "link_url", "label": "Button link", "type": "text", "default": "", "help": "https://…, http://… or a site path such as /blog/sale. Empty shows no button."},
+    {"key": "link_label", "label": "Button label", "type": "text", "default": "", "help": "Empty uses \"Learn more\" (\"Más información\" on Spanish pages)."},
+    {"key": "link_label_es", "label": "Button label in Spanish", "type": "text", "default": ""},
+    {"key": "link_label_en", "label": "Button label in English", "type": "text", "default": ""},
+    {"key": "starts_at", "label": "Show from", "type": "text", "default": "", "help": "2026-11-01 09:00, 2026-11-01 or RFC 3339 with an offset (2026-11-01T09:00:00+01:00). Empty: shown right away."},
+    {"key": "ends_at", "label": "Show until", "type": "text", "default": "", "help": "Same formats; the announcement disappears at this moment. A date alone includes that whole day. Empty: no end."},
+    {"key": "timezone", "label": "Time zone", "type": "text", "default": "UTC", "help": "IANA name, such as Europe/Madrid, for times written without an offset."},
+    {"key": "style", "label": "Style", "type": "select", "default": "info", "choices": ["info", "success", "warning"]}
+  ]
+}

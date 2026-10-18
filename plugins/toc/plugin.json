@@ -1,0 +1,17 @@
+{
+  "abi": 1,
+  "id": "toc",
+  "name": "Table of Contents",
+  "version": "1.0.0",
+  "description": "Adds an automatic table of contents to long posts and pages: collects the h2–h4 headings, gives them stable anchor ids and inserts a nested list after the first paragraph or at a [toc] marker.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["content.filter"],
+  "permissions": [],
+  "settings": [
+    {"key": "min_headings", "label": "Minimum headings", "type": "number", "default": "3", "help": "The table only appears when a post has at least this many headings."},
+    {"key": "max_depth", "label": "Deepest heading level", "type": "select", "default": "h4", "choices": ["h2", "h3", "h4"], "help": "h2 lists only the main sections; h4 also lists sub-subsections."},
+    {"key": "title", "label": "Title", "type": "text", "default": "", "help": "Empty uses \"Contents\", or \"Índice\" for Spanish posts."},
+    {"key": "post_types", "label": "Show on", "type": "select", "default": "posts", "choices": ["posts", "pages", "both"], "help": "Which content types get a table of contents."}
+  ]
+}

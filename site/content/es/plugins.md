@@ -110,7 +110,7 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
 
 ## Plugins de ejemplo
 
-El repositorio incluye plugins de ejemplo en `plugins/examples`. El primero, **callout**, añade dos shortcodes: `callout` para notas, consejos y avisos, y `kbd` para teclas, ambos con los estilos de componentes compartidos para que encajen en cualquier tema. No necesita ningún permiso.
+El repositorio incluye cuatro plugins oficiales en `plugins/`, cada uno un módulo de Go con sus pruebas: **callouts** (avisos de Markdown al estilo de GitHub y los shortcodes `callout` y `kbd`), **toc** (un índice automático), **external-links** (parámetros UTM y atributos para los enlaces a otros sitios) y **announcement** (un anuncio programado como widget). Usan los estilos de componentes compartidos para que encajen en cualquier tema, y ninguno necesita permisos.
 
 ## Revisión
 
