@@ -22,10 +22,13 @@ bin="$root/sap13ns"
 
 echo "==> user and directories"
 id sap13ns >/dev/null 2>&1 || useradd --system --home-dir /var/lib/sap13ns --shell /usr/sbin/nologin sap13ns
+# nginx joins only this group, which owns the socket: it must not be able to
+# read the env file (secret key) or the data directory.
+getent group sap13ns-web >/dev/null || groupadd --system sap13ns-web
 install -d -o sap13ns -g sap13ns -m 0750 /var/lib/sap13ns /var/lib/sap13ns/uploads /var/lib/sap13ns/plugins
 install -d -o sap13ns -g sap13ns -m 0700 /var/lib/sap13ns/backups
 install -d -o root -g sap13ns -m 0750 /etc/sap13ns
-if id www-data >/dev/null 2>&1; then usermod -aG sap13ns www-data; fi
+if id www-data >/dev/null 2>&1; then usermod -aG sap13ns-web www-data; fi
 
 echo "==> binary"
 install -o root -g root -m 0755 "$bin" /usr/local/bin/sap13ns

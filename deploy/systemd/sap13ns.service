@@ -3,8 +3,9 @@
 #   install -m 0644 sap13ns.service /etc/systemd/system/
 #   systemctl daemon-reload && systemctl enable --now sap13ns
 #
-# It listens on /run/sap13ns/sap13ns.sock (set SAP13NS_LISTEN to
-# unix:/run/sap13ns/sap13ns.sock) and keeps its data in /var/lib/sap13ns.
+# It listens on /run/sap13ns/sap13ns.sock (SAP13NS_LISTEN) owned by the
+# sap13ns-web group (SAP13NS_SOCKET_GROUP), the only group nginx joins: nginx
+# can connect but cannot read the env file or /var/lib/sap13ns.
 # Migrations run on start. Logs: `journalctl -u sap13ns`.
 
 [Unit]
@@ -17,6 +18,7 @@ After=network-online.target postgresql.service
 Type=simple
 User=sap13ns
 Group=sap13ns
+SupplementaryGroups=sap13ns-web
 UMask=0027
 ExecStart=/usr/local/bin/sap13ns serve -env /etc/sap13ns/sap13ns.env
 Restart=on-failure
@@ -24,9 +26,10 @@ RestartSec=2s
 TimeoutStopSec=30s
 SyslogIdentifier=sap13ns
 
-# /run/sap13ns (the socket) and /var/lib/sap13ns (uploads, plugins, caches).
+# /run/sap13ns holds only the socket (0660, group sap13ns-web), so the
+# directory itself may be traversable; /var/lib/sap13ns stays private.
 RuntimeDirectory=sap13ns
-RuntimeDirectoryMode=0750
+RuntimeDirectoryMode=0755
 StateDirectory=sap13ns
 StateDirectoryMode=0750
 

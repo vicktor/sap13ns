@@ -30,8 +30,10 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -219,7 +221,7 @@ func serve(args []string) error {
 	srv.SetUpdateChecker(checker)
 	go checker.Run(ctx)
 
-	ln, err := listen(cfg.Listen)
+	ln, err := listen(cfg.Listen, cfg.SocketGroup)
 	if err != nil {
 		return err
 	}
@@ -258,7 +260,10 @@ func serve(args []string) error {
 }
 
 // listen supports "host:port" and "unix:/path/to.sock" (recommended behind nginx).
-func listen(addr string) (net.Listener, error) {
+//
+// group, when set, owns the socket: nginx is a member of that group only,
+// not of the service's own group, so it cannot read the env file or data.
+func listen(addr, group string) (net.Listener, error) {
 	path, ok := strings.CutPrefix(addr, "unix:")
 	if !ok {
 		return net.Listen("tcp", addr)
@@ -274,6 +279,19 @@ func listen(addr string) (net.Listener, error) {
 	if err := os.Chmod(path, 0o660); err != nil {
 		ln.Close()
 		return nil, err
+	}
+	if group != "" {
+		g, err := user.LookupGroup(group)
+		if err == nil {
+			var gid int
+			if gid, err = strconv.Atoi(g.Gid); err == nil {
+				err = os.Chown(path, -1, gid) // the process must be a member (SupplementaryGroups)
+			}
+		}
+		if err != nil {
+			ln.Close()
+			return nil, fmt.Errorf("socket group %q: %w", group, err)
+		}
 	}
 	return ln, nil
 }

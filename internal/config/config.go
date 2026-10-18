@@ -31,6 +31,7 @@ func (s SMTP) Enabled() bool { return s.Host != "" && s.From != "" }
 type Config struct {
 	DatabaseURL    string
 	Listen         string // "127.0.0.1:8080" or "unix:/run/sap13ns/sap13ns.sock"
+	SocketGroup    string // group given access to the Unix socket (nginx), if not the process group
 	BaseURL        *url.URL
 	SecretKey      []byte
 	DataDir        string
@@ -107,6 +108,7 @@ func Load(requireSecret bool) (*Config, error) {
 	c := &Config{
 		DatabaseURL: env("DATABASE_URL", ""),
 		Listen:      env("LISTEN", "127.0.0.1:8080"),
+		SocketGroup: env("SOCKET_GROUP", ""),
 		DataDir:     env("DATA_DIR", "./data"),
 		Dev:         envBool("DEV", false),
 		DevSkip2FA:  envBool("DEV_SKIP_2FA", false),

@@ -159,6 +159,7 @@ All settings are environment variables, which can be given in an env file with `
 | `SAP13NS_SECRET_KEY` | Instance secret (`sap13ns keygen`); encrypts and signs sessions, keys and tokens |
 | `SAP13NS_BASE_URL` | Public URL of the site |
 | `SAP13NS_LISTEN` | `host:port` or `unix:/run/sap13ns/sap13ns.sock` |
+| `SAP13NS_SOCKET_GROUP` | Group that may connect to the Unix socket (nginx's, e.g. `sap13ns-web`) |
 | `SAP13NS_DATA_DIR`, `SAP13NS_UPLOADS_DIR`, `SAP13NS_THEMES_DIR`, `SAP13NS_PLUGINS_DIR` | Storage locations |
 | `SAP13NS_SMTP_HOST`, `_PORT`, `_USERNAME`, `_PASSWORD`, `_FROM` | Outgoing e-mail |
 | `SAP13NS_TRUSTED_PROXIES` | Proxies whose `X-Forwarded-For` is trusted |

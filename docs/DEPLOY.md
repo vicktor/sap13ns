@@ -4,7 +4,7 @@ sap13ns runs as one binary behind nginx, with PostgreSQL on the same machine or 
 
 ```
 browser ──https──▶ nginx ──unix socket──▶ sap13ns ──▶ PostgreSQL
-                     └── /uploads/ straight from /var/lib/sap13ns/uploads
+                  (group sap13ns-web)       └── /var/lib/sap13ns (private)
 ```
 
 ## Requirements
@@ -29,7 +29,7 @@ sudo apt install postgresql-18-pgvector     # optional, for the site assistant
    ```
 
    The installer is idempotent. It:
-   - creates the `sap13ns` system user and `/var/lib/sap13ns`;
+   - creates the `sap13ns` system user, the `sap13ns-web` group (only nginx joins it, to reach the socket) and `/var/lib/sap13ns`;
    - installs the binary in `/usr/local/bin`;
    - creates the `sap13ns` database and role (peer authentication over the local socket) and enables `pgvector` when it is available;
    - writes `/etc/sap13ns/sap13ns.env` with a fresh secret key;
@@ -60,7 +60,7 @@ If you prefer to do it by hand, the installer's steps are short and commented in
 | `deploy/systemd/sap13ns-backup.service`, `.timer` | `/etc/systemd/system/` |
 | `deploy/nginx/sap13ns.conf` | `/etc/nginx/sites-available/` |
 
-nginx must be able to open the socket: `usermod -aG sap13ns www-data`.
+nginx must be able to open the socket, and nothing else: `groupadd --system sap13ns-web && usermod -aG sap13ns-web www-data`. Never add `www-data` to the `sap13ns` group, which can read the env file and the data directory.
 
 ## Configuration
 
@@ -68,7 +68,7 @@ All settings live in `/etc/sap13ns/sap13ns.env`; the variables are listed in the
 
 - **`SAP13NS_SECRET_KEY`** encrypts stored API keys and signs sessions and tokens. Keep a copy off the server. Changing it signs everyone out and makes stored AI keys and passkeys unusable.
 - **`SAP13NS_BASE_URL`** must be the public `https://` address. Cookies are marked `Secure`, and HSTS is sent, when it is https.
-- **`SAP13NS_SERVE_UPLOADS=false`** when nginx serves `/uploads/`, as in the provided configuration.
+- **`SAP13NS_SOCKET_GROUP=sap13ns-web`** gives that group, and only that group, access to the socket. The service joins it through `SupplementaryGroups` in the unit.
 - **`SAP13NS_TRUSTED_PROXIES`** applies only to TCP listeners. Connections over the Unix socket always come from nginx, which overwrites `X-Forwarded-For`.
 
 Everything else (site title, languages, themes, comments, two-factor policy, AI, analytics) is set in the admin.
@@ -99,13 +99,13 @@ Administrators see a notice in the admin when a release is out. Take a backup, r
 - The systemd unit runs sap13ns unprivileged with a read-only system, a private `/tmp`, no capabilities and a system-call filter. Check it with `systemd-analyze security sap13ns`.
 - **Don't add `MemoryDenyWriteExecute=yes`.** The WebAssembly runtime compiles plugins to machine code, which needs executable memory.
 - **With PostgreSQL on the same machine**, you can also add `IPAddressDeny=any` to the unit. This blocks outbound traffic, so only do it if you don't use SMTP, AI providers, release checks or plugins with network permissions. In that case also set `SAP13NS_UPDATE_CHECK=false`.
-- **Defense in depth for uploads:** files are served with a sandboxing CSP and `nosniff`; anything that isn't an image, audio, video or PDF is sent as a download.
+- **nginx can't read anything of sap13ns's:** it only reaches the socket. Uploads are served by sap13ns with a sandboxing CSP and `nosniff`; anything that isn't an image, audio, video or PDF is sent as a download.
 
 ## Troubleshooting
 
 | Symptom | Cause |
 |---|---|
-| nginx returns **502** | sap13ns isn't running (`journalctl -u sap13ns`), or nginx can't open the socket: `www-data` isn't in the `sap13ns` group (restart nginx after `usermod`). |
+| nginx returns **502** | sap13ns isn't running (`journalctl -u sap13ns`), or nginx can't open the socket: `www-data` isn't in the `sap13ns-web` group (restart nginx after `usermod`). |
 | **Uploads return 413** | Raise `client_max_body_size` in nginx and `SAP13NS_MAX_UPLOAD_MB` together. |
 | **Signed out after every request** | `SAP13NS_BASE_URL` is https but the site is opened over http, so the `Secure` cookie is dropped. |
 | **Site assistant search is keyword-only** | `pgvector` isn't installed or enabled: install the package, then run `CREATE EXTENSION vector` as a superuser in the `sap13ns` database. |
