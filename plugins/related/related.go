@@ -168,16 +168,15 @@ func compareIDs(a, b int64) int {
 	return 0
 }
 
-// Current finds the post a single page shows. The widget payload has no
-// post (only kind, URL, language and title), so it searches for the words
-// of the page title and keeps the result whose URL is the page URL. It
-// returns the number of queries it made.
+// Current finds the post a single page shows: page.post, which the host
+// sends. Older hosts sent no post, so without one it searches for
+// the words of the page title and keeps the result whose URL is the page
+// URL. It returns the number of queries it made.
 func Current(page *pluginsdk.Page, lang string, query Querier) (*pluginsdk.Post, int, error) {
 	if page == nil || page.Kind != "single" {
 		return nil, 0, nil
 	}
 	if p := page.Post; p != nil && p.ID > 0 && p.Terms != nil {
-		// A host that sends the post saves the search.
 		if p.Type != "" && p.Type != "post" {
 			return nil, 0, nil
 		}

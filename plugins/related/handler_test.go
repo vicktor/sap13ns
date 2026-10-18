@@ -40,6 +40,13 @@ func TestFilterHook(t *testing.T) {
 	}
 }
 
+func TestFilterHookSkipsFeeds(t *testing.T) {
+	env, current := newEnv(t)
+	if got, err := env.FilterIn(pluginsdk.ContextFeed, "<p>Hola</p>", current); err != nil || got != "<p>Hola</p>" {
+		t.Fatalf("feed item changed: %q %v", got, err)
+	}
+}
+
 func TestFilterHookLeavesHTML(t *testing.T) {
 	env, current := newEnv(t)
 	page := *current

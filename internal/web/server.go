@@ -180,6 +180,7 @@ func (s *Server) t(key string, args ...any) string { return s.i18n.T(s.lang(), k
 // contentChanged invalidates caches after any write that affects public pages.
 func (s *Server) contentChanged() {
 	s.pages.Invalidate()
+	s.content.Invalidate() // bodies can show other posts (shortcodes, filters)
 	s.site.invalidate()
 	s.custom.invalidate()
 	s.assistant().Nudge()

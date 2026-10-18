@@ -38,8 +38,8 @@ func filter(req *pluginsdk.Request) any {
 		warn("invalid content.filter payload: " + err.Error())
 		return nil
 	}
-	if c.Post == nil || c.Post.Type != "post" {
-		return nil
+	if c.Post == nil || c.Post.Type != "post" || c.Context == pluginsdk.ContextFeed {
+		return nil // pages, and feed items: the block is for readers on the site
 	}
 	lang := language(c.Post.Lang, req.Site.Language)
 	o := options(req, lang)

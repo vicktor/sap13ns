@@ -389,7 +389,7 @@ func TestPluginsEndToEnd(t *testing.T) {
 	rec, body := page()
 	for _, want := range []string{`action="/plugin-forms/hooks/contact"`, `id="form-hooks-contact"`, `name="_hp"`,
 		`<script type="application/ld+json">`, `\u003c/script\u003e`, `<meta name="author" content="Ada">`, `/plugin-assets/hooks/`,
-		`<meta name="keywords" content="published=true updated=true tags=[]">`} {
+		`<meta name="keywords" content="published=true updated=true tags=[]">`, `<p class="filtered">page</p>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %s", want)
 		}
@@ -405,6 +405,28 @@ func TestPluginsEndToEnd(t *testing.T) {
 	}
 	if csp := e.do("GET", "/admin/plugins", nil, "", e.cookie).Header().Get("Content-Security-Policy"); !strings.Contains(csp, "frame-src 'none'") {
 		t.Fatalf("admin CSP: %s", csp)
+	}
+	if feed := e.do("GET", "/feed.json", nil, "").Body.String(); !strings.Contains(feed, `\u003cp class=\"filtered\"\u003efeed\u003c/p\u003e`) {
+		t.Errorf("feed items are not filtered as feeds: %s", feed)
+	}
+
+	// A body that lists other posts is rendered again after any content change.
+	listID, err := e.st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: "List", Slug: "list",
+		Lang: e.s.mainLang(), Content: "[posts]", AuthorID: e.adminID, CommentStatus: "open", PublishedAt: &at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, _ := e.st.PostByID(ctx, listID)
+	if got := string(e.s.renderBody(ctx, list, plugin.FilterPage)); strings.Contains(got, "Later/") {
+		t.Fatalf("unexpected post: %s", got)
+	}
+	if _, err := e.st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: "Later", Slug: "later",
+		Lang: e.s.mainLang(), AuthorID: e.adminID, CommentStatus: "open", PublishedAt: &at}); err != nil {
+		t.Fatal(err)
+	}
+	e.s.contentChanged()
+	if got := string(e.s.renderBody(ctx, list, plugin.FilterPage)); !strings.Contains(got, "Later/") {
+		t.Errorf("stale body after a content change: %s", got)
 	}
 
 	// The stylesheet is served immutable from the site.

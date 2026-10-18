@@ -126,29 +126,11 @@ media URLs.
 
 ## Host compatibility
 
-- **The card can be up to 24 hours old.** The host caches each post's
-  filtered body for up to 24 hours. It renders it again when that post is
-  edited or a plugin's settings change, but not when *another* post is
-  published, edited or deleted. A new related post can therefore take up to a
-  day to appear in the card, and a deleted one can linger as a link that
-  returns 404. The widget is not affected: it runs on every page render.
-  Use the widget (and turn `after_content` off) if this matters.
-- **The widget searches for the current post.** The widget payload has no
-  post (only the page kind, URL, language and title). On single-post pages
-  the plugin searches for up to 8 words of the title and keeps the result
-  whose URL is the page URL. That costs one of the 10 queries, so the widget
-  queries at most 9 terms. If the host ever sends `page.post` with its terms,
-  the plugin uses it and skips the search.
 - **Thumbnails are full-size images.** `Post.Image` is the original upload;
   the host has no thumbnail or `srcset` for plugins. Hence `show_images` is
   off by default.
-- **`posts_query` returns no images yet.** The host's `posts_query`
-  (`internal/plugin/hostfuncs.go`) loads terms but not featured images, so
-  `Post.Image` is always empty in its results and `show_images` currently
-  shows nothing. The plugin needs no change once the host fills it.
-- **Feeds.** The host builds full-text feed items from the same cached
-  body, so with full-text feeds on, the card also appears at the end of feed
-  items.
+- **Feed items get no card.** In full-text feeds (`context` is `feed`) the
+  plugin leaves the HTML as it is.
 - The card is appended to the HTML as it is; earlier filters' output is
   untouched and no HTML is parsed.
 

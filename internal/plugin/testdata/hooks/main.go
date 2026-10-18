@@ -39,6 +39,11 @@ func init() {
 			}
 			return pluginsdk.HTML(strings.Join(titles, ",")), nil
 
+		case pluginsdk.HookContentFilter:
+			var c pluginsdk.ContentFilter
+			req.Decode(&c)
+			return pluginsdk.HTML(c.HTML + `<p class="filtered">` + c.Context + `</p>`), nil
+
 		case pluginsdk.HookWidget:
 			var w pluginsdk.Widget
 			req.Decode(&w)

@@ -188,9 +188,10 @@ func canEditPost(u *store.User, p *store.Post) bool {
 }
 
 // renderBody turns post Markdown into HTML through shortcodes, sanitizer and
-// content.filter plugins. Results are cached per post version.
-func (s *Server) renderBody(ctx context.Context, p *store.Post) template.HTML {
-	key := fmt.Sprintf("%d:%d:%d", p.ID, p.UpdatedAt.UnixNano(), s.plugins.Generation())
+// content.filter plugins, for the post's page or a feed (where). Results are
+// cached per post version until content changes (contentChanged).
+func (s *Server) renderBody(ctx context.Context, p *store.Post, where string) template.HTML {
+	key := fmt.Sprintf("%d:%d:%d:%s", p.ID, p.UpdatedAt.UnixNano(), s.plugins.Generation(), where)
 	if e, ok := s.content.Get(key); ok {
 		return template.HTML(e.Body)
 	}
@@ -200,7 +201,7 @@ func (s *Server) renderBody(ctx context.Context, p *store.Post) template.HTML {
 	html := content.Render(p.Content, s.plugins.HasShortcode, func(sc content.Shortcode) (string, error) {
 		return s.plugins.Shortcode(ctx, sc.Name, sc.Attrs, sc.Inner, &info)
 	}, nil)
-	filtered := s.plugins.FilterContent(ctx, string(html), &info, func(h string) string {
+	filtered := s.plugins.FilterContent(ctx, string(html), &info, where, func(h string) string {
 		return string(content.SanitizePluginHTML(h, nil))
 	})
 	filtered = content.ExpandIcons(filtered, func(name string) string { return icons.SVG(name, "") })

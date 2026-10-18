@@ -1113,18 +1113,26 @@ func (h *Host) Shortcode(ctx context.Context, name string, attrs map[string]stri
 }
 
 type filterPayload struct {
-	HTML string    `json:"html"`
-	Post *PostInfo `json:"post,omitempty"`
+	HTML    string    `json:"html"`
+	Post    *PostInfo `json:"post,omitempty"`
+	Context string    `json:"context"` // FilterPage or FilterFeed
 }
 
+// Where content.filter output goes.
+const (
+	FilterPage = "page" // the post's own page
+	FilterFeed = "feed" // a full-text feed item
+)
+
 // FilterContent passes rendered HTML through every content.filter plugin in
-// id order. sanitize is applied to each plugin's output.
-func (h *Host) FilterContent(ctx context.Context, html string, post *PostInfo, sanitize func(string) string) string {
+// id order. where is FilterPage or FilterFeed. sanitize is applied to each
+// plugin's output.
+func (h *Host) FilterContent(ctx context.Context, html string, post *PostInfo, where string, sanitize func(string) string) string {
 	for _, p := range h.enabled() {
 		if !p.HasHook(HookContentFilter) {
 			continue
 		}
-		resp, err := h.call(ctx, p, HookContentFilter, "", filterPayload{HTML: html, Post: post}, renderTimeout, 0)
+		resp, err := h.call(ctx, p, HookContentFilter, "", filterPayload{HTML: html, Post: post, Context: where}, renderTimeout, 0)
 		if err != nil || resp.HTML == nil {
 			continue
 		}

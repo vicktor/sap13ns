@@ -10,6 +10,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/content"
 	"sap13ns/internal/feed"
+	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 )
 
@@ -98,7 +99,7 @@ func (s *Server) writeFeed(w http.ResponseWriter, r *http.Request, file, title, 
 			it.ImageURL = base + pv.Image.Large
 		}
 		if st.FeedFullText {
-			it.ContentHTML = absolutize(string(s.renderBody(r.Context(), p)), base)
+			it.ContentHTML = absolutize(string(s.renderBody(r.Context(), p, plugin.FilterFeed)), base)
 			if pv.Image != nil {
 				it.ContentHTML = `<p><img src="` + base + pv.Image.Large + `" alt="` + escapeAttr(pv.Image.Alt) + `"></p>` + it.ContentHTML
 			}

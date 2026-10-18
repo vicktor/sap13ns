@@ -162,7 +162,17 @@ type Shortcode struct {
 type ContentFilter struct {
 	HTML string `json:"html"`
 	Post *Post  `json:"post"`
+	// Context is where the HTML goes: ContextPage (the post's own page) or
+	// ContextFeed (a full-text feed item). Leave feed items alone when the
+	// filter adds page furniture such as related posts or forms.
+	Context string `json:"context"`
 }
+
+// ContentFilter contexts.
+const (
+	ContextPage = "page"
+	ContextFeed = "feed"
+)
 
 // Widget is the payload of HookWidget.
 type Widget struct {

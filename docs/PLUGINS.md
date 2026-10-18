@@ -201,7 +201,9 @@ The payload objects below use these shapes:
 
 ### content.filter
 
-- **Payload:** `{"html": "…", "post": {…}}`
+- **Payload:** `{"html": "…", "post": {…}, "context": "page"}`
+  - `context` is `page` for the post's own page and `feed` for a full-text feed item. A filter that adds page furniture, such as related posts, share buttons or forms, should return nothing for `feed`.
+  - The filtered body is cached, separately for pages and feeds, until the post or a plugin's settings change, or until any content changes (a post, a comment, a menu), so a body that lists other posts stays current.
 - **Response:** `{"html": "…"}`
   - The output replaces the HTML and is sanitized again.
   - Form placeholders that were already in the input are kept. A filter can only add its own forms.

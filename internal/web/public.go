@@ -400,7 +400,7 @@ func (s *Server) renderSingle(w http.ResponseWriter, r *http.Request, p *store.P
 	viewer := currentUser(r)
 	ctx := r.Context()
 	pv := s.postView(p, viewer)
-	pv.Content = s.renderBody(ctx, p)
+	pv.Content = s.renderBody(ctx, p, plugin.FilterPage)
 	pd.Post, pd.Title, pd.Heading, pd.IsFront, pd.Preview = pv, p.Title, p.Title, front, preview
 	pi := s.PostInfo(p)
 	pd.postInfo = &pi

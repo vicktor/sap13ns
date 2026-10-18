@@ -168,10 +168,15 @@ func (e *Env) Widget(id string, config map[string]string) (string, error) {
 	return r.HTML, nil
 }
 
-// Filter runs content.filter. An empty response leaves the HTML unchanged,
-// as in the host.
+// Filter runs content.filter for a page. An empty response leaves the HTML
+// unchanged, as in the host.
 func (e *Env) Filter(html string, post *pluginsdk.Post) (string, error) {
-	r, err := e.Call(pluginsdk.HookContentFilter, pluginsdk.ContentFilter{HTML: html, Post: post})
+	return e.FilterIn(pluginsdk.ContextPage, html, post)
+}
+
+// FilterIn runs content.filter for a page or a feed (pluginsdk.ContextFeed).
+func (e *Env) FilterIn(context, html string, post *pluginsdk.Post) (string, error) {
+	r, err := e.Call(pluginsdk.HookContentFilter, pluginsdk.ContentFilter{HTML: html, Post: post, Context: context})
 	if err != nil {
 		return html, err
 	}
