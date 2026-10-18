@@ -81,6 +81,7 @@ type PostInfo struct {
 	Terms       []TermInfo `json:"terms"`
 	Image       string     `json:"image,omitempty"` // absolute URL of the featured image
 	PublishedAt string     `json:"published_at,omitempty"`
+	UpdatedAt   string     `json:"updated_at,omitempty"` // last edit, RFC 3339
 	WordCount   int        `json:"word_count"`
 }
 
@@ -140,8 +141,36 @@ type Plugin struct {
 	failures  int
 	pausedTil time.Time
 
-	logMu sync.Mutex
-	logs  []LogLine
+	log *activityLog // shared by every generation of the plugin (Host.logs)
+}
+
+// activityLog holds a plugin's latest log lines. The Host keeps one per
+// plugin id across reloads, so lines written by calls still running on a
+// retired generation are not lost. A nil log (scanner dry runs) drops them.
+type activityLog struct {
+	mu    sync.Mutex
+	lines []LogLine
+}
+
+func (l *activityLog) snapshot() []LogLine {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.lines)
+}
+
+func (l *activityLog) add(line LogLine) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.lines = append(l.lines, line)
+	if len(l.lines) > 200 {
+		l.lines = l.lines[len(l.lines)-200:]
+	}
+	l.mu.Unlock()
 }
 
 // Granted reports whether perm is both requested by the manifest and
@@ -183,22 +212,13 @@ func (p *Plugin) SettingValues() map[string]string {
 	return out
 }
 
-func (p *Plugin) Logs() []LogLine {
-	p.logMu.Lock()
-	defer p.logMu.Unlock()
-	return slices.Clone(p.logs)
-}
+func (p *Plugin) Logs() []LogLine { return p.log.snapshot() }
 
 func (p *Plugin) addLog(level, text string) {
 	if len(text) > 2000 {
 		text = text[:2000] + "…"
 	}
-	p.logMu.Lock()
-	p.logs = append(p.logs, LogLine{At: time.Now(), Level: level, Text: text})
-	if len(p.logs) > 200 {
-		p.logs = p.logs[len(p.logs)-200:]
-	}
-	p.logMu.Unlock()
+	p.log.add(LogLine{At: time.Now(), Level: level, Text: text})
 }
 
 func (p *Plugin) paused() bool {
@@ -240,6 +260,7 @@ type Host struct {
 	plugins    map[string]*Plugin
 	shortcodes map[string]*Plugin
 	compiled   map[string]wazero.CompiledModule // by sha256, reused across reloads
+	logs       map[string]*activityLog          // activity logs by plugin id, kept across reloads
 	csp        map[string][]string              // sources added by enabled plugins
 	gen        atomic.Uint64
 
@@ -399,11 +420,14 @@ func (h *Host) Load(ctx context.Context) error {
 
 	h.mu.Lock()
 	old := h.plugins
+	logs := make(map[string]*activityLog, len(found))
 	for id, np := range found {
-		if op, ok := old[id]; ok {
-			np.logs = op.Logs() // keep the log across reloads
+		if np.log = h.logs[id]; np.log == nil {
+			np.log = &activityLog{}
 		}
+		logs[id] = np.log
 	}
+	h.logs = logs
 	h.plugins = found
 	h.shortcodes = shortcodes
 	h.csp = csp

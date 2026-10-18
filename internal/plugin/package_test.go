@@ -380,6 +380,15 @@ func TestInstallLifecycle(t *testing.T) {
 	if n := compiled(); n != 1 {
 		t.Fatalf("%d compiled modules after approval", n)
 	}
+	// A call still running on a retired generation logs to the same place.
+	retired := h.Get("life")
+	if err := h.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	retired.addLog("info", "from the retired generation")
+	if logs := h.Get("life").Logs(); len(logs) == 0 || logs[len(logs)-1].Text != "from the retired generation" {
+		t.Fatalf("logs after a reload: %+v", logs)
+	}
 	if err := h.SaveSettings(ctx, "life", map[string]string{"greeting": "Hola"}); err != nil {
 		t.Fatal(err)
 	}

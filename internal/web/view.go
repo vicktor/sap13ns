@@ -42,6 +42,9 @@ func (s *Server) PostInfo(p *store.Post) plugin.PostInfo {
 	if p.PublishedAt != nil {
 		info.PublishedAt = p.PublishedAt.UTC().Format(time.RFC3339)
 	}
+	if !p.UpdatedAt.IsZero() {
+		info.UpdatedAt = p.UpdatedAt.UTC().Format(time.RFC3339)
+	}
 	for _, t := range p.Terms {
 		if t.Taxonomy == "tag" {
 			info.Tags = append(info.Tags, t.In(p.Lang).Name)

@@ -261,7 +261,7 @@ func (h *Host) hostPostsQuery(ctx context.Context, m api.Module, qptr, qlen uint
 	if q.Limit <= 0 || q.Limit > 20 {
 		q.Limit = 5
 	}
-	pq := store.PostQuery{Type: store.TypePost, PublicOnly: true, Limit: q.Limit, WithTerms: true, Search: strings.TrimSpace(q.Search)}
+	pq := store.PostQuery{Type: store.TypePost, PublicOnly: true, Limit: q.Limit, WithTerms: true, WithMedia: true, Search: strings.TrimSpace(q.Search)}
 	if q.Type == store.TypePage {
 		pq.Type = store.TypePage
 	}

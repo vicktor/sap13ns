@@ -187,7 +187,7 @@ Render hooks run while a page is served. They never get the network or e-mail, a
 
 The payload objects below use these shapes:
 
-- **`post`** (a published post or page): `id`, `type` (`post`, `page`), `title`, `slug`, `lang`, `url` (absolute), `excerpt`, `author`, `categories` and `tags` (names), `terms` (`taxonomy`, `slug`, `name`, `url`), `image` (absolute URL of the featured image), `published_at` (RFC 3339) and `word_count`.
+- **`post`** (a published post or page): `id`, `type` (`post`, `page`), `title`, `slug`, `lang`, `url` (absolute), `excerpt`, `author`, `categories` and `tags` (names), `terms` (`taxonomy`, `slug`, `name`, `url`), `image` (absolute URL of the featured image), `published_at` and `updated_at` (RFC 3339), and `word_count`.
 - **`page`** (the page being served): `kind` (`home`, `single`, `page`, `archive`, `search`, `404`), `url` (canonical, absolute), `lang` (the language the page is shown in), `title`, `description`, and `post` (when the page shows one).
 
 ### shortcode

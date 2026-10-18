@@ -136,6 +136,7 @@ type Post struct {
 	Terms       []Term   `json:"terms"`
 	Image       string   `json:"image"` // absolute URL of the featured image, "" if none
 	PublishedAt string   `json:"published_at"`
+	UpdatedAt   string   `json:"updated_at"` // last edit, RFC 3339
 	WordCount   int      `json:"word_count"`
 }
 
