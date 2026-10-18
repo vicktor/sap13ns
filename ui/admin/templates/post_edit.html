@@ -273,7 +273,7 @@
           {{end}}
         </div>
         {{else}}<p class="muted text-sm">{{T "No categories yet."}}</p>{{end}}
-        {{if .Can "terms.manage"}}<p class="mt-3"><a class="text-sm" href="/admin/terms/category" target="_blank">{{icon "plus" "size-3.5"}} {{T "Manage categories"}}</a></p>{{end}}
+        {{if .Can "terms.manage"}}<p class="mt-3"><a class="inline-flex items-center gap-1 text-sm" href="/admin/terms/category" target="_blank">{{icon "plus" "size-3.5"}}{{T "Manage categories"}}</a></p>{{end}}
       </section>
     </div>
     <div class="card">

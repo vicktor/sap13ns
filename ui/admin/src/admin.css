@@ -466,7 +466,7 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 /* ------------------------------------------------------------- assistant */
 .ai-panel header h2 { @apply flex items-center gap-2; }
 .ai-actions { @apply flex flex-wrap gap-2; }
-.ai-write > summary { @apply flex cursor-pointer items-center gap-2 text-sm font-medium; }
+.ai-write > summary { @apply flex cursor-pointer items-center gap-2 text-sm font-medium [&>svg]:size-4 [&>svg]:shrink-0; }
 .ai-write > .form { @apply mt-3; }
 .ai-result { @apply space-y-2 rounded-md border border-dashed p-3 text-sm; }
 .ai-text { @apply max-h-72 overflow-auto rounded bg-muted p-3 text-sm whitespace-pre-wrap; }
