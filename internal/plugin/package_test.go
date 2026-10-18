@@ -325,6 +325,12 @@ func TestPinnedCapabilities(t *testing.T) {
 	if m.Capabilities()[0] == form {
 		t.Error("a new field type kept the form pin")
 	}
+	// Separators inside choices cannot make two field lists look alike.
+	one := FormDecl{ID: "f", Fields: []FormField{{Name: "a", Type: "select", Choices: []string{"x\x00y"}}}}
+	two := FormDecl{ID: "f", Fields: []FormField{{Name: "a", Type: "select", Choices: []string{"x", "y"}}}}
+	if (&Manifest{Forms: []FormDecl{one}}).Capabilities()[0] == (&Manifest{Forms: []FormDecl{two}}).Capabilities()[0] {
+		t.Error("different choices share a form pin")
+	}
 }
 
 func TestInstallLifecycle(t *testing.T) {

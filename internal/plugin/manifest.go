@@ -28,6 +28,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 const ABIVersion = 1
@@ -356,6 +358,9 @@ func validateSettingDecl(s SettingDecl, seen map[string]bool) error {
 		if len(s.Choices) == 0 || len(s.Choices) > 100 {
 			return fmt.Errorf("setting %q: select needs 1 to 100 choices", s.Key)
 		}
+		if !validChoices(s.Choices) {
+			return fmt.Errorf("setting %q: choices must be 1-200 characters without control characters", s.Key)
+		}
 		if s.Default != "" && !slices.Contains(s.Choices, s.Default) {
 			return fmt.Errorf("setting %q: default is not one of the choices", s.Key)
 		}
@@ -430,6 +435,9 @@ func (m *Manifest) validateForms() []error {
 			if fd.Type == "select" && (len(fd.Choices) == 0 || len(fd.Choices) > 50) {
 				errs = append(errs, fmt.Errorf("form %q: select %q needs 1-50 choices", f.ID, fd.Name))
 			}
+			if !validChoices(fd.Choices) {
+				errs = append(errs, fmt.Errorf("form %q: choices of %q must be 1-200 characters without control characters", f.ID, fd.Name))
+			}
 			if fd.MaxLength < 0 || fd.MaxLength > 10000 {
 				errs = append(errs, fmt.Errorf("form %q: max_length of %q must be 0-10000", f.ID, fd.Name))
 			}
@@ -491,6 +499,17 @@ func (m *Manifest) EffectivePermissions() []string {
 	return slices.Compact(out)
 }
 
+// validChoices reports whether every choice is 1 to 200 characters with no
+// control characters.
+func validChoices(choices []string) bool {
+	for _, c := range choices {
+		if c == "" || utf8.RuneCountInString(c) > 200 || strings.ContainsFunc(c, unicode.IsControl) {
+			return false
+		}
+	}
+	return true
+}
+
 // Capabilities are what the manifest hooks into, as the entries an
 // approval pins next to the permissions: "hook:widget",
 // "event:post.published", "shortcode:tip", "widget:recent" and
@@ -510,12 +529,19 @@ func (m *Manifest) Capabilities() []string {
 	for _, w := range m.Widgets {
 		out = append(out, "widget:"+w.ID)
 	}
+	type fieldShape struct {
+		Name, Type string
+		Limit      int
+		Choices    []string
+	}
 	for _, f := range m.Forms {
-		h := sha256.New()
+		var shape []fieldShape
 		for _, fd := range f.Fields {
-			fmt.Fprintf(h, "%s\x00%s\x00%d\x00%s\n", fd.Name, fd.Type, fd.Limit(), strings.Join(fd.Choices, "\x00"))
+			shape = append(shape, fieldShape{fd.Name, fd.Type, fd.Limit(), fd.Choices})
 		}
-		out = append(out, "form:"+f.ID+":"+hex.EncodeToString(h.Sum(nil))[:16])
+		raw, _ := json.Marshal(shape) // unambiguous, whatever the choices contain
+		sum := sha256.Sum256(raw)
+		out = append(out, "form:"+f.ID+":"+hex.EncodeToString(sum[:])[:16])
 	}
 	sort.Strings(out)
 	return slices.Compact(out)

@@ -558,6 +558,8 @@ func TestManifestRules(t *testing.T) {
 		{"unknown field", base(sc + `, "permisions": ["kv"]`), false},
 		{"select default", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "select", "choices": ["a"], "default": "b"}]`), false},
 		{"select without choices", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "select"}]`), false},
+		{"select choice with a newline", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "select", "choices": ["a\nb"]}]`), false},
+		{"empty select choice", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "select", "choices": [""]}]`), false},
 		{"no label", base(sc + `, "settings": [{"key": "s", "type": "text"}]`), false},
 		{"duplicate key", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "text"}, {"key": "s", "label": "T", "type": "text"}]`), false},
 		{"secret default", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "secret", "default": "x"}]`), false},
