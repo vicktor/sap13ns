@@ -563,6 +563,8 @@ type WidgetView struct {
 	ID       int64
 	Kind     string
 	Title    string
+	Class    string // widget-<kind>, or widget-plugin widget-<plugin>-<widget>
+	Label    string // accessible name: the title, or a plugin widget's declared title
 	HTML     template.HTML
 	Posts    []*PostView
 	Terms    []TermView

@@ -213,7 +213,9 @@ The payload objects below use these shapes:
 - **Payload:** `{"widget": "latest", "config": {"count": "5"}, "page": {…}}`
   - `config` holds the values saved for this placement in **Appearance → Widgets**.
   - A config field added in a later version arrives with its default.
+  - `page.post` is the post on post and page views.
 - **Response:** `{"html": "…"}`
+  - The host wraps it in `<section class="widget widget-plugin widget-<plugin>-<widget>" aria-label="…">`. The label is the title given to the placement, or the widget's `title` from `plugin.json` when the placement has none.
 
 ### head.meta
 

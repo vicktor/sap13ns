@@ -54,9 +54,13 @@ func init() {
 			var w pluginsdk.Widget
 			req.Decode(&w)
 			s := req.Plugin.Settings
-			return pluginsdk.HTML(fmt.Sprintf("count=%s show=%s until=%s lang=%s tz=%s starts=%s key=%s mode=%s limit=%s",
+			out := fmt.Sprintf("count=%s show=%s until=%s lang=%s tz=%s starts=%s key=%s mode=%s limit=%s",
 				w.Config["count"], w.Config["show"], w.Config["until"], w.Page.Lang, req.Site.Timezone,
-				s["starts"], s["api_key"], s["mode"], s["limit"])), nil
+				s["starts"], s["api_key"], s["mode"], s["limit"])
+			if w.Page.Post != nil {
+				out += " post=" + w.Page.Post.Slug
+			}
+			return pluginsdk.HTML(out), nil
 
 		case pluginsdk.HookHeadMeta:
 			var pg pluginsdk.Page

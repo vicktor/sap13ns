@@ -378,6 +378,10 @@ func TestPluginsEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	pu, _ := url.Parse(e.s.PostInfo(post).URL)
+	if err := e.st.AddWidget(ctx, "footer", "", "plugin:hooks:info", "", map[string]string{"count": "4"}); err != nil {
+		t.Fatal(err)
+	}
+	e.s.contentChanged()
 	page := func(cookies ...*http.Cookie) (*httptest.ResponseRecorder, string) {
 		t.Helper()
 		rec := e.do("GET", pu.Path, nil, "", cookies...)
@@ -389,7 +393,8 @@ func TestPluginsEndToEnd(t *testing.T) {
 	rec, body := page()
 	for _, want := range []string{`action="/plugin-forms/hooks/contact"`, `id="form-hooks-contact"`, `name="_hp"`,
 		`<script type="application/ld+json">`, `\u003c/script\u003e`, `<meta name="author" content="Ada">`, `/plugin-assets/hooks/`,
-		`<meta name="keywords" content="published=true updated=true tags=[]">`, `<p class="filtered">page</p>`} {
+		`<meta name="keywords" content="published=true updated=true tags=[]">`, `<p class="filtered">page</p>`,
+		`<section class="widget widget-plugin widget-hooks-info" aria-label="Info">`, `post=contact`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %s", want)
 		}

@@ -752,7 +752,7 @@ func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData,
 	var page *plugin.PageInfo
 	for _, area := range th.WidgetAreas {
 		for _, wd := range d.widgets[area.ID] {
-			v := WidgetView{ID: wd.ID, Kind: wd.Kind, Title: wd.Title}
+			v := WidgetView{ID: wd.ID, Kind: wd.Kind, Title: wd.Title, Class: "widget-" + wd.Kind, Label: wd.Title}
 			switch wd.Kind {
 			case "recent_posts":
 				n, _ := strconv.Atoi(wd.Config["count"])
@@ -788,6 +788,10 @@ func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData,
 					continue
 				}
 				v.HTML = content.SanitizePluginHTML(html, func(n string) string { return icons.SVG(n, "") })
+				v.Class = "widget-plugin widget-" + parts[1] + "-" + parts[2] // ids are validated by the manifest
+				if v.Label == "" {
+					v.Label = s.pluginWidgetTitle(parts[1], parts[2])
+				}
 			}
 			out[area.ID] = append(out[area.ID], v)
 		}

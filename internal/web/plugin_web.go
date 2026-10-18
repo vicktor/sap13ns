@@ -101,6 +101,18 @@ func (s *Server) pluginHead(ctx context.Context, pd *PageData, info *plugin.Page
 	pd.PluginCSS, pd.PluginJS = s.plugins.AssetLinks()
 }
 
+// pluginWidgetTitle is the title a plugin declares for one of its widgets.
+func (s *Server) pluginWidgetTitle(pluginID, widgetID string) string {
+	if p := s.plugins.Get(pluginID); p != nil {
+		for _, w := range p.Widgets {
+			if w.ID == widgetID {
+				return w.Title
+			}
+		}
+	}
+	return ""
+}
+
 // pageInfo describes the page to plugins (head.meta and widgets).
 func pageInfo(pd *PageData) *plugin.PageInfo {
 	return &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Lang: pd.Site.Lang, Title: pd.Title,
