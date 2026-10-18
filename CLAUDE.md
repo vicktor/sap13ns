@@ -14,6 +14,7 @@ go vet ./... && go test ./...
 go test ./internal/web -run TestSafeNext     # a single test
 go run ./scripts/devseed -env data/dev.env   # sample content; creates admin / dev-password-123
 ./bin/sap13ns serve -env data/dev.env        # dev server on 127.0.0.1:8137
+make check                                   # vet + Go and JS tests + every plugin's tests
 ```
 
 - **Asset outputs:** `npm run build` writes `ui/themes/*/static/theme.css`, `ui/static/admin.css`, `ui/static/vendor/basecoat/` and `internal/icons/lucide/`. These outputs are committed, because the binary embeds them and production never runs Node. Re-run the build after changing templates (Tailwind scans them for classes) or `scripts/icons.txt`. An icon must be listed there before `{{icon "name"}}` can use it.
