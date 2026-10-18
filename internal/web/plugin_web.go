@@ -95,7 +95,16 @@ func (s *Server) pluginHead(ctx context.Context, pd *PageData, info *plugin.Page
 	for _, ld := range head.JSONLD {
 		pd.PluginLD = append(pd.PluginLD, template.JS(ld)) // validated and HTML-escaped by the host
 	}
+	if len(pd.PluginLD) > 0 {
+		pd.JSONLD = nil // a plugin's structured data replaces the host's WebSite or BlogPosting
+	}
 	pd.PluginCSS, pd.PluginJS = s.plugins.AssetLinks()
+}
+
+// pageInfo describes the page to plugins (head.meta and widgets).
+func pageInfo(pd *PageData) *plugin.PageInfo {
+	return &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Lang: pd.Site.Lang, Title: pd.Title,
+		Description: pd.Description, Post: pd.postInfo}
 }
 
 // ---------------------------------------------------------------- CSP --

@@ -224,6 +224,7 @@ The payload objects below use these shapes:
     Anything else is dropped and logged: `http-equiv`, browser settings such as `referrer`, `viewport` and `theme-color`, `robots`, and site-ownership claims such as `google-site-verification`, `msvalidate.01` and `fb:*`.
   - **JSON-LD:** up to 5 objects per plugin. Each must be a JSON object of at most 16 KiB, and a page takes at most 64 KiB of plugin JSON-LD.
   - **How JSON-LD is written:** each object is compacted and written in its own `<script type="application/ld+json">` with `<`, `>` and `&` escaped as `\u003c`, `\u003e` and `\u0026`, so it can never close the element. Invalid objects are dropped and logged.
+  - **The host's own JSON-LD:** a `WebSite` on the home page and a `BlogPosting` on posts. When a plugin returns JSON-LD for a page, the host leaves its own out, so the page does not describe the same things twice. A plugin that writes JSON-LD should therefore describe the whole page.
 
 ### comment.check
 

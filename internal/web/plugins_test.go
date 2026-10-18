@@ -388,10 +388,14 @@ func TestPluginsEndToEnd(t *testing.T) {
 	}
 	rec, body := page()
 	for _, want := range []string{`action="/plugin-forms/hooks/contact"`, `id="form-hooks-contact"`, `name="_hp"`,
-		`<script type="application/ld+json">`, `\u003c/script\u003e`, `<meta name="author" content="Ada">`, `/plugin-assets/hooks/`} {
+		`<script type="application/ld+json">`, `\u003c/script\u003e`, `<meta name="author" content="Ada">`, `/plugin-assets/hooks/`,
+		`<meta name="keywords" content="published=true updated=true tags=[]">`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %s", want)
 		}
+	}
+	if strings.Contains(body, "BlogPosting") {
+		t.Error("the host's JSON-LD was written next to the plugin's")
 	}
 	if strings.Contains(body, "<script>alert(1)") || strings.Contains(body, formTokenSlot) || strings.Contains(body, `data-form="hooks.contact"`) {
 		t.Fatal("unsafe or unexpanded output on the page")

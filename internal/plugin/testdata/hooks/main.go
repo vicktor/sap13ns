@@ -48,7 +48,13 @@ func init() {
 				s["starts"], s["api_key"], s["mode"], s["limit"])), nil
 
 		case pluginsdk.HookHeadMeta:
-			return pluginsdk.Head([]pluginsdk.Meta{{Name: "author", Content: "Ada"}, {Name: "bad name!", Content: "x"}, {Name: "a", Property: "b", Content: "both"}},
+			var pg pluginsdk.Page
+			req.Decode(&pg)
+			meta := []pluginsdk.Meta{{Name: "author", Content: "Ada"}, {Name: "bad name!", Content: "x"}, {Name: "a", Property: "b", Content: "both"}}
+			if p := pg.Post; p != nil {
+				meta = append(meta, pluginsdk.Meta{Name: "keywords", Content: fmt.Sprintf("published=%t updated=%t tags=%v", p.PublishedAt != "", p.UpdatedAt != "", p.Tags)})
+			}
+			return pluginsdk.Head(meta,
 				map[string]any{"@type": "Thing", "name": "</script><script>alert(1)</script>"},
 				[]string{"not", "an", "object"},
 				map[string]any{"@type": "Big", "data": strings.Repeat("x", 20<<10)}), nil

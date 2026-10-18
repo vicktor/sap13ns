@@ -176,13 +176,7 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	if d, err := s.loadSiteData(ctx, pd.Site.Lang); err == nil {
 		pd.Widgets = s.buildWidgets(ctx, th, d, pd)
 	}
-	info := &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Lang: pd.Site.Lang, Title: pd.Title, Description: pd.Description}
-	if pd.Post != nil {
-		pi := plugin.PostInfo{ID: pd.Post.ID, Type: pd.Post.Type, Title: pd.Post.Title, Slug: pd.Post.Slug, Lang: pd.Post.Lang,
-			URL: pd.Post.AbsURL, Excerpt: pd.Post.Summary, Author: pd.Post.Author.Name}
-		info.Post = &pi
-	}
-	s.pluginHead(ctx, pd, info) // meta tags, JSON-LD, plugin stylesheets and scripts
+	s.pluginHead(ctx, pd, pageInfo(pd)) // meta tags, JSON-LD, plugin stylesheets and scripts
 
 	var buf bytes.Buffer
 	if err := th.Render(&buf, page, pd.Site.Lang, pd); err != nil {
@@ -401,6 +395,8 @@ func (s *Server) renderSingle(w http.ResponseWriter, r *http.Request, p *store.P
 	pv := s.postView(p, viewer)
 	pv.Content = s.renderBody(ctx, p)
 	pd.Post, pd.Title, pd.Heading, pd.IsFront, pd.Preview = pv, p.Title, p.Title, front, preview
+	pi := s.PostInfo(p)
+	pd.postInfo = &pi
 	if preview {
 		pd.NoIndex = true
 	}
@@ -777,7 +773,7 @@ func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData,
 					continue
 				}
 				if page == nil {
-					page = &plugin.PageInfo{Kind: pd.Kind, URL: pd.Canonical, Lang: d.lang, Title: pd.Title}
+					page = pageInfo(pd)
 				}
 				html, err := s.plugins.Widget(ctx, parts[1], parts[2], wd.Config, page)
 				if err != nil || html == "" {

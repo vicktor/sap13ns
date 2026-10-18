@@ -602,6 +602,8 @@ type PageData struct {
 	PluginLD  []template.JS
 	PluginCSS []string
 	PluginJS  []string
+	// postInfo is Post as plugins see it (head.meta and widgets).
+	postInfo *plugin.PostInfo
 }
 
 // LangLink points to a page in one of the site languages.
