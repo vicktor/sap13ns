@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/tetratelabs/wazero/api"
@@ -305,11 +306,17 @@ func (h *Host) hostPostsQuery(ctx context.Context, m api.Module, qptr, qlen uint
 }
 
 type httpRequest struct {
-	Method  string            `json:"method"`
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers"`
-	Body    string            `json:"body"`
+	Method    string            `json:"method"`
+	URL       string            `json:"url"`
+	Headers   map[string]string `json:"headers"`
+	Body      string            `json:"body"`
+	TimeoutMS int               `json:"timeout_ms"` // 0: until the hook's own budget runs low
 }
+
+// fetchMargin is the part of a hook's time budget that http_fetch leaves to
+// the plugin: a request that runs that late fails, so the plugin can still
+// answer (comment.check plugins share two seconds).
+const fetchMargin = 250 * time.Millisecond
 
 type httpResponse struct {
 	Status     int               `json:"status"`
@@ -323,6 +330,23 @@ var forbiddenHeaders = map[string]bool{
 	"host": true, "connection": true, "content-length": true, "transfer-encoding": true, "upgrade": true,
 	"te": true, "trailer": true, "proxy-authorization": true, "proxy-connection": true, "keep-alive": true,
 	"cookie": true, "x-forwarded-for": true, "x-real-ip": true, "forwarded": true,
+}
+
+// fetchLimit is how long a request may take: timeoutMS if set, and never
+// past fetchMargin before the hook's deadline. 0 means no limit beyond the
+// client's own; false means the budget is already used up.
+func fetchLimit(ctx context.Context, timeoutMS int) (time.Duration, bool) {
+	limit := time.Duration(max(timeoutMS, 0)) * time.Millisecond
+	if dl, ok := ctx.Deadline(); ok {
+		left := time.Until(dl) - fetchMargin
+		if left <= 0 {
+			return 0, false
+		}
+		if limit == 0 || left < limit {
+			limit = left
+		}
+	}
+	return limit, true
 }
 
 // http_fetch(reqptr, reqlen) -> len of a JSON httpResponse. Only https URLs on
@@ -377,7 +401,17 @@ func (h *Host) hostHTTPFetch(ctx context.Context, m api.Module, rptr, rlen uint3
 	if len(req.Body) > httpMaxBody {
 		return fail("request body too large")
 	}
-	hreq, err := http.NewRequestWithContext(context.WithValue(ctx, grantKey{}, granted), method, u.String(), strings.NewReader(req.Body))
+	limit, ok := fetchLimit(ctx, req.TimeoutMS)
+	if !ok {
+		return fail("timeout: no time left in the hook's budget")
+	}
+	fctx := context.WithValue(ctx, grantKey{}, granted)
+	if limit > 0 {
+		var cancel context.CancelFunc
+		fctx, cancel = context.WithTimeout(fctx, limit)
+		defer cancel()
+	}
+	hreq, err := http.NewRequestWithContext(fctx, method, u.String(), strings.NewReader(req.Body))
 	if err != nil {
 		return fail(err.Error())
 	}

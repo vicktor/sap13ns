@@ -196,7 +196,11 @@ type CommentCheck struct {
 	// Returning: the commenter's e-mail address had a comment approved on
 	// this site before. The host checks it; the address itself is only
 	// sent with "comments:pii".
-	Returning bool   `json:"returning"`
+	Returning bool `json:"returning"`
+	// ElapsedMS is the time from rendering the comment form to submitting
+	// it, in whole seconds (so a multiple of 1000). The host already
+	// rejects submissions under 3 s.
+	ElapsedMS int64  `json:"elapsed_ms"`
 	Email     string `json:"email"`
 	IP        string `json:"ip"`
 	UserAgent string `json:"user_agent"`
@@ -466,6 +470,10 @@ type HTTPRequest struct {
 	URL     string            `json:"url"`    // absolute https:// URL
 	Headers map[string]string `json:"headers,omitempty"`
 	Body    string            `json:"body,omitempty"` // max 256 KiB
+	// TimeoutMS gives up after this many milliseconds. Without it, or when
+	// it is longer, the request gives up 250 ms before the hook's time
+	// budget ends, so the plugin can still answer.
+	TimeoutMS int `json:"timeout_ms,omitempty"`
 }
 
 // HTTPResponse is the answer to Fetch. Binary bodies arrive in BodyBase64.

@@ -85,6 +85,8 @@ func init() {
 				return nil, errors.New("backend down")
 			case c.Email != "":
 				return pluginsdk.Verdict("spam", "saw "+c.Email+" "+c.IP+" "+c.UserAgent), nil
+			case strings.Contains(c.Content, "timing"):
+				return pluginsdk.Verdict("pending", fmt.Sprintf("elapsed %d", c.ElapsedMS)), nil
 			case strings.Contains(c.Content, "hold"):
 				return pluginsdk.Verdict("pending", "held by "+req.Plugin.ID), nil
 			case strings.Contains(c.Content, "weird"):

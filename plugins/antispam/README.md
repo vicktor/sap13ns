@@ -127,10 +127,9 @@ plugin sends, for each comment that passed every local check:
 - **When it runs.** Only when the local checks found nothing. A comment
   already held or rejected is not looked up.
 - **The time budget.** The server gives all comment checks together two
-  seconds. If a request is still running when they run out, the server
-  discards the plugin's whole answer and holds the comment for moderation.
-  A slow StopForumSpam can therefore hold a clean comment, but it can never
-  turn a local "spam" verdict into "pending".
+  seconds, and a lookup gives up 250 ms before they run out. The plugin
+  then answers with the local checks alone, so a slow StopForumSpam costs
+  only the lookup ("no answer in time").
 - **A failed lookup is ignored.** This is the plugin's own fallback, not the
   server's. When StopForumSpam answers in time with an error (no answer,
   a network error, an HTTP error or an unexpected answer), the plugin
@@ -180,28 +179,12 @@ pass. Turn `log_ok` off to keep the log for the held ones.
 
 ## Host gaps
 
-- **No timing or honeypot signal.** The server rejects honeypot hits and
-  very fast submissions itself, before `comment.check`
-  (`internal/web/public.go`, `handleComment`). It passes nothing to plugins.
-  - **Fix.** An `elapsed_ms` field (time from page load to submission)
-    would let a plugin hold submissions that were fast but not fast enough
-    to reject.
 - **All-or-nothing permissions.** There are no optional permissions, so
   `comments:pii` is granted, and the high-risk confirmation asked, even when
   StopForumSpam stays off.
   - **Fix.** Optional permissions, granted one by one, would let the
     administrator enable the local checks alone. So would splitting
     StopForumSpam into its own plugin.
-- **No per-request timeout in `http_fetch`.** Inside `comment.check` a slow
-  request can use up the shared two-second budget. The server then discards
-  the plugin's whole answer, whatever it had decided locally, and holds the
-  comment as `pending`. Since bdef4a0 a failed check holds the comment
-  rather than passing it.
-  - **The workaround.** The plugin only asks when the local verdict is
-    already `ok`, so a local `spam` is never lost. A slow StopForumSpam can
-    still hold a clean comment.
-  - **Fix.** A `timeout_ms` per request, or a fetch capped at the remaining
-    budget minus a margin, would remove the restriction.
 
 ## Build and install
 

@@ -121,6 +121,9 @@ func TestHooks(t *testing.T) {
 		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "hold"}); v.Verdict != VerdictPending || v.Plugin != "hooks" {
 			t.Fatalf("pending: %+v", v)
 		}
+		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "timing", Elapsed: 42 * time.Second}); v.Reason != "elapsed 42000" {
+			t.Fatalf("elapsed: %+v", v)
+		}
 		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "hello"}); v.Verdict != VerdictOK || v.Plugin != "" {
 			t.Fatalf("ok: %+v", v)
 		}
@@ -653,5 +656,27 @@ func TestOneLine(t *testing.T) {
 	}
 	if got := oneLine("ñññ", 3); got != "ñ" {
 		t.Errorf("oneLine cut = %q", got)
+	}
+}
+
+func TestFetchLimit(t *testing.T) {
+	if d, ok := fetchLimit(context.Background(), 0); !ok || d != 0 {
+		t.Errorf("no deadline, no timeout: %v %v", d, ok)
+	}
+	if d, ok := fetchLimit(context.Background(), 800); !ok || d != 800*time.Millisecond {
+		t.Errorf("timeout only: %v %v", d, ok)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if d, ok := fetchLimit(ctx, 0); !ok || d > 2*time.Second-fetchMargin || d < time.Second {
+		t.Errorf("deadline: %v %v", d, ok)
+	}
+	if d, ok := fetchLimit(ctx, 300); !ok || d != 300*time.Millisecond {
+		t.Errorf("shorter timeout: %v %v", d, ok)
+	}
+	short, cancel2 := context.WithTimeout(context.Background(), fetchMargin/2)
+	defer cancel2()
+	if _, ok := fetchLimit(short, 0); ok {
+		t.Error("a request was allowed with no time left")
 	}
 }

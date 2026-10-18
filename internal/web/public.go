@@ -703,7 +703,7 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 		}
 		pi := s.PostInfo(p)
 		v := s.plugins.CheckComment(ctx, plugin.CommentInput{Author: in.AuthorName, URL: in.AuthorURL, Content: in.Content, Post: &pi,
-			ParentID: parent, Registered: u != nil, Returning: returning, Email: in.AuthorEmail, IP: ip.String(), UserAgent: in.UserAgent})
+			ParentID: parent, Registered: u != nil, Returning: returning, Elapsed: age, Email: in.AuthorEmail, IP: ip.String(), UserAgent: in.UserAgent})
 		switch v.Verdict {
 		case plugin.VerdictSpam:
 			in.Status = "spam"

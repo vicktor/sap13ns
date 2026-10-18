@@ -41,10 +41,10 @@ func check(cfg Config, c pluginsdk.CommentCheck) (string, string) {
 	signals := Check(Comment{Author: c.Author, URL: c.URL, Content: c.Content, Email: c.Email, Registered: c.Registered, Known: known}, cfg)
 	verdict, reason := Decide(signals)
 
-	// StopForumSpam only for comments that look clean: a slow answer can
-	// use up the host's two-second budget, and the host then discards the
-	// whole answer and holds the comment, so a local "spam" is never
-	// downgraded to "pending".
+	// StopForumSpam only for comments that look clean: there is no point in
+	// asking about a comment the local checks already hold or reject. The
+	// host makes a slow lookup give up before the two-second budget ends,
+	// so the local verdict still goes out.
 	var notes []string
 	if cfg.SFS && verdict == verdictOK {
 		if _, ok := SFSQuery(cfg, c.IP, c.Email); !ok {

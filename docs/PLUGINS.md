@@ -232,7 +232,8 @@ The payload objects below use these shapes:
 
 ### comment.check
 
-- **Payload:** `{"author": "…", "url": "…", "content": "…", "post": {…}, "parent_id": 0, "registered": false, "returning": false}`
+- **Payload:** `{"author": "…", "url": "…", "content": "…", "post": {…}, "parent_id": 0, "registered": false, "returning": false, "elapsed_ms": 42000}`
+  - `elapsed_ms` is the time from rendering the comment form to submitting it, in whole seconds. The host has already rejected submissions under three seconds and those that filled the hidden honeypot field.
   - `returning` is true when the commenter's e-mail address had a comment approved on this site before. The host checks it, and every plugin gets it. A name can be copied, so a plugin that trusts known commenters should use this instead.
   - The plugin receives `email`, `ip` and `user_agent` as well only if it was granted `comments:pii`.
 - **Response:** `{"verdict": "ok" | "pending" | "spam", "reason": "…"}`
@@ -308,7 +309,7 @@ High-risk permissions need an explicit confirmation when the plugin is enabled.
 
 **HTTP (`http:<host>`).**
 
-- **Request:** `{"method": "GET", "url": "https://…", "headers": {…}, "body": "…"}`
+- **Request:** `{"method": "GET", "url": "https://…", "headers": {…}, "body": "…", "timeout_ms": 800}`
 - **Response:** `{"status": 200, "headers": {…}, "body": "…", "body_base64": "…", "error": "…"}`
 - **Where it is available:** only in `event`, `comment.check` and `form.submit`.
 - **What is allowed:**
@@ -316,6 +317,7 @@ High-risk permissions need an explicit confirmation when the plugin is enabled.
   - methods `GET`, `HEAD`, `POST`, `PUT`, `PATCH` and `DELETE`;
   - up to 20 request headers, but not `Host`, `Cookie`, `Connection`, forwarding or proxy headers.
 - **Limits:** a 256 KiB request body, a 1 MiB response, and a 10 s timeout.
+- **Time budget:** a request gives up after `timeout_ms`, if set, and always 250 ms before the hook's own time runs out, with an `error` the plugin can still act on. In `comment.check`, where all plugins share two seconds, a slow service then costs the plugin its lookup, not its whole answer.
 - **What the host adds:** the user agent `sap13ns-plugin/<id>`. Response header names arrive in lower case.
 - **Private addresses are never reached.** Loopback, private, link-local, CGNAT and cloud metadata addresses are refused after DNS resolution, whatever the permission says, and every redirect is checked again against the grants.
 - **Binary bodies** arrive in `body_base64`.
