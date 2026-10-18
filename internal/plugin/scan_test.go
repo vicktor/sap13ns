@@ -232,6 +232,16 @@ func TestScanNoFalsePositives(t *testing.T) {
 		t.Fatalf("unexpected findings: %s", dumpReport(rep))
 	}
 
+	// A granted host with an uncommon top-level domain, run into the next
+	// string, is still the granted host; a subdomain of it is not.
+	ss := newStringScan(&Manifest{Permissions: []string{"http:bsky.social", "http:*.masto.host"}}, true)
+	for host, want := range map[string]bool{"bsky.socialembedded": true, "bsky.social-x": true, "bsky.social.evil.net": false,
+		"bsky.socia": false, "a.masto.hostdata": true, "a.masto.host.evil.net": false, "evil.masto.hosting.net": false} {
+		if got := ss.grantedRunOn(host); got != want {
+			t.Errorf("grantedRunOn(%q) = %v, want %v", host, got, want)
+		}
+	}
+
 	for in, want := range map[string]string{"schema.orgvalue": "schema.org", "api.example.comdata": "api.example.com",
 		"cdn.example.io": "cdn.example.io", "site.local": "site.local", "x.esp": "x.es"} {
 		if got := trimRunOn(in); got != want {

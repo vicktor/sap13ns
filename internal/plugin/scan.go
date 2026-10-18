@@ -482,7 +482,7 @@ func (ss *stringScan) scan(rep *Report, loc string, b []byte, binary bool) {
 	for _, sm := range urlHostRe.FindAllSubmatch(b, 500) {
 		full := strings.ToLower(string(sm[1]))
 		host := trimRunOn(full)
-		if ss.harmlessHost(full) || ss.harmlessHost(host) {
+		if ss.harmlessHost(full) || ss.harmlessHost(host) || ss.grantedRunOn(full) {
 			continue
 		}
 		if _, ok := ss.hosts[host]; !ok && len(ss.hosts) < 50 {
@@ -510,6 +510,32 @@ var commonTLDs = []string{"com", "org", "net", "io", "dev", "app", "es", "eu", "
 func (ss *stringScan) harmlessHost(host string) bool {
 	return slices.Contains(benignHosts, host) || strings.HasSuffix(host, ".example") || strings.HasSuffix(host, ".test") ||
 		strings.HasSuffix(host, ".invalid") || hostAllowed(ss.httpGrants, host)
+}
+
+// grantedRunOn reports whether host is a granted host followed directly by
+// the next string in the module ("bsky.social" + "embedded"), which
+// trimRunOn cannot cut when the top-level domain is not a common one. The
+// text after the granted host must have no dot: "bsky.social.evil.net" is
+// another host.
+func (ss *stringScan) grantedRunOn(host string) bool {
+	for _, g := range ss.httpGrants {
+		pat := strings.TrimPrefix(g, PermHTTP)
+		rest := ""
+		switch {
+		case pat == "*":
+			return true
+		case strings.HasPrefix(pat, "*."):
+			if i := strings.Index(host, pat[1:]); i > 0 {
+				rest = host[i+len(pat)-1:]
+			}
+		case strings.HasPrefix(host, pat):
+			rest = host[len(pat):]
+		}
+		if rest != "" && !strings.Contains(rest, ".") {
+			return true
+		}
+	}
+	return false
 }
 
 func trimRunOn(host string) string {
