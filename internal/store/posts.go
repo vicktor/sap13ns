@@ -462,6 +462,35 @@ func (s *Store) SetPostStatus(ctx context.Context, id int64, status string) erro
 	return err
 }
 
+// SetAnnouncePending marks whether a post still owes its post.published
+// announcement: true for a scheduled post, false once announced or no
+// longer published.
+func (s *Store) SetAnnouncePending(ctx context.Context, id int64, pending bool) error {
+	_, err := s.DB.Exec(ctx, `UPDATE posts SET announce_pending = $2 WHERE id = $1`, id, pending)
+	return err
+}
+
+// ClaimAnnouncement clears the pending announcement of one post and reports
+// whether there was one. Only one caller can claim it.
+func (s *Store) ClaimAnnouncement(ctx context.Context, id int64) (bool, error) {
+	tag, err := s.DB.Exec(ctx, `UPDATE posts SET announce_pending = false WHERE id = $1 AND announce_pending`, id)
+	return tag.RowsAffected() > 0, err
+}
+
+// ClaimDueAnnouncements clears and returns the published posts whose
+// scheduled date has arrived, oldest first.
+func (s *Store) ClaimDueAnnouncements(ctx context.Context) ([]int64, error) {
+	rows, err := s.DB.Query(ctx, `WITH due AS (
+			UPDATE posts SET announce_pending = false
+			WHERE announce_pending AND status = 'published' AND published_at <= now()
+			RETURNING id, published_at)
+		SELECT id FROM due ORDER BY published_at, id`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[int64])
+}
+
 func (s *Store) DeletePost(ctx context.Context, id int64) error {
 	_, err := s.DB.Exec(ctx, `DELETE FROM posts WHERE id = $1`, id)
 	return err

@@ -258,13 +258,15 @@ The payload objects below use these shapes:
 
 | Event | Payload |
 |---|---|
-| `post.published` | the `post` |
-| `post.updated` | the `post` |
+| `post.published` | the `post`, once, when it goes live: on publishing, or for a scheduled post when its date arrives (checked every minute) |
+| `post.updated` | the `post`, when a live post is saved again |
 | `post.trashed` | the `post` |
 | `comment.created` | `{"id", "post_id", "post", "author", "status", "content"}` (`status`: `approved`, `pending`, `spam`) |
 | `comment.approved` | `{"id", "post_id", "author"}` |
 | `user.registered` | `{"username", "role"}` |
 | `cron.hourly` | `{"time"}` (RFC 3339, UTC) |
+
+Plugins hear nothing about a scheduled post before its date: no `post.published`, and no `post.updated` while it is edited.
 
 ## Host functions and permissions
 

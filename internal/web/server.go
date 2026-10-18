@@ -220,6 +220,7 @@ func (s *Server) Background(ctx context.Context) {
 				return
 			case <-t.C:
 				s.flushRedirectHits(ctx)
+				s.announceDue(ctx)
 			}
 		}
 	}()

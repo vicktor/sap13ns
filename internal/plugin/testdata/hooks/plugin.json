@@ -4,7 +4,8 @@
   "name": "Hooks",
   "version": "1.0.0",
   "author": "Tests",
-  "hooks": ["content.filter", "shortcode", "widget", "head.meta", "comment.check", "form.submit"],
+  "hooks": ["content.filter", "shortcode", "widget", "head.meta", "comment.check", "form.submit", "event"],
+  "events": ["post.published", "post.updated"],
   "shortcodes": ["posts", "forms"],
   "widgets": [
     {"id": "info", "title": "Info", "config": [

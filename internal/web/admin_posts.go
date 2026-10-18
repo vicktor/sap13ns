@@ -521,25 +521,74 @@ func (s *Server) savedMessage(status string, at *time.Time) string {
 	}
 }
 
-// afterPostSave invalidates caches and notifies plugins and WebSub.
+// afterPostSave invalidates caches and notifies plugins and WebSub. A post
+// is announced (post.published) when it goes live: on this save, or for a
+// scheduled post when its date arrives (announceDue). Plugins hear nothing
+// about a scheduled post before that.
 func (s *Server) afterPostSave(r *http.Request, id int64, oldStatus, newStatus string) {
+	ctx := r.Context()
 	s.contentChanged()
-	s.assistantPostChanged(r.Context(), id)
-	p, err := s.store.PostByID(r.Context(), id)
+	s.assistantPostChanged(ctx, id)
+	p, err := s.store.PostByID(ctx, id)
 	if err != nil {
 		return
 	}
-	info := s.PostInfo(p)
-	switch {
-	case newStatus == store.StatusPublished && oldStatus != store.StatusPublished:
-		s.plugins.Emit("post.published", info)
-		if p.Type == store.TypePost {
-			s.pingWebSub()
+	pending := func(on bool) {
+		if err := s.store.SetAnnouncePending(ctx, id, on); err != nil {
+			s.log.Error("post announcement", "post", id, "err", err)
 		}
-	case newStatus == store.StatusTrash:
-		s.plugins.Emit("post.trashed", info)
-	case newStatus == store.StatusPublished:
-		s.plugins.Emit("post.updated", info)
+	}
+	switch {
+	case newStatus != store.StatusPublished:
+		pending(false)
+		if newStatus == store.StatusTrash {
+			s.plugins.Emit("post.trashed", s.PostInfo(p))
+		}
+	case p.IsScheduled(time.Now()):
+		pending(true)
+	default:
+		// Live: announced if it was not published before, or was scheduled.
+		claimed, err := s.store.ClaimAnnouncement(ctx, id)
+		if err != nil {
+			s.log.Error("post announcement", "post", id, "err", err)
+		}
+		if oldStatus != store.StatusPublished || claimed {
+			s.announce(p)
+		} else {
+			s.plugins.Emit("post.updated", s.PostInfo(p))
+		}
+	}
+}
+
+// announce tells plugins and WebSub that a post went live.
+func (s *Server) announce(p *store.Post) {
+	s.plugins.Emit("post.published", s.PostInfo(p))
+	if p.Type == store.TypePost {
+		s.pingWebSub()
+	}
+}
+
+// announceDue announces the scheduled posts whose date has arrived. It runs
+// every minute; the claim is atomic, so each post is announced once.
+func (s *Server) announceDue(ctx context.Context) {
+	ids, err := s.store.ClaimDueAnnouncements(ctx)
+	if err != nil {
+		s.log.Error("scheduled posts", "err", err)
+		return
+	}
+	if len(ids) == 0 {
+		return
+	}
+	s.contentChanged()
+	ping := false
+	for _, id := range ids {
+		if p, err := s.store.PostByID(ctx, id); err == nil {
+			s.plugins.Emit("post.published", s.PostInfo(p))
+			ping = ping || p.Type == store.TypePost
+		}
+	}
+	if ping {
+		s.pingWebSub()
 	}
 }
 

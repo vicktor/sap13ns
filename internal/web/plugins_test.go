@@ -429,6 +429,49 @@ func TestPluginsEndToEnd(t *testing.T) {
 		t.Errorf("stale body after a content change: %s", got)
 	}
 
+	// post.published fires once, when a post goes live: on save, or for a
+	// scheduled post when its date arrives.
+	logged := func(text string) int {
+		n := 0
+		for _, l := range e.host.Get("hooks").Logs() {
+			if l.Text == text {
+				n++
+			}
+		}
+		return n
+	}
+	waitLog := func(text string, want int) {
+		t.Helper()
+		for deadline := time.Now().Add(5 * time.Second); logged(text) < want && time.Now().Before(deadline); {
+			time.Sleep(20 * time.Millisecond)
+		}
+		if got := logged(text); got != want {
+			t.Fatalf("%q logged %d times, want %d", text, got, want)
+		}
+	}
+	saved := httptest.NewRequest("POST", "/admin/posts", nil)
+	soon := time.Now().Add(time.Hour)
+	soonID, err := e.st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: "Soon", Slug: "soon",
+		Lang: e.s.mainLang(), AuthorID: e.adminID, CommentStatus: "open", PublishedAt: &soon})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.s.afterPostSave(saved, soonID, "", store.StatusPublished)
+	e.s.announceDue(ctx)
+	e.s.afterPostSave(saved, listID, "", store.StatusPublished)
+	waitLog("post.published list", 1)
+	if logged("post.published soon")+logged("post.updated soon") != 0 {
+		t.Fatal("a scheduled post was announced before its date")
+	}
+	if _, err := e.st.DB.Exec(ctx, `UPDATE posts SET published_at = now() - interval '1 minute' WHERE id = $1`, soonID); err != nil {
+		t.Fatal(err)
+	}
+	e.s.announceDue(ctx)
+	e.s.announceDue(ctx)
+	e.s.afterPostSave(saved, soonID, store.StatusPublished, store.StatusPublished)
+	waitLog("post.updated soon", 1)
+	waitLog("post.published soon", 1)
+
 	// The stylesheet is served immutable from the site.
 	css := regexp.MustCompile(`href="(/plugin-assets/hooks/[^"]+)"`).FindStringSubmatch(body)
 	if css == nil {

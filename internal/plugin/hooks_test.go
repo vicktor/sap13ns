@@ -69,6 +69,7 @@ func hooksHost(t *testing.T) (*Host, *store.Store, *fakeMailer, int64) {
 	delete(m, "shortcodes")
 	delete(m, "widgets")
 	delete(m, "forms")
+	delete(m, "events")
 	os.MkdirAll(filepath.Join(dir, "pii"), 0o755)
 	raw, _ = json.Marshal(m)
 	os.WriteFile(filepath.Join(dir, "pii", "plugin.json"), raw, 0o644)

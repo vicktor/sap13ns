@@ -9,7 +9,8 @@ Posts new articles to Bluesky and Mastodon when they are published.
   the post's language and a link card with the title and the excerpt.
 - **Mastodon.** The status is sent with the post's language and the chosen
   visibility.
-- **Scheduled posts** go out within an hour after they go live.
+- **Scheduled posts** go out when they go live: the server announces them
+  within a minute of their date.
 - **No duplicates.** A post is never sent twice to the same network, whether
   it is republished, edited or delivered twice by the server.
 - **Retries.** A failed send is retried on the next hourly runs, three
@@ -21,7 +22,7 @@ Posts new articles to Bluesky and Mastodon when they are published.
 
 | Event | What the plugin does |
 | --- | --- |
-| `post.published` | If the post is public now, it is sent at once. A post scheduled for later is put in a queue. The event also fires for posts scheduled in the future. |
+| `post.published` | If the post is public now, it is sent at once. The server sends this event when a post goes live, scheduled posts included. Servers before the go-live announcement sent it when a post was scheduled; the plugin then queues the post until it is public. |
 | `cron.hourly` | Sends the queued posts whose time has come and are public, and retries failed sends. |
 | `post.updated` | If the post is queued, its date and title are updated, so a rescheduled post goes out at its new time. Edits are never posted. |
 | `post.trashed` | Removes the post from the queue. |
@@ -229,16 +230,6 @@ Uninstalling with **Delete its data** removes all of it.
 
 ## Host gaps
 
-- **No event when a scheduled post goes live.** `post.published` fires when
-  the post is scheduled, with a `published_at` in the future, and nothing
-  fires when that time comes (`internal/web/admin_posts.go`,
-  `afterPostSave`).
-  - **Workaround.** The plugin queues the post and polls `cron.hourly`, so a
-    scheduled post goes out up to an hour late.
-  - **After a restart.** `cron.hourly` first fires one hour after the server
-    starts.
-  - **Fix.** A `post.published` event, or a dedicated `post.live` event, when
-    a scheduled post becomes visible would make this exact.
 - **No compare-and-swap in the key-value store.** The plugin builds its lock
   from write, wait 250 ms and read back. That adds a quarter of a second per
   update, and it relies on both writes landing within the wait. A `kv_cas`,

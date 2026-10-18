@@ -39,6 +39,12 @@ func init() {
 			}
 			return pluginsdk.HTML(strings.Join(titles, ",")), nil
 
+		case pluginsdk.HookEvent:
+			var p pluginsdk.Post
+			req.Decode(&p)
+			pluginsdk.Log(pluginsdk.Info, req.Event+" "+p.Slug)
+			return nil, nil
+
 		case pluginsdk.HookContentFilter:
 			var c pluginsdk.ContentFilter
 			req.Decode(&c)
