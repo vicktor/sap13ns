@@ -12,9 +12,10 @@
 //
 // The handler is the one registered with pluginsdk.Handle in the plugin's
 // init(), and requests go through the same JSON envelope the host sends.
-// The fakes follow the host's rules (key format, quotas, the mail
-// recipient allowlist, denied calls without permission) so that tests catch
-// what would fail in production. An Env replaces global state: tests that
+// The fakes follow the host's rules (key format, quotas, per-request call
+// limits, the mail recipient allowlist, the http: host allowlist, denied
+// calls without permission, word search) so that tests catch what would
+// fail in production. An Env replaces global state: tests that
 // use it must not run in parallel.
 package sdktest
 
@@ -22,11 +23,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"unicode"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
 	"github.com/vicktor/sap13ns/pluginsdk/internal/abi"
@@ -50,6 +53,10 @@ type Env struct {
 	// HTTP answers Fetch. When nil every request is denied, as for a plugin
 	// without an "http:" permission.
 	HTTP func(req pluginsdk.HTTPRequest) (*pluginsdk.HTTPResponse, error)
+	// HTTPHosts are the hosts of the plugin's "http:" permissions, as in
+	// plugin.json ("api.example.com", "*.example.com", "*"). When set,
+	// requests to any other host are denied, as the host does.
+	HTTPHosts []string
 	// MailRecipients are the addresses saved in the plugin's "email"
 	// settings; pluginsdk.MailToAdmin is always accepted.
 	MailRecipients []string
@@ -62,7 +69,20 @@ type Env struct {
 	Denied map[string]bool
 
 	t testing.TB
+
+	calls counts // host calls in the current request
 }
+
+// counts are the host calls made during one request.
+type counts struct{ kv, queries, http, mails int }
+
+// Per-request limits, as in the host.
+const (
+	maxKVOps   = 200
+	maxQueries = 10
+	maxHTTP    = 4
+	maxMails   = 5
+)
 
 var mu sync.Mutex // one Env at a time: the SDK host is global
 
@@ -132,6 +152,7 @@ func (e *Env) call(hook, event string, payload any) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	e.calls = counts{}
 	out := abi.Dispatch(in)
 	resp := &Response{Raw: out}
 	if err := json.Unmarshal(out, resp); err != nil {
@@ -227,9 +248,20 @@ func (e *Env) Log(level uint32, msg []byte) {
 	e.Logs = append(e.Logs, LogLine{Level: pluginsdk.Level(level), Text: string(msg)})
 }
 
-func (e *Env) KVGet(key []byte) ([]byte, int32) {
+// kvOp counts a key-value operation and reports the code that refuses it.
+func (e *Env) kvOp() int32 {
 	if e.Denied["kv"] {
-		return nil, abi.CodeDenied
+		return abi.CodeDenied
+	}
+	if e.calls.kv++; e.calls.kv > maxKVOps {
+		return abi.CodeLimit
+	}
+	return 0
+}
+
+func (e *Env) KVGet(key []byte) ([]byte, int32) {
+	if code := e.kvOp(); code != 0 {
+		return nil, code
 	}
 	if !kvKeyRe.Match(key) {
 		return nil, abi.CodeInvalid
@@ -242,8 +274,8 @@ func (e *Env) KVGet(key []byte) ([]byte, int32) {
 }
 
 func (e *Env) KVSet(key, value []byte) int32 {
-	if e.Denied["kv"] {
-		return abi.CodeDenied
+	if code := e.kvOp(); code != 0 {
+		return code
 	}
 	if !kvKeyRe.Match(key) || len(value) > kvMaxValue {
 		return abi.CodeInvalid
@@ -263,8 +295,8 @@ func (e *Env) KVSet(key, value []byte) int32 {
 }
 
 func (e *Env) KVDelete(key []byte) int32 {
-	if e.Denied["kv"] {
-		return abi.CodeDenied
+	if code := e.kvOp(); code != 0 {
+		return code
 	}
 	if !kvKeyRe.Match(key) {
 		return abi.CodeInvalid
@@ -276,6 +308,9 @@ func (e *Env) KVDelete(key []byte) int32 {
 func (e *Env) PostsQuery(raw []byte) ([]byte, int32) {
 	if e.Denied["posts:read"] {
 		return nil, abi.CodeDenied
+	}
+	if e.calls.queries++; e.calls.queries > maxQueries {
+		return nil, abi.CodeLimit
 	}
 	var q pluginsdk.PostsQuery
 	if err := json.Unmarshal(raw, &q); err != nil {
@@ -296,6 +331,7 @@ func (e *Env) PostsQuery(raw []byte) ([]byte, int32) {
 		}
 		return false
 	}
+	match := searchMatcher(q.Search)
 	out := []pluginsdk.Post{}
 	for _, p := range e.Posts {
 		pt := p.Type
@@ -307,7 +343,7 @@ func (e *Env) PostsQuery(raw []byte) ([]byte, int32) {
 			q.Category != "" && !hasTerm(p, "category", q.Category),
 			q.Tag != "" && !hasTerm(p, "tag", q.Tag),
 			q.Exclude == p.ID, slices.Contains(q.ExcludeIDs, p.ID),
-			q.Search != "" && !strings.Contains(strings.ToLower(p.Title+" "+p.Excerpt), strings.ToLower(q.Search)):
+			!match(p.Title + " " + p.Excerpt):
 			continue
 		}
 		out = append(out, p)
@@ -323,13 +359,20 @@ func (e *Env) HTTPFetch(raw []byte) ([]byte, int32) {
 	if e.HTTP == nil || e.Denied["http"] {
 		return nil, abi.CodeDenied
 	}
+	if e.calls.http++; e.calls.http > maxHTTP {
+		return nil, abi.CodeLimit
+	}
 	var req pluginsdk.HTTPRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return nil, abi.CodeInvalid
 	}
-	if !strings.HasPrefix(req.URL, "https://") {
+	u, err := url.Parse(req.URL)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
 		b, _ := json.Marshal(pluginsdk.HTTPResponse{Error: "only absolute https:// URLs without credentials are allowed"})
 		return b, 0
+	}
+	if len(e.HTTPHosts) > 0 && !hostAllowed(e.HTTPHosts, u.Hostname()) {
+		return nil, abi.CodeDenied
 	}
 	resp, err := e.HTTP(req)
 	if err != nil {
@@ -347,6 +390,9 @@ func (e *Env) MailSend(raw []byte) int32 {
 	if e.Denied["mail"] {
 		return abi.CodeDenied
 	}
+	if e.calls.mails++; e.calls.mails > maxMails {
+		return abi.CodeLimit
+	}
 	var m pluginsdk.Mail
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return abi.CodeInvalid
@@ -360,4 +406,71 @@ func (e *Env) MailSend(raw []byte) int32 {
 	}
 	e.Mails = append(e.Mails, m)
 	return 0
+}
+
+// hostAllowed matches a host against "http:" permission hosts, as the host
+// does: "*" is any host, "*.example.com" its subdomains only.
+func hostAllowed(hosts []string, host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, pat := range hosts {
+		pat = strings.ToLower(strings.TrimPrefix(pat, "http:"))
+		switch {
+		case pat == "*", pat == host:
+			return true
+		case strings.HasPrefix(pat, "*.") && strings.HasSuffix(host, pat[1:]):
+			return true
+		}
+	}
+	return false
+}
+
+// searchMatcher approximates the host's posts_query search
+// (websearch_to_tsquery with the "simple" configuration): whole words,
+// ignoring case; every word must appear, "-word" must not, and "or"
+// separates alternatives. An empty search matches everything.
+func searchMatcher(q string) func(text string) bool {
+	type group struct{ want, not []string }
+	var groups []group
+	cur := group{}
+	for _, tok := range strings.Fields(strings.ToLower(q)) {
+		if tok == "or" {
+			groups, cur = append(groups, cur), group{}
+			continue
+		}
+		neg := strings.HasPrefix(tok, "-")
+		for _, w := range words(tok) {
+			if neg {
+				cur.not = append(cur.not, w)
+			} else {
+				cur.want = append(cur.want, w)
+			}
+		}
+	}
+	groups = append(groups, cur)
+	return func(text string) bool {
+		have := map[string]bool{}
+		for _, w := range words(strings.ToLower(text)) {
+			have[w] = true
+		}
+		for _, g := range groups {
+			if len(g.want) == 0 && len(g.not) == 0 {
+				continue
+			}
+			ok := true
+			for _, w := range g.want {
+				ok = ok && have[w]
+			}
+			for _, w := range g.not {
+				ok = ok && !have[w]
+			}
+			if ok {
+				return true
+			}
+		}
+		return strings.TrimSpace(q) == ""
+	}
+}
+
+func words(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
 }

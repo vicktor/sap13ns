@@ -568,10 +568,10 @@ sap13ns plugin hash <dir>                           # SHA-256 of the module and 
 - **The SDK.** `github.com/vicktor/sap13ns/pluginsdk` registers the handler (`pluginsdk.Handle`), decodes payloads (`req.Decode`), builds responses (`HTML`, `Head`, `MetaTags`, `Verdict`, `FormOK`, `FormErrors`, `FormPlaceholder`) and wraps the host functions (`Log`, `KVGet`, `KVSet`, `KVDelete`, `QueryPosts`, `Fetch` and `SendMail`).
 - **Native builds.** The SDK also compiles natively, where host functions return `ErrUnavailable`.
 - **Testing without WebAssembly.** `pluginsdk/sdktest` provides a fake host for `go test`. `env := sdktest.New(t)` installs it, and the plugin's handler then runs through the same JSON envelope as on the server.
-  - **Calls:** `env.Shortcode`, `env.Widget`, `env.Filter`, `env.Head`, `env.Event`, `env.CheckComment` and `env.SubmitForm`.
-  - **Setup:** `env.Plugin.Settings`, `env.Posts`, `env.KV`, `env.HTTP` and `env.MailRecipients`.
+  - **Calls:** `env.Shortcode`, `env.Widget`, `env.Filter` (and `env.FilterIn` for a feed), `env.Head`, `env.Event`, `env.CheckComment` and `env.SubmitForm`.
+  - **Setup:** `env.Plugin.Settings`, `env.Posts`, `env.KV`, `env.HTTP`, `env.HTTPHosts` (the hosts of your `http:` permissions) and `env.MailRecipients`.
   - **Results:** `env.KV`, `env.Mails` and `env.Logs`.
-  - **It enforces the server's rules:** missing permissions (`env.Denied`), unknown recipients and non-https URLs fail as they would in production.
+  - **It enforces the server's rules:** missing permissions (`env.Denied`), unknown recipients, non-https URLs, hosts outside `env.HTTPHosts` and the per-request limits (200 KV operations, 10 post queries, 4 HTTP requests, 5 e-mails) fail as they would in production. `posts_query` searches whole words, with `-word` and `or`, like the server; it looks in `Title` and `Excerpt` only, since the fake posts have no content.
 - **The skeleton** (`plugins/skeleton`) has one example per hook, tests for each, and a `Makefile` with `build`, `test`, `vet`, `check` and `pack`.
 
 ## Versioning

@@ -3,6 +3,7 @@ package sdktest_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func init() {
 				}
 				return pluginsdk.HTML("<b>" + strings.Repeat("|", n+1) + "</b>"), nil
 			case "posts":
-				posts, err := pluginsdk.QueryPosts(pluginsdk.PostsQuery{Tag: sc.Attrs["tag"], ExcludeIDs: []int64{2}})
+				posts, err := pluginsdk.QueryPosts(pluginsdk.PostsQuery{Tag: sc.Attrs["tag"], Search: sc.Attrs["q"], ExcludeIDs: []int64{2}})
 				if err != nil {
 					return nil, err
 				}
@@ -41,6 +42,12 @@ func init() {
 					titles = append(titles, p.Title)
 				}
 				return pluginsdk.HTML(strings.Join(titles, ",")), nil
+			case "flood":
+				for i := 0; ; i++ {
+					if _, err := pluginsdk.QueryPosts(pluginsdk.PostsQuery{}); err != nil {
+						return pluginsdk.HTML(fmt.Sprintf("%d %v", i, errors.Is(err, pluginsdk.ErrLimit))), nil
+					}
+				}
 			case "boom":
 				panic("boom")
 			}
@@ -137,6 +144,46 @@ func TestHeadCommentForm(t *testing.T) {
 	}
 	if len(env.Mails) != 2 {
 		t.Fatalf("mails = %d", len(env.Mails))
+	}
+}
+
+func TestPostsSearchAndLimit(t *testing.T) {
+	env := sdktest.New(t)
+	env.Posts = []pluginsdk.Post{{ID: 1, Title: "Go and WebAssembly"}, {ID: 3, Title: "Gopher"}, {ID: 4, Title: "Rust", Excerpt: "Memory, safely"}}
+	for q, want := range map[string]string{
+		"go":              "Go and WebAssembly", // whole words: not "Gopher"
+		"GO webassembly":  "Go and WebAssembly",
+		"rust or gopher":  "Gopher,Rust",
+		"go -webassembly": "",
+		"safely":          "Rust",
+		"":                "Go and WebAssembly,Gopher,Rust",
+	} {
+		if html, err := env.Shortcode("posts", map[string]string{"q": q}, ""); err != nil || html != want {
+			t.Errorf("search %q = %q, %v; want %q", q, html, err, want)
+		}
+	}
+	if html, _ := env.Shortcode("flood", nil, ""); html != "10 true" {
+		t.Errorf("query limit: %q", html)
+	}
+	if html, _ := env.Shortcode("flood", nil, ""); html != "10 true" {
+		t.Errorf("the limit is per request: %q", html)
+	}
+}
+
+func TestFetchHosts(t *testing.T) {
+	env := sdktest.New(t)
+	env.HTTP = func(req pluginsdk.HTTPRequest) (*pluginsdk.HTTPResponse, error) {
+		return &pluginsdk.HTTPResponse{Status: 200, Body: "pong"}, nil
+	}
+	env.HTTPHosts = []string{"http:*.example.test"}
+	env.Event("post.published", nil)
+	if got := env.Logs[len(env.Logs)-1].Text; got != "post.published pong" {
+		t.Fatalf("subdomain grant: %q", got)
+	}
+	env.HTTPHosts = []string{"example.test", "*.other.test"}
+	env.Event("post.published", nil)
+	if got := env.Logs[len(env.Logs)-1].Text; !strings.Contains(got, "permission denied") {
+		t.Fatalf("ungranted host: %q", got)
 	}
 }
 
