@@ -38,7 +38,11 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 
 ### Content
 - **Posts, pages and taxonomy:** posts and hierarchical pages, categories and tags, scheduled publishing, private and password-protected posts, revisions.
-- **Editor:** Markdown with sanitised HTML output (goldmark + bluemonday). Autosave every few seconds, an edit lock with takeover so two people never overwrite each other, and conflict detection on save.
+- **Editor:** visual, Markdown and preview modes over the same Markdown source.
+  - Pasting from Word, Google Docs, LibreOffice or a web page keeps headings, lists, tables, links, images and emphasis, and drops fonts, colours and stray markup.
+  - Keyboard shortcuts and Markdown autoformatting, plus its own undo stack.
+  - Output is sanitised HTML (goldmark + bluemonday).
+  - Autosave every few seconds, an edit lock with takeover so two people never overwrite each other, and conflict detection on save.
 - **Media library:** uploads are checked by content type, given image variants, and stored by hash so duplicates are detected. Uploaded files are served with a sandboxing CSP.
 - **Comments:** threaded, with moderation, per-post open/closed settings and rate limiting.
 - **Menus and widgets** per theme location and per language.
@@ -112,7 +116,11 @@ Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
 - Listens on TCP or a **Unix socket** (recommended behind nginx). Structured logs in text or JSON.
 - **Encrypted backups:** `sap13ns backup create|list|verify|restore|prune` dumps the database and uploads into one archive sealed with AES-256-GCM (STREAM construction, Argon2id key derivation), with daily, weekly and monthly retention and a systemd timer.
-- **Signed releases:** release archives come with a `SHA256SUMS` file signed with Ed25519 (see [docs/RELEASES.md](docs/RELEASES.md)).
+- **Signed self-update:** administrators see a notice in the admin when a release is out. `sap13ns update` then downloads it, checks the Ed25519-signed `SHA256SUMS`, and swaps the binary atomically, keeping the previous one for rollback (see [docs/RELEASES.md](docs/RELEASES.md)).
+- **Cookie-less analytics:**
+  - page views, unique visitors, top pages, sources, browsers, systems, devices and languages, with a daily chart in the admin;
+  - visitors are counted with a daily rotating salt that lives only in memory, so no IP address, user agent or identifier is ever stored, and no consent banner is needed;
+  - bots, prefetches and signed-in staff are not counted.
 
 ## Quick start
 
@@ -162,6 +170,7 @@ sap13ns keygen           Generate a secret key
 sap13ns user create      Create a user
 sap13ns user reset-password
 sap13ns backup create|list|verify|restore|prune
+sap13ns update           Install the latest signed release (-check, -yes, -force)
 sap13ns plugin hash      Print the SHA-256 of a plugin module
 sap13ns version
 ```
@@ -197,13 +206,10 @@ In active development:
 
 - **Plugins:** upload from the admin with an automatic security scan, install disabled, on/off switch. Also a plugin starter kit (`sap13ns plugin new`) and ten official plugins: table of contents, callouts, privacy-friendly embeds, Schema.org data, auto-posting to social networks, related posts, an announcement bar, external and affiliate links, comment antispam, and contact forms.
 - **Site assistant:** a chatbot for visitors that answers from your own posts using PostgreSQL + pgvector hybrid search, with cited sources and a per-post opt-out, plus a read-only MCP endpoint for external AI agents.
-- **Editor:** a visual mode next to Markdown, so you can paste from Word or Google Docs and keep the structure without the stray formatting.
 - **Theme builder:**
   - a visual customiser for colours, fonts, radius, density, header, footer and home layout, with live preview;
   - a block-based template builder.
 - **Multisite:** one account and many isolated sites, each with its own database schema, domains, themes and plugins.
-- **Admin update notices** and `sap13ns update` (verified, signed self-update).
-- **Analytics:** cookie-less, privacy-friendly.
 - **Hosting at sap13ns.site:** free personal sites and paid commercial plans.
 
 ## License
