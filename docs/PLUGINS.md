@@ -231,8 +231,8 @@ The payload objects below use these shapes:
   - The plugin receives `email`, `ip` and `user_agent` as well only if it was granted `comments:pii`.
 - **Response:** `{"verdict": "ok" | "pending" | "spam", "reason": "…"}`
   - **The strictest verdict of all plugins wins.** `pending` holds the comment for moderation; `spam` stores it as spam.
-  - **The check fails open.** Errors, timeouts and unknown verdicts count as `ok`, and the site's normal moderation applies.
-  - **The budget is shared.** All plugins together get 2 seconds. Plugins that do not get a turn are skipped and logged.
+  - **A failed check holds the comment.** Errors, timeouts, unknown verdicts and plugins paused after repeated failures count as `pending`. A broken antispam plugin then sends comments to moderation instead of letting them through.
+  - **The budget is shared.** All plugins together get 2 seconds. Plugins that do not get a turn are skipped, logged and count as `pending`.
   - **The reason is private.** It is written to the plugin's activity log and the server log, and never shown to the visitor.
 
 ### form.submit

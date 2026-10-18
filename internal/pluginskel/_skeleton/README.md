@@ -152,7 +152,7 @@ Requests never reach private, loopback or link-local addresses, whatever the per
 | Module size | 32 MiB (the whole package: 40 MiB) |
 | Memory | 128 MiB per instance |
 | Rendering hooks (`shortcode`, `widget`, `content.filter`, `head.meta`) | 300 ms; no network and no e-mail |
-| `comment.check` | about 2 s for all plugins together; may use the network; errors count as "ok" |
+| `comment.check` | about 2 s for all plugins together; may use the network; errors and timeouts hold the comment ("pending") |
 | `form.submit` | 5 s; may use the network and send e-mail |
 | `event` | 15 s, in the background; may use the network and send e-mail |
 | Output | 2 MiB of HTML per call; JSON-LD 16 KiB per object and 64 KiB per page |

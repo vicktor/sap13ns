@@ -1334,11 +1334,17 @@ type CommentVerdict struct {
 }
 
 // CheckComment asks every comment.check plugin about a new comment; the
-// strictest verdict wins. The whole check is bounded by commentTimeout and
-// fails open: errors, timeouts and unknown verdicts count as "ok", so the
-// site's normal moderation applies.
+// strictest verdict wins. The whole check is bounded by commentTimeout. A
+// plugin that fails, times out, is skipped or answers an unknown verdict
+// holds the comment for moderation ("pending"): breaking an antispam
+// plugin must not let comments through.
 func (h *Host) CheckComment(ctx context.Context, in CommentInput) CommentVerdict {
 	out := CommentVerdict{Verdict: VerdictOK}
+	hold := func(p *Plugin, reason string) {
+		if verdictRank[VerdictPending] > verdictRank[out.Verdict] {
+			out = CommentVerdict{Verdict: VerdictPending, Reason: reason, Plugin: p.ID}
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, commentTimeout)
 	defer cancel()
 	for _, p := range h.enabled() {
@@ -1347,6 +1353,7 @@ func (h *Host) CheckComment(ctx context.Context, in CommentInput) CommentVerdict
 		}
 		if ctx.Err() != nil {
 			p.addLog("warn", "comment.check skipped: time budget used up by other plugins")
+			hold(p, "not checked: time budget used up")
 			continue
 		}
 		pl := commentPayload{Author: in.Author, URL: in.URL, Content: in.Content, Post: in.Post, ParentID: in.ParentID, Registered: in.Registered}
@@ -1355,13 +1362,13 @@ func (h *Host) CheckComment(ctx context.Context, in CommentInput) CommentVerdict
 		}
 		resp, err := h.call(ctx, p, HookCommentCheck, "", pl, commentTimeout, accessNet)
 		if err != nil {
+			hold(p, "not checked: "+truncate(err.Error(), 200))
 			continue
 		}
 		rank, known := verdictRank[resp.Verdict]
 		if !known {
-			if resp.Verdict != "" {
-				p.addLog("warn", "comment.check: unknown verdict "+truncate(resp.Verdict, 40))
-			}
+			p.addLog("warn", "comment.check: unknown verdict "+truncate(resp.Verdict, 40))
+			hold(p, "not checked: unknown verdict")
 			continue
 		}
 		if resp.Verdict != VerdictOK {

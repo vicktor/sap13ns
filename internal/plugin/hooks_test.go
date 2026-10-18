@@ -123,16 +123,17 @@ func TestHooks(t *testing.T) {
 		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "hello"}); v.Verdict != VerdictOK || v.Plugin != "" {
 			t.Fatalf("ok: %+v", v)
 		}
-		// Unknown verdicts and errors fail open.
-		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "weird"}); v.Verdict != VerdictOK || !hasLog(h.Get("hooks"), "unknown verdict maybe") {
+		// Unknown verdicts and errors hold the comment for moderation.
+		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "weird"}); v.Verdict != VerdictPending || v.Plugin != "hooks" ||
+			!hasLog(h.Get("hooks"), "unknown verdict maybe") {
 			t.Fatalf("unknown verdict: %+v", v)
 		}
-		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "fail"}); v.Verdict != VerdictOK {
+		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "fail"}); v.Verdict != VerdictPending || v.Plugin != "hooks" {
 			t.Fatalf("error: %+v", v)
 		}
 		// A plugin that never answers costs at most the shared budget.
 		start := time.Now()
-		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "loop"}); v.Verdict != VerdictOK {
+		if v := h.CheckComment(ctx, CommentInput{Author: "V", Content: "loop"}); v.Verdict != VerdictPending {
 			t.Fatalf("timeout: %+v", v)
 		}
 		if d := time.Since(start); d > commentTimeout+time.Second {
