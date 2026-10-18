@@ -47,6 +47,34 @@ var (
 	kvKeyRe    = regexp.MustCompile(`^[\x21-\x7e]{1,200}$`)
 )
 
+// Meta tags plugins may add: descriptive and social-card metadata only.
+// Names that change what browsers do (referrer, viewport, theme-color…),
+// claim the site for a third party (google-site-verification,
+// msvalidate.01, fb:admins…) or steer crawlers (robots) belong to the site.
+var (
+	metaNames            = map[string]bool{"description": true, "keywords": true, "author": true, "news_keywords": true}
+	metaNamePrefixes     = []string{"twitter:", "citation_", "dc.", "dcterms."}
+	metaPropertyPrefixes = []string{"og:", "article:", "profile:", "book:", "music:", "video:"}
+)
+
+func allowedMeta(m MetaTag) bool {
+	if (m.Name == "") == (m.Property == "") || !metaNameRe.MatchString(m.Name+m.Property) || len(m.Content) > 1000 {
+		return false
+	}
+	name, prefixes := strings.ToLower(m.Name), metaNamePrefixes
+	if m.Property != "" {
+		name, prefixes = strings.ToLower(m.Property), metaPropertyPrefixes
+	} else if metaNames[name] {
+		return true
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(name, p) && len(name) > len(p) {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *Host) registerHostModule(ctx context.Context) error {
 	_, err := h.rt.NewHostModuleBuilder("sap13ns").
 		NewFunctionBuilder().WithFunc(h.hostLog).Export("log").

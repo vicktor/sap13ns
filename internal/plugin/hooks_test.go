@@ -613,3 +613,30 @@ func TestParseSettingTime(t *testing.T) {
 		t.Error("accepted a local date format")
 	}
 }
+
+func TestAllowedMeta(t *testing.T) {
+	for _, tc := range []struct {
+		m  MetaTag
+		ok bool
+	}{
+		{MetaTag{Name: "description", Content: "x"}, true},
+		{MetaTag{Name: "Author", Content: "x"}, true},
+		{MetaTag{Name: "twitter:card", Content: "summary"}, true},
+		{MetaTag{Property: "og:image", Content: "https://e.test/i.png"}, true},
+		{MetaTag{Property: "article:published_time", Content: "2026-01-01"}, true},
+		{MetaTag{Name: "google-site-verification", Content: "token"}, false},
+		{MetaTag{Name: "msvalidate.01", Content: "token"}, false},
+		{MetaTag{Name: "referrer", Content: "unsafe-url"}, false},
+		{MetaTag{Name: "robots", Content: "noindex"}, false},
+		{MetaTag{Name: "viewport", Content: "width=1"}, false},
+		{MetaTag{Property: "fb:admins", Content: "1"}, false},
+		{MetaTag{Name: "twitter:", Content: "x"}, false},
+		{MetaTag{Name: "og:title", Content: "x"}, false}, // og:* is a property
+		{MetaTag{Name: "description", Property: "og:title", Content: "x"}, false},
+		{MetaTag{Name: "description", Content: strings.Repeat("x", 1001)}, false},
+	} {
+		if got := allowedMeta(tc.m); got != tc.ok {
+			t.Errorf("%+v: got %v", tc.m, got)
+		}
+	}
+}

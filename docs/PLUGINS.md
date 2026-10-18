@@ -217,7 +217,11 @@ The payload objects below use these shapes:
 
 - **Payload:** the `page` object.
 - **Response:** `{"meta": [{"name": "author", "content": "Ada"}], "jsonld": [{"@context": "https://schema.org", "@type": "BlogPosting", …}]}`
-  - **Meta tags:** up to 20 per plugin. Each needs exactly one of `name` or `property`, matching `^[a-zA-Z][a-zA-Z0-9:_.-]{0,63}$`, with `content` of at most 1000 bytes. `http-equiv` is never allowed.
+  - **Meta tags:** up to 20 per plugin. Each needs exactly one of `name` or `property`, matching `^[a-zA-Z][a-zA-Z0-9:_.-]{0,63}$`, with `content` of at most 1000 bytes. Only descriptive and social-card tags are accepted:
+    - `name`: `description`, `keywords`, `author`, `news_keywords`, and `twitter:*`, `citation_*`, `dc.*`, `dcterms.*`;
+    - `property`: `og:*`, `article:*`, `profile:*`, `book:*`, `music:*`, `video:*`.
+
+    Anything else is dropped and logged: `http-equiv`, browser settings such as `referrer`, `viewport` and `theme-color`, `robots`, and site-ownership claims such as `google-site-verification`, `msvalidate.01` and `fb:*`.
   - **JSON-LD:** up to 5 objects per plugin. Each must be a JSON object of at most 16 KiB, and a page takes at most 64 KiB of plugin JSON-LD.
   - **How JSON-LD is written:** each object is compacted and written in its own `<script type="application/ld+json">` with `<`, `>` and `&` escaped as `\u003c`, `\u003e` and `\u0026`, so it can never close the element. Invalid objects are dropped and logged.
 

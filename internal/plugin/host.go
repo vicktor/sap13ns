@@ -1136,7 +1136,8 @@ func (h *Host) Head(ctx context.Context, page *PageInfo) HeadOutput {
 			if i >= 20 {
 				break
 			}
-			if (m.Name == "") == (m.Property == "") || !metaNameRe.MatchString(m.Name+m.Property) || len(m.Content) > 1000 {
+			if !allowedMeta(m) {
+				p.addLog("warn", fmt.Sprintf("head.meta: <meta %s> dropped (not a descriptive or social tag, or too long)", m.Name+m.Property))
 				continue
 			}
 			out.Meta = append(out.Meta, m)
