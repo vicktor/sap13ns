@@ -359,6 +359,17 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 		}
 		opt.Installed = append(opt.Installed, p.Manifest)
 	}
+	// Data an uninstall kept goes to whatever package next claims the id.
+	var retained map[string]string
+	if opt.Replacing == nil && idRe.MatchString(newID) {
+		recs, err := h.store.ListPluginRecords(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if rec, ok := recs[newID]; ok {
+			retained, opt.Retained = rec.Settings, true
+		}
+	}
 	rep := h.ScanDir(ctx, staging, opt)
 	res.Report, res.ID, res.Version = rep, rep.PluginID, rep.Version
 	if rep.Blocked() || !idRe.MatchString(rep.PluginID) {
@@ -387,7 +398,36 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 		UploadedBy: opts.UserID, ReviewRequired: opts.ReviewRequired, Report: rep.JSON()}); err != nil {
 		return nil, err
 	}
+	if opt.Retained && rep.PluginID == newID {
+		var m *Manifest
+		if raw, err := readLimited(filepath.Join(target, "plugin.json"), 64<<10); err == nil {
+			m, _ = ParseManifest(raw)
+		}
+		if err := h.store.ResetRetainedPlugin(ctx, newID, inheritedSettings(retained, m)); err != nil {
+			return nil, err
+		}
+	}
 	return res, h.Load(ctx)
+}
+
+// inheritedSettings are the settings a reinstall keeps from an uninstalled
+// plugin with the same id. Secrets and e-mail recipients are dropped: the
+// new package may not be the one they were entrusted to.
+func inheritedSettings(old map[string]string, m *Manifest) map[string]string {
+	secret := map[string]bool{}
+	if m != nil {
+		for _, s := range m.Settings {
+			secret[s.Key] = s.Type == "secret"
+		}
+	}
+	out := map[string]string{}
+	for k, v := range old {
+		if strings.HasPrefix(k, emailMark) || old[emailMark+k] != "" || strings.HasPrefix(v, secretPrefix) || secret[k] {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // packageReport turns a *PackageError into a blocked report (nil for any
@@ -524,7 +564,7 @@ func randomSuffix() string {
 
 // Uninstall removes a disabled plugin's files. With deleteData its settings
 // and key-value data are deleted too; otherwise they are kept for a later
-// reinstall.
+// reinstall, without the secrets, e-mail recipients and approval (Install).
 func (h *Host) Uninstall(ctx context.Context, id string, deleteData bool) error {
 	if !idRe.MatchString(id) {
 		return errors.New("invalid plugin id")

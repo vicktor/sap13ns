@@ -140,6 +140,9 @@ type ScanOptions struct {
 	Installed []Manifest
 	// Replacing is the installed manifest an update would replace.
 	Replacing *Manifest
+	// Retained is true when a plugin with the same id was uninstalled
+	// without deleting its data, which this package would inherit.
+	Retained bool
 	// PackageSHA256 is the hash of the uploaded archive, checked against
 	// the blocklist.
 	PackageSHA256 string
@@ -283,6 +286,9 @@ func (h *Host) scanManifest(rep *Report, m *Manifest, opts ScanOptions) {
 	}
 	if r := opts.Replacing; r != nil && r.Author != "" && !strings.EqualFold(strings.TrimSpace(r.Author), strings.TrimSpace(m.Author)) {
 		rep.add(SevHigh, "manifest.id-collision", "plugin.json", "the installed plugin %q is by %q; this package claims the same id but is by %q", m.ID, r.Author, m.Author)
+	}
+	if opts.Retained && opts.Replacing == nil {
+		rep.add(SevHigh, "manifest.retained-data", "plugin.json", "a plugin with the id %q was uninstalled without deleting its data: this package gets its settings and stored data (its secrets, e-mail recipients and approval are cleared)", m.ID)
 	}
 	for _, o := range opts.Installed {
 		if o.ID == m.ID {

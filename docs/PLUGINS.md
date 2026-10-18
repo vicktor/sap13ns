@@ -330,6 +330,7 @@ High-risk permissions need an explicit confirmation when the plugin is enabled.
 |---|---|
 | Module | 32 MiB; compiled once and cached |
 | Memory | 128 MiB per instance; up to 4 instances per plugin |
+| Tables | at most 4, 2^18 entries in all; a table without a maximum gets one equal to its minimum, so `table.grow` cannot extend it |
 | Request | 4 MiB of JSON |
 | Response | 2 MiB |
 | Host calls per request | 200 KV operations, 10 post queries, 4 HTTP requests, 5 e-mails |
@@ -456,8 +457,10 @@ The scanner checks, in order:
 | `manifest.missing`, `manifest.invalid`, `manifest.abi` | critical | `plugin.json` is missing, invalid, or for another ABI |
 | `manifest.reserved-id` | critical | the id is reserved |
 | `manifest.id-collision` | high | an update claims the id of a plugin by another author |
+| `manifest.retained-data` | high | a plugin with this id was uninstalled with its data kept, and this package would get it |
 | `manifest.shortcode-collision` | medium | another installed plugin has the same shortcode |
 | `wasm.missing`, `wasm.compile`, `wasm.format` | critical | the module cannot be read, compiled or parsed |
+| `wasm.tables` | critical | more than 4 tables, more than 2^18 entries in all (each counted at its maximum), or an imported table |
 | `wasm.import` | critical | an import the host does not provide (only `sap13ns` and WASI preview 1 exist) |
 | `wasm.import-signature` | critical | a known import with the wrong signature |
 | `wasm.import-memory` | critical | the module imports its memory |
@@ -525,7 +528,11 @@ The scanner checks, in order:
 
 **Disabling** takes effect immediately. Shortcodes of a disabled plugin show as plain text.
 
-**Uninstalling** is possible only while the plugin is disabled. It removes the files. With **Delete its data**, it also removes the settings, the approval record and the key-value data; otherwise they are kept for a later reinstall.
+**Uninstalling** is possible only while the plugin is disabled. It removes the files. With **Delete its data**, it also removes the settings, the approval record and the key-value data; otherwise they are kept for a later reinstall. Any package can claim the id, so a reinstall over kept data:
+
+- reports `manifest.retained-data`, which makes enabling ask for confirmation;
+- keeps the plain settings and the key-value data;
+- clears the secret settings, the e-mail recipients and the approval.
 
 **Audit.** Every step is written to the audit log with the hashes, versions, verdicts and permissions: `plugin.installed`, `plugin.updated`, `plugin.refused`, `plugin.scanned`, `plugin.approved`, `plugin.disabled`, `plugin.settings_saved` and `plugin.uninstalled`.
 

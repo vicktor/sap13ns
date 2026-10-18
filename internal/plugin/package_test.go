@@ -9,6 +9,7 @@ import (
 	"flag"
 	"hash/crc32"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -391,11 +392,38 @@ func TestInstallLifecycle(t *testing.T) {
 	if recs, _ := st.ListPluginRecords(ctx); recs["life"].Settings["greeting"] != "Hola" {
 		t.Fatal("settings not kept")
 	}
-	if _, err := install(testPackage(t, "life", "1.2.0", "v2"), InstallOptions{UserID: uid}); err != nil {
+	// A reinstall inherits the plain settings and data, not the secrets,
+	// e-mail recipients or approval, and the report says so.
+	if err := st.SavePluginSettings(ctx, "life", map[string]string{"greeting": "Hola", "token": secretPrefix + "c2VhbGVk",
+		"notify": "owner@example.test", emailMark + "notify": "1"}); err != nil {
 		t.Fatal(err)
 	}
+	res, err = install(testPackage(t, "life", "1.0.0", "v1"), InstallOptions{UserID: uid})
+	if err != nil || !res.Report.Has("manifest.retained-data") || !res.Report.NeedsConfirmation() {
+		t.Fatalf("reinstall over kept data: %v %s", err, dumpReport(res.Report))
+	}
+	p = h.Get("life")
+	if want := map[string]string{"greeting": "Hola"}; !maps.Equal(p.Record.Settings, want) {
+		t.Fatalf("reinstall inherited %v", p.Record.Settings)
+	}
+	if p.Status != StatusAvailable || p.Record.WasmSHA256 != "" || len(p.Record.GrantedPermissions) != 0 || p.Record.ApprovedBy != nil {
+		t.Fatalf("reinstall kept the approval: %s %+v", p.Status, p.Record)
+	}
+	if v, _ := st.PluginKVGet(ctx, "life", "count"); string(v) != "7" {
+		t.Fatalf("kv after reinstall: %q", v)
+	}
+	// An update of an installed plugin is not a reinstall.
+	if res, err := install(testPackage(t, "life", "1.2.0", "v2"), InstallOptions{UserID: uid}); err != nil || res.Report.Has("manifest.retained-data") {
+		t.Fatalf("update after reinstall: %v %s", err, dumpReport(res.Report))
+	}
 	if h.Get("life").Record.Settings["greeting"] != "Hola" {
-		t.Fatal("reinstall lost the settings")
+		t.Fatal("update lost the settings")
+	}
+	if err := h.Uninstall(ctx, "life", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := install(testPackage(t, "life", "1.2.0", "v2"), InstallOptions{UserID: uid}); err != nil {
+		t.Fatal(err)
 	}
 	if err := h.Uninstall(ctx, "life", true); err != nil {
 		t.Fatal(err)
