@@ -138,6 +138,12 @@ Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the
 | [callouts](plugins/callouts) | Callouts and GitHub-style alerts |
 | [external-links](plugins/external-links) | External and affiliate links |
 | [announcement](plugins/announcement) | Announcement bar |
+| [embeds](plugins/embeds) | Click-to-load YouTube (no-cookie) and Vimeo (do-not-track) players |
+| [schema](plugins/schema) | Schema.org JSON-LD for every public page |
+| [social](plugins/social) | Posts new articles to Bluesky and Mastodon |
+| [related](plugins/related) | Related posts by shared tags and categories |
+| [antispam](plugins/antispam) | Holds or rejects spam comments, optionally with StopForumSpam |
+| [contact](plugins/contact) | Contact form e-mailed to the site, with Reply-To |
 
 ### Operations
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
@@ -236,7 +242,6 @@ docs               operator and developer documentation
 
 In active development:
 
-- **More official plugins:** privacy-friendly embeds, Schema.org data, auto-posting to social networks, related posts, comment antispam and contact forms.
 - **Theme builder:**
   - a visual customiser for colours, fonts, radius, density, header, footer and home layout, with live preview;
   - a block-based template builder.

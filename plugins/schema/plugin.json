@@ -1,0 +1,24 @@
+{
+  "abi": 1,
+  "id": "schema",
+  "name": "Schema.org structured data",
+  "version": "1.0.0",
+  "description": "Adds Schema.org JSON-LD to every public page: BlogPosting or Article for posts, WebPage for pages, breadcrumbs, the WebSite with its search box on the home page, and the Organization or Person that publishes the site.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["head.meta"],
+  "permissions": ["posts:read"],
+  "settings": [
+    {"key": "article_type", "label": "Type of posts", "type": "select", "default": "BlogPosting", "choices": ["BlogPosting", "Article", "NewsArticle"], "help": "BlogPosting suits most blogs; NewsArticle is for news sites."},
+    {"key": "publisher_type", "label": "Published by", "type": "select", "default": "Organization", "choices": ["Organization", "Person"], "help": "Whether the site belongs to an organization or to one person."},
+    {"key": "publisher_name", "label": "Publisher name", "type": "text", "default": "", "help": "Empty uses the site title."},
+    {"key": "publisher_url", "label": "Publisher web address", "type": "text", "default": "", "help": "https://… Empty uses the site address."},
+    {"key": "publisher_logo", "label": "Logo or photo", "type": "url", "default": "", "help": "https:// address of a square logo (Organization) or a photo (Person), at least 112×112 pixels."},
+    {"key": "same_as", "label": "Profiles", "type": "textarea", "default": "", "help": "Official profiles of the publisher (Mastodon, GitHub, LinkedIn…), one https:// address per line. At most 10 are used."},
+    {"key": "breadcrumbs", "label": "Breadcrumbs", "type": "bool", "default": "true", "help": "Describe the path Home → category → post, which search engines can show instead of the address."},
+    {"key": "search_action", "label": "Search box", "type": "bool", "default": "true", "help": "Tell search engines how to search the site (WebSite SearchAction on the home page)."},
+    {"key": "home_label", "label": "Name of the home page in breadcrumbs", "type": "text", "default": "", "help": "Empty uses \"Home\", or \"Inicio\" on Spanish pages."},
+    {"key": "home_label_es", "label": "Name of the home page in breadcrumbs (Spanish)", "type": "text", "default": ""},
+    {"key": "home_label_en", "label": "Name of the home page in breadcrumbs (English)", "type": "text", "default": ""}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "abi": 1,
+  "id": "embeds",
+  "name": "Privacy-friendly embeds",
+  "version": "1.0.0",
+  "description": "Turns standalone YouTube and Vimeo links into click-to-load video players. Nothing is requested from the video site until the visitor presses play; then the player loads from youtube-nocookie.com or Vimeo with Do Not Track. Without JavaScript the link stays a plain link.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["content.filter"],
+  "permissions": ["assets:js"],
+  "assets": {"css": ["assets/embeds.css"], "js": ["assets/embeds.js"]},
+  "csp": {"frame-src": ["https://www.youtube-nocookie.com", "https://player.vimeo.com"]},
+  "settings": [
+    {"key": "youtube", "label": "YouTube links", "type": "bool", "default": "true", "help": "Embed youtube.com and youtu.be links with the privacy-enhanced player (youtube-nocookie.com)."},
+    {"key": "vimeo", "label": "Vimeo links", "type": "bool", "default": "true", "help": "Embed vimeo.com links with Vimeo's player in Do Not Track mode (dnt=1)."},
+    {"key": "notice", "label": "Privacy note", "type": "text", "default": "", "help": "Shown under every embed. {provider} becomes YouTube or Vimeo. Empty uses a built-in note in the post's language (English or Spanish)."},
+    {"key": "notice_es", "label": "Privacy note in Spanish", "type": "text", "default": "", "help": "Used for Spanish posts instead of the note above."},
+    {"key": "notice_en", "label": "Privacy note in English", "type": "text", "default": "", "help": "Used for English posts instead of the note above."},
+    {"key": "privacy_url", "label": "Privacy policy link", "type": "text", "default": "", "help": "https://…, http://… or a site path such as /privacy. Adds a \"Privacy policy\" link after the note. Empty adds no link."},
+    {"key": "privacy_url_es", "label": "Privacy policy link for Spanish posts", "type": "text", "default": ""},
+    {"key": "privacy_url_en", "label": "Privacy policy link for English posts", "type": "text", "default": ""}
+  ]
+}

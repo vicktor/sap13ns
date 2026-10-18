@@ -110,7 +110,20 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
 
 ## Example plugins
 
-The repository includes four official plugins in `plugins/`, each one its own Go module with tests: **callouts** (GitHub-style Markdown alerts plus the `callout` and `kbd` shortcodes), **toc** (an automatic table of contents), **external-links** (UTM parameters and link attributes for links to other sites) and **announcement** (a scheduled announcement widget). They use the shared component styles, so they look at home in every theme, and none of them needs any permission.
+The repository includes ten official plugins in `plugins/`, each one its own Go module with tests and a README that explains every permission it asks for:
+
+- **callouts**: GitHub-style Markdown alerts plus the `callout` and `kbd` shortcodes.
+- **toc**: an automatic table of contents.
+- **external-links**: UTM parameters and link attributes for links to other sites.
+- **announcement**: a scheduled announcement widget.
+- **embeds**: YouTube and Vimeo links become click-to-load players. Nothing is requested from the video site until the visitor presses play, and then the player comes from youtube-nocookie.com or Vimeo with Do Not Track.
+- **schema**: Schema.org JSON-LD for posts, pages, breadcrumbs, the site search box and the publisher.
+- **related**: related posts by shared tags and categories, after each post and as a widget.
+- **contact**: a contact form with privacy consent, sent to the administrator with the visitor as Reply-To.
+- **antispam**: local checks on new comments (links, a blocklist, mixed alphabets, shouting, repeated text), with an optional StopForumSpam lookup that is off by default.
+- **social**: posts new articles to Bluesky and Mastodon, in the post's language, and never twice.
+
+They use the shared component styles, so they look at home in every theme, light and dark.
 
 ## Review
 

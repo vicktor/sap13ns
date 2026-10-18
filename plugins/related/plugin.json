@@ -1,0 +1,23 @@
+{
+  "abi": 1,
+  "id": "related",
+  "name": "Related posts",
+  "version": "1.0.0",
+  "description": "Lists the posts that share the most tags, then categories, with the current post, in its language: as a card after each post and as a widget for single-post pages.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["content.filter", "widget"],
+  "widgets": [
+    {"id": "related", "title": "Related posts", "description": "The posts related to the post being read. Only shown on single-post pages.", "config": [{"key": "count", "label": "Number of posts", "type": "number", "default": "", "help": "1 to 10. Empty uses the number from the plugin settings."}]}
+  ],
+  "permissions": ["posts:read"],
+  "assets": {"css": ["assets/related.css"]},
+  "settings": [
+    {"key": "count", "label": "Number of posts", "type": "number", "default": "4", "help": "1 to 10."},
+    {"key": "after_content", "label": "Show after each post", "type": "bool", "default": "true", "help": "Adds a \"Related posts\" card at the end of every post. Turn it off to use only the widget."},
+    {"key": "show_images", "label": "Show featured images", "type": "bool", "default": "false", "help": "Adds a small thumbnail. The host only offers the full-size image, so every thumbnail downloads the original file."},
+    {"key": "title", "label": "Title", "type": "text", "default": "", "help": "Title of the card after the post. Empty uses \"Related posts\", or \"Artículos relacionados\" for Spanish posts. The widget uses the title set in Appearance → Widgets."},
+    {"key": "title_es", "label": "Title for Spanish posts", "type": "text", "default": ""},
+    {"key": "title_en", "label": "Title for English posts", "type": "text", "default": ""}
+  ]
+}

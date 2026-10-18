@@ -1,0 +1,51 @@
+/* Privacy-friendly embeds. The figure is a Basecoat .card, which every theme
+   styles in light and dark mode; this file only lays out its content with
+   theme tokens. Without the script the embed is a plain link; embeds.js adds
+   .is-enhanced and a play button, and .is-playing once the player loads. */
+
+.embed { display: flex; flex-direction: column; gap: 0.75rem; }
+.embed .embed-player { display: none; }
+
+/* The link (the whole embed without JavaScript). */
+.embed a.embed-link { display: flex; align-items: center; gap: 0.85rem; color: inherit; text-decoration: none; border-radius: calc(var(--radius) - 2px); }
+.embed .embed-icon { display: grid; place-items: center; flex: none; width: 2.75rem; height: 2.75rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); }
+.embed .embed-icon svg { width: 1.1rem; height: 1.1rem; margin-left: 0.15rem; fill: currentColor; }
+.embed .embed-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.embed .embed-title { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.embed .embed-source { color: var(--muted-foreground); font-size: 0.85rem; }
+.embed a.embed-link:hover .embed-title { color: var(--primary); }
+.embed a.embed-link:hover .embed-source { text-decoration: underline; text-underline-offset: 0.2em; }
+
+/* The privacy note (overrides the centred .prose figcaption). */
+.embed > figcaption.embed-notice { margin: 0; color: var(--muted-foreground); font-size: 0.85rem; line-height: 1.5; text-align: start; }
+.embed > figcaption.embed-notice a { color: inherit; text-decoration: underline; text-underline-offset: 0.2em; }
+
+/* Enhanced by embeds.js: a 16:9 frame with a real play button. */
+.embed-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: calc(var(--radius) - 2px); background: radial-gradient(circle at 30% 25%, color-mix(in oklch, var(--primary) 40%, transparent), transparent 65%), oklch(0.22 0.01 265); color: oklch(0.98 0 0); }
+.embed-portrait .embed-frame { aspect-ratio: 9 / 16; width: min(100%, 22rem); margin-inline: auto; }
+.embed-play { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; width: 100%; height: 100%; padding: 1rem 1.25rem; border: 0; background: transparent; color: inherit; font: inherit; text-align: center; cursor: pointer; }
+.embed-play-icon { display: grid; place-items: center; width: 4rem; height: 4rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); box-shadow: 0 10px 30px -8px oklch(0 0 0 / 0.6); transition: transform 0.2s ease; }
+.embed-play-icon svg { width: 1.5rem; height: 1.5rem; margin-left: 0.2rem; fill: currentColor; }
+.embed-play:hover .embed-play-icon { transform: scale(1.06); }
+.embed-play-text { display: flex; flex-direction: column; gap: 0.25rem; max-width: 34rem; }
+.embed-play-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 1.05rem; font-weight: 650; line-height: 1.3; text-shadow: 0 1px 2px oklch(0 0 0 / 0.5); }
+.embed-play-provider { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
+.embed-play:focus-visible { outline: 3px solid var(--ring); outline-offset: -3px; }
+.embed a.embed-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.embed-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* Once enhanced, the original link shrinks to "Watch on …". */
+.embed.is-enhanced a.embed-link .embed-icon,
+.embed.is-enhanced a.embed-link .embed-title { display: none; }
+.embed.is-enhanced a.embed-link { align-self: flex-start; }
+.embed.is-enhanced .embed-source { color: var(--primary); font-size: 0.875rem; text-decoration: underline; text-underline-offset: 0.2em; }
+
+@media (max-width: 480px) {
+  .embed-play-icon { width: 3.25rem; height: 3.25rem; }
+  .embed-play-title { font-size: 0.95rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .embed-play-icon { transition: none; }
+  .embed-play:hover .embed-play-icon { transform: none; }
+}

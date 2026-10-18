@@ -1,0 +1,27 @@
+{
+  "abi": 1,
+  "id": "antispam",
+  "name": "Antispam",
+  "version": "1.0.0",
+  "description": "Holds or rejects spam comments before they are stored: too many links, a blocklist of words and sites, mixed alphabets, shouting, repeated text and first-time commenters with links. Optionally asks StopForumSpam about the commenter's IP and e-mail (off by default).",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["comment.check", "event"],
+  "events": ["comment.approved"],
+  "permissions": ["kv", "comments:pii", "http:api.stopforumspam.org"],
+  "settings": [
+    {"key": "max_links", "label": "Links before holding", "type": "number", "default": "2", "help": "A comment with more links than this is held for moderation. 0 holds every comment with a link."},
+    {"key": "spam_links", "label": "Links for spam", "type": "number", "default": "6", "help": "A comment with at least this many links is marked as spam. 0: never."},
+    {"key": "blocklist", "label": "Blocklist", "type": "textarea", "default": "", "help": "One word, phrase or domain per line (lines starting with # are notes). Matched in the content, the name, the website and the e-mail, ignoring case and accents. A single word matches whole words only."},
+    {"key": "blocklist_action", "label": "Blocklist action", "type": "select", "default": "spam", "choices": ["spam", "pending"], "help": "What happens to a comment that matches the blocklist."},
+    {"key": "script_check", "label": "Alphabet check", "type": "select", "default": "off", "choices": ["off", "mixed", "latin"], "help": "mixed holds words that mix Latin with Cyrillic or Greek letters (a trick to dodge filters). latin also holds comments written mostly in other alphabets: use it only if your readers write in Latin script."},
+    {"key": "caps_check", "label": "Hold shouting", "type": "bool", "default": "true", "help": "Hold comments written mostly in capital letters."},
+    {"key": "repeat_check", "label": "Hold repeated text", "type": "bool", "default": "true", "help": "Hold comments with a character repeated 8 times or a word repeated 6 times in a row."},
+    {"key": "first_time_links", "label": "Hold first comments with links", "type": "bool", "default": "true", "help": "Hold a comment with a link from someone who is not signed in and has never had a comment approved."},
+    {"key": "log_ok", "label": "Log accepted comments", "type": "bool", "default": "true", "help": "Also write comments that pass every check to the activity log. Held and spam comments are always logged."},
+    {"key": "sfs_enabled", "label": "Ask StopForumSpam", "type": "bool", "default": "false", "help": "Send the commenter's IP address and a hash of their e-mail address to stopforumspam.org, a third party. Mention it in your privacy policy before turning it on."},
+    {"key": "sfs_check_ip", "label": "StopForumSpam: IP address", "type": "bool", "default": "true", "help": "Look up the IP address."},
+    {"key": "sfs_check_email", "label": "StopForumSpam: e-mail", "type": "bool", "default": "true", "help": "Look up the MD5 hash of the e-mail address (the address itself is never sent)."},
+    {"key": "sfs_threshold", "label": "StopForumSpam: spam confidence", "type": "number", "default": "60", "help": "A listing with at least this confidence (1–100) marks the comment as spam; a weaker listing holds it."}
+  ]
+}

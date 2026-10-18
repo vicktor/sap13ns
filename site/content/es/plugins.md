@@ -110,7 +110,20 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
 
 ## Plugins de ejemplo
 
-El repositorio incluye cuatro plugins oficiales en `plugins/`, cada uno un módulo de Go con sus pruebas: **callouts** (avisos de Markdown al estilo de GitHub y los shortcodes `callout` y `kbd`), **toc** (un índice automático), **external-links** (parámetros UTM y atributos para los enlaces a otros sitios) y **announcement** (un anuncio programado como widget). Usan los estilos de componentes compartidos para que encajen en cualquier tema, y ninguno necesita permisos.
+El repositorio incluye diez plugins oficiales en `plugins/`, cada uno un módulo de Go con sus pruebas y un README que explica cada permiso que pide:
+
+- **callouts**: avisos de Markdown al estilo de GitHub y los shortcodes `callout` y `kbd`.
+- **toc**: un índice automático.
+- **external-links**: parámetros UTM y atributos para los enlaces a otros sitios.
+- **announcement**: un anuncio programado como widget.
+- **embeds**: los enlaces de YouTube y Vimeo se convierten en reproductores que se cargan al hacer clic. No se pide nada al sitio del vídeo hasta que el visitante pulsa reproducir, y entonces el reproductor llega de youtube-nocookie.com o de Vimeo con Do Not Track.
+- **schema**: datos JSON-LD de Schema.org para entradas, páginas, migas de pan, el buscador del sitio y el editor.
+- **related**: entradas relacionadas por etiquetas y categorías comunes, al final de cada entrada y como widget.
+- **contact**: un formulario de contacto con consentimiento de privacidad, que se envía al administrador con el visitante como Reply-To.
+- **antispam**: comprobaciones locales de los comentarios nuevos (enlaces, una lista de bloqueo, alfabetos mezclados, mayúsculas, texto repetido), con una consulta opcional a StopForumSpam desactivada por defecto.
+- **social**: publica los artículos nuevos en Bluesky y Mastodon, en el idioma de la entrada y nunca dos veces.
+
+Usan los estilos de componentes compartidos para que encajen en cualquier tema, claro u oscuro.
 
 ## Revisión
 

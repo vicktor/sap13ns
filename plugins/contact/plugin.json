@@ -1,0 +1,39 @@
+{
+  "abi": 1,
+  "id": "contact",
+  "name": "Contact form",
+  "version": "1.0.0",
+  "description": "A contact form with name, e-mail, subject, message and privacy consent, placed with the [contact] shortcode or a widget. Messages are e-mailed to the site administrator or a configured address, with Reply-To set to the visitor.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["shortcode", "widget", "form.submit"],
+  "shortcodes": ["contact"],
+  "widgets": [
+    {"id": "contact", "title": "Contact form", "description": "The contact form, with the intro text and the privacy link from the plugin settings."}
+  ],
+  "permissions": ["mail"],
+  "settings": [
+    {"key": "recipient", "label": "Send messages to", "type": "email", "help": "Empty sends them to the site administrator."},
+    {"key": "subject_prefix", "label": "Subject prefix", "type": "text", "default": "[Contact]", "help": "Starts the subject of every e-mail, so you can filter them."},
+    {"key": "privacy_url", "label": "Privacy policy", "type": "text", "default": "", "help": "Link shown above the form: https://…, http://… or a site path such as /privacy. The consent checkbox refers to it."},
+    {"key": "privacy_url_es", "label": "Privacy policy (Spanish pages)", "type": "text", "default": "", "help": "For example /es/privacidad. Empty uses the link above."},
+    {"key": "privacy_url_en", "label": "Privacy policy (English pages)", "type": "text", "default": ""},
+    {"key": "intro", "label": "Text above the form", "type": "textarea", "default": "", "help": "Plain text; blank lines separate paragraphs. Empty shows none."},
+    {"key": "intro_es", "label": "Text above the form (Spanish)", "type": "textarea", "default": ""},
+    {"key": "intro_en", "label": "Text above the form (English)", "type": "textarea", "default": ""},
+    {"key": "success", "label": "Message after sending", "type": "text", "default": "", "help": "{name} and {email} are replaced. Empty uses \"Thanks, {name}! Your message was sent. We will reply to {email}.\" (in Spanish on Spanish pages)."},
+    {"key": "success_es", "label": "Message after sending (Spanish)", "type": "text", "default": ""},
+    {"key": "success_en", "label": "Message after sending (English)", "type": "text", "default": ""},
+    {"key": "min_length", "label": "Shortest message (characters)", "type": "number", "default": "20"},
+    {"key": "max_links", "label": "Most links in a message", "type": "number", "default": "3", "help": "Messages with more links are refused. 0 allows none."}
+  ],
+  "forms": [
+    {"id": "contact", "submit": {"en": "Send message", "es": "Enviar mensaje"}, "fields": [
+      {"name": "name", "label": {"en": "Name", "es": "Nombre"}, "type": "text", "required": true, "max_length": 100},
+      {"name": "email", "label": {"en": "E-mail", "es": "Correo electrónico"}, "type": "email", "required": true, "max_length": 254},
+      {"name": "subject", "label": {"en": "Subject (optional)", "es": "Asunto (opcional)"}, "type": "text", "max_length": 150},
+      {"name": "message", "label": {"en": "Message", "es": "Mensaje"}, "type": "textarea", "required": true, "max_length": 5000},
+      {"name": "consent", "label": {"en": "I have read and accept the privacy policy", "es": "He leído y acepto la política de privacidad"}, "type": "checkbox", "required": true}
+    ]}
+  ]
+}

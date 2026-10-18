@@ -1,0 +1,43 @@
+{
+  "abi": 1,
+  "id": "social",
+  "name": "Social auto-post",
+  "version": "1.0.0",
+  "description": "Posts new articles to Bluesky and Mastodon when they are published: a templated text in the post's language with its title, link and hashtags from its tags. Scheduled posts go out after they go live, and no post is ever sent twice.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["event"],
+  "events": ["post.published", "post.updated", "post.trashed", "cron.hourly"],
+  "permissions": [
+    "kv",
+    "posts:read",
+    "http:bsky.social",
+    "http:mastodon.social",
+    "http:mstdn.social",
+    "http:mastodon.world",
+    "http:mastodon.online",
+    "http:mas.to",
+    "http:techhub.social",
+    "http:infosec.exchange",
+    "http:universeodon.com",
+    "http:fosstodon.org",
+    "http:hachyderm.io",
+    "http:masto.es",
+    "http:social.vivaldi.net"
+  ],
+  "settings": [
+    {"key": "bluesky_handle", "label": "Bluesky handle", "type": "text", "default": "", "help": "For example alice.bsky.social. Empty: nothing is posted to Bluesky."},
+    {"key": "bluesky_app_password", "label": "Bluesky app password", "type": "secret", "help": "Create one in Bluesky → Settings → Privacy and security → App passwords. Never use your account password."},
+    {"key": "bluesky_service", "label": "Bluesky server", "type": "url", "default": "https://bsky.social", "help": "Keep https://bsky.social unless your account lives on your own PDS (its host must be added to the plugin's permissions; see the README)."},
+    {"key": "mastodon_instance", "label": "Mastodon instance", "type": "url", "default": "", "help": "For example https://mastodon.social. Empty: nothing is posted to Mastodon. Only the instances in the plugin's permissions can be reached; see the README to add yours."},
+    {"key": "mastodon_token", "label": "Mastodon access token", "type": "secret", "help": "Preferences → Development → New application, with only the write:statuses scope. Copy “Your access token”."},
+    {"key": "mastodon_visibility", "label": "Mastodon visibility", "type": "select", "default": "public", "choices": ["public", "unlisted"], "help": "unlisted keeps the posts out of the public timelines."},
+    {"key": "template", "label": "Text", "type": "textarea", "default": "", "help": "Placeholders: {title} {url} {excerpt} {hashtags} {site}. Empty uses “New post: {title}”, the link and the hashtags, in the post's language."},
+    {"key": "template_es", "label": "Text for Spanish posts", "type": "textarea", "default": "", "help": "Used instead of the text above for posts in Spanish."},
+    {"key": "template_en", "label": "Text for English posts", "type": "textarea", "default": "", "help": "Used instead of the text above for posts in English."},
+    {"key": "max_hashtags", "label": "Hashtags", "type": "number", "default": "5", "help": "How many of the post's tags become hashtags. 0 adds none."},
+    {"key": "post_types", "label": "Post", "type": "select", "default": "posts", "choices": ["posts", "pages", "both"], "help": "Which content types are posted when they are published."},
+    {"key": "skip_older_than_hours", "label": "Skip posts older than (hours)", "type": "number", "default": "48", "help": "A post whose publication date is older than this is never posted, so re-publishing an old article does not announce it again."},
+    {"key": "dry_run", "label": "Dry run", "type": "bool", "default": "false", "help": "Write the text that would be posted to the activity log instead of posting it. Nothing is recorded, so the post goes out once you turn this off and publish again."}
+  ]
+}

@@ -96,6 +96,7 @@ panel-left
 pen-line
 pencil
 pilcrow
+play
 plug
 plus
 puzzle
