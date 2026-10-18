@@ -17,6 +17,8 @@ import (
 	"strings"
 	"syscall"
 	"text/tabwriter"
+	"unicode"
+	"unicode/utf8"
 
 	"sap13ns/internal/db"
 	"sap13ns/internal/plugin"
@@ -283,7 +285,8 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 			if p.Record != nil {
 				source = p.Record.Source
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, p.Version, p.Status, verdict, source, strings.Join(p.EffectivePermissions(), " "))
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", termSafe(p.ID), termSafe(p.Version), p.Status, termSafe(verdict), source,
+				termSafe(strings.Join(p.EffectivePermissions(), " ")))
 		}
 		return tw.Flush()
 	}
@@ -306,7 +309,7 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 	case errors.Is(err, plugin.ErrRefused):
 		return errors.New("refused: the package has critical findings")
 	case errors.Is(err, plugin.ErrDowngrade):
-		return fmt.Errorf("version %s is older than the installed %s; use -allow-downgrade", res.Version, res.Previous)
+		return fmt.Errorf("version %s is older than the installed %s; use -allow-downgrade", termSafe(res.Version), termSafe(res.Previous))
 	case err != nil:
 		return err
 	}
@@ -314,7 +317,7 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 	if res.Previous != "" {
 		action = "updated from " + res.Previous
 	}
-	fmt.Printf("\n%s %s %s, disabled until an administrator enables it in Admin → Plugins.\n", res.ID, res.Version, action)
+	fmt.Printf("\n%s %s %s, disabled until an administrator enables it in Admin → Plugins.\n", termSafe(res.ID), termSafe(res.Version), termSafe(action))
 	fmt.Println("A running server shows it after Admin → Plugins → Rescan.")
 	return nil
 }
@@ -349,24 +352,45 @@ func cliBlocklist() string {
 	return ""
 }
 
+// printReport prints a scanner report. Everything in it may come from the
+// package (file names, manifest fields, strings found in the module), so it
+// goes through termSafe.
 func printReport(w io.Writer, rep *plugin.Report) {
 	id := rep.PluginID
 	if id == "" {
 		id = "(package)"
 	}
-	fmt.Fprintf(w, "%s %s: %s (%d critical, %d high, %d medium, %d info)\n", id, rep.Version, strings.ToUpper(rep.Verdict),
+	fmt.Fprintf(w, "%s %s: %s (%d critical, %d high, %d medium, %d info)\n", termSafe(id), termSafe(rep.Version), strings.ToUpper(rep.Verdict),
 		rep.Count(plugin.SevCritical), rep.Count(plugin.SevHigh), rep.Count(plugin.SevMedium), rep.Count(plugin.SevInfo))
 	if rep.WasmSHA256 != "" {
 		fmt.Fprintf(w, "  wasm sha256 %s\n", rep.WasmSHA256)
 	}
 	if len(rep.Imports) > 0 {
-		fmt.Fprintf(w, "  host functions: %s\n", strings.Join(rep.Imports, " "))
+		fmt.Fprintf(w, "  host functions: %s\n", termSafe(strings.Join(rep.Imports, " ")))
 	}
 	for _, f := range rep.Findings {
 		loc := ""
 		if f.Location != "" {
 			loc = " (" + f.Location + ")"
 		}
-		fmt.Fprintf(w, "  %-8s %s: %s%s\n", f.Severity, f.Rule, f.Message, loc)
+		fmt.Fprintf(w, "  %-8s %s: %s\n", f.Severity, f.Rule, termSafe(f.Message+loc))
 	}
+}
+
+// termSafe escapes control characters and bidirectional overrides, so text
+// from a package cannot move the cursor, rewrite earlier lines or reorder
+// what the terminal shows.
+func termSafe(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == utf8.RuneError:
+			b.WriteString(`\ufffd`)
+		case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r), r == '\u2028', r == '\u2029':
+			fmt.Fprintf(&b, `\u%04x`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

@@ -49,6 +49,7 @@ sap13ns assumes the server, its operator and its administrators are trusted. Eve
   - JSON endpoints require `application/json`.
 - **Response headers:**
   - a strict Content Security Policy: `script-src 'self'`, `style-src 'self'`, no inline scripts, styles or style attributes anywhere, `frame-ancestors 'none'`, `object-src 'none'`;
+  - images and media may come from any `https:` address (`img-src 'self' data: https:`, `media-src 'self' https:`), so posts can embed external images. The other site learns that a page was viewed, by whom (IP address and browser) and, through `Referrer-Policy: strict-origin-when-cross-origin`, only from which site, not which page. Plugins can return external images too; the `csp` `img-src` permission adds nothing under this policy;
   - also HSTS (over https), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and `Cross-Origin-Opener-Policy`.
 - **Redirects:** after sign-in, only local paths are accepted. They are parsed, and control characters and backslashes are rejected.
 - **Forwarded headers:** `X-Forwarded-For` is honoured only from configured proxies or over the Unix socket.
