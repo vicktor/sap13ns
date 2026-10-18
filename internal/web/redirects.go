@@ -47,13 +47,57 @@ func (s *Server) lookupRedirect(ctx context.Context, path string) (store.Redirec
 	}
 	m := make(map[string]store.Redirect, len(list))
 	for _, r := range list {
-		m[r.Source] = r
+		m[redirectKey(r.Source)] = r
 	}
 	t.mu.Lock()
 	t.bySrc, t.loaded = m, true
 	t.mu.Unlock()
 	rd, ok = m[path]
 	return rd, ok
+}
+
+// redirectKey is the form a source is matched in: its path percent-decoded,
+// like r.URL.Path (WordPress exports and pasted addresses escape it), and its
+// query as sent.
+func redirectKey(source string) string {
+	p, q, hasQuery := strings.Cut(source, "?")
+	if u, err := url.PathUnescape(p); err == nil {
+		p = u
+	}
+	if hasQuery {
+		return p + "?" + q
+	}
+	return p
+}
+
+// matchRedirect finds the rule for a request path (decoded) and raw query.
+// The query is tried first, for old plain permalinks such as /?p=12, then the
+// path with and without a trailing slash. A rule that would send the visitor
+// back to the path they asked for (WordPress's /about/ -> /about) is ignored.
+func matchRedirect(path, rawQuery string, lookup func(string) (store.Redirect, bool)) (store.Redirect, bool) {
+	keys := make([]string, 0, 3)
+	if rawQuery != "" {
+		keys = append(keys, path+"?"+rawQuery)
+	}
+	keys = append(keys, path)
+	if len(path) > 1 {
+		if p, ok := strings.CutSuffix(path, "/"); ok {
+			keys = append(keys, p)
+		} else {
+			keys = append(keys, path+"/")
+		}
+	}
+	for _, k := range keys {
+		rd, ok := lookup(k)
+		if !ok {
+			continue
+		}
+		if rd.Status != http.StatusGone && redirectKey(strings.SplitN(rd.Target, "?", 2)[0]) == path {
+			continue
+		}
+		return rd, true
+	}
+	return store.Redirect{}, false
 }
 
 func (s *Server) countRedirectHit(id int64) {
@@ -89,17 +133,9 @@ func (s *Server) withRedirects(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		var rd store.Redirect
-		ok := false
-		if r.URL.RawQuery != "" { // old plain permalinks such as /?p=12
-			rd, ok = s.lookupRedirect(r.Context(), r.URL.Path+"?"+r.URL.RawQuery)
-		}
-		if !ok {
-			rd, ok = s.lookupRedirect(r.Context(), r.URL.Path)
-		}
-		if !ok && len(r.URL.Path) > 1 && strings.HasSuffix(r.URL.Path, "/") {
-			rd, ok = s.lookupRedirect(r.Context(), strings.TrimSuffix(r.URL.Path, "/"))
-		}
+		rd, ok := matchRedirect(r.URL.Path, r.URL.RawQuery, func(key string) (store.Redirect, bool) {
+			return s.lookupRedirect(r.Context(), key)
+		})
 		if !ok {
 			next.ServeHTTP(w, r)
 			return

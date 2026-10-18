@@ -65,6 +65,10 @@ func ContentPolicy() *bluemonday.Policy {
 		p.AllowAttrs("type").Matching(regexp.MustCompile(`^checkbox$`)).OnElements("input")
 		p.AllowAttrs("checked", "disabled").OnElements("input")
 		p.AllowElements("input")
+		// Posts are written by staff, so their links are endorsed: UGCPolicy's
+		// rel="nofollow" would also hide internal links from search engines.
+		// Comments never come through here (they are plain text).
+		p.RequireNoFollowOnLinks(false)
 		p.RequireNoReferrerOnLinks(false)
 		p.AddTargetBlankToFullyQualifiedLinks(false)
 		p.RequireNoFollowOnFullyQualifiedLinks(false)
