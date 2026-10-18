@@ -1,0 +1,245 @@
+/* Block builder (Appearance → Page builder): regions, sections, columns and
+   blocks rendered by ui/shared/templates/blocks.html and blocks/*.html.
+   Imported by shared.css, so every theme gets it. It only uses the theme's
+   tokens (--background, --foreground, --primary, --muted, --card, --border,
+   --radius) and the customiser's --sap-* scales, so a layout follows the
+   theme and the customiser's colours and fonts.
+
+   Most rules live in @layer components, below the themes' own rules. The
+   unlayered block at the end holds the few that must beat a theme's
+   component rules: the header's small-screen menu, button sizes and the
+   colours inside coloured sections. They only match builder markup. */
+
+@layer components {
+  /* ------------------------------------------------------------ regions */
+  .sap-region { display: block; }
+  .sap-region-header { position: relative; z-index: 40; border-bottom: 1px solid var(--border); background: color-mix(in oklch, var(--background) 90%, transparent); -webkit-backdrop-filter: saturate(160%) blur(14px); backdrop-filter: saturate(160%) blur(14px); }
+  .sap-region-header:has(.is-sticky) { position: sticky; top: 0; z-index: 50; }
+  .sap-region-main { display: flow-root; }
+  .sap-region-footer { margin-top: calc(2.5rem * var(--sap-space-scale, 1)); border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 0.92rem; }
+  .sap-region-footer a:not(.btn) { color: inherit; }
+  .sap-region-footer a:not(.btn):hover { color: var(--foreground); }
+
+  /* ----------------------------------------------------------- sections */
+  .sap-section { --sap-pad: calc(clamp(1.75rem, 4vw, 3rem) * var(--sap-space-scale, 1)); padding-block: var(--sap-pad); }
+  .sap-padding-none { --sap-pad: 0px; }
+  .sap-padding-small { --sap-pad: calc(1rem * var(--sap-space-scale, 1)); }
+  .sap-padding-large { --sap-pad: calc(clamp(3rem, 9vw, 6.5rem) * var(--sap-space-scale, 1)); }
+  .sap-region-header .sap-section { --sap-pad: calc(0.65rem * var(--sap-space-scale, 1)); }
+  .sap-region-header .sap-padding-none { --sap-pad: 0px; }
+  .sap-region-header .sap-padding-small { --sap-pad: calc(0.35rem * var(--sap-space-scale, 1)); }
+  .sap-region-header .sap-padding-large { --sap-pad: calc(1.5rem * var(--sap-space-scale, 1)); }
+  .sap-region-footer .sap-section { --sap-pad: calc(2rem * var(--sap-space-scale, 1)); }
+  .sap-region-footer .sap-padding-none { --sap-pad: 0px; }
+  .sap-region-footer .sap-padding-small { --sap-pad: calc(0.9rem * var(--sap-space-scale, 1)); }
+  .sap-region-footer .sap-padding-large { --sap-pad: calc(3.5rem * var(--sap-space-scale, 1)); }
+  .sap-region-footer .sap-section + .sap-section.sap-background-none { border-top: 1px solid var(--border); }
+  .sap-region-main > .sap-section:first-of-type.sap-background-none { padding-top: calc(var(--sap-pad) * 0.75); }
+
+  .sap-section-inner { width: min(100% - 2.5rem, var(--sap-content-width, 72rem)); margin-inline: auto; }
+  .sap-width-narrow > .sap-section-inner { width: min(100% - 2.5rem, var(--sap-measure, 46rem)); }
+  .sap-width-wide > .sap-section-inner { width: min(100% - 2.5rem, calc(var(--sap-content-width, 72rem) + 12rem)); }
+  .sap-width-full > .sap-section-inner { width: calc(100% - 2.5rem); }
+  .sap-section.sap-align-center > .sap-section-inner { text-align: center; }
+
+  .sap-background-muted { background: var(--muted); }
+  .sap-background-card { border-block: 1px solid var(--border); background: var(--card); color: var(--card-foreground); }
+  /* Coloured sections: the section keeps the page's colours in --sap-on and
+     --sap-bg, and its content gets tokens that read well on them (setting
+     them on the section itself would be circular). */
+  .sap-background-primary { --sap-bg: var(--primary); --sap-on: var(--primary-foreground); }
+  .sap-background-accent { --sap-bg: var(--accent); --sap-on: var(--accent-foreground); }
+  .sap-background-inverse { --sap-bg: var(--foreground); --sap-on: var(--background); }
+  :is(.sap-background-primary, .sap-background-accent, .sap-background-inverse) { background: var(--sap-bg); color: var(--sap-on); }
+  :is(.sap-background-primary, .sap-background-accent, .sap-background-inverse) > .sap-section-inner {
+    --foreground: var(--sap-on); --background: var(--sap-bg);
+    --card: color-mix(in oklch, var(--sap-on) 9%, var(--sap-bg)); --card-foreground: var(--sap-on);
+    --muted: color-mix(in oklch, var(--sap-on) 12%, var(--sap-bg)); --muted-foreground: color-mix(in oklch, var(--sap-on) 78%, var(--sap-bg));
+    --border: color-mix(in oklch, var(--sap-on) 24%, transparent);
+  }
+  .sap-background-primary > .sap-section-inner, .sap-background-accent > .sap-section-inner { --primary: var(--sap-on); --primary-foreground: var(--sap-bg); }
+
+  /* ------------------------------------------------------------ columns */
+  .sap-cols { display: grid; gap: calc(1.5rem * var(--sap-space-scale, 1)) calc(2.25rem * var(--sap-space-scale, 1)); }
+  .sap-col { display: flex; flex-direction: column; gap: calc(1.25rem * var(--sap-space-scale, 1)); min-width: 0; }
+  @media (max-width: 767.98px) { .sap-col:empty { display: none; } }
+  @media (min-width: 768px) {
+    .sap-cols-1-1 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sap-cols-2-1 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+    .sap-cols-1-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .sap-cols-1-1-1 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .sap-region-header .sap-cols { align-items: center; row-gap: 0.5rem; }
+  .sap-region-header .sap-col { gap: 0.5rem; }
+
+  /* ------------------------------------------------------------- blocks */
+  .sap-b { min-width: 0; margin: 0; }
+  .sap-b-title { margin: 0 0 0.6rem; color: var(--muted-foreground); font-size: 0.78rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+  .sap-b.sap-align-center { text-align: center; }
+  .sap-b.sap-align-right { text-align: end; }
+
+  /* Site header: brand, menu, actions. */
+  .sap-b-site-header { display: flex; align-items: center; gap: 0.75rem 1.5rem; min-height: 3.25rem; }
+  .sap-sh-brand { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 0.6rem; min-width: 0; color: var(--foreground); font-size: 1.1rem; font-weight: 650; letter-spacing: -0.015em; text-decoration: none; }
+  .sap-sh-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+  .sap-sh-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sap-sh-tagline { overflow: hidden; color: var(--muted-foreground); font-size: 0.78rem; font-weight: 400; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
+  .sap-sh-nav { flex: 1 1 auto; min-width: 0; }
+  .sap-sh-menu { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.25rem 1.35rem; margin: 0; padding: 0; list-style: none; font-size: 0.92rem; }
+  .sap-sh-menu a { display: inline-block; padding-block: 0.35rem; color: color-mix(in oklch, var(--foreground) 76%, transparent); text-decoration: none; transition: color 0.2s; }
+  .sap-sh-menu a:hover, .sap-sh-menu a[aria-current="page"] { color: var(--foreground); }
+  .sap-sh-menu a[aria-current="page"] { text-decoration: underline; text-decoration-color: var(--primary); text-decoration-thickness: 2px; text-underline-offset: 0.5em; }
+  .sap-sh-actions { display: flex; flex: none; align-items: center; gap: 0.25rem; margin-left: auto; }
+  .sap-sh-nav + .sap-sh-actions { margin-left: 0; }
+  .sap-icon-btn { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); color: inherit; transition: background-color 0.2s; }
+  .sap-icon-btn:hover { background: color-mix(in oklch, var(--foreground) 8%, transparent); }
+  .sap-icon-btn svg { width: 1.1rem; height: 1.1rem; }
+  .sap-sh-center { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: ". brand actions" "nav nav nav"; row-gap: 0.25rem; }
+  .sap-sh-center .sap-sh-brand { grid-area: brand; justify-content: center; text-align: center; }
+  .sap-sh-center .sap-sh-name { align-items: center; }
+  .sap-sh-center .sap-sh-actions { grid-area: actions; justify-self: end; }
+  .sap-sh-center .sap-sh-nav { grid-area: nav; }
+  .sap-sh-center .sap-sh-menu { justify-content: center; }
+
+  /* Menu. */
+  .sap-b-menu ul { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin: 0; padding: 0; list-style: none; }
+  .sap-b-menu a { color: inherit; text-decoration: none; }
+  .sap-b-menu a:hover, .sap-b-menu a[aria-current="page"] { color: var(--foreground); text-decoration: underline; text-underline-offset: 0.25em; }
+  .sap-menu-vertical ul { flex-direction: column; gap: 0.45rem; }
+  .sap-b-menu.sap-align-center ul { justify-content: center; align-items: center; }
+  .sap-b-menu.sap-align-right ul { justify-content: flex-end; align-items: flex-end; }
+
+  /* Search. */
+  .sap-b-search { width: 100%; max-width: 34rem; }
+  .sap-align-center > .sap-section-inner .sap-b-search { margin-inline: auto; }
+
+  /* Breadcrumbs. */
+  .sap-b-breadcrumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; margin: 0; padding: 0; color: var(--muted-foreground); font-size: 0.85rem; list-style: none; }
+  .sap-b-breadcrumbs li { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; }
+  .sap-b-breadcrumbs li + li::before { content: "/"; color: color-mix(in oklch, var(--muted-foreground) 60%, transparent); }
+  .sap-b-breadcrumbs a { color: inherit; text-decoration: none; }
+  .sap-b-breadcrumbs a:hover { color: var(--foreground); text-decoration: underline; }
+  .sap-b-breadcrumbs [aria-current] { overflow: hidden; max-width: 40ch; color: var(--foreground); text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Hero. */
+  .sap-b-hero { display: grid; align-items: center; gap: calc(2rem * var(--sap-space-scale, 1)) calc(3rem * var(--sap-space-scale, 1)); }
+  .sap-hero-text { min-width: 0; }
+  .sap-hero-title { margin: 0; color: var(--foreground); font-family: var(--sap-font-heading, inherit); font-size: clamp(2.1rem, 5.5vw, 3.9rem); font-weight: 700; line-height: 1.06; letter-spacing: -0.035em; text-wrap: balance; }
+  .sap-hero-small .sap-hero-title { font-size: clamp(1.7rem, 3.6vw, 2.5rem); }
+  .sap-hero-large .sap-hero-title { font-size: clamp(2.5rem, 8vw, 5.5rem); line-height: 1.02; }
+  .sap-hero-large { padding-block: calc(clamp(1rem, 4vw, 3rem) * var(--sap-space-scale, 1)); }
+  .sap-hero-lead { max-width: 40rem; margin: 1rem 0 0; color: var(--muted-foreground); font-size: clamp(1.08rem, 2vw, 1.35rem); line-height: 1.45; text-wrap: pretty; }
+  .sap-hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.75rem 0 0; }
+  .sap-hero-media img { display: block; width: 100%; height: auto; border-radius: var(--radius); }
+  .sap-b-hero.sap-align-center { text-align: center; }
+  .sap-b-hero.sap-align-center .sap-hero-lead { margin-inline: auto; }
+  .sap-b-hero.sap-align-center .sap-hero-actions { justify-content: center; }
+  .sap-b-hero.sap-align-center .sap-hero-media { width: min(100%, 52rem); margin-inline: auto; }
+  @media (min-width: 900px) { .sap-b-hero.has-image:not(.sap-align-center) { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+
+  /* Post list. */
+  .sap-b-post-list { display: flex; flex-direction: column; gap: calc(1.5rem * var(--sap-space-scale, 1)); }
+  .sap-b-heading { margin: 0; font-size: clamp(1.45rem, 3vw, 2.1rem); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+  .sap-b-post-list .archive-header { margin: 0; }
+
+  /* Post content and its parts. */
+  .sap-b-content { width: 100%; max-width: var(--sap-measure, 44rem); margin-inline: auto; }
+  .sap-measure-narrow { max-width: min(var(--sap-measure, 44rem), 38rem); }
+  .sap-measure-wide { max-width: 62rem; }
+  .sap-entry-title { margin: 0 0 0.75rem; font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance; }
+  .sap-entry-summary { margin: 0 0 1.75rem; color: var(--muted-foreground); font-size: 1.2rem; line-height: 1.5; }
+  .sap-b-post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.25rem; }
+  .sap-b-post-meta > * { margin: 0; }
+  .sap-b-featured img { display: block; width: 100%; height: auto; border-radius: var(--radius); }
+  .sap-ratio-wide img { aspect-ratio: 16 / 9; height: auto; object-fit: cover; }
+  .sap-ratio-square img { aspect-ratio: 1; height: auto; object-fit: cover; }
+  .sap-b-featured figcaption, .sap-b-image figcaption { margin-top: 0.6em; color: var(--muted-foreground); font-size: 0.875rem; text-align: center; }
+  .sap-b-comments > .comments { margin: 0; }
+
+  /* Text. */
+  .sap-b-text { max-width: 72ch; }
+  .sap-b-text.sap-align-center { margin-inline: auto; }
+  .sap-b-text.sap-text-small { font-size: 0.92rem; }
+  .sap-b-text.sap-text-large { font-size: 1.22rem; }
+  .sap-region-footer .sap-b-text { font-size: 0.92rem; line-height: 1.6; }
+  .sap-region-header .sap-b-text { font-size: 0.9rem; line-height: 1.45; }
+
+  /* Image. */
+  .sap-b-image { width: 100%; }
+  .sap-b-image img { display: block; width: 100%; height: auto; border-radius: var(--radius); }
+  .sap-b-image a { display: block; }
+  .sap-img-small { max-width: 16rem; }
+  .sap-img-medium { max-width: 32rem; }
+  .sap-b-image.sap-align-center { margin-inline: auto; }
+  .sap-b-image.sap-align-right { margin-inline-start: auto; }
+
+  /* Button. */
+  .sap-link { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--primary); font-weight: 600; text-decoration: none; }
+  .sap-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .sap-link svg { width: 1em; height: 1em; }
+
+  /* Spacer. */
+  .sap-b-spacer { display: flex; align-items: center; }
+  .sap-b-spacer hr { width: 100%; margin: 0; border: 0; border-top: 1px solid var(--border); }
+  .sap-space-small { min-height: 0.75rem; }
+  .sap-space-medium { min-height: 2rem; }
+  .sap-space-large { min-height: 4rem; }
+  .sap-space-xlarge { min-height: 7rem; }
+
+  /* Social links. */
+  .sap-b-social ul { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+  .sap-b-social.sap-align-center ul { justify-content: center; }
+  .sap-b-social.sap-align-right ul { justify-content: flex-end; }
+  .sap-b-social a { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: calc(999px * var(--sap-radius-scale, 1)); color: inherit; font-size: 0.86rem; text-decoration: none; transition: border-color 0.2s, color 0.2s; }
+  .sap-b-social a:hover { border-color: var(--primary); color: var(--foreground); }
+  .sap-b-social svg { width: 1rem; height: 1rem; }
+
+  .sap-b-footer-meta .footer-meta { margin: 0; }
+  .sap-b-widgets .widget-area { margin: 0; }
+}
+
+/* ---------------------------------------------------------------------
+   Unlayered: must beat the themes' own component rules. */
+
+/* Header: the menu folds behind the theme's menu button on small screens. */
+.sap-b-site-header .nav-toggle { display: none; }
+@media (max-width: 860px) {
+  .sap-b-site-header .nav-toggle { display: inline-grid; }
+  .sap-b-site-header .sap-sh-nav { flex: 0 0 0; min-width: 0; }
+  .sap-b-site-header .sap-sh-actions { margin-left: auto; }
+  .sap-b-site-header .sap-sh-menu { position: absolute; inset-inline: 0; top: 100%; z-index: 60; display: none; flex-direction: column; align-items: stretch; gap: 0; max-height: calc(100dvh - 4rem); overflow-y: auto; padding: 0.5rem 1.25rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--background); box-shadow: 0 18px 30px -24px rgb(0 0 0 / 0.45); font-size: 1.1rem; }
+  .sap-b-site-header .sap-sh-menu.is-open { display: flex; }
+  .sap-b-site-header .sap-sh-menu a { display: block; padding: 0.7rem 0; border-bottom: 1px solid var(--border); color: var(--foreground); }
+  .sap-b-site-header .sap-sh-menu li:last-child a { border-bottom: 0; }
+  .sap-b-site-header.sap-sh-center { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand actions"; }
+  .sap-b-site-header.sap-sh-center .sap-sh-brand { justify-content: flex-start; text-align: start; }
+  .sap-b-site-header.sap-sh-center .sap-sh-name { align-items: flex-start; }
+}
+
+/* Text blocks start and end flush with their column, whatever the theme's
+   prose margins. */
+.sap-b-text > :first-child { margin-top: 0; }
+.sap-b-text > :last-child { margin-bottom: 0; }
+
+/* Phones: tighter actions, so the site title keeps its room. With a logo
+   the logo stands alone (the link's aria-label still names the site), as a
+   title cut down to one letter helps nobody. */
+@media (max-width: 480px) {
+  .sap-b-site-header { gap: 0.5rem; }
+  .sap-b-site-header .sap-sh-brand { font-size: 1rem; }
+  .sap-b-site-header .sap-sh-brand:has(.sap-logo) .sap-sh-name { display: none; }
+  .sap-b-site-header .sap-sh-actions { gap: 0; }
+  .sap-b-site-header :is(.sap-icon-btn, .theme-toggle, .nav-toggle) { width: 2.25rem; height: 2.25rem; }
+  .sap-b-site-header .lang-switch > summary { padding-inline: 0.4rem; }
+}
+
+/* Button sizes and the outline style on the theme's .btn (themes draw
+   outline like secondary). */
+.sap-b-button .btn[data-variant="outline"] { border: 1px solid color-mix(in oklch, var(--foreground) 24%, transparent); background: transparent; color: var(--foreground); }
+.sap-b .btn[data-size="sm"] { height: auto; min-height: 0; padding: 0.35rem 0.85rem; font-size: 0.85rem; }
+.sap-b .btn[data-size="lg"] { height: auto; min-height: 3rem; padding: 0.8rem 1.6rem; font-size: 1.05rem; }
+
+/* Coloured sections: links and buttons read on the section's colour. */
+:is(.sap-background-primary, .sap-background-accent, .sap-background-inverse) a:not(.btn, .sap-post-link) { color: inherit; }
+:is(.sap-background-primary, .sap-background-accent) .btn:not([data-variant]) { background: var(--sap-on); color: var(--sap-bg); }
+:is(.sap-background-primary, .sap-background-accent, .sap-background-inverse) .btn[data-variant] { border-color: color-mix(in oklch, var(--sap-on) 35%, transparent); background: color-mix(in oklch, var(--sap-on) 12%, transparent); color: var(--sap-on); }

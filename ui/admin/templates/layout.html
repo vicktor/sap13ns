@@ -59,6 +59,8 @@
         <h3 id="nav-appearance">{{T "Appearance"}}</h3>
         <ul>
           {{template "nav-item" (dict "URL" "/admin/appearance/themes" "Icon" "palette" "Label" (T "Themes") "Current" (.Active "themes"))}}
+          {{template "nav-item" (dict "URL" "/admin/appearance/customize" "Icon" "paintbrush" "Label" (T "Customise") "Current" (.Active "customize"))}}
+          {{template "nav-item" (dict "URL" "/admin/appearance/builder" "Icon" "layout-template" "Label" (T "Page builder") "Current" (.Active "builder"))}}
           {{template "nav-item" (dict "URL" "/admin/appearance/menus" "Icon" "list" "Label" (T "Menus") "Current" (.Active "menus"))}}
           {{template "nav-item" (dict "URL" "/admin/appearance/widgets" "Icon" "layout-grid" "Label" (T "Widgets") "Current" (.Active "widgets"))}}
         </ul>

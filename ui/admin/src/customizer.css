@@ -1,0 +1,107 @@
+/* Theme customiser (ui/admin/templates/customize.html, ui/static/customizer.js):
+   a scrolling controls panel beside a framed live preview. */
+
+/* The preview wants the whole width of the content area. */
+.admin-content:has(> .customizer) { @apply max-w-none; }
+
+.customizer { @apply mb-8 grid items-start gap-6 lg:grid-cols-[minmax(19rem,23rem)_minmax(0,1fr)]; }
+
+/* ------------------------------------------------------------- controls */
+.cz-panel {
+  @apply flex flex-col gap-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:pr-1;
+  scrollbar-gutter: stable;
+}
+.cz-section { @apply rounded-xl border bg-card text-card-foreground; }
+.cz-section > summary {
+  @apply flex cursor-pointer list-none items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden;
+}
+.cz-section > summary > svg { @apply size-4 shrink-0 text-muted-foreground; }
+.cz-section > summary > span { @apply flex-1; }
+.cz-section > summary:focus-visible { @apply outline-2 outline-offset-2 outline-ring; }
+.cz-section[open] > summary { @apply rounded-b-none border-b; }
+.cz-section[open] .cz-chevron { @apply rotate-180; }
+.cz-chevron { @apply transition-transform; }
+.cz-body { @apply flex flex-col gap-4 p-4; }
+.cz-body .field { @apply flex flex-col; }
+.cz-sub { @apply mt-1.5; }
+.cz-body [hidden] { display: none !important; }
+
+.cz-body .tabs nav button { @apply gap-1.5 [&>svg]:size-3.5; }
+.cz-body .tabs [role="tabpanel"] { @apply flex flex-col gap-3 pt-3; }
+.cz-colors { @apply flex flex-col gap-2; }
+.cz-color { @apply grid grid-cols-[minmax(0,1fr)_2.25rem_6.5rem_2.25rem] items-center gap-2; }
+.cz-color > label { @apply truncate text-sm; }
+.cz-swatch {
+  @apply h-9 w-9 cursor-pointer rounded-md border bg-transparent p-0.5;
+}
+.cz-swatch::-webkit-color-swatch-wrapper { @apply p-0; }
+.cz-swatch::-webkit-color-swatch { @apply rounded-[0.3rem] border-0; }
+.cz-swatch::-moz-color-swatch { @apply rounded-[0.3rem] border-0; }
+.cz-swatch:focus-visible { @apply outline-2 outline-offset-2 outline-ring; }
+.cz-hex { @apply h-9 px-2 font-mono text-xs uppercase placeholder:normal-case; }
+/* The reset button keeps its column when hidden, so rows stay aligned. */
+.cz-color > [data-clear][hidden] { display: inline-flex !important; visibility: hidden; }
+.cz-color.is-warned > label { @apply text-warning; }
+.cz-color.is-warned > label::after { content: " ⚠"; }
+
+.cz-warnings:empty { @apply hidden; }
+.cz-warnings { @apply rounded-lg border p-3 text-xs leading-relaxed; }
+.cz-warnings[data-ok] { @apply text-muted-foreground; }
+.cz-warnings ul { @apply flex flex-col gap-1; }
+.cz-warnings:not([data-ok]) {
+  border-color: color-mix(in oklch, var(--warning) 45%, transparent);
+  background: color-mix(in oklch, var(--warning) 8%, var(--card));
+}
+
+.cz-sample {
+  @apply truncate rounded-md bg-muted px-3 py-2 text-base text-muted-foreground;
+}
+.cz-logos { @apply flex flex-col gap-2; }
+.cz-logo-grid { @apply grid max-h-64 grid-cols-3 gap-2 overflow-y-auto p-0.5; }
+.cz-logo { @apply relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-1.5 text-center text-[0.68rem] leading-tight text-muted-foreground; }
+.cz-logo > input { @apply sr-only; }
+.cz-logo > img { @apply h-12 w-full rounded object-contain; }
+.cz-logo > span { @apply w-full truncate; }
+.cz-logo:has(> input:checked) { @apply border-primary bg-accent text-accent-foreground; box-shadow: 0 0 0 1px var(--primary); }
+.cz-logo:has(> input:focus-visible) { @apply outline-2 outline-offset-2 outline-ring; }
+.cz-code { @apply min-h-48 font-mono text-xs leading-5; tab-size: 2; }
+
+.cz-field-error { @apply text-xs text-destructive; }
+.cz-body [aria-invalid="true"] { @apply border-destructive; }
+
+/* ---------------------------------------------------------- page header */
+.cz-status { @apply mr-2 text-xs text-muted-foreground; }
+.cz-status[data-kind="error"] { @apply text-destructive; }
+.cz-status[data-kind="saving"] { @apply text-muted-foreground; }
+
+/* -------------------------------------------------------------- preview */
+.cz-preview { @apply flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card lg:sticky lg:top-20; }
+.cz-toolbar { @apply flex flex-wrap items-center gap-1 border-b px-2 py-1.5; }
+.cz-segment { @apply flex items-center gap-0.5 rounded-lg bg-muted p-0.5; }
+.cz-segment .btn { @apply h-7 gap-1.5 px-2.5 text-xs; }
+.cz-segment .btn[aria-pressed="true"] { @apply bg-background text-foreground shadow-sm; }
+.cz-segment .btn[aria-pressed="false"] { @apply text-muted-foreground; }
+.cz-spacer { @apply flex-1; }
+.cz-frame { @apply flex justify-center bg-muted; }
+.cz-frame iframe {
+  @apply block h-[70dvh] w-full border-0 bg-background lg:h-[calc(100dvh-10.5rem)];
+  transition: width 0.25s ease;
+}
+.cz-frame[data-device="mobile"] { @apply py-4; }
+.cz-frame[data-device="mobile"] iframe {
+  @apply h-[min(70dvh,52rem)] w-[390px] max-w-full rounded-[1.5rem] border-[6px] border-foreground/80 shadow-lg lg:h-[calc(100dvh-12.5rem)];
+}
+.cz-frame[data-loading] iframe { @apply opacity-80; }
+
+/* ------------------------------------------------------ manage the design */
+.cz-manage { @apply grid items-start gap-6 lg:grid-cols-3; }
+.cz-manage .card > header p { @apply text-sm text-muted-foreground; }
+.cz-revisions { @apply flex flex-col divide-y text-sm; }
+.cz-revisions li { @apply flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0; }
+.cz-rev-meta { @apply flex flex-wrap items-center gap-1.5; }
+.cz-import { @apply flex flex-col gap-3; }
+.cz-import .btn { @apply self-start; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cz-frame iframe, .cz-chevron { transition: none; }
+}

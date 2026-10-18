@@ -18,7 +18,9 @@
 <section class="section" id="latest" aria-label="{{T "Latest posts"}}">
   <div class="wrap">
     {{if .Posts}}
-      {{if $first}}
+      {{if .Site.Custom.HomeLayout}}
+        {{template "shared/post-list" (dict "Posts" .Posts "Layout" .Site.Custom.HomeLayout)}}
+      {{else if $first}}
         {{template "feature" (index .Posts 0)}}
         {{template "grid" (slice .Posts 1)}}
       {{else}}

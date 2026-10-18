@@ -1,0 +1,27 @@
+{{/* shared/logo: the customiser's header logo. Data: PageData. Renders
+     nothing without a logo. Alone (no title beside it) it carries the site
+     title as its text alternative. */}}
+{{define "shared/logo"}}{{with .Site.Custom.Logo}}<img class="sap-logo" src="{{.URL}}"{{with .Srcset}} srcset="{{.}}" sizes="12rem"{{end}} width="{{.Width}}" height="{{.Height}}" alt="{{if $.Site.Custom.LogoOnly}}{{$.Site.Title}}{{end}}">{{end}}{{end}}
+
+{{/* shared/post-list: posts as a list, a grid or a bento mosaic, styled from
+     the theme's tokens. Used by the customiser's home layout and the block
+     builder. Data: dict "Posts" []*PostView "Layout" list|grid|bento
+     "H" heading level (2 or 3, default 2). */}}
+{{define "shared/post-list"}}
+{{$h := or .H 2}}
+<div class="sap-posts-box"><div class="sap-posts sap-posts-{{or .Layout "grid"}}">
+  {{range .Posts}}
+  <article class="sap-post">
+    <a class="sap-post-link" href="{{.URL}}">
+      {{with .Image}}<div class="sap-post-media"><img src="{{or .Medium .URL}}"{{with .Srcset}} srcset="{{.}}" sizes="(min-width: 900px) 40vw, 100vw"{{end}} width="{{.Width}}" height="{{.Height}}" alt="" loading="lazy"></div>{{end}}
+      <div class="sap-post-body">
+        {{with .Categories}}<p class="sap-post-kicker">{{(index . 0).Name}}</p>{{end}}
+        {{if eq $h 3}}<h3 class="sap-post-title">{{.Title}}</h3>{{else}}<h2 class="sap-post-title">{{.Title}}</h2>{{end}}
+        {{with .Summary}}<p class="sap-post-summary">{{.}}</p>{{end}}
+        <p class="sap-post-meta">{{if .HasDate}}<time datetime="{{isoDate .Published}}">{{shortDate .Published}}</time>{{end}}{{if .ReadingMinutes}}<span>{{T "%d min read" .ReadingMinutes}}</span>{{end}}</p>
+      </div>
+    </a>
+  </article>
+  {{end}}
+</div></div>
+{{end}}

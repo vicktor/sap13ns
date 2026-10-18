@@ -29,7 +29,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <script src="{{.Site.Static "theme-init.js"}}"></script>
 <link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
-{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
+{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
+{{end}}{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
 {{end}}<script src="{{.Site.Static "site.js"}}" defer></script>
 {{range .PluginJS}}<script src="{{.}}" defer></script>
 {{end}}{{end}}
@@ -41,12 +42,12 @@
 
 {{/* shared/lang-switch: links to this page in the site's other languages.
      Data: the PageData. Renders nothing on single-language sites. */}}
-{{define "shared/lang-switch"}}{{with .Translations}}
+{{define "shared/lang-switch"}}{{if not .Site.Custom.HideLang}}{{with .Translations}}
 <details class="lang-switch">
   <summary aria-label="{{T "Language"}}">{{icon "languages"}}{{range .}}{{if .Current}}<span class="lang-code">{{.Code}}</span>{{end}}{{end}}</summary>
   <ul>{{range .}}<li><a href="{{.URL}}" hreflang="{{.Code}}" lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>{{end}}</ul>
 </details>
-{{end}}{{end}}
+{{end}}{{end}}{{end}}
 
 {{/* shared/nav-toggle: hamburger for small screens; controls an element by id. */}}
 {{define "shared/nav-toggle"}}
@@ -63,7 +64,7 @@
 
 {{/* shared/admin-bar: shown to signed-in editors. Data: PageData. */}}
 {{define "shared/admin-bar"}}
-{{if .Site.Viewer}}{{if .Site.Viewer.Admin}}
+{{if and .Site.Viewer (not .Site.Custom.Preview)}}{{if .Site.Viewer.Admin}}
 <div class="sap-adminbar" role="region" aria-label="{{T "Administration"}}">
   <a href="/admin/" title="{{T "Dashboard"}}">{{icon "layout-dashboard"}}<span>{{T "Dashboard"}}</span></a>
   {{if .Post}}{{with .Post.EditURL}}<a href="{{.}}">{{icon "pencil"}}<span>{{T "Edit"}}</span></a>{{end}}{{end}}

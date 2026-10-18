@@ -17,9 +17,12 @@
     </div>
   </header>
 
-  {{if and $first (eq (index .Site.Options "stats") "true")}}{{template "stats" .Site.Stats}}{{end}}
+  {{if and $first (.Site.Custom.HeroOn (eq (index .Site.Options "stats") "true"))}}{{template "stats" .Site.Stats}}{{end}}
 
-  {{if .Posts}}
+  {{if and .Posts .Site.Custom.HomeLayout}}
+    {{template "shared/post-list" (dict "Posts" .Posts "Layout" .Site.Custom.HomeLayout)}}
+    {{with .Pagination}}<div class="pager">{{template "shared/pagination" .}}</div>{{end}}
+  {{else if .Posts}}
     {{template "post-table" (dict "Posts" .Posts "Page" . "Title" (T "Latest posts"))}}
   {{else}}
     <div class="panel panel-empty">{{template "shared/no-results" .}}</div>

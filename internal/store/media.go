@@ -109,6 +109,7 @@ func (s *Store) MediaByIDs(ctx context.Context, ids []int64) (map[int64]*Media, 
 type MediaQuery struct {
 	UploaderID int64
 	ImagesOnly bool
+	MIME       string // exact type, such as font/woff2
 	Search     string
 	Limit      int
 	Offset     int
@@ -121,6 +122,9 @@ func (s *Store) ListMedia(ctx context.Context, q MediaQuery) ([]Media, int, erro
 	}
 	if q.ImagesOnly {
 		w.add(`mime LIKE 'image/%'`)
+	}
+	if q.MIME != "" {
+		w.add(`mime = ?`, q.MIME)
 	}
 	if q.Search != "" {
 		p := "%" + EscapeLike(q.Search) + "%"

@@ -18,101 +18,101 @@
 
 /* ---------------------------------------------------------------- tokens */
 :root {
-  --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --sans: var(--sap-font-body, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji");
+  --mono: var(--sap-font-mono, ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
 
-  --radius: 0.5rem;
-  --r-sm: 0.375rem;
-  --r-md: 0.5rem;
-  --r-lg: 0.625rem;
+  --radius: calc(0.5rem * var(--sap-radius-scale, 1));
+  --r-sm: calc(0.375rem * var(--sap-radius-scale, 1));
+  --r-md: calc(0.5rem * var(--sap-radius-scale, 1));
+  --r-lg: calc(0.625rem * var(--sap-radius-scale, 1));
 
-  --canvas: #f6f6f7;
-  --background: #ffffff;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --card-foreground: #18181b;
-  --popover: #ffffff;
-  --popover-foreground: #18181b;
+  --canvas: var(--sap-light-background, #f6f6f7);
+  --background: var(--sap-light-card, #ffffff);
+  --foreground: var(--sap-light-foreground, #18181b);
+  --card: var(--sap-light-card, #ffffff);
+  --card-foreground: var(--sap-light-card-foreground, #18181b);
+  --popover: var(--sap-light-card, #ffffff);
+  --popover-foreground: var(--sap-light-card-foreground, #18181b);
   --secondary: #f4f4f5;
   --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #63636b;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --border: #e4e4e7;
+  --muted: var(--sap-light-muted, #f4f4f5);
+  --muted-foreground: var(--sap-light-muted-foreground, #63636b);
+  --accent: var(--sap-light-accent, #f4f4f5);
+  --accent-foreground: var(--sap-light-accent-foreground, #18181b);
+  --border: var(--sap-light-border, #e4e4e7);
   --border-strong: #d4d4d8;
-  --input: #dadade;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
+  --input: var(--sap-light-border, #dadade);
+  --primary: var(--sap-light-primary, #4f46e5);
+  --primary-foreground: var(--sap-light-primary-foreground, #ffffff);
   --ring: color-mix(in oklch, var(--primary) 30%, transparent);
   --destructive: #dc2626;
   --success: #16a34a;
   --warning: #d97706;
 
-  --sidebar-bg: #fbfbfc;
-  --topbar-bg: rgb(246 246 247 / 0.85);
+  --sidebar-bg: var(--sap-light-card, #fbfbfc);
+  --topbar-bg: rgb(var(--sap-light-background-rgb, 246 246 247) / 0.85);
   --row-hover: #fafafb;
   --code-bg: #fafafa;
   --accent-soft: color-mix(in oklch, var(--primary) 8%, var(--card));
   --accent-line: color-mix(in oklch, var(--primary) 26%, var(--border));
-  --shadow-sm: 0 1px 2px rgb(16 16 24 / 0.05);
-  --shadow-lg: 0 16px 40px -12px rgb(16 16 24 / 0.22);
+  --shadow-sm: 0 calc(1px * var(--sap-shadow-scale, 1)) calc(2px * var(--sap-shadow-scale, 1)) rgb(16 16 24 / 0.05);
+  --shadow-lg: 0 calc(16px * var(--sap-shadow-scale, 1)) calc(40px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) rgb(16 16 24 / 0.22);
   --scrim: rgb(9 9 11 / 0.32);
 
   --sidebar-w: 16.5rem;
   --topbar-h: 3.5rem;
   --gutter: 1rem;
-  --pad: 1.25rem;
-  --row-y: 0.875rem;
-  --gap: 1.5rem;
+  --pad: calc(1.25rem * var(--sap-space-scale, 1));
+  --row-y: calc(0.875rem * var(--sap-space-scale, 1));
+  --gap: calc(1.5rem * var(--sap-space-scale, 1));
   --fs-ui: 0.9375rem;
   --sap-measure: 46rem;
 }
 .dark {
-  --canvas: #09090b;
-  --background: #111113;
-  --foreground: #ececef;
-  --card: #111113;
-  --card-foreground: #ececef;
-  --popover: #18181b;
-  --popover-foreground: #ececef;
+  --canvas: var(--sap-dark-background, #09090b);
+  --background: var(--sap-dark-card, #111113);
+  --foreground: var(--sap-dark-foreground, #ececef);
+  --card: var(--sap-dark-card, #111113);
+  --card-foreground: var(--sap-dark-card-foreground, #ececef);
+  --popover: var(--sap-dark-card, #18181b);
+  --popover-foreground: var(--sap-dark-card-foreground, #ececef);
   --secondary: #1c1c20;
   --secondary-foreground: #ececef;
-  --muted: #1b1b1f;
-  --muted-foreground: #a1a1aa;
-  --accent: #222226;
-  --accent-foreground: #ececef;
-  --border: #232327;
+  --muted: var(--sap-dark-muted, #1b1b1f);
+  --muted-foreground: var(--sap-dark-muted-foreground, #a1a1aa);
+  --accent: var(--sap-dark-accent, #222226);
+  --accent-foreground: var(--sap-dark-accent-foreground, #ececef);
+  --border: var(--sap-dark-border, #232327);
   --border-strong: #303036;
-  --input: #2c2c31;
-  --primary: #818cf8;
-  --primary-foreground: #0b0b12;
+  --input: var(--sap-dark-border, #2c2c31);
+  --primary: var(--sap-dark-primary, #818cf8);
+  --primary-foreground: var(--sap-dark-primary-foreground, #0b0b12);
   --ring: color-mix(in oklch, var(--primary) 35%, transparent);
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
 
-  --sidebar-bg: #0c0c0e;
-  --topbar-bg: rgb(9 9 11 / 0.8);
+  --sidebar-bg: var(--sap-dark-card, #0c0c0e);
+  --topbar-bg: rgb(var(--sap-dark-background-rgb, 9 9 11) / 0.8);
   --row-hover: #151518;
   --code-bg: #0c0c0e;
   --accent-soft: color-mix(in oklch, var(--primary) 11%, var(--card));
   --accent-line: color-mix(in oklch, var(--primary) 32%, var(--border));
   --shadow-sm: 0 1px 0 rgb(255 255 255 / 0.02) inset;
-  --shadow-lg: 0 18px 48px -12px rgb(0 0 0 / 0.7);
+  --shadow-lg: 0 calc(18px * var(--sap-shadow-scale, 1)) calc(48px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.7);
   --scrim: rgb(0 0 0 / 0.55);
 }
-.accent-violet { --primary: #7c3aed; }   .dark.accent-violet { --primary: #a78bfa; }
-.accent-sky { --primary: #0369a1; }      .dark.accent-sky { --primary: #38bdf8; }
-.accent-emerald { --primary: #047857; }  .dark.accent-emerald { --primary: #34d399; }
-.accent-rose { --primary: #be123c; }     .dark.accent-rose { --primary: #fb7185; }
-.accent-amber { --primary: #b45309; }    .dark.accent-amber { --primary: #fbbf24; }
-.accent-slate { --primary: #334155; }    .dark.accent-slate { --primary: #cbd5e1; }
+.accent-violet { --primary: var(--sap-light-primary, #7c3aed); }   .dark.accent-violet { --primary: var(--sap-dark-primary, #a78bfa); }
+.accent-sky { --primary: var(--sap-light-primary, #0369a1); }      .dark.accent-sky { --primary: var(--sap-dark-primary, #38bdf8); }
+.accent-emerald { --primary: var(--sap-light-primary, #047857); }  .dark.accent-emerald { --primary: var(--sap-dark-primary, #34d399); }
+.accent-rose { --primary: var(--sap-light-primary, #be123c); }     .dark.accent-rose { --primary: var(--sap-dark-primary, #fb7185); }
+.accent-amber { --primary: var(--sap-light-primary, #b45309); }    .dark.accent-amber { --primary: var(--sap-dark-primary, #fbbf24); }
+.accent-slate { --primary: var(--sap-light-primary, #334155); }    .dark.accent-slate { --primary: var(--sap-dark-primary, #cbd5e1); }
 
 .density-compact {
-  --pad: 0.875rem;
-  --row-y: 0.5rem;
-  --gap: 1rem;
+  --pad: calc(0.875rem * var(--sap-space-scale, 1));
+  --row-y: calc(0.5rem * var(--sap-space-scale, 1));
+  --gap: calc(1rem * var(--sap-space-scale, 1));
   --fs-ui: 0.875rem;
   --topbar-h: 3rem;
   --sidebar-w: 15rem;
@@ -122,8 +122,8 @@
 @media (min-width: 1280px) { :root { --gutter: 2rem; } }
 
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-sans: var(--sap-font-body, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --font-mono: var(--sap-font-mono, ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
 }
 
 @layer base {
@@ -142,7 +142,7 @@
 .app { min-height: 100vh; min-height: 100dvh; }
 .app-main { display: flex; flex-direction: column; min-width: 0; min-height: 100vh; min-height: 100dvh; }
 .content { flex: 1; }
-.container { width: min(100% - 2 * var(--gutter), 76rem); margin-inline: auto; padding-block: 1.75rem 3rem; }
+.container { width: min(100% - 2 * var(--gutter), var(--sap-content-width, 76rem)); margin-inline: auto; padding-block: calc(1.75rem * var(--sap-space-scale, 1)) calc(3rem * var(--sap-space-scale, 1)); }
 .stack { display: flex; flex-direction: column; gap: var(--gap); }
 
 /* Sidebar. */
@@ -151,7 +151,7 @@
 .sidebar-scroll { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; padding: 1rem 0.75rem 1rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 
 .brand { display: flex; align-items: center; gap: 0.625rem; min-width: 0; color: var(--foreground); text-decoration: none; border-radius: var(--r-sm); }
-.brand-mark { flex: none; display: grid; place-items: center; width: 1.875rem; height: 1.875rem; border-radius: var(--r-md); background: var(--primary); color: var(--primary-foreground); font: 700 0.6875rem/1 var(--mono); letter-spacing: 0.02em; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 1px 2px rgb(0 0 0 / 0.12); }
+.brand-mark { flex: none; display: grid; place-items: center; width: 1.875rem; height: 1.875rem; border-radius: var(--r-md); background: var(--primary); color: var(--primary-foreground); font: 700 0.6875rem/1 var(--mono); letter-spacing: 0.02em; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 calc(1px * var(--sap-shadow-scale, 1)) calc(2px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.12); }
 .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .brand-name { overflow: hidden; font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
 .brand-tagline { overflow: hidden; color: var(--muted-foreground); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -166,10 +166,10 @@
 .side-menu a[aria-current="page"] svg { color: currentColor; }
 .side-menu a > span:not(.side-count) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* shared/menu links carry no icon: draw a small square marker aligned with the icons. */
-.side-menu:not(.side-menu-icons, .side-terms) a::before { content: ""; flex: none; width: 0.4375rem; height: 0.4375rem; margin-inline: 0.28rem; border-radius: 2px; border: 1.5px solid var(--border-strong); }
+.side-menu:not(.side-menu-icons, .side-terms) a::before { content: ""; flex: none; width: 0.4375rem; height: 0.4375rem; margin-inline: 0.28rem; border-radius: calc(2px * var(--sap-radius-scale, 1)); border: 1.5px solid var(--border-strong); }
 .side-menu:not(.side-menu-icons, .side-terms) a[aria-current="page"]::before { border-color: var(--primary); background: var(--primary); }
 .side-menu a[target="_blank"]::after { content: "↗"; margin-left: auto; color: var(--muted-foreground); font-size: 0.75rem; }
-.side-count, .sidebar .widget-count { flex: none; min-width: 1.5rem; margin-left: auto; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--muted-foreground); font: 500 0.6875rem/1.125rem var(--mono); text-align: center; }
+.side-count, .sidebar .widget-count { flex: none; min-width: 1.5rem; margin-left: auto; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--card); color: var(--muted-foreground); font: 500 0.6875rem/1.125rem var(--mono); text-align: center; }
 .side-foot { margin-top: auto; padding-top: 0.75rem; border-top: 1px solid var(--border); }
 
 /* Widgets inside the sidebar read like navigation. */
@@ -179,7 +179,7 @@
 .sidebar :is(.widget-terms, .widget-archives) li:hover { background: var(--muted); }
 .sidebar :is(.widget-terms, .widget-archives) a { flex: 1; display: flex; align-items: center; gap: 0.625rem; min-width: 0; min-height: 2rem; padding: 0.3rem 0 0.3rem 0.625rem; color: color-mix(in oklch, var(--foreground) 80%, var(--muted-foreground)); font-size: 0.875rem; font-weight: 500; }
 .sidebar .widget-terms a::before { content: "#"; flex: none; width: 1rem; color: var(--muted-foreground); font-family: var(--mono); text-align: center; }
-.sidebar .widget-archives a::before { content: ""; flex: none; width: 0.4375rem; height: 0.4375rem; margin-inline: 0.28rem; border-radius: 999px; border: 1.5px solid var(--border-strong); }
+.sidebar .widget-archives a::before { content: ""; flex: none; width: 0.4375rem; height: 0.4375rem; margin-inline: 0.28rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); border: 1.5px solid var(--border-strong); }
 .sidebar :is(.widget-terms, .widget-archives) a:hover { color: var(--foreground); }
 .sidebar .widget-posts a { gap: 0.625rem; padding: 0.375rem 0.625rem; border-radius: var(--r-sm); transition: background-color 0.15s; }
 .sidebar .widget-posts a:hover { background: var(--muted); color: inherit; }
@@ -198,12 +198,22 @@
 .topbar-brand .brand-tagline { display: none; }
 .topbar-actions { display: flex; flex: none; align-items: center; gap: 0.375rem; margin-left: auto; }
 
+/* A Page builder header in place of the top bar. The sidebar stays the
+   navigation: its drawer button leads the bar on small screens, where the
+   header's own menu folds away, and the sidebar shows the brand on desktop. */
+.blocks-topbar { display: flex; align-items: center; border-bottom: 1px solid var(--border); background: var(--topbar-bg); }
+.blocks-topbar:has(.is-sticky) { position: sticky; top: 0; z-index: 70; }
+.blocks-topbar > .nav-toggle { flex: none; margin-inline-start: var(--gutter); }
+.blocks-topbar > .sap-region-header { flex: 1; min-width: 0; border-bottom: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (max-width: 860px) { .blocks-topbar .sap-b-site-header :is(.nav-toggle, .sap-sh-nav) { display: none; } }
+@media (min-width: 1024px) { .blocks-topbar .sap-sh-brand { display: none; } }
+
 .crumbs { flex: 1 1 auto; min-width: 0; }
 .crumbs ol { display: flex; align-items: center; gap: 0.5rem; min-width: 0; margin: 0; padding: 0; list-style: none; color: var(--muted-foreground); font-size: 0.8125rem; white-space: nowrap; }
 .crumbs li { display: flex; flex: none; align-items: center; gap: 0.5rem; min-width: 0; }
 .crumbs li:last-child { flex: 0 1 auto; }
 .crumbs li + li::before { content: "/"; color: var(--border-strong); font-family: var(--mono); }
-.crumbs a { display: inline-flex; align-items: center; border-radius: 4px; color: inherit; text-decoration: none; transition: color 0.15s; }
+.crumbs a { display: inline-flex; align-items: center; border-radius: calc(4px * var(--sap-radius-scale, 1)); color: inherit; text-decoration: none; transition: color 0.15s; }
 .crumbs a:hover { color: var(--foreground); }
 .crumbs svg { width: 0.95rem; height: 0.95rem; }
 .crumbs [aria-current] { overflow: hidden; color: var(--foreground); font-weight: 500; text-overflow: ellipsis; }
@@ -291,13 +301,13 @@
 .panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.75rem var(--pad); border-bottom: 1px solid var(--border); }
 .panel-head h2 { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
 .panel-meta { display: flex; align-items: center; gap: 0.75rem; color: var(--muted-foreground); font: 0.75rem/1.4 var(--mono); }
-.count-chip { padding: 0.0625rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font: 500 0.6875rem/1.4 var(--mono); white-space: nowrap; }
+.count-chip { padding: 0.0625rem 0.5rem; border: 1px solid var(--border); border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--muted); color: var(--muted-foreground); font: 500 0.6875rem/1.4 var(--mono); white-space: nowrap; }
 .panel-foot { padding: 0.625rem var(--pad); border-top: 1px solid var(--border); }
 .panel-empty { padding: 0.5rem 1rem; }
 
 /* Chips (category badges). */
 .chip { display: inline-flex; align-items: center; gap: 0.375rem; max-width: 100%; height: 1.375rem; padding: 0 0.5rem; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--card); color: var(--foreground); font: 500 0.75rem/1 var(--sans); text-decoration: none; white-space: nowrap; transition: background-color 0.15s, border-color 0.15s; }
-.chip::before { content: ""; flex: none; width: 0.375rem; height: 0.375rem; border-radius: 999px; background: var(--primary); }
+.chip::before { content: ""; flex: none; width: 0.375rem; height: 0.375rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); }
 a.chip:hover { border-color: var(--accent-line); background: var(--accent-soft); }
 .chip-empty { border-style: dashed; background: transparent; color: var(--muted-foreground); }
 .chip-empty::before { background: var(--border-strong); }
@@ -382,7 +392,7 @@ a.chip-accent:hover { background: color-mix(in oklch, var(--primary) 14%, var(--
 .prose a { color: var(--primary); text-decoration-color: color-mix(in oklch, var(--primary) 45%, transparent); text-underline-offset: 0.2em; }
 .prose a:hover { text-decoration-color: currentColor; }
 .prose blockquote { padding: 0.875rem 1.125rem; border-left: 2px solid var(--primary); border-radius: 0 var(--r-md) var(--r-md) 0; background: var(--accent-soft); color: var(--foreground); font-style: normal; }
-.prose :not(pre) > code { padding: 0.1em 0.375em; border: 1px solid var(--border); border-radius: 0.3rem; background: var(--muted); font-family: var(--mono); font-size: 0.84em; }
+.prose :not(pre) > code { padding: 0.1em 0.375em; border: 1px solid var(--border); border-radius: calc(0.3rem * var(--sap-radius-scale, 1)); background: var(--muted); font-family: var(--mono); font-size: 0.84em; }
 .prose pre { padding: 1rem 1.125rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--code-bg); font-family: var(--mono); font-size: 0.8125rem; line-height: 1.7; }
 .prose pre code { font-family: inherit; }
 .prose table { border: 1px solid var(--border); border-radius: var(--r-md); border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
@@ -409,7 +419,7 @@ a.chip-accent:hover { background: color-mix(in oklch, var(--primary) 14%, var(--
 .rail-author a, .rail-author span { overflow: hidden; color: var(--foreground); font-size: 0.875rem; font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .rail-author a:hover { color: var(--primary); }
 .rail-author small { color: var(--muted-foreground); font-size: 0.75rem; }
-.avatar { display: grid; flex: none; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--accent-soft); color: var(--primary); font: 600 0.75rem/1 var(--mono); }
+.avatar { display: grid; flex: none; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid var(--accent-line); border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--accent-soft); color: var(--primary); font: 600 0.75rem/1 var(--mono); }
 .kv { display: flex; flex-direction: column; margin: 0; }
 .kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.4rem 0; border-top: 1px solid var(--border); font-size: 0.8125rem; }
 .kv dt { color: var(--muted-foreground); }
@@ -533,7 +543,7 @@ a.chip-accent:hover { background: color-mix(in oklch, var(--primary) 14%, var(--
 .btn { display: inline-flex; align-items: center; gap: 0.45rem; height: 2.25rem; padding: 0 0.9rem; border: 1px solid transparent; border-radius: var(--r-md); background: var(--primary); color: var(--primary-foreground); font-size: 0.8125rem; font-weight: 500; text-decoration: none; }
 .btn[data-variant="outline"], .btn[data-variant="secondary"] { border-color: var(--border); background: var(--card); color: var(--foreground); }
 .card { gap: 0.75rem; padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--card); box-shadow: var(--shadow-sm); }
-.kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; height: 1.5em; padding: 0 0.35em; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 0.3rem; background: var(--card); font: 500 0.75em/1 var(--mono); }
+.kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; height: 1.5em; padding: 0 0.35em; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: calc(0.3rem * var(--sap-radius-scale, 1)); background: var(--card); font: 500 0.75em/1 var(--mono); }
 
 /* ---------------------------------------------------------------- motion */
 @media (prefers-reduced-motion: reduce) {
@@ -547,3 +557,13 @@ a.chip-accent:hover { background: color-mix(in oklch, var(--primary) 14%, var(--
   body { background: #fff; }
   .panel { border: 0; box-shadow: none; }
 }
+
+/* ------------------------------------------------------ customiser hooks */
+/* Header options from Appearance → Customise (classes on <html>) and the
+   skin of the shared post lists. Nothing here matches a default site. */
+.sap-sticky-off .topbar { position: relative; }
+.brand .sap-logo { height: 1.875rem; max-width: 10rem; }
+.sap-post-link { border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
+.sap-post-link:hover { border-color: var(--accent-line); }
+.sap-post-meta { font-family: var(--mono); font-size: 0.75rem; }
+.sap-post-kicker { font-family: var(--mono); font-weight: 500; }

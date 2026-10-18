@@ -178,6 +178,9 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	}
 	s.pluginHead(ctx, pd, pageInfo(pd)) // meta tags, JSON-LD, plugin stylesheets and scripts
 
+	// Block layouts replace theme regions (builder.go).
+	page = s.applyLayout(r, th, page, pd)
+
 	var buf bytes.Buffer
 	if err := th.Render(&buf, page, pd.Site.Lang, pd); err != nil {
 		s.log.Error("render theme", "theme", th.Slug, "page", page, "err", err)
@@ -191,6 +194,7 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	if pd.Preview {
 		w.Header().Set("Cache-Control", "no-store")
 	}
+	s.customPreviewHeaders(w, pd) // draft previews (customize.go)
 
 	body := s.expandForms(w, r, pd.Site.Lang, buf.Bytes()) // plugin forms (plugin_web.go)
 	w.WriteHeader(status)
@@ -236,6 +240,9 @@ func (s *Server) listing(w http.ResponseWriter, r *http.Request, kind string, q 
 		return
 	}
 	per := s.settings().PostsPerPage
+	if n := pd.Site.Custom.PerPage; kind == "home" && n > 0 {
+		per = n // customiser home setting
+	}
 	q.Type, q.Lang, q.PublicOnly, q.Limit, q.Offset, q.WithTerms, q.WithMedia = store.TypePost, s.reqLang(r), true, per, (page-1)*per, true, true
 	posts, total, err := s.store.ListPosts(r.Context(), q)
 	if err != nil {

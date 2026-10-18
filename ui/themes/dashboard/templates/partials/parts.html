@@ -1,8 +1,8 @@
 {{/* brand: logo mark + site title. Data: PageData. */}}
 {{define "brand"}}
 <a class="brand" href="{{link "/"}}">
-  <span class="brand-mark" aria-hidden="true">{{initials .Site.Title}}</span>
-  <span class="brand-text"><span class="brand-name">{{or .Site.Title (T "Home")}}</span>{{with .Site.Tagline}}<span class="brand-tagline">{{.}}</span>{{end}}</span>
+  {{if .Site.Custom.Logo}}{{template "shared/logo" .}}{{else}}<span class="brand-mark" aria-hidden="true">{{initials .Site.Title}}</span>{{end}}
+  {{if not .Site.Custom.LogoOnly}}<span class="brand-text"><span class="brand-name">{{or .Site.Title (T "Home")}}</span>{{with .Site.Tagline}}<span class="brand-tagline">{{.}}</span>{{end}}</span>{{end}}
 </a>
 {{end}}
 

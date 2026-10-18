@@ -20,6 +20,8 @@
     <footer>
       <a class="btn" data-variant="outline" data-size="sm" href="/?preview_theme={{.Slug}}" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a>
       {{if .Options}}<a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/options">{{icon "settings"}}{{T "Options"}}</a>{{end}}
+      <a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/customize">{{icon "paintbrush"}}{{T "Customise"}}</a>
+      <a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/builder">{{icon "layout-template"}}{{T "Page builder"}}</a>
       {{if ne .Slug $d.Active}}
       <form method="post" action="/admin/appearance/themes/{{.Slug}}/activate" class="ml-auto">{{$.CSRFField}}<button class="btn" data-size="sm" type="submit">{{T "Activate"}}</button></form>
       {{end}}

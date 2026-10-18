@@ -262,6 +262,7 @@ type SiteView struct {
 	FeedRSS           string
 	FeedAtom          string
 	FeedJSON          string
+	Custom            *CustomView // theme customiser (customize.go)
 	theme             *theme.Theme
 	server            *Server
 }
@@ -446,6 +447,7 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 			sv.Viewer.CSRF = sess.CSRFToken
 		}
 	}
+	s.applyCustom(r, th, sv)
 	return sv
 }
 
@@ -596,6 +598,8 @@ type PageData struct {
 	IsFront      bool
 	Preview      bool
 	Ask          *AskView // the assistant page without JavaScript (assistant.go)
+	// Blocks: block layouts replacing theme regions (builder.go).
+	Blocks *BlocksView
 	// Plugins (plugin_web.go): JSON-LD objects from head.meta, already
 	// escaped for a <script type="application/ld+json"> element, and the
 	// stylesheets and scripts of enabled plugins.

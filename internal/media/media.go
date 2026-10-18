@@ -51,6 +51,7 @@ var Allowed = map[string]string{
 	"video/mp4":       ".mp4",
 	"video/webm":      ".webm",
 	"text/plain":      ".txt",
+	"font/woff2":      ".woff2", // web fonts for the theme customiser
 }
 
 // extraExts lists the other extensions accepted for each detected type.

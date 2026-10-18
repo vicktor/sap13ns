@@ -1,0 +1,7 @@
+{{/* blocks/menu: one of the theme's menus. Data: *BlockView. */}}
+{{define "blocks/menu"}}{{with .Page.Site.Menu .S.menu}}
+<nav class="sap-b sap-b-menu sap-menu-{{$.S.direction}} sap-align-{{$.S.align}}" aria-label="{{or $.S.title (T "Menu")}}">
+  {{with $.S.title}}<h2 class="sap-b-title">{{.}}</h2>{{end}}
+  <ul>{{template "shared/menu" .}}</ul>
+</nav>
+{{end}}{{end}}

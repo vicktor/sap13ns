@@ -270,7 +270,7 @@ type mediaData struct {
 	Accept string
 }
 
-const mediaAccept = "image/jpeg,image/png,image/gif,image/webp,image/avif,application/pdf,audio/mpeg,audio/ogg,audio/wav,video/mp4,video/webm,text/plain"
+const mediaAccept = "image/jpeg,image/png,image/gif,image/webp,image/avif,application/pdf,audio/mpeg,audio/ogg,audio/wav,video/mp4,video/webm,text/plain,font/woff2,.woff2"
 
 // mediaScope limits authors and contributors to their own uploads.
 func mediaScope(u *store.User) int64 {

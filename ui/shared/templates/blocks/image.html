@@ -1,0 +1,7 @@
+{{/* blocks/image: an image from the media library. Data: *BlockView. */}}
+{{define "blocks/image"}}{{with .Image}}
+<figure class="sap-b sap-b-image sap-img-{{$.S.size}} sap-align-{{$.S.align}}">
+  {{if $.S.link}}<a href="{{$.S.link}}">{{end}}{{template "shared/image" (dict "Image" . "Sizes" "(min-width: 1024px) 60vw, 100vw")}}{{if $.S.link}}</a>{{end}}
+  {{with $.S.caption}}<figcaption>{{.}}</figcaption>{{end}}
+</figure>
+{{end}}{{end}}

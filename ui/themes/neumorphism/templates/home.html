@@ -29,6 +29,11 @@
     <h2 id="latest-title">{{T "Latest posts"}}</h2>
     {{with .Pagination}}<p class="nm-muted">{{T "Page %d of %d" .Page .TotalPages}}</p>{{end}}
   </header>
+  {{if and .Site.Custom.HomeLayout .Posts}}
+  {{template "shared/post-list" (dict "Posts" .Posts "Layout" .Site.Custom.HomeLayout)}}
+  {{with .Pagination}}<div class="nm-pager">{{template "shared/pagination" .}}</div>{{end}}
+  {{else}}
   {{template "nm-listing" (dict "Page" . "Posts" .Posts "Feature" $first "Images" $imgs)}}
+  {{end}}
 </section>
 {{end}}

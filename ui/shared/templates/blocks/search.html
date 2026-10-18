@@ -1,0 +1,8 @@
+{{/* blocks/search: a search form. Data: *BlockView. */}}
+{{define "blocks/search"}}
+<form class="sap-b sap-b-search search-form" method="get" action="{{link "/search"}}" role="search">
+  <label class="sr-only" for="sap-q-{{.ID}}">{{T "Search"}}</label>
+  <input id="sap-q-{{.ID}}" type="search" name="q" value="{{.Page.Query}}" placeholder="{{or .S.placeholder (T "Search…")}}" maxlength="200" required>
+  <button type="submit" aria-label="{{T "Search"}}">{{icon "search"}}</button>
+</form>
+{{end}}

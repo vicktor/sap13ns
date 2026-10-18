@@ -1,0 +1,11 @@
+{{/* blocks/post-list: the page's posts (home, archives, search) and their
+     pagination. Data: *BlockView. */}}
+{{define "blocks/post-list"}}{{$p := .Page}}
+<section class="sap-b sap-b-post-list">
+  {{if .S.title}}{{if eq $p.Kind "home"}}<h2 class="sap-b-heading">{{.S.title}}</h2>{{else}}<h1 class="sap-b-heading">{{.S.title}}</h1>{{end}}
+  {{else if or $p.Archive (eq $p.Kind "search")}}{{template "shared/archive-header" $p}}{{end}}
+  {{if $p.Posts}}{{template "shared/post-list" (dict "Posts" $p.Posts "Layout" .S.layout "H" (or (and .S.title 3) 2))}}
+  {{else}}{{template "shared/no-results" $p}}{{end}}
+  {{if .On "pagination"}}{{template "shared/pagination" $p.Pagination}}{{end}}
+</section>
+{{end}}

@@ -9,6 +9,7 @@
     {"id": "footer", "label": "Footer menu"}
   ],
   "widget_areas": [
+    {"id": "top", "label": "Top bar", "description": "A full-width strip above the header, for announcements."},
     {"id": "sidebar", "label": "Sidebar", "description": "Tiles in the side column of posts."},
     {"id": "footer", "label": "Footer", "description": "Tiles above the footer line."}
   ],
@@ -19,5 +20,16 @@
     ]},
     {"key": "show_stats", "label": "Show the stats tile on the homepage", "type": "bool", "default": "true"}
   ],
+  "tokens": {
+    "light": {"background": "#f3f0e8", "foreground": "#171612", "card": "#ffffff", "card-foreground": "#171612", "muted": "#efebe2", "muted-foreground": "#6a665c", "border": "#e2ddd1", "primary": "#456500", "primary-foreground": "#ffffff", "accent": "#c5f23c", "accent-foreground": "#172000"},
+    "dark": {"background": "#0b0b0c", "foreground": "#f2f1ec", "card": "#161618", "card-foreground": "#f2f1ec", "muted": "#1f1f22", "muted-foreground": "#9d9b94", "border": "#29292d", "primary": "#c8f53f", "primary-foreground": "#172000", "accent": "#c5f23c", "accent-foreground": "#172000"},
+    "options": {
+      "accent": {
+        "violet": {"light": {"primary": "#6a3ce0", "accent": "#b49aff", "accent-foreground": "#1a0840"}, "dark": {"primary": "#bca6ff", "primary-foreground": "#1a0840", "accent": "#b49aff", "accent-foreground": "#1a0840"}},
+        "orange": {"light": {"primary": "#b34200", "accent": "#ff8f45", "accent-foreground": "#2b1100"}, "dark": {"primary": "#ff9f5c", "primary-foreground": "#2b1100", "accent": "#ff8f45", "accent-foreground": "#2b1100"}},
+        "sky": {"light": {"primary": "#0a65a0", "accent": "#72d0ff", "accent-foreground": "#03263a"}, "dark": {"primary": "#7dd6ff", "primary-foreground": "#03263a", "accent": "#72d0ff", "accent-foreground": "#03263a"}}
+      }
+    }
+  },
   "swatches": ["#f3f0e8", "#ffffff", "#171612", "#c5f23c"]
 }

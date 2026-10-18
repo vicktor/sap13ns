@@ -1,0 +1,7 @@
+{{/* blocks/social-links: links to profiles and the feed. Data: *BlockView. */}}
+{{define "blocks/social-links"}}{{if .Links}}
+<nav class="sap-b sap-b-social sap-align-{{.S.align}}" aria-label="{{or .S.title (T "Social links")}}">
+  {{with .S.title}}<h2 class="sap-b-title">{{.}}</h2>{{end}}
+  <ul>{{range .Links}}<li><a href="{{.URL}}"{{if hasPrefix .URL "http"}} rel="me noopener" target="_blank"{{end}}>{{icon .Icon}}<span>{{.Label}}</span></a></li>{{end}}</ul>
+</nav>
+{{end}}{{end}}

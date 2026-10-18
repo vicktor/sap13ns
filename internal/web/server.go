@@ -78,6 +78,8 @@ type Server struct {
 	bot botState // site assistant and MCP (assistant.go, mcp.go)
 
 	plug pluginWebState // plugin assets, forms and CSP sources (plugin_web.go)
+
+	custom customCache // published theme designs (customize.go)
 }
 
 type Deps struct {
@@ -179,6 +181,7 @@ func (s *Server) t(key string, args ...any) string { return s.i18n.T(s.lang(), k
 func (s *Server) contentChanged() {
 	s.pages.Invalidate()
 	s.site.invalidate()
+	s.custom.invalidate()
 	s.assistant().Nudge()
 }
 

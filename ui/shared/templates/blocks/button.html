@@ -1,0 +1,8 @@
+{{/* blocks/button: a call-to-action link styled as the theme's button.
+     Data: *BlockView. */}}
+{{define "blocks/button"}}
+<p class="sap-b sap-b-button sap-align-{{.S.align}}">
+  {{if eq .S.variant "link"}}<a class="sap-link" href="{{.S.url}}"{{if .On "new_tab"}} target="_blank" rel="noopener"{{end}}>{{.S.label}} {{icon "arrow-right"}}</a>
+  {{else}}<a class="btn" href="{{.S.url}}"{{if ne .S.variant "primary"}} data-variant="{{.S.variant}}"{{end}}{{if eq .S.size "small"}} data-size="sm"{{else if eq .S.size "large"}} data-size="lg"{{end}}{{if .On "new_tab"}} target="_blank" rel="noopener"{{end}}>{{.S.label}}</a>{{end}}
+</p>
+{{end}}

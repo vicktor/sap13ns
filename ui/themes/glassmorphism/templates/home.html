@@ -26,7 +26,7 @@
 
 <section class="wrap section" id="latest" aria-label="{{T "Latest posts"}}">
   {{if .Posts}}
-    {{template "grid" (dict "Posts" .Posts "Lead" $first)}}
+    {{if .Site.Custom.HomeLayout}}{{template "shared/post-list" (dict "Posts" .Posts "Layout" .Site.Custom.HomeLayout)}}{{else}}{{template "grid" (dict "Posts" .Posts "Lead" $first)}}{{end}}
     {{template "pager" .Pagination}}
   {{else}}
     <div class="glass empty-card">{{template "shared/no-results" .}}</div>

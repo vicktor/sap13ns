@@ -1,0 +1,7 @@
+{{/* blocks/featured-image: the post's featured image. Data: *BlockView. */}}
+{{define "blocks/featured-image"}}{{with .Page.Post}}{{with .Image}}
+<figure class="sap-b sap-b-featured sap-ratio-{{$.S.ratio}}">
+  <img src="{{.Large}}" srcset="{{.Srcset}}" sizes="(min-width: 1200px) 1200px, 100vw" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}} fetchpriority="high" decoding="async">
+  {{if $.On "caption"}}{{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}{{end}}
+</figure>
+{{end}}{{end}}{{end}}

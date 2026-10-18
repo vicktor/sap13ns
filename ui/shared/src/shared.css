@@ -6,7 +6,12 @@
    --muted-foreground, --border, --card, --radius) plus optional
    --sap-measure (reading width) and --sap-gap. */
 
+/* Page builder regions and blocks (Appearance → Page builder). */
+@import "./blocks.css";
+
 @layer components {
+  /* Customiser base size: every rem follows it (1 when not customised). */
+  html { font-size: calc(100% * var(--sap-text-scale, 1)); }
   .skip-link { position: absolute; left: -10000px; top: 0.75rem; z-index: 100; padding: 0.5rem 0.9rem; border-radius: calc(var(--radius) - 2px); background: var(--primary); color: var(--primary-foreground); font-weight: 600; }
   .skip-link:focus { left: 0.75rem; }
   .sap-hp { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
@@ -16,17 +21,17 @@
   .dark .theme-icon-dark { display: inline-block; }
   .nav-icon-close, .nav-toggle[aria-expanded="true"] .nav-icon-open { display: none; }
   .nav-toggle[aria-expanded="true"] .nav-icon-close { display: inline-block; }
-  .theme-toggle, .nav-toggle { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 999px; color: inherit; cursor: pointer; transition: background-color .2s; }
+  .theme-toggle, .nav-toggle { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); color: inherit; cursor: pointer; transition: background-color .2s; }
   .theme-toggle:hover, .nav-toggle:hover { background: color-mix(in oklch, var(--foreground) 8%, transparent); }
   .theme-toggle svg, .nav-toggle svg { width: 1.15rem; height: 1.15rem; }
   /* Language switch: a <details> popover, no JS needed. */
   .lang-switch { position: relative; }
-  .lang-switch > summary { display: inline-flex; align-items: center; gap: .3rem; height: 2.5rem; padding-inline: .6rem; border-radius: 999px; cursor: pointer; list-style: none; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .lang-switch > summary { display: inline-flex; align-items: center; gap: .3rem; height: 2.5rem; padding-inline: .6rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); cursor: pointer; list-style: none; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .lang-switch > summary::-webkit-details-marker { display: none; }
   .lang-switch > summary:hover { background: color-mix(in oklch, var(--foreground) 8%, transparent); }
   .lang-switch > summary svg { width: 1.1rem; height: 1.1rem; }
-  .lang-switch ul { position: absolute; inset-inline-end: 0; top: calc(100% + .35rem); z-index: 60; min-width: 10rem; margin: 0; padding: .3rem; list-style: none; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border); border-radius: .75rem; box-shadow: 0 12px 32px -12px rgb(0 0 0 / .25); }
-  .lang-switch a { display: block; padding: .45rem .7rem; border-radius: .5rem; font-size: .9rem; text-decoration: none; color: inherit; }
+  .lang-switch ul { position: absolute; inset-inline-end: 0; top: calc(100% + .35rem); z-index: 60; min-width: 10rem; margin: 0; padding: .3rem; list-style: none; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border); border-radius: calc(.75rem * var(--sap-radius-scale, 1)); box-shadow: 0 calc(12px * var(--sap-shadow-scale, 1)) calc(32px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / .25); }
+  .lang-switch a { display: block; padding: .45rem .7rem; border-radius: calc(.5rem * var(--sap-radius-scale, 1)); font-size: .9rem; text-decoration: none; color: inherit; }
   .lang-switch a:hover { background: var(--accent); color: var(--accent-foreground); }
   .lang-switch a[aria-current] { font-weight: 600; }
 
@@ -53,8 +58,8 @@
   .prose li + li { margin-top: 0.35em; }
   .prose li::marker { color: var(--muted-foreground); }
   .prose blockquote { border-left: 3px solid var(--primary); padding: 0.1em 0 0.1em 1.1em; color: var(--muted-foreground); font-style: italic; }
-  .prose :not(pre) > code { padding: 0.15em 0.4em; border-radius: 0.35em; background: color-mix(in oklch, var(--foreground) 8%, transparent); font-size: 0.875em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .prose pre { overflow-x: auto; padding: 1.1em 1.25em; border-radius: var(--radius); background: color-mix(in oklch, var(--foreground) 6%, var(--background)); border: 1px solid var(--border); font-size: 0.875em; line-height: 1.65; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .prose :not(pre) > code { padding: 0.15em 0.4em; border-radius: calc(0.35em * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--foreground) 8%, transparent); font-size: 0.875em; font-family: var(--sap-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+  .prose pre { overflow-x: auto; padding: 1.1em 1.25em; border-radius: var(--radius); background: color-mix(in oklch, var(--foreground) 6%, var(--background)); border: 1px solid var(--border); font-size: 0.875em; line-height: 1.65; font-family: var(--sap-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
   .prose img, .prose video { max-width: 100%; height: auto; border-radius: var(--radius); }
   .prose figure figcaption, .featured-image figcaption { margin-top: 0.6em; color: var(--muted-foreground); font-size: 0.875rem; text-align: center; }
   .prose hr { margin: 2.5em auto; width: 30%; border: 0; border-top: 1px solid var(--border); }
@@ -70,7 +75,7 @@
   .post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--muted-foreground); font-size: 0.875rem; }
   .post-meta a { color: inherit; text-decoration: none; }
   .post-meta a:hover { color: var(--foreground); }
-  .post-badge { padding: 0.1rem 0.5rem; border-radius: 999px; background: oklch(0.82 0.15 85 / 0.25); color: inherit; font-size: 0.75rem; font-weight: 600; }
+  .post-badge { padding: 0.1rem 0.5rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: oklch(0.82 0.15 85 / 0.25); color: inherit; font-size: 0.75rem; font-weight: 600; }
   .post-categories, .post-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; }
   .post-categories a, .post-tags a { text-decoration: none; }
 
@@ -91,7 +96,7 @@
   /* Pagination. */
   .pagination { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .pagination ol { display: flex; flex-wrap: wrap; gap: 0.25rem; list-style: none; padding: 0; margin: 0; }
-  .pagination a { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; min-width: 2.5rem; height: 2.5rem; padding: 0 0.75rem; border-radius: 999px; color: inherit; text-decoration: none; font-size: 0.9rem; }
+  .pagination a { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; min-width: 2.5rem; height: 2.5rem; padding: 0 0.75rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); color: inherit; text-decoration: none; font-size: 0.9rem; }
   .pagination a:hover { background: color-mix(in oklch, var(--foreground) 7%, transparent); }
   .pagination a[aria-current="page"] { background: var(--foreground); color: var(--background); font-weight: 600; }
   .pagination svg { width: 1rem; height: 1rem; }
@@ -110,7 +115,7 @@
   .not-found svg { width: 1rem; height: 1rem; }
 
   /* Search form. */
-  .search-form { display: flex; width: 100%; max-width: 28rem; border: 1px solid var(--border); border-radius: 999px; background: var(--background); overflow: hidden; }
+  .search-form { display: flex; width: 100%; max-width: 28rem; border: 1px solid var(--border); border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--background); overflow: hidden; }
   .search-form:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
   .search-form input { flex: 1; min-width: 0; padding: 0.65rem 1rem; background: transparent; outline: none; color: inherit; }
   .search-form button { display: grid; place-items: center; width: 2.75rem; color: var(--muted-foreground); cursor: pointer; }
@@ -124,9 +129,9 @@
   .comment-replies { margin-top: 1.25rem; padding-left: clamp(1rem, 4vw, 3rem); border-left: 2px solid var(--border); }
   .comment-header { display: flex; align-items: center; gap: 0.75rem; }
   .comment-header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; }
-  .comment-avatar { display: grid; place-items: center; flex: none; width: 2.4rem; height: 2.4rem; border-radius: 999px; background: color-mix(in oklch, var(--primary) 16%, var(--background)); color: var(--primary); font-weight: 700; font-size: 0.8rem; }
+  .comment-avatar { display: grid; place-items: center; flex: none; width: 2.4rem; height: 2.4rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--primary) 16%, var(--background)); color: var(--primary); font-weight: 700; font-size: 0.8rem; }
   .comment-author a { color: inherit; }
-  .comment-badge { padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); font-size: 0.7rem; font-weight: 600; }
+  .comment-badge { padding: 0.05rem 0.45rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); font-size: 0.7rem; font-weight: 600; }
   .comment-date { color: var(--muted-foreground); font-size: 0.8rem; text-decoration: none; }
   .comment-body { margin: 0.6rem 0 0 3.15rem; line-height: 1.65; }
   .comment-body p + p { margin-top: 0.6em; }
@@ -146,7 +151,7 @@
   .comment-form label small { font-weight: 400; color: var(--muted-foreground); }
   .comment-form :is(input[type=text], input[type=email], input[type=url], textarea) { width: 100%; padding: 0.7rem 0.85rem; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--input, var(--border)); background: var(--background); color: inherit; font: inherit; }
   .comment-form :is(input, textarea):focus { outline: 2px solid var(--ring); outline-offset: 1px; border-color: transparent; }
-  .comment-submit button { padding: 0.7rem 1.4rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); font-weight: 600; cursor: pointer; }
+  .comment-submit button { padding: 0.7rem 1.4rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); font-weight: 600; cursor: pointer; }
   .comment-submit button:hover { filter: brightness(1.08); }
   .comment-replying { font-size: 0.875rem; color: var(--muted-foreground); }
   .comment-replying button { margin-left: 0.5rem; text-decoration: underline; cursor: pointer; }
@@ -179,7 +184,7 @@
   .widget-html p + p { margin-top: 0.6em; }
   .subscribe p { color: var(--muted-foreground); font-size: 0.925rem; margin-bottom: 0.75rem; }
   .subscribe-links { flex-direction: row !important; flex-wrap: wrap; gap: 0.5rem !important; }
-  .subscribe-links a { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.85rem; }
+  .subscribe-links a { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); border: 1px solid var(--border); font-size: 0.85rem; }
   .subscribe-links svg { width: 0.9rem; height: 0.9rem; color: oklch(0.7 0.17 50); }
 
   .footer-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; color: var(--muted-foreground); font-size: 0.85rem; }
@@ -191,11 +196,11 @@
      /ask page. Colours come from the theme tokens, so light and dark follow
      the theme. */
   .sap-assistant-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .sap-assistant-fab { position: fixed; z-index: 80; inset-inline-end: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); display: inline-grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); box-shadow: 0 12px 28px -12px color-mix(in oklch, var(--primary) 80%, black), 0 2px 6px rgb(0 0 0 / 0.14); transition: transform 0.2s, box-shadow 0.2s; }
+  .sap-assistant-fab { position: fixed; z-index: 80; inset-inline-end: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); display: inline-grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); box-shadow: 0 calc(12px * var(--sap-shadow-scale, 1)) calc(28px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) color-mix(in oklch, var(--primary) 80%, black), 0 calc(2px * var(--sap-shadow-scale, 1)) calc(6px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.14); transition: transform 0.2s, box-shadow 0.2s; }
   .sap-assistant-fab:hover { transform: translateY(-2px); }
   .sap-assistant-fab:focus-visible { outline: 3px solid color-mix(in oklch, var(--primary) 55%, transparent); outline-offset: 3px; }
   .sap-assistant-fab svg { width: 1.5rem; height: 1.5rem; }
-  .sap-assistant-panel { position: fixed; inset: auto; inset-inline-end: max(1rem, env(safe-area-inset-right)); bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 4.25rem); margin: 0; padding: 0; width: min(25rem, calc(100vw - 2rem)); max-width: none; height: min(40rem, calc(100dvh - 6.5rem)); max-height: none; overflow: hidden; border: 1px solid var(--border); border-radius: 1.25rem; background: var(--background); color: var(--foreground); box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.35), 0 4px 14px -6px rgb(0 0 0 / 0.12); font: 400 0.95rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .sap-assistant-panel { position: fixed; inset: auto; inset-inline-end: max(1rem, env(safe-area-inset-right)); bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 4.25rem); margin: 0; padding: 0; width: min(25rem, calc(100vw - 2rem)); max-width: none; height: min(40rem, calc(100dvh - 6.5rem)); max-height: none; overflow: hidden; border: 1px solid var(--border); border-radius: calc(1.25rem * var(--sap-radius-scale, 1)); background: var(--background); color: var(--foreground); box-shadow: 0 calc(24px * var(--sap-shadow-scale, 1)) calc(60px * var(--sap-shadow-scale, 1)) calc(-20px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.35), 0 calc(4px * var(--sap-shadow-scale, 1)) calc(14px * var(--sap-shadow-scale, 1)) calc(-6px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.12); font: 400 0.95rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
   .sap-assistant-panel[open] { display: flex; flex-direction: column; }
   .sap-assistant-panel::backdrop { background: rgb(0 0 0 / 0.18); }
   @media (max-width: 640px) {
@@ -207,39 +212,39 @@
   }
   .sap-assistant-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 0.75rem 0.75rem 1rem; border-bottom: 1px solid var(--border); }
   .sap-assistant-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 1rem; font-weight: 650; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sap-assistant-avatar { display: inline-grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: 999px; background: color-mix(in oklch, var(--primary) 14%, transparent); color: var(--primary); }
+  .sap-assistant-avatar { display: inline-grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--primary) 14%, transparent); color: var(--primary); }
   .sap-assistant-avatar svg { width: 1.05rem; height: 1.05rem; }
-  .sap-assistant-icon { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+  .sap-assistant-icon { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border: 0; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: transparent; color: var(--muted-foreground); cursor: pointer; }
   .sap-assistant-icon:hover { background: color-mix(in oklch, var(--foreground) 8%, transparent); color: var(--foreground); }
   .sap-assistant-icon svg { width: 1.1rem; height: 1.1rem; }
   .sap-assistant :focus-visible, .sap-ask :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .sap-assistant-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; }
   .sap-assistant-msg { display: flex; }
   .sap-assistant-msg.is-user { justify-content: flex-end; }
-  .sap-assistant-bubble { max-width: 88%; padding: 0.6rem 0.85rem; border-radius: 1rem; background: color-mix(in oklch, var(--foreground) 6%, var(--background)); overflow-wrap: anywhere; font-size: 0.925rem; line-height: 1.55; }
-  .is-bot .sap-assistant-bubble { border-end-start-radius: 0.35rem; }
+  .sap-assistant-bubble { max-width: 88%; padding: 0.6rem 0.85rem; border-radius: calc(1rem * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--foreground) 6%, var(--background)); overflow-wrap: anywhere; font-size: 0.925rem; line-height: 1.55; }
+  .is-bot .sap-assistant-bubble { border-end-start-radius: calc(0.35rem * var(--sap-radius-scale, 1)); }
   .dark .is-bot:not(.is-error) .sap-assistant-bubble { background: color-mix(in oklch, var(--foreground) 13%, var(--background)); }
-  .is-user .sap-assistant-bubble { background: var(--primary); color: var(--primary-foreground); border-end-end-radius: 0.35rem; white-space: pre-wrap; }
+  .is-user .sap-assistant-bubble { background: var(--primary); color: var(--primary-foreground); border-end-end-radius: calc(0.35rem * var(--sap-radius-scale, 1)); white-space: pre-wrap; }
   .is-error .sap-assistant-bubble { background: color-mix(in oklch, var(--destructive, #dc2626) 12%, var(--background)); color: var(--foreground); }
   .sap-assistant-bubble.is-streaming { white-space: pre-wrap; }
   .sap-assistant-bubble > * + * { margin-top: 0.6em; }
   .sap-assistant-bubble :is(ul, ol) { padding-inline-start: 1.2em; } .sap-assistant-bubble ul { list-style: disc; } .sap-assistant-bubble ol { list-style: decimal; }
   .sap-assistant-bubble li + li { margin-top: 0.25em; }
   .sap-assistant-bubble strong, .sap-assistant-bubble b { font-weight: 650; }
-  .sap-assistant-bubble code { padding: 0.1em 0.35em; border-radius: 0.35em; background: color-mix(in oklch, var(--foreground) 9%, transparent); font: 0.85em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .sap-assistant-bubble pre { overflow-x: auto; padding: 0.6em 0.8em; border-radius: 0.6rem; background: color-mix(in oklch, var(--foreground) 7%, var(--background)); }
+  .sap-assistant-bubble code { padding: 0.1em 0.35em; border-radius: calc(0.35em * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--foreground) 9%, transparent); font: 0.85em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .sap-assistant-bubble pre { overflow-x: auto; padding: 0.6em 0.8em; border-radius: calc(0.6rem * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--foreground) 7%, var(--background)); }
   .sap-assistant-bubble blockquote { border-inline-start: 3px solid var(--border); padding-inline-start: 0.7em; color: var(--muted-foreground); }
   .sap-assistant-bubble a { color: var(--primary); text-decoration: underline; text-underline-offset: 0.15em; }
-  .sap-assistant-bubble a.assistant-cite { display: inline-grid; place-items: center; min-width: 1.2rem; height: 1.2rem; padding: 0 0.3rem; margin-inline-start: 0.15rem; border-radius: 999px; background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); font-size: 0.7rem; font-weight: 700; line-height: 1; vertical-align: 0.12em; text-decoration: none; }
+  .sap-assistant-bubble a.assistant-cite { display: inline-grid; place-items: center; min-width: 1.2rem; height: 1.2rem; padding: 0 0.3rem; margin-inline-start: 0.15rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); font-size: 0.7rem; font-weight: 700; line-height: 1; vertical-align: 0.12em; text-decoration: none; }
   .sap-assistant-bubble a.assistant-cite:hover { background: var(--primary); color: var(--primary-foreground); }
   .sap-assistant-sources { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--border); }
   .sap-assistant-sources-title { margin: 0 0 0.35rem; color: var(--muted-foreground); font-size: 0.72rem; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
   .sap-assistant-sources ol { display: grid; gap: 0.3rem; margin: 0; padding: 0; list-style: none; }
   .sap-assistant-sources a { display: flex; align-items: baseline; gap: 0.45rem; color: inherit; font-size: 0.85rem; line-height: 1.35; text-decoration: none; }
   .sap-assistant-sources a:hover span:last-child { text-decoration: underline; }
-  .sap-assistant-n { display: inline-grid; place-items: center; flex: none; min-width: 1.2rem; height: 1.2rem; border-radius: 999px; background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); font-size: 0.7rem; font-weight: 700; }
+  .sap-assistant-n { display: inline-grid; place-items: center; flex: none; min-width: 1.2rem; height: 1.2rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); font-size: 0.7rem; font-weight: 700; }
   .sap-assistant-typing { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.4em; color: var(--muted-foreground); font-size: 0.85rem; }
-  .sap-assistant-typing i { width: 0.4rem; height: 0.4rem; border-radius: 999px; background: currentColor; opacity: 0.35; }
+  .sap-assistant-typing i { width: 0.4rem; height: 0.4rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: currentColor; opacity: 0.35; }
   .sap-assistant-typing span:not(.sap-assistant-sr) { margin-inline-start: 0.35rem; }
   @media (prefers-reduced-motion: no-preference) {
     .sap-assistant-typing i { animation: sap-assistant-dot 1.1s infinite ease-in-out; }
@@ -248,12 +253,12 @@
   }
   .sap-assistant-suggest { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 1rem 0.6rem; }
   .sap-assistant-suggest[hidden] { display: none; }
-  .sap-assistant-suggest button { padding: 0.35rem 0.75rem; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 0.8rem; line-height: 1.3; text-align: start; cursor: pointer; }
+  .sap-assistant-suggest button { padding: 0.35rem 0.75rem; border: 1px solid var(--border); border-radius: calc(999px * var(--sap-radius-scale, 1)); background: transparent; color: inherit; font: inherit; font-size: 0.8rem; line-height: 1.3; text-align: start; cursor: pointer; }
   .sap-assistant-suggest button:hover { border-color: color-mix(in oklch, var(--primary) 50%, var(--border)); background: color-mix(in oklch, var(--primary) 7%, transparent); }
   .sap-assistant-form { display: flex; align-items: flex-end; gap: 0.5rem; padding: 0.75rem 1rem 0.5rem; border-top: 1px solid var(--border); }
-  .sap-assistant-form textarea { flex: 1; min-width: 0; min-height: 2.6rem; max-height: 8rem; field-sizing: content; resize: none; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: 1.3rem; background: var(--background); color: inherit; font: inherit; font-size: 0.925rem; line-height: 1.35; }
+  .sap-assistant-form textarea { flex: 1; min-width: 0; min-height: 2.6rem; max-height: 8rem; field-sizing: content; resize: none; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: calc(1.3rem * var(--sap-radius-scale, 1)); background: var(--background); color: inherit; font: inherit; font-size: 0.925rem; line-height: 1.35; }
   .sap-assistant-form textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 20%, transparent); }
-  .sap-assistant-send { display: inline-grid; place-items: center; flex: none; width: 2.6rem; height: 2.6rem; border: 0; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); cursor: pointer; }
+  .sap-assistant-send { display: inline-grid; place-items: center; flex: none; width: 2.6rem; height: 2.6rem; border: 0; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); cursor: pointer; }
   .sap-assistant-send:disabled { opacity: 0.5; cursor: progress; }
   .sap-assistant-send svg { width: 1.1rem; height: 1.1rem; }
   .sap-assistant-note { margin: 0; padding: 0 1rem 0.7rem; color: var(--muted-foreground); font-size: 0.72rem; line-height: 1.4; text-align: center; }
@@ -267,13 +272,82 @@
   .sap-ask .sap-assistant-bubble { max-width: 100%; }
   .sap-ask-form { display: grid; gap: 0.5rem; }
   .sap-ask-form label { font-weight: 600; font-size: 0.9rem; }
-  .sap-ask-form textarea { width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: 0.9rem; background: var(--background); color: inherit; font: inherit; resize: vertical; }
+  .sap-ask-form textarea { width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: calc(0.9rem * var(--sap-radius-scale, 1)); background: var(--background); color: inherit; font: inherit; resize: vertical; }
   .sap-ask-form .btn { justify-self: start; }
   .sap-ask-suggest p { margin: 0 0 0.4rem; color: var(--muted-foreground); font-size: 0.85rem; }
   .sap-ask-suggest .sap-assistant-suggest { padding: 0; }
   .sap-ask .sap-assistant-note { padding: 0; text-align: start; }
 
+  /* Post lists of the customiser's home layouts and the builder's post
+     list block: list, grid or bento, drawn with the theme's tokens. Themes
+     restyle .sap-post-link in their customiser hooks. */
+  /* The layouts follow the width they get (a builder column, or the whole
+     page), not the screen's. */
+  .sap-posts-box { container-type: inline-size; }
+  .sap-posts { display: grid; gap: calc(1.5rem * var(--sap-space-scale, 1)); }
+  .sap-post { display: flex; min-width: 0; }
+  .sap-post-link { display: flex; flex: 1; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--card-foreground); text-decoration: none; transition: border-color .2s, box-shadow .2s, transform .2s; }
+  .sap-post-link:hover { border-color: color-mix(in oklch, var(--primary) 45%, var(--border)); box-shadow: 0 calc(14px * var(--sap-shadow-scale, 1)) calc(30px * var(--sap-shadow-scale, 1)) calc(-20px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.35); }
+  .sap-post-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+  .sap-post-media { aspect-ratio: 16 / 9; overflow: hidden; background: var(--muted); }
+  .sap-post-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .sap-post-body { display: flex; flex: 1; flex-direction: column; gap: 0.5rem; padding: calc(1.15rem * var(--sap-space-scale, 1)) calc(1.25rem * var(--sap-space-scale, 1)) calc(1.25rem * var(--sap-space-scale, 1)); }
+  .sap-post-kicker { margin: 0; color: var(--primary); font-size: 0.75rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+  .sap-post-title { margin: 0; font-size: 1.2rem; font-weight: 650; line-height: 1.25; letter-spacing: -0.015em; text-wrap: balance; }
+  .sap-post-summary { margin: 0; color: var(--muted-foreground); font-size: 0.95rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .sap-post-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: auto 0 0; padding-top: 0.35rem; color: var(--muted-foreground); font-size: 0.8rem; }
+  .sap-posts-list { gap: calc(1rem * var(--sap-space-scale, 1)); }
+  @container (min-width: 34rem) {
+    .sap-posts-list .sap-post-link { flex-direction: row; }
+    .sap-posts-list .sap-post-media { flex: none; width: min(16rem, 34%); aspect-ratio: 4 / 3; }
+    .sap-posts-list .sap-post-title { font-size: 1.35rem; }
+  }
+  .sap-posts-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+  .sap-posts-bento { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); grid-auto-flow: dense; }
+  @container (min-width: 52rem) {
+    .sap-posts-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .sap-posts-bento > .sap-post:nth-child(6n + 1) { grid-column: span 2; grid-row: span 2; }
+    .sap-posts-bento > .sap-post:nth-child(6n + 4) { grid-column: span 2; }
+    .sap-posts-bento > .sap-post:nth-child(6n + 1) .sap-post-title { font-size: clamp(1.4rem, 3.4cqi, 2rem); }
+    .sap-posts-bento > .sap-post:nth-child(6n + 1) .sap-post-media { aspect-ratio: 16 / 10; }
+    /* A big tile without a picture keeps its text at the bottom. */
+    .sap-posts-bento > .sap-post:nth-child(6n + 1):not(:has(.sap-post-media)) .sap-post-body { justify-content: flex-end; }
+    .sap-posts-bento > .sap-post:nth-child(6n + 1):not(:has(.sap-post-media)) .sap-post-meta { margin-top: 0; }
+    /* Close the last row: a fifth tile of six spans it, a fifth and sixth share it. */
+    .sap-posts-bento > .sap-post:last-child:nth-child(6n + 5) { grid-column: 1 / -1; }
+    .sap-posts-bento > .sap-post:last-child:nth-child(6n + 5) .sap-post-link { flex-direction: row; }
+    .sap-posts-bento > .sap-post:last-child:nth-child(6n + 5) .sap-post-media { flex: none; width: 40%; aspect-ratio: 16 / 9; }
+    .sap-posts-bento > .sap-post:nth-last-child(2):nth-child(6n + 5), .sap-posts-bento > .sap-post:last-child:nth-child(6n + 6) { grid-column: span 2; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   }
 }
+
+/* ------------------------------------------------------------------------
+   Customiser and widget-area hooks. Unlayered on purpose: these structural
+   rules must beat the themes' own component rules (an announcement in the
+   top bar is still a Basecoat .alert), while keeping specificity low so a
+   theme can refine them. They only match markup that exists when the
+   feature is in use, so a default site renders exactly as before. */
+
+/* Top bar: Appearance → Widgets → Top bar, a strip above the header. */
+.widget-area-top { position: relative; z-index: 45; display: block; background: color-mix(in oklch, var(--primary) 12%, var(--background)); color: var(--foreground); border-bottom: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); font-size: 0.9rem; line-height: 1.45; }
+.widget-area-top:has(.alert[data-category="success"]) { background: color-mix(in oklch, oklch(0.72 0.17 150) 18%, var(--background)); border-bottom-color: color-mix(in oklch, oklch(0.72 0.17 150) 35%, transparent); }
+.widget-area-top:has(.alert[data-category="warning"]) { background: color-mix(in oklch, oklch(0.8 0.16 75) 24%, var(--background)); border-bottom-color: color-mix(in oklch, oklch(0.8 0.16 75) 45%, transparent); }
+.widget-area-top:has(.alert[data-category="error"], .alert[data-variant="destructive"]) { background: color-mix(in oklch, var(--destructive, #dc2626) 14%, var(--background)); }
+.widget-area-top > .widget { width: min(100% - 2rem, var(--sap-content-width, 76rem)); margin-inline: auto; padding-block: 0.55rem; text-align: center; }
+.widget-area-top > .widget + .widget { border-top: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent); }
+.widget-area-top .widget-title { margin: 0 0 0.15rem; font-size: 0.7rem; }
+.widget-area-top .widget-html > * + * { margin-top: 0.35em; }
+.widget-area-top .alert { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 0.35rem 0.75rem; width: auto; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font-size: inherit; text-align: center; }
+.widget-area-top .alert > svg { flex: none; width: 1.05rem; height: 1.05rem; margin: 0; }
+.widget-area-top .alert > :is(h2, h3, strong) { margin: 0; font-size: inherit; }
+.widget-area-top .alert > section { display: flex; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.25rem 0.9rem; color: inherit; }
+.widget-area-top .alert > section > * { margin: 0; }
+.widget-area-top a { color: inherit; font-weight: 600; text-underline-offset: 0.18em; }
+.widget-area-top .btn { min-height: 0; height: auto; padding: 0.3rem 0.85rem; font-size: 0.8rem; }
+
+/* Header logo from the customiser. */
+.sap-logo { display: block; flex: none; width: auto; height: var(--sap-logo-height, 2rem); max-width: min(12rem, 40vw); object-fit: contain; }

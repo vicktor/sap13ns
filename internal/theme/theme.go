@@ -56,6 +56,8 @@ type Manifest struct {
 	WidgetAreas []WidgetArea   `json:"widget_areas"`
 	Options     []Option       `json:"options"`
 	Swatches    []string       `json:"swatches"` // preview colours for the admin
+
+	Tokens *Tokens `json:"tokens,omitempty"` // default colours, see tokens.go
 }
 
 type Theme struct {
@@ -193,6 +195,13 @@ func (m *Manager) parse(t *Theme) error {
 	if _, err := base.ParseFS(m.shared, "*.html"); err != nil {
 		return fmt.Errorf("shared templates: %w", err)
 	}
+	// The block builder's blocks (internal/builder), which themes may
+	// redefine too.
+	if matches, _ := fs.Glob(m.shared, "blocks/*.html"); len(matches) > 0 {
+		if _, err := base.ParseFS(m.shared, "blocks/*.html"); err != nil {
+			return fmt.Errorf("shared block templates: %w", err)
+		}
+	}
 	if _, err := fs.Stat(t.fsys, "templates/layout.html"); err != nil {
 		return errors.New("templates/layout.html is required")
 	}
@@ -243,6 +252,15 @@ func (m *Manager) parse(t *Theme) error {
 		}
 		t.pages["ask"] = set
 	}
+	// Pages laid out with the block builder.
+	set, err := base.Clone()
+	if err != nil {
+		return err
+	}
+	if _, err := set.Parse(`{{define "content"}}{{template "shared/blocks-main" .}}{{end}}`); err != nil {
+		return err
+	}
+	t.pages["blocks"] = set
 	return nil
 }
 

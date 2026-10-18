@@ -9,6 +9,7 @@
     {"id": "footer", "label": "Footer menu"}
   ],
   "widget_areas": [
+    {"id": "top", "label": "Top bar", "description": "A full-width strip above the header, for announcements."},
     {"id": "sidebar", "label": "Sidebar", "description": "Below the navigation in the left sidebar (the menu drawer on small screens)."},
     {"id": "footer", "label": "Footer", "description": "Columns above the footer line."}
   ],
@@ -26,5 +27,19 @@
     {"key": "thumbnails", "label": "Show featured-image thumbnails in post lists", "type": "bool", "default": "true"},
     {"key": "sidebar_categories", "label": "List categories with post counts in the sidebar", "type": "bool", "default": "true", "help": "Skipped automatically when the Sidebar area already holds a Categories widget."}
   ],
+  "tokens": {
+    "light": {"background": "#f6f6f7", "foreground": "#18181b", "card": "#ffffff", "card-foreground": "#18181b", "muted": "#f4f4f5", "muted-foreground": "#63636b", "border": "#e4e4e7", "primary": "#4f46e5", "primary-foreground": "#ffffff", "accent": "#f4f4f5", "accent-foreground": "#18181b"},
+    "dark": {"background": "#09090b", "foreground": "#ececef", "card": "#111113", "card-foreground": "#ececef", "muted": "#1b1b1f", "muted-foreground": "#a1a1aa", "border": "#232327", "primary": "#818cf8", "primary-foreground": "#0b0b12", "accent": "#222226", "accent-foreground": "#ececef"},
+    "options": {
+      "accent": {
+        "violet": {"light": {"primary": "#7c3aed"}, "dark": {"primary": "#a78bfa"}},
+        "sky": {"light": {"primary": "#0369a1"}, "dark": {"primary": "#38bdf8"}},
+        "emerald": {"light": {"primary": "#047857"}, "dark": {"primary": "#34d399"}},
+        "rose": {"light": {"primary": "#be123c"}, "dark": {"primary": "#fb7185"}},
+        "amber": {"light": {"primary": "#b45309"}, "dark": {"primary": "#fbbf24"}},
+        "slate": {"light": {"primary": "#334155"}, "dark": {"primary": "#cbd5e1"}}
+      }
+    }
+  },
   "swatches": ["#f6f6f7", "#ffffff", "#18181b", "#4f46e5"]
 }

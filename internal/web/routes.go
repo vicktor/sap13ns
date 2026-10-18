@@ -137,6 +137,7 @@ func (s *Server) routes() *http.ServeMux {
 	admin("POST /admin/appearance/themes/{slug}/activate", auth.CapAppearance, s.adminThemeActivate)
 	admin("GET /admin/appearance/themes/{slug}/options", auth.CapAppearance, s.adminThemeOptions)
 	admin("POST /admin/appearance/themes/{slug}/options", auth.CapAppearance, s.adminThemeOptionsSave)
+	s.customRoutes(mux, admin) // theme customiser (customize.go)
 	admin("GET /admin/appearance/menus", auth.CapAppearance, s.adminMenus)
 	admin("POST /admin/appearance/menus", auth.CapAppearance, s.adminMenuAdd)
 	admin("POST /admin/appearance/menus/{id}", auth.CapAppearance, s.adminMenuUpdate)

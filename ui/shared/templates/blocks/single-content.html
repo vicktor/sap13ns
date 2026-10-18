@@ -1,0 +1,9 @@
+{{/* blocks/single-content: title, summary and body of the post or page.
+     Data: *BlockView. */}}
+{{define "blocks/single-content"}}{{with .Page.Post}}
+<article class="sap-b sap-b-content sap-measure-{{$.S.width}}">
+  {{if $.On "title"}}<h1 class="sap-entry-title">{{.Title}}</h1>{{end}}
+  {{if $.On "summary"}}{{with .Summary}}<p class="sap-entry-summary">{{.}}</p>{{end}}{{end}}
+  {{template "shared/content" .}}
+</article>
+{{end}}{{end}}

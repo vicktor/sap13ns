@@ -1,0 +1,150 @@
+{{template "admin" .}}
+{{/* Page builder: the structure of a region (sections, columns, blocks) and
+     the selected item's settings on the left, a live preview of the draft
+     on the right (ui/static/builder.js, ui/admin/src/builder.css). Every
+     change is saved as the theme's draft layout; visitors only see it once
+     it is published. */}}
+
+{{define "content"}}
+{{$d := .D}}{{$th := $d.Theme}}
+{{$base := printf "/admin/appearance/themes/%s/builder" $th.Slug}}
+{{$cz := printf "/admin/appearance/themes/%s/customize" $th.Slug}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/appearance/themes">{{icon "arrow-left" "size-3.5"}} {{T "Themes"}}</a></p>
+    <h1>{{T "Page builder · %s" $th.Name}}</h1>
+    <p>{{T "Build the header, the footer and each type of page from sections, columns and blocks. Whatever you do not build keeps the theme's design."}}{{if not $d.Active}} {{T "This theme is not the active one: what you publish applies when it is activated."}}{{end}}</p>
+  </div>
+  <div class="page-actions">
+    <p class="cz-status" id="bl-status" role="status" aria-live="polite">{{if $d.HasDraft}}{{T "Unpublished changes"}}{{else}}{{T "Up to date with the published layout"}}{{end}}</p>
+    <a class="btn" data-variant="ghost" data-size="sm" href="{{$cz}}">{{icon "paintbrush"}}{{T "Colours and fonts"}}</a>
+    <form method="post" action="{{$base}}/discard">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="bl-discard" data-confirm="{{T "Discard the draft and go back to the published layout?"}}"{{if not $d.HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
+    <form method="post" action="{{$base}}/publish" data-bl-publish>{{.CSRFField}}<button class="btn" data-size="sm" type="submit" id="bl-publish"{{if not $d.HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
+  </div>
+</div>
+<noscript><div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The page builder needs JavaScript."}}</h2></div></noscript>
+
+<div class="builder" data-builder data-base="{{$base}}" data-state="{{$d.State}}"
+  data-msg-saving="{{T "Saving draft…"}}" data-msg-saved="{{T "Draft saved at %s"}}" data-msg-failed="{{T "The draft was not saved: %s"}}"
+  data-msg-invalid="{{T "Check the highlighted blocks."}}" data-msg-offline="{{T "The server could not be reached."}}"
+  data-msg-pending="{{T "Saving before publishing…"}}" data-msg-unpublished="{{T "Unpublished changes"}}"
+  data-msg-external="{{T "External links open in a new tab."}}" data-msg-blocked="{{T "Forms that send data are disabled in the preview."}}"
+  data-msg-theme-region="{{T "This part uses the theme's design."}}" data-msg-block-region="{{T "This part is built with blocks."}}"
+  data-msg-build="{{T "Build it with blocks"}}" data-msg-unbuild="{{T "Use the theme's design"}}"
+  data-msg-unbuilt="{{T "Back to the theme's design. Undo with Ctrl+Z."}}"
+  data-msg-no-preview="{{T "There is no page of this type to preview yet."}}"
+  data-msg-top-bar="{{T "Show the Top bar widget area above the header"}}"
+  data-msg-section="{{T "Section %d"}}" data-msg-column="{{T "Column %d"}}" data-msg-columns="{{T "%d columns"}}"
+  data-msg-add-block="{{T "Add block"}}" data-msg-add-section="{{T "Add section"}}" data-msg-empty="{{T "No blocks yet."}}"
+  data-msg-move="{{T "Move (drag, or arrow keys)"}}" data-msg-duplicate="{{T "Duplicate"}}" data-msg-delete="{{T "Delete"}}"
+  data-msg-edit="{{T "Settings"}}" data-msg-moved="{{T "Moved: %s"}}" data-msg-deleted="{{T "Deleted. Undo with Ctrl+Z."}}"
+  data-msg-cannot-move="{{T "It cannot move further."}}" data-msg-required="{{T "This block is required here."}}"
+  data-msg-once="{{T "Already in this part (one per part)."}}"
+  data-msg-select-hint="{{T "Select a section or a block to change its settings."}}"
+  data-msg-section-settings="{{T "Section settings"}}" data-msg-layout="{{T "Columns"}}"
+  data-msg-translations="{{T "Translations"}}" data-msg-translation-hint="{{T "Empty fields use the main text."}}"
+  data-msg-no-image="{{T "No image"}}" data-msg-no-images="{{T "Upload images in Media to use them here."}}"
+  data-msg-default="{{T "Default: %s"}}" data-msg-url-hint="{{T "A page of this site such as /about, or a full address such as https://example.com"}}"
+  data-msg-preset-1="{{T "One column"}}" data-msg-preset-1-1="{{T "Two equal columns"}}" data-msg-preset-2-1="{{T "Wide and narrow"}}"
+  data-msg-preset-1-2="{{T "Narrow and wide"}}" data-msg-preset-1-1-1="{{T "Three equal columns"}}"
+  data-msg-bad-url="{{T "Use a page of this site such as /about, a full https:// address, #section or mailto:"}}" data-msg-bad-email="{{T "Enter an e-mail address."}}"
+  data-msg-too-long="{{T "At most %d characters."}}"
+  data-msg-move-up="{{T "Move up"}}" data-msg-move-down="{{T "Move down"}}"
+  data-msg-nf-title="{{T "Page not found"}}" data-msg-nf-text="{{T "The address may be mistyped, or the page was moved."}}" data-msg-nf-button="{{T "Back to the homepage"}}">
+
+  <div class="bl-panel">
+    <div class="bl-bar">
+      <div class="field bl-region-field">
+        <label for="bl-region">{{T "Editing"}}</label>
+        <select class="select w-full" id="bl-region"></select>
+      </div>
+      <div class="bl-history" role="group" aria-label="{{T "History"}}">
+        <button type="button" class="btn" data-variant="outline" data-size="icon" data-undo disabled aria-label="{{T "Undo"}} (Ctrl+Z)" title="{{T "Undo"}} (Ctrl+Z)">{{icon "undo-2"}}</button>
+        <button type="button" class="btn" data-variant="outline" data-size="icon" data-redo disabled aria-label="{{T "Redo"}} (Ctrl+Shift+Z)" title="{{T "Redo"}} (Ctrl+Shift+Z)">{{icon "redo-2"}}</button>
+      </div>
+    </div>
+    <div class="bl-intro" id="bl-intro"></div>
+    <div class="bl-structure" id="bl-structure" aria-label="{{T "Structure"}}"></div>
+    <p class="sr-only" id="bl-live" role="status" aria-live="assertive"></p>
+    <section class="card bl-settings" id="bl-settings" aria-labelledby="bl-settings-title"></section>
+  </div>
+
+  <section class="cz-preview bl-preview" aria-label="{{T "Preview"}}">
+    <div class="cz-toolbar" role="toolbar" aria-label="{{T "Preview options"}}">
+      <div class="cz-segment" role="group" aria-label="{{T "Screen size"}}">
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-device="desktop" aria-pressed="true">{{icon "monitor"}}<span>{{T "Desktop"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-device="mobile" aria-pressed="false">{{icon "smartphone"}}<span>{{T "Mobile"}}</span></button>
+      </div>
+      <div class="cz-segment" role="group" aria-label="{{T "Colour scheme"}}">
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="light" aria-pressed="true">{{icon "sun"}}<span>{{T "Light"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="dark" aria-pressed="false">{{icon "moon"}}<span>{{T "Dark"}}</span></button>
+      </div>
+      <span class="cz-spacer"></span>
+      <button type="button" class="btn" data-variant="ghost" data-size="icon" data-reload aria-label="{{T "Reload the preview"}}" title="{{T "Reload the preview"}}">{{icon "refresh-cw"}}</button>
+      <a class="btn" data-variant="ghost" data-size="icon" href="/" target="_blank" rel="noopener" data-open-preview aria-label="{{T "Open the preview in a new tab"}}" title="{{T "Open the preview in a new tab"}}">{{icon "external-link"}}</a>
+    </div>
+    <div class="cz-frame" data-device="desktop">
+      <iframe id="bl-frame" title="{{T "Preview of the draft layout"}}"></iframe>
+    </div>
+  </section>
+</div>
+
+<dialog id="bl-picker" class="dialog bl-picker" aria-labelledby="bl-picker-title" aria-describedby="bl-picker-where" data-overlay-close>
+  <div>
+    <header>
+      <h2 id="bl-picker-title">{{T "Add a block"}}</h2>
+      <p id="bl-picker-where"></p>
+    </header>
+    <section><ul class="bl-types" id="bl-types"></ul></section>
+    <footer><button type="button" class="btn" data-variant="outline" data-dialog-close>{{T "Cancel"}}</button></footer>
+  </div>
+</dialog>
+
+{{/* Icons for the editor's script, which cannot render them itself. */}}
+<template id="bl-icons">{{range $d.Icons}}<span data-icon="{{.}}">{{icon .}}</span>{{end}}</template>
+
+<section class="cz-manage">
+  <div class="card">
+    <header><h2>{{icon "history"}}{{T "Published versions"}}</h2><p>{{T "The last 10 published layouts. Restoring one copies it into the draft."}}</p></header>
+    <section>
+      {{if $d.Revisions}}
+      <ol class="cz-revisions">
+        {{range $i, $r := $d.Revisions}}
+        <li>
+          <span class="cz-rev-meta"><strong>{{dateTime $r.CreatedAt}}</strong>{{with $r.UserName}} · {{.}}{{end}}{{if eq $i 0}} <span class="badge" data-variant="success">{{T "Live"}}</span>{{end}}</span>
+          <form method="post" action="{{$base}}/revisions/{{$r.ID}}/restore">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Replace the draft with this version?"}}">{{icon "rotate-ccw"}}{{T "Restore"}}</button></form>
+        </li>
+        {{end}}
+      </ol>
+      {{else}}<p class="muted text-sm">{{T "Nothing has been published yet."}}</p>{{end}}
+    </section>
+  </div>
+  <div class="card">
+    <header><h2>{{icon "share-2"}}{{T "Export and import"}}</h2><p>{{T "One JSON file with the draft layouts, the design and the theme options, shared with the customiser."}}</p></header>
+    <section class="form">
+      <a class="btn self-start" data-variant="outline" data-size="sm" href="{{$cz}}/export" download>{{icon "download"}}{{T "Export JSON"}}</a>
+      <form method="post" action="{{$cz}}/import" enctype="multipart/form-data" class="cz-import">
+        {{.CSRFField}}<input type="hidden" name="return" value="builder">
+        <div class="field">
+          <label for="bl-import-file">{{T "Import a design file"}}</label>
+          <input class="input" type="file" id="bl-import-file" name="file" accept=".json,application/json" required>
+        </div>
+        <button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Replace the drafts with the imported file?"}}">{{icon "file-input"}}{{T "Import into the draft"}}</button>
+      </form>
+    </section>
+  </div>
+  <div class="card">
+    <header><h2>{{icon "info"}}{{T "Keyboard"}}</h2><p>{{T "Every action has a button; these are shortcuts."}}</p></header>
+    <section>
+      <dl class="bl-keys">
+        <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>{{T "On a handle: move the section or block"}}</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>{{T "On a block's handle: move it to the next column"}}</dd>
+        <dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt><dd>{{T "Undo"}}</dd>
+        <dt><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd></dt><dd>{{T "Redo"}}</dd>
+      </dl>
+      <p class="muted text-sm">{{T "The footer always keeps the credits line: the sap13ns licence requires it."}}</p>
+    </section>
+  </div>
+</section>
+<script type="module" src="{{asset "builder.js"}}"></script>
+{{end}}

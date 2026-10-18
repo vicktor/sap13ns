@@ -1,0 +1,10 @@
+{{/* blocks/post-meta: date, author, reading time, terms and share links.
+     Data: *BlockView. */}}
+{{define "blocks/post-meta"}}{{with .Page.Post}}
+<div class="sap-b sap-b-post-meta">
+  {{if $.On "date"}}{{template "shared/post-meta" .}}{{end}}
+  {{if $.On "categories"}}{{template "shared/categories" .}}{{end}}
+  {{if $.On "tags"}}{{template "shared/tags" .}}{{end}}
+  {{if $.On "share"}}{{template "shared/share" .}}{{end}}
+</div>
+{{end}}{{end}}

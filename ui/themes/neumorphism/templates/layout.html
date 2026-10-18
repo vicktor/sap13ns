@@ -1,29 +1,33 @@
 {{define "layout"}}<!doctype html>
-<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} depth-{{index .Site.Options "depth"}}">
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} depth-{{index .Site.Options "depth"}}{{with .Site.Custom.Class}} {{.}}{{end}}">
 <head>{{template "shared/head" .}}</head>
 <body class="kind-{{.Kind}}">
 {{template "shared/skip-link"}}
 {{template "shared/admin-bar" .}}
+{{if .BlocksHeader}}{{template "shared/blocks-header" .}}{{else}}
+{{template "shared/widget-area" (dict "Page" . "Area" "top")}}
 <header class="nm-header">
   <div class="nm-bar">
     <a class="nm-brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
-      <span class="nm-brand-mark" aria-hidden="true"><span></span></span>
-      <span class="nm-brand-name">{{.Site.Title}}</span>
+      {{if .Site.Custom.Logo}}{{template "shared/logo" .}}{{else}}<span class="nm-brand-mark" aria-hidden="true"><span></span></span>{{end}}
+      {{if not .Site.Custom.LogoOnly}}<span class="nm-brand-name">{{.Site.Title}}</span>{{end}}
     </a>
     <nav class="nm-nav" aria-label="{{T "Main menu"}}">
       <ul id="primary-menu" class="nm-menu">{{template "shared/menu" (.Site.Menu "primary")}}</ul>
     </nav>
     <div class="nm-actions">
-      <a class="nm-icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>
+      {{if not .Site.Custom.HideSearch}}<a class="nm-icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>{{end}}
       {{template "shared/lang-switch" .}}
       {{template "shared/theme-toggle"}}
       {{template "shared/nav-toggle" "primary-menu"}}
     </div>
   </div>
 </header>
+{{end}}
 <main id="main" tabindex="-1">
 {{template "content" .}}
 </main>
+{{if .BlocksFooter}}{{template "shared/blocks-footer" .}}{{else}}
 <footer class="nm-footer">
   <div class="wrap">
     <div class="nm-tray">
@@ -36,6 +40,7 @@
     </div>
   </div>
 </footer>
+{{end}}
 {{template "shared/assistant" .}}
 </body>
 </html>{{end}}

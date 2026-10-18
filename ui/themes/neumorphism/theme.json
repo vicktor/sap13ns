@@ -9,6 +9,7 @@
     {"id": "footer", "label": "Footer menu"}
   ],
   "widget_areas": [
+    {"id": "top", "label": "Top bar", "description": "A full-width strip above the header, for announcements."},
     {"id": "sidebar", "label": "Sidebar", "description": "Soft panels beside the post listings (below them on small screens)."},
     {"id": "footer", "label": "Footer", "description": "Columns inside the carved footer tray."}
   ],
@@ -25,5 +26,18 @@
     {"key": "card_images", "label": "Show featured images in post cards", "type": "bool", "default": "true"},
     {"key": "sidebar", "label": "Show the sidebar next to post listings", "type": "bool", "default": "true"}
   ],
+  "tokens": {
+    "light": {"background": "#e6e9ef", "foreground": "#262d3a", "card": "#e6e9ef", "card-foreground": "#262d3a", "muted": "#dfe3ea", "muted-foreground": "#4f596b", "border": "#cbd1dc", "primary": "#4750b0", "primary-foreground": "#f4f6fa", "accent": "#dfe3ea", "accent-foreground": "#262d3a"},
+    "dark": {"background": "#1f2329", "foreground": "#e4e8ef", "card": "#1f2329", "card-foreground": "#e4e8ef", "muted": "#1a1d22", "muted-foreground": "#a3acba", "border": "#30353e", "primary": "#a3abff", "primary-foreground": "#16191e", "accent": "#1a1d22", "accent-foreground": "#e4e8ef"},
+    "options": {
+      "accent": {
+        "teal": {"light": {"primary": "#11686f"}, "dark": {"primary": "#6fcacb"}},
+        "rose": {"light": {"primary": "#a23a5f"}, "dark": {"primary": "#f39bba"}},
+        "amber": {"light": {"primary": "#82500a"}, "dark": {"primary": "#e8b665"}},
+        "sage": {"light": {"primary": "#2f6a45"}, "dark": {"primary": "#90d1a3"}},
+        "slate": {"light": {"primary": "#3c4a5e"}, "dark": {"primary": "#c3cedc"}}
+      }
+    }
+  },
   "swatches": ["#e6e9ef", "#1f2329", "#262d3a", "#4750b0"]
 }

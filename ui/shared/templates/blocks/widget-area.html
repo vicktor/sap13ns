@@ -1,0 +1,2 @@
+{{/* blocks/widget-area: the widgets of one of the theme's areas. Data: *BlockView. */}}
+{{define "blocks/widget-area"}}{{if .Page.Area .S.area}}<div class="sap-b sap-b-widgets">{{template "shared/widget-area" (dict "Page" .Page "Area" .S.area)}}</div>{{end}}{{end}}

@@ -1,0 +1,114 @@
+/* Page builder (ui/admin/templates/builder.html, ui/static/builder.js): the
+   structure and settings of a region beside the customiser's framed live
+   preview (.cz-preview, customizer.css). */
+
+.admin-content:has(> .builder) { @apply max-w-none; }
+
+.builder { @apply mb-8 grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)]; }
+
+.bl-panel {
+  @apply flex min-w-0 flex-col gap-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:pr-1;
+  scrollbar-gutter: stable;
+}
+.bl-bar { @apply flex items-end gap-2; }
+.bl-region-field { @apply flex min-w-0 flex-1 flex-col; }
+.bl-region-field select { @apply min-w-0; }
+.bl-history { @apply flex gap-1; }
+
+.bl-intro { @apply flex flex-col items-start gap-2.5 rounded-xl border border-dashed bg-card p-3.5 text-sm; }
+.bl-intro[data-built="true"] { @apply border-solid; }
+.bl-intro-text { @apply flex items-center gap-2 text-muted-foreground; }
+.bl-intro-text > svg { @apply size-4 shrink-0; }
+
+/* -------------------------------------------------------------- structure */
+.bl-structure { @apply relative flex flex-col gap-2; }
+.bl-structure[hidden] { display: none; }
+.bl-sections { @apply flex flex-col gap-2; }
+.bl-section { @apply rounded-xl border bg-card text-card-foreground; }
+.bl-section[aria-current="true"] { @apply border-primary; box-shadow: 0 0 0 1px var(--primary); }
+.bl-section[data-invalid] { border-color: color-mix(in oklch, var(--destructive) 60%, var(--border)); }
+.bl-row { @apply flex min-w-0 items-center gap-0.5 px-1 py-1; }
+.bl-row .btn[data-size="icon"] { @apply size-7 shrink-0 text-muted-foreground; }
+.bl-row .btn[data-size="icon"] svg { @apply size-3.5; }
+.bl-row-section { @apply border-b; }
+.bl-grip {
+  @apply inline-grid size-7 shrink-0 cursor-grab place-items-center rounded-md text-muted-foreground hover:bg-muted;
+  touch-action: none;
+}
+.bl-grip svg { @apply size-4; }
+.bl-grip:focus-visible, .bl-select:focus-visible, .bl-add:focus-visible, .bl-preset:focus-visible, .bl-type:focus-visible { @apply outline-2 outline-offset-1 outline-ring; }
+.builder.is-dragging, .builder.is-dragging * { cursor: grabbing !important; user-select: none; }
+.bl-select { @apply flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted; }
+.bl-select > svg { @apply size-4 shrink-0 text-muted-foreground; }
+.bl-name { @apply shrink-0 font-medium; }
+.bl-meta { @apply min-w-0 truncate text-xs text-muted-foreground; }
+.bl-flag { @apply ml-auto text-destructive; }
+.bl-flag svg { @apply size-4; }
+.bl-lock { @apply inline-grid size-7 shrink-0 place-items-center text-muted-foreground; }
+.bl-lock svg { @apply size-3.5; }
+
+.bl-columns { @apply flex flex-col gap-2 p-2; }
+.bl-column { @apply flex flex-col gap-1 rounded-lg bg-muted/60 p-1.5; }
+.bl-col-label { @apply px-1 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase; }
+.bl-blocks { @apply flex min-h-8 flex-col gap-1; }
+.bl-block { @apply rounded-md border bg-background; }
+.bl-block .bl-row { @apply py-0.5; }
+.bl-block[aria-current="true"] { @apply border-primary; box-shadow: 0 0 0 1px var(--primary); }
+.bl-block[data-invalid] { border-color: var(--destructive); }
+.bl-block.is-dragging, .bl-section.is-dragging { @apply opacity-40; }
+.bl-empty { @apply px-2 py-1.5 text-xs text-muted-foreground italic; }
+.bl-add { @apply flex items-center gap-1.5 self-start rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-background hover:text-foreground; }
+.bl-add svg { @apply size-3.5; }
+
+.bl-drop-line { @apply pointer-events-none absolute z-10 h-0.5 rounded-full bg-primary; box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 25%, transparent); }
+.bl-drop-line[hidden] { display: none; }
+
+.bl-add-section { @apply flex flex-wrap items-center gap-2 rounded-xl border border-dashed p-2.5; }
+.bl-add-label { @apply text-xs font-medium text-muted-foreground; }
+
+/* Column presets drawn as bars. */
+.bl-presets { @apply flex flex-wrap gap-1.5; }
+.bl-preset { @apply inline-grid cursor-pointer place-items-center rounded-md border bg-background p-1.5 hover:border-primary; }
+.bl-preset:has(> input:checked) { @apply border-primary bg-accent; box-shadow: 0 0 0 1px var(--primary); }
+.bl-preset:has(> input:focus-visible) { @apply outline-2 outline-offset-1 outline-ring; }
+.bl-shape { @apply grid h-5 w-10 gap-0.5; }
+.bl-shape > span { @apply rounded-[3px] bg-muted-foreground/45; }
+.bl-shape-1 { @apply grid-cols-1; }
+.bl-shape-1-1 { @apply grid-cols-2; }
+.bl-shape-2-1 { @apply grid-cols-[2fr_1fr]; }
+.bl-shape-1-2 { @apply grid-cols-[1fr_2fr]; }
+.bl-shape-1-1-1 { @apply grid-cols-3; }
+.bl-preset-field { @apply flex flex-col gap-2 border-0 p-0; }
+.bl-preset-field legend { @apply mb-2 text-sm font-medium; }
+
+/* --------------------------------------------------------------- settings */
+.bl-settings[hidden] { display: none; }
+.bl-settings > header h2 { @apply flex items-center gap-2; }
+.bl-settings > header h2 svg { @apply size-4 text-muted-foreground; }
+.bl-settings > header p { @apply text-sm text-muted-foreground; }
+.bl-form { @apply flex flex-col gap-4; }
+.bl-form .field { @apply flex flex-col; }
+.bl-hint { @apply px-6 text-sm text-muted-foreground; }
+.bl-image { @apply flex items-center gap-2; }
+.bl-thumb { @apply size-10 shrink-0 rounded-md border object-cover; }
+.bl-thumb-empty { @apply inline-grid place-items-center bg-muted text-muted-foreground; }
+.bl-thumb-empty svg { @apply size-4; }
+.bl-i18n { @apply rounded-lg border; }
+.bl-i18n > summary { @apply flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden; }
+.bl-i18n > summary svg { @apply size-4 text-muted-foreground; }
+.bl-i18n[open] > summary { @apply border-b; }
+.bl-i18n > :not(summary) { @apply mx-3 my-3; }
+.bl-move { @apply flex flex-wrap gap-2 border-t pt-4; }
+
+/* ---------------------------------------------------------------- picker */
+.bl-picker > div { @apply w-[min(40rem,calc(100vw-2rem))] max-w-none; }
+.bl-types { @apply grid gap-1.5 sm:grid-cols-2; }
+.bl-type { @apply flex w-full items-start gap-3 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-transparent; }
+.bl-type > svg { @apply mt-0.5 size-4 shrink-0 text-muted-foreground; }
+.bl-type-text { @apply flex min-w-0 flex-col gap-0.5 text-sm; }
+.bl-type-text > span { @apply text-xs text-muted-foreground; }
+
+.bl-keys { @apply mb-3 grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 text-sm; }
+.bl-keys dt { @apply whitespace-nowrap; }
+.bl-keys dd { @apply text-muted-foreground; }
+.bl-keys kbd { @apply rounded border bg-muted px-1.5 py-0.5 font-mono text-[0.7rem]; }

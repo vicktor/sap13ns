@@ -1,0 +1,17 @@
+{{/* blocks/site-header: brand, menu, search, language switch, light/dark
+     toggle and the small-screen menu button. Data: *BlockView. */}}
+{{define "blocks/site-header"}}{{$p := .Page}}
+<div class="sap-b sap-b-site-header sap-sh-{{.S.layout}}{{if .On "sticky"}} is-sticky{{end}}">
+  <a class="sap-sh-brand" href="{{link "/"}}" aria-label="{{$p.Site.Title}} — {{T "Home"}}">
+    {{if $p.Site.Custom.Logo}}{{template "shared/logo" $p}}{{end}}
+    {{if not $p.Site.Custom.LogoOnly}}<span class="sap-sh-name"><span class="sap-sh-title">{{$p.Site.Title}}</span>{{if .On "tagline"}}{{with $p.Site.Tagline}}<span class="sap-sh-tagline">{{.}}</span>{{end}}{{end}}</span>{{end}}
+  </a>
+  {{with $p.Site.Menu .S.menu}}<nav class="sap-sh-nav" aria-label="{{T "Main menu"}}"><ul id="sap-menu-{{$.ID}}" class="sap-sh-menu">{{template "shared/menu" .}}</ul></nav>{{end}}
+  <div class="sap-sh-actions">
+    {{if and (.On "search") (not $p.Site.Custom.HideSearch)}}<a class="sap-icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}">{{icon "search"}}</a>{{end}}
+    {{if .On "lang"}}{{template "shared/lang-switch" $p}}{{end}}
+    {{if .On "toggle"}}{{template "shared/theme-toggle"}}{{end}}
+    {{if $p.Site.Menu .S.menu}}{{template "shared/nav-toggle" (printf "sap-menu-%s" .ID)}}{{end}}
+  </div>
+</div>
+{{end}}

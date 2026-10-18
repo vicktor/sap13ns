@@ -1,0 +1,67 @@
+{{/* Block builder regions (internal/web/builder.go). Themes call these from
+     templates/layout.html when a layout replaces their header or footer:
+       {{if .BlocksHeader}}{{template "shared/blocks-header" .}}{{else}}…{{end}}
+     and every theme gets a "blocks" page for main areas. Styles live in
+     ui/shared/src/blocks.css and follow the theme's tokens. */}}
+
+{{/* shared/blocks-header: the Top bar widget area, then the header. Themes
+     whose top bar and header are apart call shared/blocks-top and
+     shared/blocks-bar instead. Data: PageData. */}}
+{{define "shared/blocks-header"}}{{template "shared/blocks-top" .}}{{template "shared/blocks-bar" .}}{{end}}
+
+{{define "shared/blocks-top"}}{{with .BlocksHeader}}{{if .TopBar}}{{template "shared/widget-area" (dict "Page" .Page "Area" "top")}}{{end}}{{end}}{{end}}
+
+{{define "shared/blocks-bar"}}{{with .BlocksHeader}}
+<header class="sap-region sap-region-header">{{template "shared/blocks-sections" .}}</header>
+{{end}}{{end}}
+
+{{/* shared/blocks-footer: the footer; the licence credit (shared/footer-meta)
+     is always rendered, even if the layout lost its block. Data: PageData. */}}
+{{define "shared/blocks-footer"}}{{with .BlocksFooter}}
+<footer class="sap-region sap-region-footer">
+  {{template "shared/blocks-sections" .}}
+  {{if not .HasMeta}}<div class="sap-section sap-padding-small"><div class="sap-section-inner">{{template "shared/footer-meta" .Page}}</div></div>{{end}}
+</footer>
+{{end}}{{end}}
+
+{{/* shared/blocks-main: a page's main area. Data: PageData. */}}
+{{define "shared/blocks-main"}}{{with .Blocks}}{{with .Main}}
+<div class="sap-region sap-region-main sap-region-{{.Name}}">
+  {{if .NeedsH1}}<h1 class="sr-only">{{if eq .Name "home"}}{{.Page.Site.Title}}{{else if eq .Name "404"}}{{T "Page not found"}}{{else}}{{or .Page.Heading .Page.Title .Page.Site.Title}}{{end}}</h1>{{end}}
+  {{template "shared/blocks-sections" .}}
+</div>
+{{end}}{{end}}{{end}}
+
+{{/* shared/blocks-sections: the sections of a region. Data: *RegionView. */}}
+{{define "shared/blocks-sections"}}
+{{range .Sections}}
+<div class="{{.Class}}" id="sap-{{.ID}}">
+  <div class="sap-section-inner sap-cols sap-cols-{{.Layout}}">
+    {{range .Columns}}<div class="sap-col">{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{/* shared/block: one block, by type. Data: *BlockView (.Page is the PageData). */}}
+{{define "shared/block"}}
+{{if eq .Type "site-header"}}{{template "blocks/site-header" .}}
+{{else if eq .Type "menu"}}{{template "blocks/menu" .}}
+{{else if eq .Type "search"}}{{template "blocks/search" .}}
+{{else if eq .Type "breadcrumbs"}}{{template "blocks/breadcrumbs" .}}
+{{else if eq .Type "hero"}}{{template "blocks/hero" .}}
+{{else if eq .Type "post-list"}}{{template "blocks/post-list" .}}
+{{else if eq .Type "single-content"}}{{template "blocks/single-content" .}}
+{{else if eq .Type "post-meta"}}{{template "blocks/post-meta" .}}
+{{else if eq .Type "featured-image"}}{{template "blocks/featured-image" .}}
+{{else if eq .Type "comments"}}{{template "blocks/comments" .}}
+{{else if eq .Type "pagination"}}{{template "blocks/pagination" .}}
+{{else if eq .Type "widget-area"}}{{template "blocks/widget-area" .}}
+{{else if eq .Type "rich-text"}}{{template "blocks/rich-text" .}}
+{{else if eq .Type "image"}}{{template "blocks/image" .}}
+{{else if eq .Type "button"}}{{template "blocks/button" .}}
+{{else if eq .Type "spacer"}}{{template "blocks/spacer" .}}
+{{else if eq .Type "social-links"}}{{template "blocks/social-links" .}}
+{{else if eq .Type "footer-meta"}}{{template "blocks/footer-meta" .}}
+{{end}}
+{{end}}

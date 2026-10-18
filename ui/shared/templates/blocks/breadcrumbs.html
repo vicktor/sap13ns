@@ -1,0 +1,13 @@
+{{/* blocks/breadcrumbs: where this page sits in the site. Data: *BlockView. */}}
+{{define "blocks/breadcrumbs"}}{{$p := .Page}}
+<nav class="sap-b sap-b-breadcrumbs" aria-label="{{T "Breadcrumbs"}}">
+  <ol>
+    <li><a href="{{link "/"}}">{{T "Home"}}</a></li>
+    {{if $p.Post}}{{if eq $p.Post.Type "post"}}{{with $p.Post.Categories}}{{with index . 0}}<li><a href="{{.URL}}">{{.Name}}</a></li>{{end}}{{end}}{{end}}<li><span aria-current="page">{{$p.Post.Title}}</span></li>
+    {{else if $p.Archive}}<li><span aria-current="page">{{$p.Archive.Title}}</span></li>
+    {{else if eq $p.Kind "search"}}<li><span aria-current="page">{{T "Search"}}</span></li>
+    {{else if eq $p.Kind "404"}}<li><span aria-current="page">{{T "Page not found"}}</span></li>
+    {{end}}
+  </ol>
+</nav>
+{{end}}

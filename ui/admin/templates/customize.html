@@ -1,0 +1,289 @@
+{{template "admin" .}}
+{{/* Theme customiser: controls on the left, a live preview of the draft on
+     the right (ui/static/customizer.js, ui/admin/src/customizer.css). Every
+     change is saved as the theme's draft; visitors only see it once it is
+     published. */}}
+
+{{/* cz-select: dict "ID" "Name" "Label" "Value" "Choices" (list (list value label) …) [+ "Help" "ShowIf"] */}}
+{{define "cz-select"}}
+<div class="field"{{with .ShowIf}} data-show-if="{{.}}"{{end}}>
+  <label for="{{.ID}}">{{.Label}}</label>
+  <select class="select w-full" id="{{.ID}}" name="{{.Name}}"{{with .Type}} data-type="{{.}}"{{end}}{{with .Help}} aria-describedby="{{$.ID}}-help"{{end}}>
+    {{$v := .Value}}{{range .Choices}}<option value="{{index . 0}}"{{if eq (index . 0) $v}} selected{{end}}>{{index . 1}}</option>{{end}}
+  </select>
+  {{with .Help}}<p class="hint" id="{{$.ID}}-help">{{.}}</p>{{end}}
+</div>
+{{end}}
+
+{{/* cz-font: dict "Role" "Label" "Font" (customize.Font) "Fonts" []Media "Extra" (list value label) */}}
+{{define "cz-font"}}
+{{$id := printf "cz-font-%s" .Role}}
+<div class="field cz-font">
+  <label for="{{$id}}">{{.Label}}</label>
+  <select class="select w-full" id="{{$id}}" name="fonts.{{.Role}}.stack" data-font-sample="{{$id}}-sample">
+    {{$v := .Font.Stack}}
+    <option value=""{{if eq $v ""}} selected{{end}}>{{T "Theme default"}}</option>
+    {{with .Extra}}<option value="{{index . 0}}"{{if eq $v (index . 0)}} selected{{end}}>{{index . 1}}</option>{{end}}
+    {{if ne .Role "mono"}}
+    <option value="system"{{if eq $v "system"}} selected{{end}}>{{T "System UI"}}</option>
+    <option value="humanist"{{if eq $v "humanist"}} selected{{end}}>{{T "Humanist sans-serif"}}</option>
+    <option value="geometric"{{if eq $v "geometric"}} selected{{end}}>{{T "Geometric sans-serif"}}</option>
+    <option value="serif"{{if eq $v "serif"}} selected{{end}}>{{T "Serif"}}</option>
+    {{end}}
+    <option value="mono"{{if eq $v "mono"}} selected{{end}}>{{T "Monospace"}}</option>
+    {{if or .Fonts (eq $v "media")}}<option value="media"{{if eq $v "media"}} selected{{end}}>{{T "A font from the media library"}}</option>{{end}}
+  </select>
+  {{if .Fonts}}
+  <div class="cz-sub" data-show-if="fonts.{{.Role}}.stack=media">
+    <label class="sr-only" for="{{$id}}-media">{{T "Font file for %s" .Label}}</label>
+    <select class="select w-full" id="{{$id}}-media" name="fonts.{{.Role}}.media" data-type="int">
+      {{$m := .Font.Media}}<option value="0">{{T "Choose a WOFF2 file…"}}</option>
+      {{range .Fonts}}<option value="{{.ID}}"{{if eq .ID $m}} selected{{end}}>{{.OriginalName}}</option>{{end}}
+    </select>
+  </div>
+  {{end}}
+  <p class="cz-sample" id="{{$id}}-sample" aria-hidden="true">{{T "Sphinx of black quartz, judge my vow."}}</p>
+</div>
+{{end}}
+
+{{define "cz-color"}}
+{{$id := printf "cz-%s-%s" .Scheme .Row.Key}}{{$name := printf "%s.%s" .Scheme .Row.Key}}
+{{$val := .Value}}{{$def := .Default}}
+<div class="cz-color" data-color="{{$name}}">
+  <label for="{{$id}}">{{.Row.Label}}</label>
+  <input type="color" class="cz-swatch" id="{{$id}}-pick" value="{{or $val $def}}" data-pick="{{$name}}" aria-label="{{T "%s: colour picker" .Row.Label}}">
+  <input class="input cz-hex" type="text" id="{{$id}}" name="{{$name}}" value="{{$val}}" placeholder="{{$def}}" maxlength="7" autocomplete="off" spellcheck="false" aria-describedby="cz-color-hint">
+  <button type="button" class="btn" data-variant="ghost" data-size="icon" data-clear="{{$name}}" aria-label="{{T "%s: use the theme's colour" .Row.Label}}" title="{{T "Use the theme's colour"}}"{{if not $val}} hidden{{end}}>{{icon "rotate-ccw"}}</button>
+</div>
+{{end}}
+
+{{define "content"}}
+{{$d := .D}}{{$th := $d.Theme}}{{$D := $d.Design}}
+{{$base := printf "/admin/appearance/themes/%s/customize" $th.Slug}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/appearance/themes">{{icon "arrow-left" "size-3.5"}} {{T "Themes"}}</a></p>
+    <h1>{{T "Customise %s" $th.Name}}</h1>
+    <p>{{T "Every change is saved as a draft and shown in the preview. Visitors see it once you publish."}}{{if not $d.Active}} {{T "This theme is not the active one: what you publish applies when it is activated."}}{{end}}</p>
+  </div>
+  <div class="page-actions">
+    <p class="cz-status" id="cz-status" role="status" aria-live="polite">{{if $d.HasDraft}}{{T "Unpublished changes"}}{{else}}{{T "Up to date with the published design"}}{{end}}</p>
+    <a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{$th.Slug}}/builder">{{icon "layout-template"}}{{T "Page builder"}}</a>
+    <form method="post" action="{{$base}}/discard">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="cz-discard" data-confirm="{{T "Discard the draft and go back to the published design?"}}"{{if not $d.HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
+    <form method="post" action="{{$base}}/publish" data-cz-publish>{{.CSRFField}}<button class="btn" data-size="sm" type="submit" id="cz-publish"{{if not $d.HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
+  </div>
+</div>
+<noscript><div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The customiser needs JavaScript for its live preview."}}</h2></div></noscript>
+
+<div class="customizer" data-customizer data-base="{{$base}}" data-slug="{{$th.Slug}}" data-state="{{$d.State}}"
+  data-msg-saving="{{T "Saving draft…"}}" data-msg-saved="{{T "Draft saved at %s"}}" data-msg-failed="{{T "The draft was not saved: %s"}}"
+  data-msg-invalid="{{T "Check the highlighted fields."}}" data-msg-offline="{{T "The server could not be reached."}}"
+  data-msg-external="{{T "External links open in a new tab."}}" data-msg-blocked="{{T "Forms that send data are disabled in the preview."}}"
+  data-msg-contrast="{{T "%s on %s: contrast %s:1, below %s:1 (WCAG AA)."}}" data-msg-no-warnings="{{T "All checked text colours meet WCAG AA contrast."}}"
+  data-msg-derived="{{T "Dark colours derived from the light ones. Review them in the dark preview."}}" data-msg-pending="{{T "Saving the latest changes first…"}}">
+  <form class="cz-panel" id="cz-form" novalidate autocomplete="off" aria-label="{{T "Design settings"}}">
+    <details class="cz-section" open>
+      <summary>{{icon "palette"}}<span>{{T "Colours"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        <div class="tabs" id="cz-scheme-tabs">
+          <nav role="tablist" aria-orientation="horizontal" class="w-full">
+            <button type="button" role="tab" id="cz-tab-light" aria-controls="cz-panel-light" aria-selected="true" tabindex="0" data-scheme-tab="light">{{icon "sun"}}{{T "Light"}}</button>
+            <button type="button" role="tab" id="cz-tab-dark" aria-controls="cz-panel-dark" aria-selected="false" tabindex="-1" data-scheme-tab="dark">{{icon "moon"}}{{T "Dark"}}</button>
+          </nav>
+          <div role="tabpanel" id="cz-panel-light" aria-labelledby="cz-tab-light" tabindex="-1" aria-selected="true">
+            <div class="cz-colors">{{range $d.Colors}}{{template "cz-color" (dict "Scheme" "light" "Row" . "Value" .Light "Default" .DefLight)}}{{end}}</div>
+          </div>
+          <div role="tabpanel" id="cz-panel-dark" aria-labelledby="cz-tab-dark" tabindex="-1" aria-selected="false" hidden>
+            <button type="button" class="btn w-full" data-variant="outline" data-size="sm" data-derive>{{icon "wand-sparkles"}}{{T "Derive from the light colours"}}</button>
+            <div class="cz-colors">{{range $d.Colors}}{{template "cz-color" (dict "Scheme" "dark" "Row" . "Value" .Dark "Default" .DefDark)}}{{end}}</div>
+          </div>
+        </div>
+        <p class="hint" id="cz-color-hint">{{T "Hex colours such as #1d4ed8. Leave a field empty to keep the theme's colour."}}</p>
+        <div class="cz-warnings" id="cz-warnings" aria-live="polite"></div>
+      </div>
+    </details>
+
+    <details class="cz-section">
+      <summary>{{icon "type"}}<span>{{T "Fonts"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{template "cz-font" (dict "Role" "body" "Label" (T "Body text") "Font" $D.Fonts.Body "Fonts" $d.Fonts)}}
+        {{template "cz-font" (dict "Role" "heading" "Label" (T "Headings") "Font" $D.Fonts.Heading "Fonts" $d.Fonts "Extra" (list "body" (T "Same as the body text")))}}
+        {{template "cz-font" (dict "Role" "mono" "Label" (T "Code") "Font" $D.Fonts.Mono "Fonts" $d.Fonts)}}
+        <p class="hint">{{if $d.Fonts}}{{T "Fonts from the media library are served from this site."}}{{else}}{{T "To use your own fonts, upload WOFF2 files in Media."}}{{end}}</p>
+      </div>
+    </details>
+
+    <details class="cz-section">
+      <summary>{{icon "sliders-horizontal"}}<span>{{T "Size and spacing"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{$theme := T "Theme default"}}
+        {{template "cz-select" (dict "ID" "cz-scale-text" "Name" "scale.text" "Label" (T "Text size") "Value" $D.Scale.Text
+          "Choices" (list (list "" $theme) (list "90" "90 %") (list "95" "95 %") (list "105" "105 %") (list "110" "110 %") (list "120" "120 %")))}}
+        {{template "cz-select" (dict "ID" "cz-scale-radius" "Name" "scale.radius" "Label" (T "Corner rounding") "Value" $D.Scale.Radius
+          "Choices" (list (list "" $theme) (list "none" (T "Square")) (list "small" (T "Subtle")) (list "large" (T "Round")) (list "xlarge" (T "Very round"))))}}
+        {{template "cz-select" (dict "ID" "cz-scale-density" "Name" "scale.density" "Label" (T "Spacing") "Value" $D.Scale.Density
+          "Choices" (list (list "" $theme) (list "compact" (T "Compact")) (list "snug" (T "Snug")) (list "relaxed" (T "Relaxed")) (list "spacious" (T "Spacious"))))}}
+        {{template "cz-select" (dict "ID" "cz-scale-shadow" "Name" "scale.shadow" "Label" (T "Shadows") "Value" $D.Scale.Shadow
+          "Choices" (list (list "" $theme) (list "none" (T "None")) (list "soft" (T "Soft")) (list "strong" (T "Strong"))))}}
+        {{template "cz-select" (dict "ID" "cz-scale-width" "Name" "scale.width" "Label" (T "Content width") "Value" $D.Scale.Width
+          "Choices" (list (list "" $theme) (list "narrow" (T "Narrow")) (list "medium" (T "Medium")) (list "wide" (T "Wide")) (list "xwide" (T "Extra wide"))))}}
+      </div>
+    </details>
+
+    <details class="cz-section">
+      <summary>{{icon "panel-top"}}<span>{{T "Header"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{template "cz-select" (dict "ID" "cz-brand" "Name" "header.brand" "Label" (T "Brand") "Value" $D.Header.Brand
+          "Choices" (list (list "" (T "Site title")) (list "logo-title" (T "Logo and site title")) (list "logo" (T "Logo only"))))}}
+        <fieldset class="fieldset cz-logos" data-show-if="header.brand!=">
+          <legend>{{T "Logo"}}</legend>
+          {{if $d.Images}}
+          <div class="cz-logo-grid scrollbar">
+            {{$logo := $D.Header.Logo}}
+            {{range $d.Images}}<label class="cz-logo"><input type="radio" name="header.logo" value="{{.ID}}" data-type="int"{{if eq .ID $logo}} checked{{end}}><img src="{{.VariantURL "thumb"}}" alt="" loading="lazy" width="96" height="64"><span>{{or .Alt .OriginalName}}</span></label>{{end}}
+          </div>
+          {{else}}<p class="hint">{{T "Upload the logo in Media first; SVG, PNG and WebP work best."}}</p>{{end}}
+        </fieldset>
+        {{template "cz-select" (dict "ID" "cz-align" "Name" "header.align" "Label" (T "Brand position") "Value" $D.Header.Align
+          "Choices" (list (list "" $theme) (list "center" (T "Centred above the menu"))))}}
+        {{template "cz-select" (dict "ID" "cz-sticky" "Name" "header.sticky" "Label" (T "When scrolling") "Value" $D.Header.Sticky
+          "Choices" (list (list "" $theme) (list "on" (T "Keep the header visible")) (list "off" (T "Scroll the header away"))))}}
+        <label class="check"><input type="checkbox" class="input" role="switch" name="header.hide_search" data-type="bool"{{if $D.Header.HideSearch}} checked{{end}}> {{T "Hide the search link"}}</label>
+        {{if $d.Langs}}<label class="check"><input type="checkbox" class="input" role="switch" name="header.hide_lang" data-type="bool"{{if $D.Header.HideLang}} checked{{end}}> {{T "Hide the language switch"}}</label>{{end}}
+        <p class="hint">{{T "For an announcement strip above the header, add widgets to the Top bar area in"}} <a href="/admin/appearance/widgets">{{T "Widgets"}}</a>.</p>
+      </div>
+    </details>
+
+    <details class="cz-section">
+      <summary>{{icon "panel-bottom"}}<span>{{T "Footer"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{template "cz-select" (dict "ID" "cz-footer-cols" "Name" "footer.columns" "Type" "int" "Label" (T "Widget columns") "Value" (printf "%d" $D.Footer.Columns)
+          "Choices" (list (list "0" $theme) (list "1" "1") (list "2" "2") (list "3" "3") (list "4" "4")))}}
+        <div class="field">
+          <label for="cz-footer-text">{{T "Footer text"}}</label>
+          <textarea class="textarea" id="cz-footer-text" name="footer.text" rows="2" maxlength="500" aria-describedby="cz-footer-help">{{$D.Footer.Text}}</textarea>
+          <p class="hint" id="cz-footer-help">{{T "Plain text that replaces the footer line. The sap13ns attribution is always shown."}}</p>
+        </div>
+        {{range $d.Langs}}
+        <div class="field">
+          <label for="cz-footer-text-{{.Code}}">{{T "Footer text"}} · {{.Name}}</label>
+          <textarea class="textarea" id="cz-footer-text-{{.Code}}" name="footer.text_i18n.{{.Code}}" rows="2" maxlength="500" lang="{{.Code}}">{{index $D.Footer.TextI18n .Code}}</textarea>
+        </div>
+        {{end}}
+      </div>
+    </details>
+
+    <details class="cz-section">
+      <summary>{{icon "house"}}<span>{{T "Home page"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{template "cz-select" (dict "ID" "cz-hero" "Name" "home.hero" "Label" (T "Introduction") "Value" $D.Home.Hero
+          "Choices" (list (list "" $theme) (list "on" (T "Show")) (list "off" (T "Hide"))))}}
+        {{template "cz-select" (dict "ID" "cz-home-layout" "Name" "home.layout" "Label" (T "Posts") "Value" $D.Home.Layout
+          "Choices" (list (list "" $theme) (list "list" (T "List")) (list "grid" (T "Grid")) (list "bento" (T "Bento mosaic"))))}}
+        <div class="field">
+          <label for="cz-per-page">{{T "Posts per page"}}</label>
+          <input class="input" type="number" id="cz-per-page" name="home.per_page" data-type="int" min="0" max="50" step="1" inputmode="numeric" value="{{if $D.Home.PerPage}}{{$D.Home.PerPage}}{{end}}" placeholder="{{T "Reading settings"}}" aria-describedby="cz-per-page-help">
+          <p class="hint" id="cz-per-page-help">{{T "Leave empty to use the number in Settings → Reading."}}</p>
+        </div>
+      </div>
+    </details>
+
+    {{if $th.Options}}
+    <details class="cz-section">
+      <summary>{{icon "settings"}}<span>{{T "Theme options"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{$v := $d.Options}}
+        {{range $th.Options}}
+        <div class="field">
+          {{if eq .Type "bool"}}
+          <label class="check"><input type="checkbox" class="input" role="switch" name="options.{{.Key}}" data-type="boolstr"{{if eq (index $v .Key) "true"}} checked{{end}}> {{.Label}}</label>
+          {{else}}
+          <label for="cz-opt-{{.Key}}">{{.Label}}</label>
+          {{if eq .Type "select"}}
+          <select class="select w-full" id="cz-opt-{{.Key}}" name="options.{{.Key}}">
+            {{$cur := index $v .Key}}{{range .Choices}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{.Label}}</option>{{end}}
+          </select>
+          {{else if eq .Type "textarea"}}
+          <textarea class="textarea" id="cz-opt-{{.Key}}" name="options.{{.Key}}" rows="3" maxlength="2000">{{index $v .Key}}</textarea>
+          {{else}}
+          <input class="input" id="cz-opt-{{.Key}}" name="options.{{.Key}}" type="text" value="{{index $v .Key}}" maxlength="2000">
+          {{end}}
+          {{end}}
+          {{with .Help}}<p class="hint">{{.}}</p>{{end}}
+        </div>
+        {{end}}
+      </div>
+    </details>
+    {{end}}
+
+    <details class="cz-section">
+      <summary>{{icon "code"}}<span>{{T "Custom CSS"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        <div class="field">
+          <label for="cz-css">{{T "Extra CSS rules"}}</label>
+          <textarea class="textarea cz-code" id="cz-css" name="css" rows="12" maxlength="32768" spellcheck="false" autocapitalize="off" aria-describedby="cz-css-help">{{$D.CSS}}</textarea>
+          <p class="hint" id="cz-css-help">{{T "Up to 32 KB, served as a separate file after the theme's styles. @import and url() to other sites are not allowed. Use the theme's variables, such as var(--primary)."}}</p>
+        </div>
+      </div>
+    </details>
+  </form>
+
+  <section class="cz-preview" aria-label="{{T "Preview"}}">
+    <div class="cz-toolbar" role="toolbar" aria-label="{{T "Preview options"}}">
+      <div class="cz-segment" role="group" aria-label="{{T "Screen size"}}">
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-device="desktop" aria-pressed="true">{{icon "monitor"}}<span>{{T "Desktop"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-device="mobile" aria-pressed="false">{{icon "smartphone"}}<span>{{T "Mobile"}}</span></button>
+      </div>
+      <div class="cz-segment" role="group" aria-label="{{T "Colour scheme"}}">
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="light" aria-pressed="true">{{icon "sun"}}<span>{{T "Light"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="dark" aria-pressed="false">{{icon "moon"}}<span>{{T "Dark"}}</span></button>
+      </div>
+      <span class="cz-spacer"></span>
+      <button type="button" class="btn" data-variant="ghost" data-size="icon" data-reload aria-label="{{T "Reload the preview"}}" title="{{T "Reload the preview"}}">{{icon "refresh-cw"}}</button>
+      <a class="btn" data-variant="ghost" data-size="icon" href="{{$d.PreviewURL}}" target="_blank" rel="noopener" data-open-preview aria-label="{{T "Open the preview in a new tab"}}" title="{{T "Open the preview in a new tab"}}">{{icon "external-link"}}</a>
+    </div>
+    <div class="cz-frame" data-device="desktop">
+      <iframe id="cz-frame" data-src="{{$d.PreviewURL}}" title="{{T "Preview of the draft design"}}"></iframe>
+    </div>
+  </section>
+</div>
+
+<section class="cz-manage">
+  <div class="card">
+    <header><h2>{{icon "history"}}{{T "Published versions"}}</h2><p>{{T "The last 10 published designs. Restoring one copies it into the draft."}}</p></header>
+    <section>
+      {{if $d.Revisions}}
+      <ol class="cz-revisions">
+        {{range $i, $r := $d.Revisions}}
+        <li>
+          <span class="cz-rev-meta"><strong>{{dateTime $r.CreatedAt}}</strong>{{with $r.UserName}} · {{.}}{{end}}{{if eq $i 0}} <span class="badge" data-variant="success">{{T "Live"}}</span>{{end}}</span>
+          <form method="post" action="{{$base}}/revisions/{{$r.ID}}/restore">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Replace the draft with this version?"}}">{{icon "rotate-ccw"}}{{T "Restore"}}</button></form>
+        </li>
+        {{end}}
+      </ol>
+      {{else}}<p class="muted text-sm">{{T "Nothing has been published yet."}}</p>{{end}}
+    </section>
+  </div>
+  <div class="card">
+    <header><h2>{{icon "share-2"}}{{T "Export and import"}}</h2><p>{{T "A JSON file with the draft design and the theme options, to copy it to another site or keep a backup."}}</p></header>
+    <section class="form">
+      <a class="btn self-start" data-variant="outline" data-size="sm" href="{{$base}}/export" download>{{icon "download"}}{{T "Export JSON"}}</a>
+      <form method="post" action="{{$base}}/import" enctype="multipart/form-data" class="cz-import">
+        {{.CSRFField}}
+        <div class="field">
+          <label for="cz-import-file">{{T "Import a design file"}}</label>
+          <input class="input" type="file" id="cz-import-file" name="file" accept=".json,application/json" required>
+        </div>
+        <button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Replace the draft with the imported design?"}}">{{icon "file-input"}}{{T "Import into the draft"}}</button>
+      </form>
+    </section>
+  </div>
+  <div class="card">
+    <header><h2>{{icon "rotate-ccw"}}{{T "Theme defaults"}}</h2><p>{{T "Start a draft with nothing customised and the theme's default options. Publish it to go back to the theme's own look."}}</p></header>
+    <section>
+      <form method="post" action="{{$base}}/reset">{{.CSRFField}}<button class="btn" data-variant="destructive" data-size="sm" type="submit" data-confirm="{{T "Replace the draft with the theme's defaults?"}}">{{icon "rotate-ccw"}}{{T "Reset to theme defaults"}}</button></form>
+    </section>
+  </div>
+</section>
+<script type="module" src="{{asset "customizer.js"}}"></script>
+{{end}}

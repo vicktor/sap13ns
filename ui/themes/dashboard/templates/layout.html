@@ -1,9 +1,10 @@
 {{define "layout"}}<!doctype html>
-<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} density-{{index .Site.Options "density"}}">
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} density-{{index .Site.Options "density"}}{{with .Site.Custom.Class}} {{.}}{{end}}">
 <head>{{template "shared/head" .}}</head>
 <body class="kind-{{.Kind}}">
 {{template "shared/skip-link"}}
 {{template "shared/admin-bar" .}}
+{{if .BlocksHeader}}{{template "shared/blocks-top" .}}{{else}}{{template "shared/widget-area" (dict "Page" . "Area" "top")}}{{end}}
 <div class="app">
   <aside class="sidebar" id="app-sidebar" aria-label="{{T "Site navigation"}}">
     <div class="sidebar-brand">{{template "brand" .}}</div>
@@ -26,28 +27,35 @@
   </aside>
 
   <div class="app-main">
+    {{if .BlocksHeader}}
+    <div class="blocks-topbar">{{template "shared/nav-toggle" "app-sidebar"}}{{template "shared/blocks-bar" .}}</div>
+    {{else}}
     <header class="topbar">
       <div class="topbar-inner">
         {{template "shared/nav-toggle" "app-sidebar"}}
         <div class="topbar-brand">{{template "brand" .}}</div>
         {{template "breadcrumbs" .}}
         <div class="topbar-actions">
+          {{if not .Site.Custom.HideSearch}}
           <form class="topbar-search" method="get" action="{{link "/search"}}" role="search">
             <label class="sr-only" for="topbar-q">{{T "Search"}}</label>
             {{icon "search"}}
             <input id="topbar-q" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
           </form>
           <a class="icon-btn topbar-search-link" href="{{link "/search"}}" aria-label="{{T "Search"}}">{{icon "search"}}</a>
+          {{end}}
           {{template "shared/lang-switch" .}}
           {{template "shared/theme-toggle"}}
         </div>
       </div>
     </header>
+    {{end}}
 
     <main id="main" class="content" tabindex="-1">
       {{template "content" .}}
     </main>
 
+    {{if .BlocksFooter}}{{template "shared/blocks-footer" .}}{{else}}
     <footer class="site-footer">
       <div class="container">
         {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
@@ -57,6 +65,7 @@
         </div>
       </div>
     </footer>
+    {{end}}
   </div>
 </div>
 {{template "shared/assistant" .}}

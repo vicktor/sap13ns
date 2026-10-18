@@ -1,0 +1,3 @@
+{{/* blocks/rich-text: Markdown, rendered through the content sanitizer.
+     Data: *BlockView. */}}
+{{define "blocks/rich-text"}}{{with .HTML}}<div class="sap-b sap-b-text prose sap-align-{{$.S.align}} sap-text-{{$.S.size}}">{{.}}</div>{{end}}{{end}}

@@ -9,6 +9,7 @@
     {"id": "footer", "label": "Footer menu"}
   ],
   "widget_areas": [
+    {"id": "top", "label": "Top bar", "description": "A full-width strip above the header, for announcements."},
     {"id": "sidebar", "label": "Sidebar", "description": "Glass cards beside posts, archives and search results."},
     {"id": "footer", "label": "Footer", "description": "Columns inside the footer panel."}
   ],
@@ -29,5 +30,16 @@
     {"key": "sidebar", "label": "Show the sidebar on posts, archives and search", "type": "bool", "default": "true"},
     {"key": "motion", "label": "Let the background drift slowly", "type": "bool", "default": "true", "help": "Always still for visitors who ask their system for reduced motion."}
   ],
+  "tokens": {
+    "light": {"background": "#f3f0ff", "foreground": "#17142e", "card": "#ffffff", "card-foreground": "#17142e", "muted": "#ffffff", "muted-foreground": "#4b4766", "border": "#d9d6e6", "primary": "#5b30d0", "primary-foreground": "#ffffff", "accent": "#e4ddfa", "accent-foreground": "#17142e"},
+    "dark": {"background": "#070818", "foreground": "#eceaff", "card": "#10122c", "card-foreground": "#eceaff", "muted": "#ffffff", "muted-foreground": "#c3c3e3", "border": "#222331", "primary": "#c4b1ff", "primary-foreground": "#160f33", "accent": "#212038", "accent-foreground": "#ffffff"},
+    "options": {
+      "palette": {
+        "sunset": {"light": {"background": "#fff2ec", "primary": "#a8360a", "primary-foreground": "#ffffff", "accent": "#f6dfd5"}, "dark": {"background": "#13060f", "primary": "#ffb38a", "primary-foreground": "#2a0d0a", "accent": "#341e20"}},
+        "ocean": {"light": {"background": "#edf6ff", "primary": "#08598f", "primary-foreground": "#ffffff", "accent": "#d6e6f4"}, "dark": {"background": "#030b18", "primary": "#7dd3fc", "primary-foreground": "#04202e", "accent": "#142738"}},
+        "mono": {"light": {"background": "#f1f2f5", "primary": "#2a2e39", "primary-foreground": "#ffffff", "accent": "#e1e2e6"}, "dark": {"background": "#08090c", "primary": "#e5e7eb", "primary-foreground": "#0b0c10", "accent": "#232427"}}
+      }
+    }
+  },
   "swatches": ["#f3f0ff", "#c4b5fd", "#f9a8d4", "#0b0e24"]
 }

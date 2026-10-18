@@ -1,26 +1,30 @@
 {{define "layout"}}<!doctype html>
-<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}}">
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}}{{with .Site.Custom.Class}} {{.}}{{end}}">
 <head>{{template "shared/head" .}}</head>
 <body class="kind-{{.Kind}}">
 {{template "shared/skip-link"}}
 {{template "shared/admin-bar" .}}
+{{if .BlocksHeader}}{{template "shared/blocks-header" .}}{{else}}
+{{template "shared/widget-area" (dict "Page" . "Area" "top")}}
 <header class="site-header">
   <nav class="wrap header-bento" aria-label="{{T "Main menu"}}">
     <a class="header-tile brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
-      {{template "brand-mark"}}<span class="brand-name">{{.Site.Title}}</span>
+      {{if .Site.Custom.Logo}}{{template "shared/logo" .}}{{else}}{{template "brand-mark"}}{{end}}{{if not .Site.Custom.LogoOnly}}<span class="brand-name">{{.Site.Title}}</span>{{end}}
     </a>
     <ul id="primary-menu" class="header-tile nav-menu">{{template "shared/menu" (.Site.Menu "primary")}}</ul>
     <div class="header-tile header-actions">
-      <a class="icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>
+      {{if not .Site.Custom.HideSearch}}<a class="icon-btn" href="{{link "/search"}}" aria-label="{{T "Search"}}" title="{{T "Search"}}">{{icon "search"}}</a>{{end}}
       {{template "shared/lang-switch" .}}
       {{template "shared/theme-toggle"}}
       {{template "shared/nav-toggle" "primary-menu"}}
     </div>
   </nav>
 </header>
+{{end}}
 <main id="main" tabindex="-1">
 {{template "content" .}}
 </main>
+{{if .BlocksFooter}}{{template "shared/blocks-footer" .}}{{else}}
 <footer class="site-footer">
   <div class="wrap">
     {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
@@ -31,6 +35,7 @@
     </div>
   </div>
 </footer>
+{{end}}
 {{template "shared/assistant" .}}
 </body>
 </html>{{end}}

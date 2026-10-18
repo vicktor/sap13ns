@@ -1,0 +1,3 @@
+{{/* blocks/pagination: page numbers on listings, previous/next on posts.
+     Data: *BlockView. */}}
+{{define "blocks/pagination"}}<div class="sap-b sap-b-pagination">{{if eq .Page.Kind "single" "page"}}{{template "shared/post-nav" .Page}}{{else}}{{template "shared/pagination" .Page.Pagination}}{{end}}</div>{{end}}
