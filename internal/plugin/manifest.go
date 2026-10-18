@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"sort"
@@ -241,6 +242,10 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("plugin.json: %w", err)
+	}
+	// One parser reads the id everywhere: nothing may follow the object.
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, errors.New("plugin.json: data after the manifest object")
 	}
 	if m.Wasm == "" {
 		m.Wasm = "plugin.wasm"
@@ -480,6 +485,33 @@ func (m *Manifest) EffectivePermissions() []string {
 			out = append(out, PermCSP+dir+":"+src)
 		}
 	}
+	sort.Strings(out)
+	return slices.Compact(out)
+}
+
+// Capabilities are the hooks, events and forms the manifest subscribes to,
+// as the entries an approval pins next to the permissions ("hook:widget",
+// "event:post.published", "form:contact").
+func (m *Manifest) Capabilities() []string {
+	var out []string
+	for _, h := range m.Hooks {
+		out = append(out, "hook:"+h)
+	}
+	for _, e := range m.Events {
+		out = append(out, "event:"+e)
+	}
+	for _, f := range m.Forms {
+		out = append(out, "form:"+f.ID)
+	}
+	sort.Strings(out)
+	return slices.Compact(out)
+}
+
+// Pinned is what an approval pins from the manifest: the effective
+// permissions and the capabilities. Asking for anything outside the
+// approved set stops the plugin until it is approved again.
+func (m *Manifest) Pinned() []string {
+	out := append(m.EffectivePermissions(), m.Capabilities()...)
 	sort.Strings(out)
 	return slices.Compact(out)
 }

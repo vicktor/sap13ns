@@ -336,7 +336,10 @@ func TestInstallLifecycle(t *testing.T) {
 	if err := h.Approve(ctx, "life", strings.Repeat("0", 64), uid); err == nil {
 		t.Fatal("approved a build that was not the one reviewed")
 	}
-	if err := h.Approve(ctx, "life", p.SHA256, uid); err != nil {
+	if err := h.Approve(ctx, "life", p.SHA256, uid); !errors.Is(err, ErrChangedSinceReview) {
+		t.Fatalf("approved with the module hash instead of the review pin: %v", err)
+	}
+	if err := h.Approve(ctx, "life", p.ReviewPin(), uid); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.SaveSettings(ctx, "life", map[string]string{"greeting": "Hola"}); err != nil {
@@ -350,6 +353,19 @@ func TestInstallLifecycle(t *testing.T) {
 	res, err = install(testPackage(t, "life", "1.1.0", "v1"), InstallOptions{UserID: uid})
 	if err != nil || res.Previous != "1.0.0" || h.Get("life").Status != StatusEnabled {
 		t.Fatalf("update with the same build: %v %+v %s", err, res, h.Get("life").Status)
+	}
+
+	// The same build asking for another hook needs a new approval.
+	hooked := buildZip(t, zipEntry{name: "plugin.json", body: []byte(`{"abi": 1, "id": "life", "name": "Test", "version": "1.1.1",
+		"author": "Alice", "hooks": ["shortcode", "event"], "events": ["post.published"], "shortcodes": ["life"],
+		"settings": [{"key": "greeting", "label": "Greeting", "type": "text", "default": "Hi"}]}`)},
+		zipEntry{name: "plugin.wasm", body: respond(`{"html":"v1"}`).bytes()},
+		zipEntry{name: "README.md", body: []byte("# Test\n")}, zipEntry{name: "LICENSE", body: []byte("MIT\n")})
+	if _, err := install(hooked, InstallOptions{UserID: uid}); err != nil {
+		t.Fatal(err)
+	}
+	if p := h.Get("life"); p.Status != StatusModified || p.SHA256 != h.Get("life").Record.WasmSHA256 {
+		t.Fatalf("a new hook on the same build: %s", p.Status)
 	}
 
 	// A new build keeps settings and data but needs a new approval.

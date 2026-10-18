@@ -342,14 +342,15 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 		return res, ErrRefused
 	}
 
+	// The id comes from the same parser the scanner uses (it is checked
+	// against the report below).
 	opt := ScanOptions{PackageSHA256: pkgSHA}
+	var newM *Manifest
 	var newID string
 	if raw, err := readLimited(filepath.Join(staging, "plugin.json"), 64<<10); err == nil {
-		var m struct {
-			ID string `json:"id"`
+		if newM, _ = ParseManifest(raw); newM != nil {
+			newID = newM.ID
 		}
-		json.Unmarshal(raw, &m)
-		newID = m.ID
 	}
 	for _, p := range h.List() {
 		if p.ID == newID {
@@ -372,7 +373,7 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 	}
 	rep := h.ScanDir(ctx, staging, opt)
 	res.Report, res.ID, res.Version = rep, rep.PluginID, rep.Version
-	if rep.Blocked() || !idRe.MatchString(rep.PluginID) {
+	if rep.Blocked() || !idRe.MatchString(rep.PluginID) || rep.PluginID != newID {
 		return res, ErrRefused
 	}
 
@@ -387,6 +388,13 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 			return res, ErrDowngrade
 		}
 	}
+	// Strip the kept data before the files go in, so a failure cannot leave
+	// the new package installed with the old secrets and approval.
+	if opt.Retained {
+		if err := h.store.ResetRetainedPlugin(ctx, newID, inheritedSettings(retained, newM)); err != nil {
+			return nil, err
+		}
+	}
 	if err := swapDir(staging, target); err != nil {
 		return nil, err
 	}
@@ -394,38 +402,26 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 	if source != "cli" {
 		source = "upload"
 	}
+	ctx = context.WithoutCancel(ctx) // the files are in place: record them
 	if err := h.store.RecordPluginInstall(ctx, store.PluginInstall{ID: rep.PluginID, Version: rep.Version, Source: source,
 		UploadedBy: opts.UserID, ReviewRequired: opts.ReviewRequired, Report: rep.JSON()}); err != nil {
 		return nil, err
-	}
-	if opt.Retained && rep.PluginID == newID {
-		var m *Manifest
-		if raw, err := readLimited(filepath.Join(target, "plugin.json"), 64<<10); err == nil {
-			m, _ = ParseManifest(raw)
-		}
-		if err := h.store.ResetRetainedPlugin(ctx, newID, inheritedSettings(retained, m)); err != nil {
-			return nil, err
-		}
 	}
 	return res, h.Load(ctx)
 }
 
 // inheritedSettings are the settings a reinstall keeps from an uninstalled
-// plugin with the same id. Secrets and e-mail recipients are dropped: the
-// new package may not be the one they were entrusted to.
+// plugin with the same id: only values for settings the new manifest
+// declares as plain (not secret or e-mail) settings, and never a sealed
+// secret. The new package may not be the one the rest was entrusted to.
 func inheritedSettings(old map[string]string, m *Manifest) map[string]string {
-	secret := map[string]bool{}
-	if m != nil {
-		for _, s := range m.Settings {
-			secret[s.Key] = s.Type == "secret"
-		}
-	}
 	out := map[string]string{}
-	for k, v := range old {
-		if strings.HasPrefix(k, emailMark) || old[emailMark+k] != "" || strings.HasPrefix(v, secretPrefix) || secret[k] {
+	for _, s := range m.Settings {
+		v, ok := old[s.Key]
+		if !ok || s.Type == "secret" || s.Type == "email" || old[emailMark+s.Key] != "" || strings.HasPrefix(v, secretPrefix) {
 			continue
 		}
-		out[k] = v
+		out[s.Key] = v
 	}
 	return out
 }

@@ -490,9 +490,9 @@ func (h *Host) inspect(ctx context.Context, dirName string, records map[string]s
 		p.Status = StatusModified
 		p.Err = "the files under assets/ changed since the plugin was approved"
 		return p
-	case !subset(m.EffectivePermissions(), p.Record.GrantedPermissions):
+	case !subset(m.Pinned(), p.Record.GrantedPermissions):
 		p.Status = StatusModified
-		p.Err = "the plugin now requests permissions that were not approved"
+		p.Err = "the plugin now requests permissions, hooks, events or forms that were not approved"
 		return p
 	case p.Record.ReviewRequired:
 		p.Status = StatusAvailable
@@ -613,14 +613,31 @@ func (h *Host) enabled() []*Plugin {
 // not reviewed a plugin uploaded by a tenant.
 var ErrReviewRequired = errors.New("the network operator must review this plugin first")
 
-// Approve re-reads the plugin from disk and pins its current wasm hash,
-// assets hash and requested permissions (CSP sources included). The caller
-// passes the wasm hash it showed to the administrator; a different build on
-// disk is refused.
-func (h *Host) Approve(ctx context.Context, id, reviewedSHA string, userID int64) error {
+// reviewPin identifies what an administrator reviews before enabling a
+// plugin: the module, the assets and the pinned set.
+func reviewPin(wasmSHA, assetsSHA string, pinned []string) string {
+	sum := sha256.Sum256([]byte(wasmSHA + "\n" + assetsSHA + "\n" + strings.Join(pinned, "\n")))
+	return hex.EncodeToString(sum[:])
+}
+
+// ReviewPin is the pin of the plugin as loaded. The approve form carries
+// it, so anything that changes on disk before the approval is refused.
+func (p *Plugin) ReviewPin() string { return reviewPin(p.SHA256, p.AssetsSHA256, p.Pinned()) }
+
+// ErrChangedSinceReview is returned by Approve when the files on disk no
+// longer match the reviewed pin.
+var ErrChangedSinceReview = errors.New("the plugin changed on disk while it was being reviewed")
+
+// Approve re-reads the plugin from disk and pins its wasm hash, assets hash
+// and Pinned set (permissions with CSP sources, hooks, events and forms).
+// The caller passes the ReviewPin it showed to the administrator; files on
+// disk that no longer match it are refused.
+func (h *Host) Approve(ctx context.Context, id, reviewed string, userID int64) error {
 	if !idRe.MatchString(id) {
 		return errors.New("invalid plugin id")
 	}
+	h.installMu.Lock() // no install or uninstall between the check and the pin
+	defer h.installMu.Unlock()
 	if p := h.Get(id); p != nil && p.Record != nil && p.Record.ReviewRequired {
 		return ErrReviewRequired
 	}
@@ -641,17 +658,17 @@ func (h *Host) Approve(ctx context.Context, id, reviewedSHA string, userID int64
 	}
 	sum := sha256.Sum256(wasm)
 	sha := hex.EncodeToString(sum[:])
-	if reviewedSHA != "" && reviewedSHA != sha {
-		return errors.New("the plugin changed on disk while it was being reviewed")
-	}
 	_, assetsSHA, err := readAssets(filepath.Join(h.dir, id))
 	if err != nil {
 		return err
 	}
+	if reviewed != "" && reviewed != reviewPin(sha, assetsSHA, m.Pinned()) {
+		return ErrChangedSinceReview
+	}
 	if _, err := h.compile(ctx, sha, wasm); err != nil {
 		return err
 	}
-	if err := h.store.ApprovePlugin(ctx, id, sha, assetsSHA, m.EffectivePermissions(), userID); err != nil {
+	if err := h.store.ApprovePlugin(ctx, id, sha, assetsSHA, m.Pinned(), userID); err != nil {
 		return err
 	}
 	return h.Load(ctx)

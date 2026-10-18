@@ -516,13 +516,13 @@ The scanner checks, in order:
 1. **Upload.** In **Plugins → Upload a plugin**, or with `sap13ns plugin install`. The package is extracted, scanned, and installed **disabled**. The uploader, the source (`upload` or `cli`) and the time are recorded.
 2. **Refusal.** A blocked package is refused with its report (HTTP 422), and nothing is written.
 3. **Review.** The plugin page shows the requested permissions with their risk, the assets, the SHA-256 of the module and the assets, and the scan report.
-4. **Enable.** The form carries the SHA-256 the administrator saw. If the files changed in the meantime, enabling is refused. High-risk permissions or high findings need the confirmation box. Enabling pins the hashes and the permissions.
+4. **Enable.** The form carries a pin of what the administrator saw: the module and asset hashes, the permissions, and the hooks, events and forms. If any of them changed in the meantime, enabling is refused. High-risk permissions or high findings need the confirmation box. Enabling pins all of them.
 5. **Use.** Configure the settings, place widgets under **Appearance → Widgets**, and use shortcodes in content.
 
 **Updating** means uploading a package with the same id.
 
 - **What is kept:** settings and key-value data.
-- **When it stops:** if the module, assets or permissions changed, the plugin becomes `modified` and must be enabled again. A new version with the same build stays enabled.
+- **When it stops:** if the module or assets changed, or the manifest asks for a permission, hook, event or form that was not approved, the plugin becomes `modified` and must be enabled again. A new version with the same build stays enabled.
 - **Older versions** are refused unless **Allow an older version** is ticked (`-allow-downgrade` on the command line).
 - **Atomic swap:** the update replaces the directory in two renames.
 

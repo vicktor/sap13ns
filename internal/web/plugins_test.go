@@ -314,14 +314,14 @@ func TestPluginsEndToEnd(t *testing.T) {
 	}
 
 	// High-risk permissions (the CSP addition) need the confirmation box.
-	rec = e.admin("/admin/plugins/hooks/approve", url.Values{"sha256": {p.SHA256}})
+	rec = e.admin("/admin/plugins/hooks/approve", url.Values{"pin": {p.ReviewPin()}})
 	if rec.Code != http.StatusSeeOther || e.host.Get("hooks").Status != plugin.StatusAvailable {
 		t.Fatalf("approve without confirmation: %d %s", rec.Code, e.host.Get("hooks").Status)
 	}
-	if rec := e.admin("/admin/plugins/hooks/approve", url.Values{"sha256": {strings.Repeat("0", 64)}, "confirm_risk": {"1"}}); e.host.Get("hooks").Status != plugin.StatusAvailable {
+	if rec := e.admin("/admin/plugins/hooks/approve", url.Values{"pin": {strings.Repeat("0", 64)}, "confirm_risk": {"1"}}); e.host.Get("hooks").Status != plugin.StatusAvailable {
 		t.Fatalf("approved another build: %d", rec.Code)
 	}
-	rec = e.admin("/admin/plugins/hooks/approve", url.Values{"sha256": {p.SHA256}, "confirm_risk": {"1"}, "back": {"list"}})
+	rec = e.admin("/admin/plugins/hooks/approve", url.Values{"pin": {p.ReviewPin()}, "confirm_risk": {"1"}, "back": {"list"}})
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/plugins" || e.host.Get("hooks").Status != plugin.StatusEnabled {
 		t.Fatalf("approve: %d %s %s", rec.Code, rec.Header().Get("Location"), e.host.Get("hooks").Status)
 	}

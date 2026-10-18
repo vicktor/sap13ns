@@ -23,7 +23,7 @@
     <section class="card review" id="review">
       <header>
         <h2>{{icon "shield-check"}} {{if eq $p.Status "modified"}}{{T "Review the new version"}}{{else}}{{T "Review and enable"}}{{end}}</h2>
-        <p>{{T "Enabling pins this exact build, its assets and its permissions. If any of them changes, the plugin is stopped until you approve it again."}}</p>
+        <p>{{T "Enabling pins this exact build, its assets, its permissions and the hooks, events and forms it uses. If any of them changes, the plugin is stopped until you approve it again."}}</p>
       </header>
       <section>
         <h3 class="text-sm font-medium mb-2">{{T "Requested permissions"}}</h3>
@@ -54,7 +54,7 @@
         {{else}}
         <form method="post" action="/admin/plugins/{{$p.ID}}/approve" class="stack">
           {{.CSRFField}}
-          <input type="hidden" name="sha256" value="{{$p.SHA256}}">
+          <input type="hidden" name="pin" value="{{$p.ReviewPin}}">
           {{if $d.NeedsConfirm}}
           <label class="check text-sm confirm-risk"><input type="checkbox" class="input" name="confirm_risk" value="1" required>
             {{T "I reviewed the scan report and the high-risk permissions, and I trust this plugin."}}</label>

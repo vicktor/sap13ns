@@ -553,6 +553,8 @@ func TestManifestRules(t *testing.T) {
 		ok             bool
 	}{
 		{"minimal", base(sc), true},
+		{"trailing whitespace", base(sc) + "\n\n", true},
+		{"second object", base(sc) + `{"id": "other"}`, false},
 		{"unknown field", base(sc + `, "permisions": ["kv"]`), false},
 		{"select default", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "select", "choices": ["a"], "default": "b"}]`), false},
 		{"select without choices", base(sc + `, "settings": [{"key": "s", "label": "S", "type": "select"}]`), false},

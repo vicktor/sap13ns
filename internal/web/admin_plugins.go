@@ -106,7 +106,7 @@ func quickEnable(p *plugin.Plugin) bool {
 		p.Record.AssetsSHA256 != p.AssetsSHA256 {
 		return false
 	}
-	for _, perm := range p.EffectivePermissions() {
+	for _, perm := range p.Pinned() {
 		if !slices.Contains(p.Record.GrantedPermissions, perm) {
 			return false
 		}
@@ -245,8 +245,10 @@ func (s *Server) adminPluginApprove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := pluginBack(r, p.ID)
-	// The administrator confirms the exact build they reviewed.
-	if r.FormValue("sha256") != p.SHA256 {
+	// The administrator confirms the exact build, assets, permissions and
+	// capabilities they reviewed.
+	pin := r.FormValue("pin")
+	if pin != p.ReviewPin() {
 		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.t("The plugin changed on disk while you were reviewing it. Review it again."))
 		return
 	}
@@ -260,7 +262,7 @@ func (s *Server) adminPluginApprove(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.audit(r, uid(r), "plugin.scanned", p.ID, map[string]string{"verdict": rep.Verdict, "sha256": rep.WasmSHA256})
-		if p = s.plugins.Get(p.ID); p == nil || rep.WasmSHA256 != r.FormValue("sha256") {
+		if p = s.plugins.Get(p.ID); p == nil || p.ReviewPin() != pin {
 			s.redirect(w, r, "/admin/plugins/"+r.PathValue("id"), "error", s.t("The plugin changed on disk while you were reviewing it. Review it again."))
 			return
 		}
@@ -273,10 +275,13 @@ func (s *Server) adminPluginApprove(w http.ResponseWriter, r *http.Request) {
 		s.redirect(w, r, "/admin/plugins/"+p.ID+"#review", "error", s.t("This plugin has high-risk permissions or findings. Tick the confirmation box to enable it."))
 		return
 	}
-	if err := s.plugins.Approve(r.Context(), p.ID, p.SHA256, uid(r)); err != nil {
+	if err := s.plugins.Approve(r.Context(), p.ID, pin, uid(r)); err != nil {
 		msg := s.t("The plugin could not be enabled: %s", err.Error())
-		if errors.Is(err, plugin.ErrReviewRequired) {
+		switch {
+		case errors.Is(err, plugin.ErrReviewRequired):
 			msg = s.t("The network operator must review this plugin before it can be enabled.")
+		case errors.Is(err, plugin.ErrChangedSinceReview):
+			msg = s.t("The plugin changed on disk while you were reviewing it. Review it again.")
 		}
 		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", msg)
 		return

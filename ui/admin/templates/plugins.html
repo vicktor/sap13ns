@@ -65,7 +65,7 @@
       </form>
       {{else if .QuickEnable}}
       <form method="post" action="/admin/plugins/{{.ID}}/approve">
-        {{$.CSRFField}}<input type="hidden" name="back" value="list"><input type="hidden" name="sha256" value="{{.SHA256}}">
+        {{$.CSRFField}}<input type="hidden" name="back" value="list"><input type="hidden" name="pin" value="{{.ReviewPin}}">
         <button class="plugin-switch" type="submit" role="switch" aria-checked="false" aria-label="{{T "Enable %s" (or .Name .ID)}}" title="{{T "Enable"}}"></button>
       </form>
       {{else if or (eq .Status "available") (eq .Status "modified")}}

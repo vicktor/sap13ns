@@ -67,7 +67,9 @@ func TestPluginFormPlaceholder(t *testing.T) {
 // not splice its HTML into the attribute value.
 func TestShortcodeInAttribute(t *testing.T) {
 	isTip := func(name string) bool { return name == "tip" }
-	tip := func(sc Shortcode) (string, error) { return `<span aria-label="` + sc.Attrs["text"] + `">tip</span>`, nil }
+	tip := func(sc Shortcode) (string, error) {
+		return `<span aria-label="` + sc.Attrs["text"] + `">tip</span>`, nil
+	}
 	for _, src := range []string{
 		`[click](https://x.example "[tip text='a ping=https://evil.example/p id=sap-assistant']")`,
 		`![[tip text='x onerror=alert(1)']](/x.png)`,
