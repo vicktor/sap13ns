@@ -161,8 +161,11 @@ type Context struct {
 	Options []OptionSpec
 	Langs   []string // languages that may have their own footer text
 	// Media reports whether a media id exists and is of the wanted kind
-	// ("image" or "font"). Nil accepts every positive id.
-	Media func(id int64, kind string) bool
+	// ("image" or "font"). An error means the id could not be checked (a
+	// timeout, a database problem): the value is kept and Parse, Load and
+	// Normalize return the error, so a passing failure never strips a font
+	// or the logo from a design. Nil accepts every positive id.
+	Media func(id int64, kind string) (bool, error)
 }
 
 // Parse decodes and validates a design. Unknown fields are rejected so a
@@ -180,7 +183,11 @@ func Parse(data []byte, c Context) (*Design, error) {
 	if err := dec.Decode(d); err != nil {
 		return nil, Errors{{Field: "", Message: "invalid design JSON: " + err.Error()}}
 	}
-	if errs := d.Normalize(c); len(errs) > 0 {
+	errs, err := d.Normalize(c)
+	if err != nil {
+		return nil, err
+	}
+	if len(errs) > 0 {
 		return nil, errs
 	}
 	return d, nil
@@ -188,22 +195,39 @@ func Parse(data []byte, c Context) (*Design, error) {
 
 // Load decodes a stored design leniently: unknown fields are ignored and
 // values that no longer validate (a deleted logo, an option the theme
-// dropped) are reset, so the rest of the design keeps working.
-func Load(data []byte, c Context) *Design {
+// dropped) are reset, so the rest of the design keeps working. An error is
+// a failed media lookup (see Context.Media): the design is still fine for
+// one response, but must be neither cached nor saved.
+func Load(data []byte, c Context) (*Design, error) {
 	d := &Design{}
 	if len(data) > 0 {
 		_ = json.Unmarshal(data, d)
 	}
-	d.Normalize(c)
-	return d
+	_, err := d.Normalize(c)
+	return d, err
 }
 
 // Normalize cleans every value in place (lower-case hex, trimmed text,
-// empty maps dropped), resets what cannot be accepted and reports it.
-func (d *Design) Normalize(c Context) Errors {
+// empty maps dropped), resets what cannot be accepted and reports it. The
+// error is the first failed media lookup.
+func (d *Design) Normalize(c Context) (Errors, error) {
 	var errs Errors
 	add := func(field, format string, args ...any) {
 		errs = append(errs, FieldError{Field: field, Message: fmt.Sprintf(format, args...)})
+	}
+	var lookupErr error
+	exists := func(id int64, kind string) bool {
+		if c.Media == nil {
+			return true
+		}
+		ok, err := c.Media(id, kind)
+		if err != nil {
+			if lookupErr == nil {
+				lookupErr = fmt.Errorf("check media %d: %w", id, err)
+			}
+			return true // unknown: keep the value
+		}
+		return ok
 	}
 	if d.Version != 0 && d.Version != Version {
 		add("version", "unsupported version %d", d.Version)
@@ -252,7 +276,7 @@ func (d *Design) Normalize(c Context) Errors {
 			f.Media = 0
 			return
 		}
-		if f.Media <= 0 || (c.Media != nil && !c.Media(f.Media, "font")) {
+		if f.Media <= 0 || !exists(f.Media, "font") {
 			add(field, "choose a WOFF2 font from the media library")
 			*f = Font{}
 		}
@@ -288,7 +312,7 @@ func (d *Design) Normalize(c Context) Errors {
 	checkChoice("header.sticky", &d.Header.Sticky, StickyModes)
 	if d.Header.Brand == "" {
 		d.Header.Logo = 0
-	} else if d.Header.Logo <= 0 || (c.Media != nil && !c.Media(d.Header.Logo, "image")) {
+	} else if d.Header.Logo <= 0 || !exists(d.Header.Logo, "image") {
 		add("header.logo", "choose an image from the media library")
 		d.Header.Brand, d.Header.Logo = "", 0
 	}
@@ -374,7 +398,7 @@ func (d *Design) Normalize(c Context) Errors {
 	}
 	d.Options = opts
 	sort.Sort(errs)
-	return errs
+	return errs, lookupErr
 }
 
 func (es Errors) Len() int           { return len(es) }

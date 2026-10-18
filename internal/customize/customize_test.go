@@ -1,6 +1,7 @@
 package customize
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -8,7 +9,9 @@ import (
 var testCtx = Context{
 	Options: []OptionSpec{{Key: "accent", Type: "select", Choices: []string{"blue", "indigo"}}, {Key: "hero", Type: "bool"}, {Key: "hero_title", Type: "text"}},
 	Langs:   []string{"es", "en"},
-	Media:   func(id int64, kind string) bool { return (id == 7 && kind == "font") || (id == 9 && kind == "image") },
+	Media: func(id int64, kind string) (bool, error) {
+		return (id == 7 && kind == "font") || (id == 9 && kind == "image"), nil
+	},
 }
 
 func TestParseValid(t *testing.T) {
@@ -78,6 +81,30 @@ func TestParseRejects(t *testing.T) {
 		if _, err := Parse([]byte(in), testCtx); err == nil {
 			t.Errorf("%s: accepted %s", name, in)
 		}
+	}
+}
+
+// A media lookup that fails (rather than finding nothing) keeps the font
+// and the logo, and is reported, so the caller neither caches nor saves.
+func TestMediaLookupFailure(t *testing.T) {
+	broken := errors.New("connection reset")
+	c := testCtx
+	c.Media = func(int64, string) (bool, error) { return false, broken }
+	in := `{"fonts": {"body": {"stack": "media", "media": 7}}, "header": {"brand": "logo", "logo": 9}}`
+	d, err := Load([]byte(in), c)
+	if !errors.Is(err, broken) {
+		t.Fatalf("Load error = %v, want the lookup error", err)
+	}
+	if d.Fonts.Body.Media != 7 || d.Header.Logo != 9 || d.Header.Brand != "logo" {
+		t.Errorf("values dropped on a failed lookup: %+v %+v", d.Fonts.Body, d.Header)
+	}
+	if _, err := Parse([]byte(in), c); !errors.Is(err, broken) {
+		t.Errorf("Parse error = %v, want the lookup error", err)
+	}
+	// Missing media is not an error: the value is reset.
+	d, err = Load([]byte(`{"header": {"brand": "logo", "logo": 8}}`), testCtx)
+	if err != nil || d.Header.Logo != 0 || d.Header.Brand != "" {
+		t.Errorf("missing logo: %v %+v", err, d.Header)
 	}
 }
 

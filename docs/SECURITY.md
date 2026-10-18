@@ -62,6 +62,16 @@ sap13ns assumes the server, its operator and its administrators are trusted. Eve
   - anything other than images, audio, video and PDF is served as a download.
 - Archive extraction (backups, the importer, plugin packages) refuses absolute paths, `..`, links and special files, and enforces size limits.
 
+### Appearance (customiser and page builder)
+- **Drafts** are rendered only for signed-in users with the appearance capability who have set up the second factor the admin requires, and only when they ask for them (`?customize=draft`). Such requests carry a session, so the page cache never stores them, and the responses are `no-store`.
+- **Designs and layouts** are validated against a schema:
+  - colours are hex values, while fonts, scales, section styles and block appearance are named choices, so a page only ever gets known classes;
+  - links in blocks accept `https:`, `http:`, site paths, `#…`, `mailto:` and `tel:`, never `javascript:` or `data:`;
+  - Markdown in blocks goes through the content pipeline.
+- **Custom CSS** is tokenised the way browsers read it. `@import`, external `url()`, resource-building functions and legacy script hooks are refused. It is served as a same-origin stylesheet under the strict CSP, never inlined.
+- **Fonts:** only users with the appearance capability can upload WOFF2 files, because uploaded fonts end up in the site's stylesheet.
+- **Attribution:** the page builder always puts the footer credit back, and custom CSS cannot name `footer-meta`. CSS can still hide the credit in other ways, and sap13ns does not try to prevent that. Keeping the "Powered by sap13ns" attribution visible is the operator's obligation under CPAL-1.0 (Exhibit B).
+
 ### Outbound requests
 Plugin HTTP calls, imported media and AI image downloads go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
 

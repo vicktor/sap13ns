@@ -107,8 +107,8 @@ func (s *Server) builderRoutes(mux *http.ServeMux, admin func(string, auth.Cap, 
 
 // ------------------------------------------------------------ resolving --
 
-func (s *Server) layoutContext(ctx context.Context, th *theme.Theme) builder.Context {
-	c := builder.Context{}
+func (s *Server) layoutContext(th *theme.Theme, ms *mediaSet) builder.Context {
+	c := builder.Context{Media: func(id int64) (bool, error) { return ms.exists(id, "image") }}
 	for _, m := range th.Menus {
 		c.Menus = append(c.Menus, m.ID)
 	}
@@ -118,16 +118,19 @@ func (s *Server) layoutContext(ctx context.Context, th *theme.Theme) builder.Con
 	for _, l := range s.extraLangs() {
 		c.Langs = append(c.Langs, l.Code)
 	}
-	c.Media = func(id int64) bool {
-		m, err := s.store.MediaByID(ctx, id)
-		return err == nil && m.IsImage()
-	}
 	return c
 }
 
+// loadLayout is builder.Load with the images of raw looked up in one query.
+func (s *Server) loadLayout(raw []byte, th *theme.Theme, ms *mediaSet) (*builder.Layouts, error) {
+	ms.prefetch(builder.ImageIDs(raw))
+	return builder.Load(raw, s.layoutContext(th, ms))
+}
+
 // draftLayout loads the draft layouts of th (the published ones when there
-// is no draft).
-func (s *Server) draftLayout(ctx context.Context, th *theme.Theme) (*builder.Layouts, *store.ThemeCustom, error) {
+// is no draft), looking their images up in ms. An error, a failed image
+// lookup included, means the layouts must not be saved or published.
+func (s *Server) draftLayout(ctx context.Context, th *theme.Theme, ms *mediaSet) (*builder.Layouts, *store.ThemeCustom, error) {
 	row, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout)
 	if err != nil {
 		return nil, nil, err
@@ -136,21 +139,23 @@ func (s *Server) draftLayout(ctx context.Context, th *theme.Theme) (*builder.Lay
 	if row.Draft != nil {
 		raw = row.Draft
 	}
-	return builder.Load(raw, s.layoutContext(ctx, th)), row, nil
+	l, err := s.loadLayout(raw, th, ms)
+	if err != nil {
+		return nil, nil, err
+	}
+	return l, row, nil
 }
 
-// publishedLayout returns the published layouts of th, cached with the
-// published design (customize.go) and invalidated with it.
-func (s *Server) publishedLayout(ctx context.Context, th *theme.Theme) *builder.Layouts {
-	return s.publishedDesign(ctx, th).layout
-}
-
-func (s *Server) loadPublishedLayout(ctx context.Context, th *theme.Theme) (*builder.Layouts, error) {
+// loadPublishedLayout loads th's published layouts for the cache entry of
+// its published design (customize.go), which they are invalidated with. A
+// failed image lookup is left in ms.err.
+func (s *Server) loadPublishedLayout(ctx context.Context, th *theme.Theme, ms *mediaSet) (*builder.Layouts, error) {
 	row, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout)
 	if err != nil {
 		return nil, err
 	}
-	return builder.Load(row.Published, s.layoutContext(ctx, th)), nil
+	l, _ := s.loadLayout(row.Published, th, ms)
+	return l, nil
 }
 
 // applyLayout fills pd.Blocks and returns the page template to render:
@@ -158,23 +163,30 @@ func (s *Server) loadPublishedLayout(ctx context.Context, th *theme.Theme) (*bui
 func (s *Server) applyLayout(r *http.Request, th *theme.Theme, page string, pd *PageData) string {
 	ctx := r.Context()
 	var l *builder.Layouts
-	if wantsDraft(r) {
+	var media func(int64) *store.Media
+	if s.wantsDraft(r) {
 		var err error
-		if l, _, err = s.draftLayout(ctx, th); err != nil {
+		ms := s.mediaSet(ctx)
+		if l, _, err = s.draftLayout(ctx, th, ms); err != nil {
 			s.log.Error("load theme layout draft", "theme", th.Slug, "err", err)
 			return page
 		}
+		media = ms.lookup
 	} else {
-		l = s.publishedLayout(ctx, th)
+		e := s.publishedDesign(ctx, th)
+		l, media = e.layout, e.mediaByID
+		if e.partial && pd.Site != nil && pd.Site.Custom != nil {
+			pd.Site.Custom.Partial = true // keep the page out of the page cache
+		}
 	}
 	if l.IsZero() {
 		return page
 	}
 	bv := &BlocksView{}
-	bv.Header = s.regionView(ctx, l.Header, "header", pd)
-	bv.Footer = s.regionView(ctx, l.Footer, "footer", pd)
+	bv.Header = s.regionView(l.Header, "header", pd, media)
+	bv.Footer = s.regionView(l.Footer, "footer", pd, media)
 	if page != "ask" {
-		if main := s.regionView(ctx, l.Region(page), page, pd); main != nil {
+		if main := s.regionView(l.Region(page), page, pd, media); main != nil {
 			bv.Main = main
 			page = "blocks"
 		}
@@ -183,7 +195,9 @@ func (s *Server) applyLayout(r *http.Request, th *theme.Theme, page string, pd *
 	return page
 }
 
-func (s *Server) regionView(ctx context.Context, r *builder.Region, name string, pd *PageData) *RegionView {
+// regionView builds a region for rendering; media resolves image ids
+// without a query (the images were looked up with the layouts).
+func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media func(int64) *store.Media) *RegionView {
 	if r == nil {
 		return nil
 	}
@@ -198,7 +212,7 @@ func (s *Server) regionView(ctx context.Context, r *builder.Region, name string,
 				if b.Type == builder.MetaType {
 					rv.HasMeta = true
 				}
-				views = append(views, s.blockView(ctx, b, lang, pd))
+				views = append(views, s.blockView(b, lang, pd, media))
 			}
 			sv.Columns = append(sv.Columns, views)
 		}
@@ -237,7 +251,7 @@ func sectionClass(sec builder.Section) string {
 	return strings.Join(cl, " ")
 }
 
-func (s *Server) blockView(ctx context.Context, b *builder.Block, lang string, pd *PageData) *BlockView {
+func (s *Server) blockView(b *builder.Block, lang string, pd *PageData, media func(int64) *store.Media) *BlockView {
 	v := &BlockView{ID: b.ID, Type: b.Type, S: map[string]string{}, Page: pd}
 	t, _ := builder.TypeOf(b.Type)
 	for _, f := range t.Fields {
@@ -252,11 +266,10 @@ func (s *Server) blockView(ctx context.Context, b *builder.Block, lang string, p
 		if err != nil || id <= 0 {
 			return nil
 		}
-		m, err := s.store.MediaByID(ctx, id)
-		if err != nil {
-			return nil
+		if m := media(id); m != nil && m.IsImage() {
+			return imageView(m)
 		}
-		return imageView(m)
+		return nil
 	}
 	switch b.Type {
 	case "rich-text":
@@ -356,7 +369,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	l, row, err := s.draftLayout(ctx, th)
+	l, row, err := s.draftLayout(ctx, th, s.mediaSet(ctx))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -497,7 +510,7 @@ type layoutResult struct {
 
 // parseLayout reads and validates layouts from a JSON body ({"layout": …}
 // or the layouts themselves).
-func (s *Server) parseLayout(r *http.Request, th *theme.Theme) (*builder.Layouts, error) {
+func (s *Server) parseLayout(r *http.Request, th *theme.Theme, ms *mediaSet) (*builder.Layouts, error) {
 	raw, err := io.ReadAll(io.LimitReader(r.Body, builder.MaxJSON+1))
 	if err != nil {
 		return nil, err
@@ -508,7 +521,15 @@ func (s *Server) parseLayout(r *http.Request, th *theme.Theme) (*builder.Layouts
 	if json.Unmarshal(raw, &env) == nil && len(env.Layout) > 0 {
 		raw = env.Layout
 	}
-	return builder.Parse(raw, s.layoutContext(r.Context(), th))
+	return s.parseLayoutJSON(raw, th, ms)
+}
+
+// parseLayoutJSON is builder.Parse with the images looked up in one query.
+func (s *Server) parseLayoutJSON(raw []byte, th *theme.Theme, ms *mediaSet) (*builder.Layouts, error) {
+	if len(raw) <= builder.MaxJSON {
+		ms.prefetch(builder.ImageIDs(raw))
+	}
+	return builder.Parse(raw, s.layoutContext(th, ms))
 }
 
 func (s *Server) adminBuilderDraft(w http.ResponseWriter, r *http.Request) {
@@ -517,14 +538,19 @@ func (s *Server) adminBuilderDraft(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, layoutResult{Message: s.t("Not found.")})
 		return
 	}
-	l, err := s.parseLayout(r, th)
+	ms := s.mediaSet(r.Context())
+	l, err := s.parseLayout(r, th, ms)
 	if err != nil {
 		var errs builder.Errors
-		if errors.As(err, &errs) {
+		switch {
+		case ms.err != nil:
+			s.log.Error("check theme layout images", "theme", th.Slug, "err", err)
+			writeJSON(w, http.StatusInternalServerError, layoutResult{Message: s.t("Something went wrong. The error has been logged.")})
+		case errors.As(err, &errs):
 			writeJSON(w, http.StatusUnprocessableEntity, layoutResult{Errors: errs, Message: s.t("Some values were not accepted.")})
-			return
+		default:
+			writeJSON(w, http.StatusBadRequest, layoutResult{Message: s.t("The request could not be read.")})
 		}
-		writeJSON(w, http.StatusBadRequest, layoutResult{Message: s.t("The request could not be read.")})
 		return
 	}
 	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomLayout, l.JSON(), uid(r)); err != nil {
@@ -551,7 +577,7 @@ func (s *Server) adminBuilderPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	l, row, err := s.draftLayout(ctx, th)
+	l, row, err := s.draftLayout(ctx, th, s.mediaSet(ctx))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -601,7 +627,11 @@ func (s *Server) adminBuilderRestore(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	l := builder.Load(rev.Data, s.layoutContext(r.Context(), th))
+	l, err := s.loadLayout(rev.Data, th, s.mediaSet(r.Context()))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomLayout, l.JSON(), uid(r)); err != nil {
 		s.serverError(w, r, err)
 		return
@@ -614,24 +644,22 @@ func (s *Server) adminBuilderRestore(w http.ResponseWriter, r *http.Request) {
 
 // layoutExport returns the theme's layouts (the draft, else the published
 // ones) for an export file, or nil when there are none.
-func (s *Server) layoutExport(ctx context.Context, th *theme.Theme) json.RawMessage {
-	l, _, err := s.draftLayout(ctx, th)
-	if err != nil || l.IsZero() {
-		return nil
+func (s *Server) layoutExport(ctx context.Context, th *theme.Theme, ms *mediaSet) (json.RawMessage, error) {
+	l, _, err := s.draftLayout(ctx, th, ms)
+	if err != nil {
+		return nil, err
 	}
-	b, _ := json.Marshal(l)
-	return b
+	if l.IsZero() {
+		return nil, nil
+	}
+	return json.Marshal(l)
 }
 
 // parseImportLayout validates the layouts of an export file (nil when it
 // has none).
-func (s *Server) parseImportLayout(r *http.Request, th *theme.Theme, raw json.RawMessage) (*builder.Layouts, error) {
+func (s *Server) parseImportLayout(r *http.Request, th *theme.Theme, raw json.RawMessage, ms *mediaSet) (*builder.Layouts, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
 	}
-	l, err := builder.Parse(raw, s.layoutContext(r.Context(), th))
-	if err != nil {
-		return nil, errors.New(s.t("The file was not imported: %s", err.Error()))
-	}
-	return l, nil
+	return s.parseLayoutJSON(raw, th, ms)
 }

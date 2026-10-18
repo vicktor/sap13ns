@@ -43,6 +43,7 @@ type CustomView struct {
 	Hero       string     // "" (theme) | on | off
 	PerPage    int        // home posts per page, 0 = reading settings
 	Preview    bool       // a draft rendered for the customiser preview
+	Partial    bool       // built from a failed load: kept out of every cache
 }
 
 // HeroOn reports whether the home page shows its introduction, given the
@@ -72,7 +73,19 @@ type customEntry struct {
 	url    string // "" when the design renders no CSS
 	hash   string
 	logo   *ImageView
+	// The media the design and layouts use, looked up once per cache
+	// generation (nil values: no such file). Read-only once cached.
+	media map[int64]*store.Media
+	// partial marks an entry built from a failed load: served once, never
+	// cached, and the page it renders is kept out of the page cache.
+	partial bool
 }
+
+// mediaByID returns a file the published design or layouts use.
+func (e *customEntry) mediaByID(id int64) *store.Media { return e.media[id] }
+
+// customFillTimeout bounds loading a theme's published design and layouts.
+var customFillTimeout = 10 * time.Second
 
 func (c *customCache) invalidate() {
 	c.mu.Lock()
@@ -106,9 +119,97 @@ func (s *Server) customRoutes(mux *http.ServeMux, admin func(string, auth.Cap, h
 
 // ------------------------------------------------------------ resolving --
 
+// mediaSet looks up the media of one run (loading, validating or rendering
+// a design or layouts), each id once. Only "not found" means a file is
+// missing: any other failure (a cancelled request, a timeout, an exhausted
+// pool) is kept in err and returned by the validators, and the run must
+// then be neither cached nor saved, or a passing problem would strip the
+// fonts, the logo and the images until the next change.
+type mediaSet struct {
+	ctx context.Context
+	st  *store.Store
+	m   map[int64]*store.Media // nil value: no such file
+	err error                  // the first failed lookup
+}
+
+func (s *Server) mediaSet(ctx context.Context) *mediaSet {
+	return &mediaSet{ctx: ctx, st: s.store, m: map[int64]*store.Media{}}
+}
+
+// get returns the file with id (nil when there is none).
+func (ms *mediaSet) get(id int64) (*store.Media, error) {
+	if id <= 0 {
+		return nil, nil
+	}
+	if m, ok := ms.m[id]; ok {
+		return m, nil
+	}
+	if ms.err != nil {
+		return nil, ms.err // the database is failing: do not insist
+	}
+	m, err := ms.st.MediaByID(ms.ctx, id)
+	if errors.Is(err, store.ErrNotFound) {
+		m, err = nil, nil
+	}
+	if err != nil {
+		ms.err = err
+		return nil, err
+	}
+	ms.m[id] = m
+	return m, nil
+}
+
+// prefetch looks up ids in one query.
+func (ms *mediaSet) prefetch(ids []int64) {
+	var need []int64
+	for _, id := range ids {
+		if _, ok := ms.m[id]; !ok && id > 0 {
+			need = append(need, id)
+		}
+	}
+	if len(need) == 0 || ms.err != nil {
+		return
+	}
+	found, err := ms.st.MediaByIDs(ms.ctx, need)
+	if err != nil {
+		ms.err = err
+		return
+	}
+	for _, id := range need {
+		ms.m[id] = found[id] // nil when missing
+	}
+}
+
+// lookup is get for rendering: nil for missing and failed lookups alike
+// (a failure is in ms.err).
+func (ms *mediaSet) lookup(id int64) *store.Media {
+	m, _ := ms.get(id)
+	return m
+}
+
+func (ms *mediaSet) exists(id int64, kind string) (bool, error) {
+	m, err := ms.get(id)
+	if err != nil || m == nil {
+		return false, err
+	}
+	if kind == "font" {
+		return m.MIME == "font/woff2", nil
+	}
+	return m.IsImage(), nil
+}
+
+// fontURL resolves the design's uploaded fonts for its stylesheet.
+func (ms *mediaSet) fontURL(id int64) string {
+	m := ms.lookup(id)
+	if m == nil || m.MIME != "font/woff2" {
+		return ""
+	}
+	return m.URL()
+}
+
 // designContext is what validating a design of th needs.
-func (s *Server) designContext(ctx context.Context, th *theme.Theme) customize.Context {
-	c := customize.Context{Langs: s.siteLangs()}
+func (s *Server) designContext(th *theme.Theme, ms *mediaSet) customize.Context {
+	c := customize.Context{Langs: s.siteLangs(), Media: ms.exists}
 	for _, o := range th.Options {
 		spec := customize.OptionSpec{Key: o.Key, Type: o.Type}
 		for _, ch := range o.Choices {
@@ -116,38 +217,17 @@ func (s *Server) designContext(ctx context.Context, th *theme.Theme) customize.C
 		}
 		c.Options = append(c.Options, spec)
 	}
-	c.Media = func(id int64, kind string) bool {
-		m, err := s.store.MediaByID(ctx, id)
-		if err != nil {
-			return false
-		}
-		if kind == "font" {
-			return m.MIME == "font/woff2"
-		}
-		return m.IsImage()
-	}
 	return c
 }
 
-func (s *Server) fontResolver(ctx context.Context) customize.Resolver {
-	return func(id int64) string {
-		m, err := s.store.MediaByID(ctx, id)
-		if err != nil || m.MIME != "font/woff2" {
-			return ""
-		}
-		return m.URL()
-	}
-}
-
-func (s *Server) logoView(ctx context.Context, d *customize.Design) *ImageView {
+func logoView(ms *mediaSet, d *customize.Design) *ImageView {
 	if d.Header.Brand == "" || d.Header.Logo == 0 {
 		return nil
 	}
-	m, err := s.store.MediaByID(ctx, d.Header.Logo)
-	if err != nil {
-		return nil
+	if m := ms.lookup(d.Header.Logo); m != nil {
+		return imageView(m)
 	}
-	return imageView(m)
+	return nil
 }
 
 func customCSSURL(slug, prefix, css string) string {
@@ -164,25 +244,17 @@ func (s *Server) publishedDesign(ctx context.Context, th *theme.Theme) *customEn
 		return e
 	}
 	c.mu.Unlock()
-	e := &customEntry{gen: gen, design: &customize.Design{}, layout: &builder.Layouts{}}
-	if row, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomDesign); err != nil {
-		s.log.Error("load theme design", "theme", th.Slug, "err", err)
-		return e // not cached: try again next time
-	} else {
-		e.design = customize.Load(row.Published, s.designContext(ctx, th))
+	// The entry serves every visitor until the next change, so it is not
+	// tied to this request: a visitor who goes away mid-load must not
+	// leave a design without its fonts behind.
+	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), customFillTimeout)
+	defer cancel()
+	e, err := s.loadPublished(fctx, th, gen)
+	if err != nil {
+		s.log.Error("load published theme design", "theme", th.Slug, "err", err)
+		e.partial = true
+		return e // served this once, not cached: try again next time
 	}
-	if l, err := s.loadPublishedLayout(ctx, th); err != nil {
-		s.log.Error("load theme layout", "theme", th.Slug, "err", err)
-		return e
-	} else {
-		e.layout = l
-	}
-	e.css = e.design.Stylesheet(s.fontResolver(ctx))
-	if e.css != "" {
-		e.hash = customize.Hash(e.css)
-		e.url = customCSSURL(th.Slug, "", e.css)
-	}
-	e.logo = s.logoView(ctx, e.design)
 	c.mu.Lock()
 	if c.themes == nil {
 		c.themes = map[string]*customEntry{}
@@ -194,20 +266,50 @@ func (s *Server) publishedDesign(ctx context.Context, th *theme.Theme) *customEn
 	return e
 }
 
-// canCustomize reports whether the request's user may see drafts.
-func canCustomize(r *http.Request) bool {
+// loadPublished builds the cache entry of th's published design and
+// layouts. The entry is usable even with an error, for one response.
+func (s *Server) loadPublished(ctx context.Context, th *theme.Theme, gen uint64) (*customEntry, error) {
+	e := &customEntry{gen: gen, design: &customize.Design{}, layout: &builder.Layouts{}}
+	ms := s.mediaSet(ctx)
+	row, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomDesign)
+	if err != nil {
+		return e, err
+	}
+	e.design, _ = customize.Load(row.Published, s.designContext(th, ms)) // a lookup failure is in ms.err
+	l, err := s.loadPublishedLayout(ctx, th, ms)
+	if err != nil {
+		return e, fmt.Errorf("layout: %w", err)
+	}
+	e.layout = l
+	e.css = e.design.Stylesheet(ms.fontURL)
+	if e.css != "" {
+		e.hash = customize.Hash(e.css)
+		e.url = customCSSURL(th.Slug, "", e.css)
+	}
+	e.logo = logoView(ms, e.design)
+	e.media = ms.m
+	if ms.err != nil {
+		return e, fmt.Errorf("media: %w", ms.err)
+	}
+	return e, nil
+}
+
+// canCustomize reports whether the request's user may see drafts: the
+// appearance capability, with the second factor the admin would demand.
+func (s *Server) canCustomize(r *http.Request) bool {
 	u := currentUser(r)
-	return u != nil && auth.Can(u.Role, auth.CapAppearance)
+	return u != nil && auth.Can(u.Role, auth.CapAppearance) && !s.mustEnroll2FA(u)
 }
 
 // wantsDraft reports whether this request should render the draft design.
-func wantsDraft(r *http.Request) bool {
-	return r.URL.Query().Get("customize") == "draft" && canCustomize(r)
+func (s *Server) wantsDraft(r *http.Request) bool {
+	return r.URL.Query().Get("customize") == "draft" && s.canCustomize(r)
 }
 
 // draftDesign loads the draft design of th (the published one when there
-// is no draft).
-func (s *Server) draftDesign(ctx context.Context, th *theme.Theme) (*customize.Design, *store.ThemeCustom, error) {
+// is no draft), looking its media up in ms. An error, a failed media
+// lookup included, means the design must not be saved or published.
+func (s *Server) draftDesign(ctx context.Context, th *theme.Theme, ms *mediaSet) (*customize.Design, *store.ThemeCustom, error) {
 	row, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomDesign)
 	if err != nil {
 		return nil, nil, err
@@ -216,7 +318,11 @@ func (s *Server) draftDesign(ctx context.Context, th *theme.Theme) (*customize.D
 	if row.Draft != nil {
 		raw = row.Draft
 	}
-	return customize.Load(raw, s.designContext(ctx, th)), row, nil
+	d, err := customize.Load(raw, s.designContext(th, ms))
+	if err != nil {
+		return nil, nil, err
+	}
+	return d, row, nil
 }
 
 // applyCustom fills sv.Custom and applies the design's overrides.
@@ -224,17 +330,18 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 	sv.Custom = &CustomView{}
 	ctx := r.Context()
 	var d *customize.Design
-	if wantsDraft(r) {
+	if s.wantsDraft(r) {
 		var err error
-		if d, _, err = s.draftDesign(ctx, th); err != nil {
+		ms := s.mediaSet(ctx)
+		if d, _, err = s.draftDesign(ctx, th, ms); err != nil {
 			s.log.Error("load theme draft", "theme", th.Slug, "err", err)
 			d = &customize.Design{}
 		}
-		css := d.Stylesheet(s.fontResolver(ctx))
+		css := d.Stylesheet(ms.fontURL)
 		// Always link a stylesheet in previews, so the customiser can
 		// swap its URL after every change.
 		sv.Custom.CSS = customCSSURL(th.Slug, "draft-", css)
-		sv.Custom.Logo = s.logoView(ctx, d)
+		sv.Custom.Logo = logoView(ms, d)
 		sv.Custom.Preview = true
 		if len(d.Options) > 0 {
 			stored, err := s.store.ThemeOptions(ctx, th.Slug)
@@ -249,7 +356,7 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 	} else {
 		e := s.publishedDesign(ctx, th)
 		d = e.design
-		sv.Custom.CSS, sv.Custom.Logo = e.url, e.logo
+		sv.Custom.CSS, sv.Custom.Logo, sv.Custom.Partial = e.url, e.logo, e.partial
 	}
 	cv := sv.Custom
 	cv.Class = d.HTMLClasses()
@@ -270,12 +377,19 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 }
 
 // customPreviewHeaders lets the customiser frame a draft preview (only
-// from this origin) and keeps it out of every cache.
+// from this origin) and keeps it out of every cache, as it does a page
+// built while the published design could not be loaded whole.
 func (s *Server) customPreviewHeaders(w http.ResponseWriter, pd *PageData) {
-	if pd.Site == nil || pd.Site.Custom == nil || !pd.Site.Custom.Preview {
+	if pd.Site == nil || pd.Site.Custom == nil {
 		return
 	}
 	h := w.Header()
+	if pd.Site.Custom.Partial {
+		h.Set("Cache-Control", "no-store")
+	}
+	if !pd.Site.Custom.Preview {
+		return
+	}
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Frame-Options", "SAMEORIGIN")
 	h.Set("Content-Security-Policy", setCSPDirective(h.Get("Content-Security-Policy"), "frame-ancestors", "'self'"))
@@ -310,21 +424,29 @@ func (s *Server) handleCustomCSS(w http.ResponseWriter, r *http.Request) {
 	}
 	h := w.Header()
 	if strings.HasPrefix(name, "draft-") {
-		if !canCustomize(r) {
+		if !s.canCustomize(r) {
 			http.NotFound(w, r)
 			return
 		}
-		d, _, err := s.draftDesign(r.Context(), th)
+		ms := s.mediaSet(r.Context())
+		d, _, err := s.draftDesign(r.Context(), th, ms)
 		if err != nil {
 			s.serverError(w, r, err)
 			return
 		}
 		h.Set("Content-Type", "text/css; charset=utf-8")
 		h.Set("Cache-Control", "private, no-store")
-		io.WriteString(w, d.Stylesheet(s.fontResolver(r.Context())))
+		io.WriteString(w, d.Stylesheet(ms.fontURL))
 		return
 	}
 	e := s.publishedDesign(r.Context(), th)
+	if e.partial {
+		// Never hand out (or redirect to) a stylesheet missing its fonts.
+		h.Set("Cache-Control", "no-store")
+		h.Set("Retry-After", "5")
+		http.Error(w, "stylesheet temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if e.url == "" {
 		http.NotFound(w, r)
 		return
@@ -402,7 +524,8 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	d, row, err := s.draftDesign(ctx, th)
+	ms := s.mediaSet(ctx)
+	d, row, err := s.draftDesign(ctx, th, ms)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -412,7 +535,11 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	pub := customize.Load(row.Published, s.designContext(ctx, th))
+	pub, err := customize.Load(row.Published, s.designContext(th, ms))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	revs, err := s.store.CustomRevisions(ctx, th.Slug, store.CustomDesign)
 	if err != nil {
 		s.serverError(w, r, err)
@@ -486,14 +613,33 @@ type draftResult struct {
 
 // parseDesign reads and validates a design from a request body: JSON
 // ({"design": {...}} or the design itself), or a form field "design".
-func (s *Server) parseDesign(r *http.Request, th *theme.Theme) (*customize.Design, error) {
-	d, _, err := s.parseDesignFile(r, th)
+func (s *Server) parseDesign(r *http.Request, th *theme.Theme, ms *mediaSet) (*customize.Design, error) {
+	d, _, err := s.parseDesignFile(r, th, ms)
+	if err == nil && d == nil {
+		d = &customize.Design{} // an envelope without a design
+	}
 	return d, err
 }
 
+// designFail answers a design that parseDesign refused: 422 with the
+// field errors, 500 when its media could not be checked, 400 otherwise.
+func (s *Server) designFail(w http.ResponseWriter, th *theme.Theme, ms *mediaSet, err error) {
+	var errs customize.Errors
+	switch {
+	case ms.err != nil:
+		s.log.Error("check theme design media", "theme", th.Slug, "err", err)
+		writeJSON(w, http.StatusInternalServerError, draftResult{Message: s.t("Something went wrong. The error has been logged."), Warnings: []customize.Warning{}})
+	case errors.As(err, &errs):
+		writeJSON(w, http.StatusUnprocessableEntity, draftResult{Errors: errs, Message: s.t("Some values were not accepted."), Warnings: []customize.Warning{}})
+	default:
+		writeJSON(w, http.StatusBadRequest, draftResult{Message: s.t("The request could not be read.")})
+	}
+}
+
 // parseDesignFile is parseDesign that also returns the "layout" of an
-// export file, unvalidated (see parseImportLayout).
-func (s *Server) parseDesignFile(r *http.Request, th *theme.Theme) (*customize.Design, json.RawMessage, error) {
+// export file, unvalidated (see parseImportLayout). The design is nil when
+// an export envelope has none (a file with layouts only).
+func (s *Server) parseDesignFile(r *http.Request, th *theme.Theme, ms *mediaSet) (*customize.Design, json.RawMessage, error) {
 	var raw []byte
 	ct := r.Header.Get("Content-Type")
 	switch {
@@ -530,8 +676,11 @@ func (s *Server) parseDesignFile(r *http.Request, th *theme.Theme) (*customize.D
 	var layout json.RawMessage
 	if json.Unmarshal(raw, &env) == nil && (len(env.Design) > 0 || len(env.Layout) > 0) {
 		raw, layout = env.Design, env.Layout
+		if len(raw) == 0 || string(raw) == "null" {
+			return nil, layout, nil
+		}
 	}
-	d, err := customize.Parse(raw, s.designContext(r.Context(), th))
+	d, err := customize.Parse(raw, s.designContext(th, ms))
 	return d, layout, err
 }
 
@@ -541,14 +690,10 @@ func (s *Server) adminCustomizeDraft(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, draftResult{Message: s.t("Not found.")})
 		return
 	}
-	d, err := s.parseDesign(r, th)
+	ms := s.mediaSet(r.Context())
+	d, err := s.parseDesign(r, th, ms)
 	if err != nil {
-		var errs customize.Errors
-		if errors.As(err, &errs) {
-			writeJSON(w, http.StatusUnprocessableEntity, draftResult{Errors: errs, Message: s.t("Some values were not accepted."), Warnings: []customize.Warning{}})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, draftResult{Message: s.t("The request could not be read.")})
+		s.designFail(w, th, ms, err)
 		return
 	}
 	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomDesign, d.JSON(), uid(r)); err != nil {
@@ -558,7 +703,7 @@ func (s *Server) adminCustomizeDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	stored, _ := s.store.ThemeOptions(r.Context(), th.Slug)
 	st := s.customizerState(th, d, d, stored)
-	css := d.Stylesheet(s.fontResolver(r.Context()))
+	css := d.Stylesheet(ms.fontURL)
 	writeJSON(w, http.StatusOK, draftResult{OK: true, CSSURL: customCSSURL(th.Slug, "draft-", css), Classes: d.HTMLClasses(),
 		Warnings: st.Warnings, SavedAt: time.Now().In(s.loc()).Format("15:04:05"), Light: st.Light, Dark: st.Dark})
 }
@@ -571,14 +716,10 @@ func (s *Server) adminCustomizeDerive(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, draftResult{Message: s.t("Not found.")})
 		return
 	}
-	d, err := s.parseDesign(r, th)
+	ms := s.mediaSet(r.Context())
+	d, err := s.parseDesign(r, th, ms)
 	if err != nil {
-		var errs customize.Errors
-		if errors.As(err, &errs) {
-			writeJSON(w, http.StatusUnprocessableEntity, draftResult{Errors: errs, Message: s.t("Some values were not accepted."), Warnings: []customize.Warning{}})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, draftResult{Message: s.t("The request could not be read.")})
+		s.designFail(w, th, ms, err)
 		return
 	}
 	stored, _ := s.store.ThemeOptions(r.Context(), th.Slug)
@@ -619,7 +760,7 @@ func (s *Server) adminCustomizePublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	d, row, err := s.draftDesign(ctx, th)
+	d, row, err := s.draftDesign(ctx, th, s.mediaSet(ctx))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -703,7 +844,8 @@ func (s *Server) adminCustomizeExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	d, _, err := s.draftDesign(ctx, th)
+	ms := s.mediaSet(ctx)
+	d, _, err := s.draftDesign(ctx, th, ms)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -721,7 +863,10 @@ func (s *Server) adminCustomizeExport(w http.ResponseWriter, r *http.Request) {
 	d.Options = opts
 	exp := designExport{Format: exportFormat, Version: customize.Version, Theme: th.Slug,
 		Exported: time.Now().UTC().Format(time.RFC3339), Design: d}
-	exp.Layout = s.layoutExport(ctx, th)
+	if exp.Layout, err = s.layoutExport(ctx, th, ms); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	b, err := json.MarshalIndent(exp, "", "  ")
 	if err != nil {
 		s.serverError(w, r, err)
@@ -732,31 +877,52 @@ func (s *Server) adminCustomizeExport(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-// adminCustomizeImport validates an exported file and makes it the draft.
+// adminCustomizeImport validates an exported file and makes what it
+// carries (a design, layouts or both) the draft; the rest is left alone.
 func (s *Server) adminCustomizeImport(w http.ResponseWriter, r *http.Request) {
 	th, ok := s.loadTheme(w, r)
 	if !ok {
 		return
 	}
-	d, rawLayout, err := s.parseDesignFile(r, th)
+	ms := s.mediaSet(r.Context())
+	d, rawLayout, err := s.parseDesignFile(r, th, ms)
 	if err != nil {
+		if ms.err != nil {
+			s.serverError(w, r, err)
+			return
+		}
 		var errs customize.Errors
 		msg := s.t("The file could not be read.")
 		if errors.As(err, &errs) {
-			msg = s.t("The file was not imported: %s", errs.Error())
+			msg = s.t("The file was not imported: %s", s.errorSummary(errorStrings(errs)))
 		}
 		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, msg)
 		return
 	}
 	// Validate the layouts too before changing anything.
-	l, err := s.parseImportLayout(r, th, rawLayout)
+	l, err := s.parseImportLayout(r, th, rawLayout, ms)
 	if err != nil {
-		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, err.Error())
+		if ms.err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		var errs builder.Errors
+		msg := s.t("The file could not be read.")
+		if errors.As(err, &errs) {
+			msg = s.t("The file was not imported: %s", s.errorSummary(errorStrings(errs)))
+		}
+		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, msg)
 		return
 	}
-	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomDesign, d.JSON(), uid(r)); err != nil {
-		s.serverError(w, r, err)
+	if d == nil && l == nil {
+		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, s.t("The file has neither a design nor layouts."))
 		return
+	}
+	if d != nil {
+		if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomDesign, d.JSON(), uid(r)); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
 	}
 	if l != nil {
 		if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomLayout, l.JSON(), uid(r)); err != nil {
@@ -786,11 +952,33 @@ func (s *Server) adminCustomizeRestore(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	d := customize.Load(rev.Data, s.designContext(r.Context(), th))
+	d, err := customize.Load(rev.Data, s.designContext(th, s.mediaSet(r.Context())))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomDesign, d.JSON(), uid(r)); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
 	s.audit(r, uid(r), "theme.design_restored", th.Slug, map[string]string{"revision": strconv.FormatInt(id, 10)})
 	s.customizeDone(w, r, th, "success", s.t("Version restored into the draft. Publish to apply it."))
+}
+
+// errorSummary joins at most five problems for a flash message, which
+// travels in a cookie.
+func (s *Server) errorSummary(msgs []string) string {
+	const max = 5
+	if len(msgs) > max {
+		msgs = append(msgs[:max:max], s.t("and %d more", len(msgs)-max))
+	}
+	return strings.Join(msgs, "; ")
+}
+
+func errorStrings[E error](es []E) []string {
+	out := make([]string, len(es))
+	for i, e := range es {
+		out[i] = e.Error()
+	}
+	return out
 }

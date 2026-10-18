@@ -90,8 +90,11 @@ type Context struct {
 	Menus []string // the theme's menu locations
 	Areas []string // the theme's widget areas
 	Langs []string // languages besides the main one (for I18n)
-	// Media reports whether an image exists. Nil accepts every positive id.
-	Media func(id int64) bool
+	// Media reports whether an image exists. An error means the id could
+	// not be checked (a timeout, a database problem): the value is kept and
+	// Parse, Load and Normalize return the error, so a passing failure never
+	// strips images from a layout. Nil accepts every positive id.
+	Media func(id int64) (bool, error)
 }
 
 // Region returns the region named name (nil when the theme's template is used).
@@ -135,7 +138,11 @@ func Parse(data []byte, c Context) (*Layouts, error) {
 	if err := dec.Decode(l); err != nil {
 		return nil, Errors{{Message: "invalid layout JSON: " + err.Error()}}
 	}
-	if errs := l.normalize(c, true); len(errs) > 0 {
+	errs, err := l.normalize(c, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(errs) > 0 {
 		return nil, errs
 	}
 	return l, nil
@@ -144,25 +151,87 @@ func Parse(data []byte, c Context) (*Layouts, error) {
 // Load decodes stored layouts leniently: what no longer validates (a
 // deleted image, a menu the theme dropped) is reset or removed so the rest
 // keeps working, and a page without its required block falls back to the
-// theme's template.
-func Load(data []byte, c Context) *Layouts {
+// theme's template. An error is a failed media lookup (see Context.Media):
+// the layouts are still fine for one response, but must be neither cached
+// nor saved.
+func Load(data []byte, c Context) (*Layouts, error) {
 	l := &Layouts{}
 	if len(data) > 0 {
 		_ = json.Unmarshal(data, l)
 	}
-	l.normalize(c, false)
-	return l
+	_, err := l.normalize(c, false)
+	return l, err
 }
 
 // Normalize cleans the layouts in place (strict: reports every problem).
-func (l *Layouts) Normalize(c Context) Errors { return l.normalize(c, true) }
+// The error is the first failed media lookup.
+func (l *Layouts) Normalize(c Context) (Errors, error) { return l.normalize(c, true) }
+
+// ImageIDs lists the image ids that stored layouts refer to, so they can be
+// looked up in one query before Load.
+func ImageIDs(data []byte) []int64 {
+	l := &Layouts{}
+	if len(data) == 0 || json.Unmarshal(data, l) != nil {
+		return nil
+	}
+	var ids []int64
+	seen := map[int64]bool{}
+	add := func(v string) {
+		if id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil && id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	regions := []*Region{l.Header, l.Footer}
+	for _, r := range l.Pages {
+		regions = append(regions, r)
+	}
+	for _, r := range regions {
+		if r == nil {
+			continue
+		}
+		for _, sec := range r.Sections {
+			for _, col := range sec.Columns {
+				for _, b := range col {
+					t, ok := TypeOf(b.Type)
+					if !ok {
+						continue
+					}
+					for _, f := range t.Fields {
+						if f.Type != "image" {
+							continue
+						}
+						add(b.Settings[f.Key])
+						for _, tr := range b.I18n {
+							add(tr[f.Key])
+						}
+					}
+				}
+			}
+		}
+	}
+	return ids
+}
 
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
-func (l *Layouts) normalize(c Context, strict bool) Errors {
+func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 	var errs Errors
 	add := func(field, format string, args ...any) {
 		errs = append(errs, FieldError{Field: field, Message: fmt.Sprintf(format, args...)})
+	}
+	var lookupErr error
+	if media := c.Media; media != nil {
+		c.Media = func(id int64) (bool, error) {
+			ok, err := media(id)
+			if err != nil {
+				if lookupErr == nil {
+					lookupErr = fmt.Errorf("check image %d: %w", id, err)
+				}
+				return true, nil // unknown: keep the value
+			}
+			return ok, nil
+		}
 	}
 	if l.Version != 0 && l.Version != Version {
 		add("version", "unsupported version %d", l.Version)
@@ -336,7 +405,7 @@ func (l *Layouts) normalize(c Context, strict bool) Errors {
 	}
 	l.Pages = pages
 	sort.SliceStable(errs, func(i, j int) bool { return errs[i].Field < errs[j].Field })
-	return errs
+	return errs, lookupErr
 }
 
 func (r *Region) has(typ string) bool {
@@ -446,6 +515,13 @@ func cleanBlock(path string, b *Block, t *Type, c Context) Errors {
 	return errs
 }
 
+// imageOK reports whether image id exists; one that could not be checked
+// counts as existing (normalize records the error).
+func imageOK(c Context, id int64) bool {
+	ok, err := c.Media(id)
+	return ok || err != nil
+}
+
 // cleanValue normalises one value and returns a message when it is refused.
 func cleanValue(f *Field, v string, c Context) (string, string) {
 	if f.Type != "markdown" && f.Type != "textarea" {
@@ -496,7 +572,7 @@ func cleanValue(f *Field, v string, c Context) (string, string) {
 		}
 	case "image":
 		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 || (c.Media != nil && !c.Media(id)) {
+		if err != nil || id <= 0 || (c.Media != nil && !imageOK(c, id)) {
 			return "", "choose an image from the media library"
 		}
 		v = strconv.FormatInt(id, 10)

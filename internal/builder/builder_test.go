@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -9,7 +10,17 @@ var ctx = Context{
 	Menus: []string{"primary", "footer"},
 	Areas: []string{"top", "sidebar", "footer"},
 	Langs: []string{"en"},
-	Media: func(id int64) bool { return id == 7 },
+	Media: func(id int64) (bool, error) { return id == 7, nil },
+}
+
+// load is Load for layouts whose images can always be checked.
+func load(t *testing.T, src string) *Layouts {
+	t.Helper()
+	l, err := Load([]byte(src), ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return l
 }
 
 const valid = `{
@@ -132,7 +143,7 @@ func TestFooterMetaEnforced(t *testing.T) {
 		if !l.Footer.HasBlock(MetaType) {
 			t.Errorf("Parse(%s): no footer-meta: %s", src, l.JSON())
 		}
-		if !Load([]byte(src), ctx).Footer.HasBlock(MetaType) {
+		if !load(t, src).Footer.HasBlock(MetaType) {
 			t.Errorf("Load(%s): no footer-meta", src)
 		}
 	}
@@ -156,7 +167,7 @@ func TestFooterMetaEnforced(t *testing.T) {
 func TestLoadLenient(t *testing.T) {
 	src := `{"header": {"sections": [{"id": "h", "layout": "1-1", "columns": [[{"id": "x", "type": "marquee"}], [{"id": "img", "type": "image", "settings": {"image": "99", "size": "small"}}], [{"id": "s", "type": "spacer"}]]}]},
 	  "pages": {"single": {"sections": [{"id": "x", "layout": "1", "columns": [[{"id": "cm", "type": "comments"}]]}]}, "landing": {"sections": []}}}`
-	l := Load([]byte(src), ctx)
+	l := load(t, src)
 	if l.Pages != nil {
 		t.Errorf("a single layout without content should fall back to the theme: %s", l.JSON())
 	}
@@ -170,8 +181,35 @@ func TestLoadLenient(t *testing.T) {
 	if l.Header.Sections[0].ID == cols[1][1].ID {
 		t.Error("duplicate ids kept")
 	}
-	if !Load(nil, ctx).IsZero() {
+	if !load(t, "").IsZero() {
 		t.Error("empty layouts change something")
+	}
+}
+
+// An image that could not be checked (rather than one that is missing)
+// is kept, and the failure is reported so the layout is neither cached
+// nor saved.
+func TestMediaLookupFailure(t *testing.T) {
+	broken := errors.New("connection reset")
+	c := ctx
+	c.Media = func(int64) (bool, error) { return false, broken }
+	src := `{"pages": {"home": {"sections": [{"id": "s", "layout": "1", "columns": [[{"id": "img", "type": "image", "settings": {"image": "7"}}, {"id": "hero", "type": "hero", "settings": {"image": "12"}}]]}]}}}`
+	l, err := Load([]byte(src), c)
+	if !errors.Is(err, broken) {
+		t.Fatalf("Load error = %v, want the lookup error", err)
+	}
+	col := l.Pages["home"].Sections[0].Columns[0]
+	if col[0].Settings["image"] != "7" || col[1].Settings["image"] != "12" {
+		t.Errorf("images dropped on a failed lookup: %s", l.JSON())
+	}
+	if _, err := Parse([]byte(src), c); !errors.Is(err, broken) {
+		t.Errorf("Parse error = %v, want the lookup error", err)
+	}
+	if got := ImageIDs([]byte(src)); len(got) != 2 || got[0] != 7 || got[1] != 12 {
+		t.Errorf("ImageIDs = %v", got)
+	}
+	if ImageIDs([]byte(`{"pages":`)) != nil || ImageIDs(nil) != nil {
+		t.Error("ImageIDs of broken or empty layouts")
 	}
 }
 

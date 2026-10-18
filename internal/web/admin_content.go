@@ -384,6 +384,12 @@ func (s *Server) storeUpload(r *http.Request, u *store.User, name string, open f
 		s.media.Remove(m)
 		return nil, errors.New(s.t("This file type is not allowed."))
 	}
+	// Fonts go into the site's stylesheet (Appearance → Customise), so
+	// only those who may change the site's look upload them.
+	if res.MIME == "font/woff2" && !auth.Can(u.Role, auth.CapAppearance) {
+		s.media.Remove(m)
+		return nil, errors.New(s.t("Only users who can change the site's appearance can upload fonts."))
+	}
 	if existing, err := s.store.MediaBySHA(r.Context(), res.SHA256); err == nil && canManageMedia(u, existing) {
 		s.media.Remove(m) // duplicate upload: reuse the stored file
 		return existing, nil

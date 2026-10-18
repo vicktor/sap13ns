@@ -69,6 +69,11 @@ Five built-in themes, each with light and dark modes:
 
 Themes are Go templates plus static files. They can be previewed before you switch, and extra themes are loaded from a directory at runtime.
 
+- **Customiser:** colours, fonts (self-hosted WOFF2), radius, density, header and footer, with a live preview. Changes stay a draft until published, with ten revisions and export/import.
+- **Page builder:** 18 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, image, button, …) arranged per region and page type. Page types you have not built keep the theme's own template.
+
+See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
+
 ### SEO and sharing
 - XML sitemaps with language alternates; canonical URLs; Open Graph and Twitter cards.
 - **Automatic Open Graph images:** a branded 1200×630 card is rendered for every post with no featured image, cached on disk and served immutable.
@@ -242,9 +247,6 @@ docs               operator and developer documentation
 
 In active development:
 
-- **Theme builder:**
-  - a visual customiser for colours, fonts, radius, density, header, footer and home layout, with live preview;
-  - a block-based template builder.
 - **Multisite:** one account and many isolated sites, each with its own database schema, domains, themes and plugins.
 - **Hosting at sap13ns.site:** free personal sites and paid commercial plans.
 

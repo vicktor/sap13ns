@@ -142,7 +142,7 @@
             {{$logo := $D.Header.Logo}}
             {{range $d.Images}}<label class="cz-logo"><input type="radio" name="header.logo" value="{{.ID}}" data-type="int"{{if eq .ID $logo}} checked{{end}}><img src="{{.VariantURL "thumb"}}" alt="" loading="lazy" width="96" height="64"><span>{{or .Alt .OriginalName}}</span></label>{{end}}
           </div>
-          {{else}}<p class="hint">{{T "Upload the logo in Media first; SVG, PNG and WebP work best."}}</p>{{end}}
+          {{else}}<p class="hint">{{T "Upload the logo in Media first; PNG and WebP work best."}}</p>{{end}}
         </fieldset>
         {{template "cz-select" (dict "ID" "cz-align" "Name" "header.align" "Label" (T "Brand position") "Value" $D.Header.Align
           "Choices" (list (list "" $theme) (list "center" (T "Centred above the menu"))))}}
