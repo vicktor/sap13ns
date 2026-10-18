@@ -183,13 +183,15 @@ func (s *Server) renderBody(ctx context.Context, p *store.Post) template.HTML {
 		return template.HTML(e.Body)
 	}
 	info := s.PostInfo(p)
-	iconFn := func(name string) string { return icons.SVG(name, "") }
+	// Icon placeholders stay as they are until every filter has run: each
+	// filter's output is sanitised again, and <svg> would not survive that.
 	html := content.Render(p.Content, s.plugins.HasShortcode, func(sc content.Shortcode) (string, error) {
 		return s.plugins.Shortcode(ctx, sc.Name, sc.Attrs, sc.Inner, &info)
-	}, iconFn)
+	}, nil)
 	filtered := s.plugins.FilterContent(ctx, string(html), &info, func(h string) string {
-		return string(content.SanitizePluginHTML(h, iconFn))
+		return string(content.SanitizePluginHTML(h, nil))
 	})
+	filtered = content.ExpandIcons(filtered, func(name string) string { return icons.SVG(name, "") })
 	s.content.Set(key, &cache.Entry{Body: []byte(filtered)})
 	return template.HTML(filtered)
 }

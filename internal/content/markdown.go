@@ -4,6 +4,8 @@ package content
 
 import (
 	"bytes"
+	"fmt"
+	"hash/fnv"
 	"html/template"
 	"regexp"
 	"strings"
@@ -31,6 +33,29 @@ func (lazyImages) Transform(doc *ast.Document, _ text.Reader, _ parser.Context) 
 		return ast.WalkContinue, nil
 	})
 }
+
+// headingIDs gives headings readable ids for any language: accents are
+// folded like slugs ("Detalle técnico" -> "detalle-tecnico"; goldmark's own
+// generator drops the letters), and text with nothing to transliterate gets a
+// hash, which stays stable when other headings change. Duplicates get -2, -3.
+type headingIDs map[string]bool
+
+func (ids headingIDs) Generate(value []byte, _ ast.NodeKind) []byte {
+	base := Slugify(string(value))
+	if base == "" {
+		h := fnv.New32a()
+		h.Write(bytes.TrimSpace(value))
+		base = fmt.Sprintf("section-%08x", h.Sum32())
+	}
+	id := base
+	for n := 2; ids[id]; n++ {
+		id = fmt.Sprintf("%s-%d", base, n)
+	}
+	ids[id] = true
+	return []byte(id)
+}
+
+func (ids headingIDs) Put(value []byte) { ids[string(value)] = true }
 
 var md = goldmark.New(
 	goldmark.WithExtensions(extension.GFM, extension.Footnote),
@@ -69,6 +94,7 @@ func ContentPolicy() *bluemonday.Policy {
 		// rel="nofollow" would also hide internal links from search engines.
 		// Comments never come through here (they are plain text).
 		p.RequireNoFollowOnLinks(false)
+		p.AllowURLSchemes("tel")
 		p.RequireNoReferrerOnLinks(false)
 		p.AddTargetBlankToFullyQualifiedLinks(false)
 		p.RequireNoFollowOnFullyQualifiedLinks(false)
@@ -85,7 +111,7 @@ func PluginPolicy() *bluemonday.Policy {
 		p := bluemonday.UGCPolicy()
 		p.AllowAttrs("class").Matching(safeClass).Globally()
 		p.AllowAttrs("data-variant", "data-size", "data-category", "data-icon").Matching(regexp.MustCompile(`^[a-z0-9-]{1,40}$`)).Globally()
-		p.AllowAttrs("role").Matching(regexp.MustCompile(`^(alert|status|note|group|list|listitem|progressbar|img|separator)$`)).Globally()
+		p.AllowAttrs("role").Matching(regexp.MustCompile(`^(alert|status|note|group|list|listitem|progressbar|img|separator|region|navigation)$`)).Globally()
 		p.AllowAttrs("aria-label").Matching(regexp.MustCompile(`^[^<>"]{1,200}$`)).Globally()
 		p.AllowAttrs("aria-hidden").Matching(regexp.MustCompile(`^(true|false)$`)).Globally()
 		p.AllowAttrs("loading").Matching(regexp.MustCompile(`^lazy$`)).OnElements("img")
@@ -93,8 +119,18 @@ func PluginPolicy() *bluemonday.Policy {
 		p.AllowAttrs("datetime").Matching(regexp.MustCompile(`^[0-9T:.+Z-]{4,40}$`)).OnElements("time")
 		p.AllowAttrs("value", "max", "min").Matching(regexp.MustCompile(`^[0-9.]{1,12}$`)).OnElements("progress", "meter")
 		p.AllowAttrs("open").OnElements("details")
-		p.RequireNoFollowOnFullyQualifiedLinks(true)
+		p.AllowElements("nav", "kbd")
+		// Form placeholders, already qualified by the host ("plugin.form") and
+		// replaced with the host-rendered form when the page is served.
+		p.AllowAttrs("data-form").Matching(regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,49}\.[a-z][a-z0-9_-]{0,39}$`)).OnElements("div")
+		// Link relations are the plugin's call (external-links sets them);
+		// nothing is forced, so internal links stay followable.
+		p.AllowAttrs("rel").Matching(regexp.MustCompile(`^(?:nofollow|noopener|noreferrer|sponsored|ugc|external|me)(?: (?:nofollow|noopener|noreferrer|sponsored|ugc|external|me)){0,6}$`)).OnElements("a")
+		p.AllowAttrs("target").Matching(regexp.MustCompile(`^_blank$`)).OnElements("a")
+		p.RequireNoFollowOnLinks(false)
+		p.RequireNoFollowOnFullyQualifiedLinks(false)
 		p.AddTargetBlankToFullyQualifiedLinks(false)
+		p.AllowURLSchemes("tel")
 		pluginPolicy = p
 	})
 	return pluginPolicy
@@ -106,19 +142,21 @@ type IconRenderer func(name string) string
 var iconPlaceholder = regexp.MustCompile(`<span data-icon="([a-z0-9-]{1,40})"(?: class="([a-zA-Z0-9 _:./\[\]-]{1,200})")?></span>`)
 
 // SanitizePluginHTML cleans plugin output and expands icon placeholders
-// (`<span data-icon="check"></span>`) into Lucide SVGs.
+// (`<span data-icon="check"></span>`) into Lucide SVGs. With nil icons the
+// placeholders are kept, for HTML that is sanitised again later (content
+// filters): <svg> is not allowed, so an expanded icon would be stripped.
 func SanitizePluginHTML(raw string, icons IconRenderer) template.HTML {
-	clean := PluginPolicy().Sanitize(raw)
-	if icons != nil && strings.Contains(clean, "data-icon=") {
-		clean = iconPlaceholder.ReplaceAllStringFunc(clean, func(m string) string {
-			sub := iconPlaceholder.FindStringSubmatch(m)
-			if svg := icons(sub[1]); svg != "" {
-				return svg
-			}
-			return ""
-		})
+	return template.HTML(ExpandIcons(PluginPolicy().Sanitize(raw), icons))
+}
+
+// ExpandIcons replaces icon placeholders left in sanitised HTML.
+func ExpandIcons(clean string, icons IconRenderer) string {
+	if icons == nil || !strings.Contains(clean, "data-icon=") {
+		return clean
 	}
-	return template.HTML(clean)
+	return iconPlaceholder.ReplaceAllStringFunc(clean, func(m string) string {
+		return icons(iconPlaceholder.FindStringSubmatch(m)[1])
+	})
 }
 
 // ShortcodeFunc renders one shortcode occurrence. The returned HTML is
@@ -133,7 +171,8 @@ func Render(src string, isRegistered func(name string) bool, shortcode Shortcode
 		src, replacements = expandShortcodes(src, isRegistered, shortcode, icons)
 	}
 	var buf bytes.Buffer
-	if err := md.Convert([]byte(src), &buf); err != nil {
+	pc := parser.NewContext(parser.WithIDs(headingIDs{}))
+	if err := md.Convert([]byte(src), &buf, parser.WithContext(pc)); err != nil {
 		return template.HTML(template.HTMLEscapeString(src))
 	}
 	out := ContentPolicy().SanitizeBytes(buf.Bytes())
