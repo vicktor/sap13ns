@@ -280,12 +280,13 @@ func (s *Store) DropIneligibleAssistantChunks(ctx context.Context, postID int64)
 }
 
 // AssistantPending lists eligible posts whose index entry is missing, out
-// of date, or made with another embedding model. Failed posts are retried
+// of date, or made with another embedding model. With model "" (no
+// embeddings) stored vectors are left alone. Failed posts are retried
 // after 2^attempts minutes (at most six hours) unless they changed.
 func (s *Store) AssistantPending(ctx context.Context, model string, limit int) ([]int64, error) {
 	rows, err := s.DB.Query(ctx, `SELECT p.id FROM posts p LEFT JOIN assistant_docs d ON d.post_id = p.id
 		WHERE `+AssistantEligibleCond+` AND (d.post_id IS NULL OR d.post_updated_at <> p.updated_at
-			OR (d.error = '' AND d.model <> $1)
+			OR (d.error = '' AND $1 <> '' AND d.model <> $1)
 			OR (d.error <> '' AND d.indexed_at < now() - make_interval(mins => least(360, power(2, d.attempts)::int))))
 		ORDER BY d.post_id IS NOT NULL, p.updated_at DESC LIMIT $2`, model, limit)
 	if err != nil {
@@ -458,7 +459,7 @@ func (s *Store) AssistantStats(ctx context.Context, model string) (AssistantStat
 		(SELECT count(*) FROM posts p WHERE `+AssistantEligibleCond+`)::int,
 		(SELECT count(*) FROM posts p WHERE `+publicCond+` AND p.assistant_exclude)::int,
 		(SELECT count(*) FROM assistant_docs d JOIN posts p ON p.id = d.post_id WHERE `+AssistantEligibleCond+`
-			AND d.post_updated_at = p.updated_at AND d.model = $1 AND d.error = '')::int,
+			AND d.post_updated_at = p.updated_at AND ($1 = '' OR d.model = $1) AND d.error = '')::int,
 		(SELECT count(*) FROM assistant_docs d JOIN posts p ON p.id = d.post_id WHERE `+AssistantEligibleCond+` AND d.error <> '')::int,
 		(SELECT count(*) FROM assistant_chunks)::int,
 		(SELECT count(*) FROM assistant_chunks WHERE model = $1 AND model <> '')::int`, model).

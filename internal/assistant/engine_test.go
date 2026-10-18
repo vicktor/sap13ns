@@ -346,8 +346,16 @@ func TestEngineIndexSearchAndExclusion(t *testing.T) {
 	if res.Semantic || len(res.Hits) == 0 || res.Hits[0].PostID != hoursES || f.emb.calls.Load() != calls {
 		t.Errorf("full-text only: %+v", res)
 	}
-	if rep := f.reconcile(ReconcileOptions{}); rep.Failed != 0 {
+	if rep := f.reconcile(ReconcileOptions{}); rep.Failed != 0 || rep.Indexed != 0 {
 		t.Errorf("pass without embeddings: %+v", rep)
+	}
+	if status, _ := f.e.Status(ctx); status.Indexed != 2 || status.Pending != 0 {
+		t.Errorf("status without embeddings: %+v", status.AssistantStats)
+	}
+	// Switching them back on finds the vectors where they were.
+	f.settings(func(as *store.AssistantSettings) { as.EmbedProvider = "openai" })
+	if rep := f.reconcile(ReconcileOptions{}); rep.Embedded != 0 || rep.Indexed != 0 {
+		t.Errorf("embeddings back on: %+v", rep)
 	}
 }
 

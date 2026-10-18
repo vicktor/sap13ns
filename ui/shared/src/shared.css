@@ -208,6 +208,7 @@
   .sap-assistant-msg.is-user { justify-content: flex-end; }
   .sap-assistant-bubble { max-width: 88%; padding: 0.6rem 0.85rem; border-radius: 1rem; background: color-mix(in oklch, var(--foreground) 6%, var(--background)); overflow-wrap: anywhere; font-size: 0.925rem; line-height: 1.55; }
   .is-bot .sap-assistant-bubble { border-end-start-radius: 0.35rem; }
+  .dark .is-bot:not(.is-error) .sap-assistant-bubble { background: color-mix(in oklch, var(--foreground) 13%, var(--background)); }
   .is-user .sap-assistant-bubble { background: var(--primary); color: var(--primary-foreground); border-end-end-radius: 0.35rem; white-space: pre-wrap; }
   .is-error .sap-assistant-bubble { background: color-mix(in oklch, var(--destructive, #dc2626) 12%, var(--background)); color: var(--foreground); }
   .sap-assistant-bubble.is-streaming { white-space: pre-wrap; }

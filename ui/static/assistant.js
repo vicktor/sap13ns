@@ -180,8 +180,10 @@
             typing(b, t("Thinking"));
           } else if (event === "delta" && typeof data.text === "string") {
             text += data.text;
+            const shown = text.trimStart(); // models often open with blank lines
+            if (!shown) return;
             b.classList.add("is-streaming");
-            b.textContent = text;
+            b.textContent = shown;
             scrollDown();
           } else if (event === "done") {
             done = data;

@@ -418,8 +418,9 @@ func (e *Engine) indexPost(ctx context.Context, b *backend, id int64) (int, erro
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return 0, err
 	}
-	if doc != nil && doc.SourceHash == srcHash && doc.Model == model && doc.Error == "" {
-		// Only the date or status changed.
+	if doc != nil && doc.SourceHash == srcHash && doc.Error == "" && (model == "" || doc.Model == model) {
+		// Only the date or status changed (or embeddings are off, and the
+		// stored vectors wait for them).
 		return 0, e.st.TouchAssistantDoc(ctx, id, p.UpdatedAt)
 	}
 
