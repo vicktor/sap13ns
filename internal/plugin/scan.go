@@ -213,14 +213,17 @@ func (h *Host) ScanDir(ctx context.Context, dir string, opts ScanOptions) *Repor
 	}
 	h.scanBlocklist(rep, assets)
 
-	// Before compiling: the dry run would allocate the tables.
+	// Before compiling: the dry run would allocate the tables. It runs the
+	// module the way the host does, with every table pinned to a maximum.
+	runnable := wasm
 	if parts, err := parseWasm(wasm); err == nil {
 		if err := parts.checkTables(); err != nil {
 			rep.add(SevCritical, "wasm.tables", m.Wasm, "the module %v", err)
 			return rep.finish()
 		}
+		runnable = parts.pinTables(wasm)
 	}
-	compiled, err := h.rt.CompileModule(ctx, wasm)
+	compiled, err := h.rt.CompileModule(ctx, runnable)
 	if err != nil {
 		rep.add(SevCritical, "wasm.compile", m.Wasm, "the module does not compile: %v", err)
 		return rep.finish()

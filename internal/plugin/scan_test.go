@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tetratelabs/wazero"
 )
 
 // Host imports with the signatures the sap13ns module implements.
@@ -317,12 +320,85 @@ func TestTablesNormalModule(t *testing.T) {
 	m := respond(okHTML)
 	m.tables = []uint64{8000} // a Go program: about one entry per function
 	parts, err := parseWasm(m.bytes())
-	if err != nil || len(parts.tables) != 1 || parts.tables[0] != 8000 || parts.checkTables() != nil {
+	if err != nil || len(parts.tables) != 1 || parts.tables[0].min != 8000 || parts.checkTables() != nil {
 		t.Fatalf("tables %v err %v", parts, err)
 	}
 	imp := respond(okHTML)
 	imp.impMem = true
 	if parts, err := parseWasm(imp.bytes()); err != nil || len(parts.tables) != 0 {
 		t.Fatalf("imports: %v %v", parts, err)
+	}
+}
+
+// growModule exports grow(), which runs table.grow on a one-entry table
+// without a maximum and returns the old size, or -1 when the table cannot
+// grow. limits overrides the table's limits.
+func growModule(limits ...byte) []byte {
+	if limits == nil {
+		limits = []byte{0x00, 0x01}
+	}
+	body := append([]byte{0x00, 0xd0, 0x70, 0x41}, sleb(1<<20)...) // no locals; ref.null func; i32.const 2^20
+	body = append(body, 0xfc, 0x0f, 0x00, 0x0b)                    // table.grow 0; end
+	out := append([]byte{}, wasmMagic...)
+	out = append(out, wSection(1, wVec([][]byte{{0x60, 0x00, 0x01, wI32}}))...)
+	out = append(out, wSection(3, wVec([][]byte{{0x00}}))...)
+	out = append(out, wSection(4, wVec([][]byte{append([]byte{0x70}, limits...)}))...)
+	out = append(out, wSection(7, wVec([][]byte{append(wName("grow"), 0x00, 0x00)}))...)
+	return append(out, wSection(10, wVec([][]byte{append(uleb(uint64(len(body))), body...)}))...)
+}
+
+func TestPinTables(t *testing.T) {
+	ctx := context.Background()
+	rt := wazero.NewRuntime(ctx)
+	defer rt.Close(ctx)
+	grow := func(b []byte) int32 {
+		t.Helper()
+		mod, err := rt.Instantiate(ctx, b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer mod.Close(ctx)
+		res, err := mod.ExportedFunction("grow").Call(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return int32(res[0])
+	}
+	raw := growModule()
+	if got := grow(raw); got != 1 {
+		t.Fatalf("unpinned table did not grow: %d", got)
+	}
+	parts, err := parseWasm(raw)
+	if err != nil || parts.checkTables() != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	pinned := parts.pinTables(raw)
+	if got := grow(pinned); got != -1 {
+		t.Fatalf("pinned table grew: %d", got)
+	}
+	again, err := parseWasm(pinned)
+	if err != nil || len(again.tables) != 1 || !again.tables[0].hasMax || again.tables[0].max != 1 {
+		t.Fatalf("pinned tables %+v err %v", again, err)
+	}
+	if !bytes.Equal(again.pinTables(pinned), pinned) {
+		t.Fatal("a pinned module changed again")
+	}
+
+	for name, limits := range map[string][]byte{
+		"max above the cap": append([]byte{0x01, 0x01}, uleb(maxTableEntries+1)...),
+		"imported":          nil,
+	} {
+		b := growModule(limits...)
+		if name == "imported" {
+			b = append(append([]byte{}, wasmMagic...), wSection(2, wVec([][]byte{
+				append(append(wName("env"), wName("t")...), 0x01, 0x70, 0x00, 0x01)}))...)
+		}
+		parts, err := parseWasm(b)
+		if err != nil || parts.checkTables() == nil {
+			t.Errorf("%s: accepted (parse error %v)", name, err)
+		}
+	}
+	if _, err := parseWasm(growModule(0x01, 0x05, 0x01)); err == nil {
+		t.Error("max below min parsed")
 	}
 }

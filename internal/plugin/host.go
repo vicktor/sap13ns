@@ -526,7 +526,7 @@ func (h *Host) compile(ctx context.Context, sha string, wasm []byte) (wazero.Com
 	if err != nil {
 		return nil, fmt.Errorf("compile: %w", err)
 	}
-	c, err = h.rt.CompileModule(ctx, wasm)
+	c, err = h.rt.CompileModule(ctx, parts.pinTables(wasm))
 	if err != nil {
 		return nil, fmt.Errorf("compile: %w", err)
 	}

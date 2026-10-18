@@ -12,7 +12,17 @@ import (
 type wasmParts struct {
 	data   []byte          // payload of the data section (segment headers included)
 	custom []customSection // custom sections ("name", "producers", ...)
-	tables []uint64        // minimum size of every table, imported or defined
+	tables []wasmTable     // every table, imported or defined
+	// tableSec is where the table section sits in the module, [start, end)
+	// including its id and size (0, 0 when there is none).
+	tableSec [2]int
+}
+
+type wasmTable struct {
+	ref      byte // reference type
+	min, max uint64
+	hasMax   bool
+	imported bool
 }
 
 type customSection struct {
@@ -30,6 +40,7 @@ func parseWasm(b []byte) (*wasmParts, error) {
 	out := &wasmParts{}
 	i := len(wasmMagic)
 	for i < len(b) {
+		start := i
 		id := b[i]
 		i++
 		size, n := binary.Uvarint(b[i:])
@@ -53,12 +64,12 @@ func parseWasm(b []byte) (*wasmParts, error) {
 		case 4:
 			r := wasmReader{b: payload}
 			for n := r.uint(); n > 0 && r.err == nil; n-- {
-				r.byte() // reference type
-				out.tables = append(out.tables, r.limits())
+				out.tables = append(out.tables, r.table())
 			}
-			if r.err != nil {
+			if r.err != nil || len(r.b) > 0 {
 				return nil, errors.New("malformed table section")
 			}
+			out.tableSec = [2]int{start, i}
 		case 11:
 			out.data = append(out.data, payload...)
 		}
@@ -66,27 +77,66 @@ func parseWasm(b []byte) (*wasmParts, error) {
 	return out, nil
 }
 
-// Tables are allocated in full when a module is instantiated, outside the
-// memory limit: one table of 2^27 entries costs about 1 GiB. Go programs
-// need one table of about one entry per function.
+// Tables live outside the memory limit: they are allocated in full when a
+// module is instantiated, and table.grow can extend one without a maximum
+// to 2^32 entries (32 GiB). Go programs need one table of about one entry
+// per function and never grow it.
 const (
 	maxTables       = 4
 	maxTableEntries = 1 << 18
 )
 
-// checkTables refuses modules whose tables would be too large to allocate.
+// size is the most entries the table can hold once pinTables has run.
+func (t wasmTable) size() uint64 {
+	if t.hasMax {
+		return t.max
+	}
+	return t.min
+}
+
+// checkTables refuses modules whose tables could grow too large to
+// allocate, counting each table at its maximum (its minimum when it has
+// none, as pinTables fixes it there).
 func (w *wasmParts) checkTables() error {
 	if len(w.tables) > maxTables {
 		return fmt.Errorf("declares %d tables (at most %d)", len(w.tables), maxTables)
 	}
 	var total uint64
 	for _, t := range w.tables {
-		total += t
+		if t.imported {
+			return errors.New("imports a table (the host provides none)")
+		}
+		total += t.size()
 	}
 	if total > maxTableEntries {
-		return fmt.Errorf("tables need %d entries (at most %d)", total, maxTableEntries)
+		return fmt.Errorf("tables can hold %d entries (at most %d)", total, maxTableEntries)
 	}
 	return nil
+}
+
+// pinTables gives every table without a maximum one equal to its minimum,
+// so table.grow cannot extend it. It returns b unchanged when every table
+// already has a maximum.
+func (w *wasmParts) pinTables(b []byte) []byte {
+	pin := false
+	for _, t := range w.tables {
+		pin = pin || !t.hasMax
+	}
+	if !pin {
+		return b
+	}
+	payload := binary.AppendUvarint(nil, uint64(len(w.tables)))
+	for _, t := range w.tables {
+		payload = append(payload, t.ref, 0x01)
+		payload = binary.AppendUvarint(payload, t.min)
+		payload = binary.AppendUvarint(payload, t.size())
+	}
+	out := make([]byte, 0, len(b)+len(w.tables)*binary.MaxVarintLen64)
+	out = append(out, b[:w.tableSec[0]]...)
+	out = append(out, 4)
+	out = binary.AppendUvarint(out, uint64(len(payload)))
+	out = append(out, payload...)
+	return append(out, b[w.tableSec[1]:]...)
 }
 
 func (w *wasmParts) readImports(b []byte) error {
@@ -98,8 +148,9 @@ func (w *wasmParts) readImports(b []byte) error {
 		case 0x00: // function: type index
 			r.uint()
 		case 0x01: // table: reference type, limits
-			r.byte()
-			w.tables = append(w.tables, r.limits())
+			t := r.table()
+			t.imported = true
+			w.tables = append(w.tables, t)
 		case 0x02: // memory
 			r.limits()
 		case 0x03: // global: value type, mutability
@@ -155,16 +206,32 @@ func (r *wasmReader) name() {
 	}
 }
 
-// limits returns the minimum. Flags 0x02 and 0x03 are shared memories.
-func (r *wasmReader) limits() uint64 {
+// limits reads the minimum and the optional maximum. Flags 0x02 and 0x03
+// are shared memories.
+func (r *wasmReader) limits() (min, max uint64, hasMax bool) {
 	flag := r.byte()
 	if flag > 0x03 {
 		r.err = errors.New("unknown limits")
-		return 0
+		return 0, 0, false
 	}
-	min := r.uint()
+	min = r.uint()
 	if flag&0x01 != 0 {
-		r.uint()
+		max, hasMax = r.uint(), true
 	}
-	return min
+	return min, max, hasMax
+}
+
+// table reads a table type: a reference type, then limits that cannot be
+// shared.
+func (r *wasmReader) table() wasmTable {
+	t := wasmTable{ref: r.byte()}
+	if len(r.b) > 0 && r.b[0] > 0x01 {
+		r.err = errors.New("unknown table limits")
+		return t
+	}
+	t.min, t.max, t.hasMax = r.limits()
+	if t.hasMax && t.max < t.min {
+		r.err = errors.New("table maximum below its minimum")
+	}
+	return t
 }
