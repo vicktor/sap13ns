@@ -268,7 +268,7 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 		}},
 		{s.t("Storage"), []sysRow{
 			{Label: s.t("Uploads"), Value: s.cfg.UploadsDir},
-			{Label: s.t("Plugins"), Value: fmt.Sprintf("%s (%d enabled)", s.cfg.PluginsDir, enabled)},
+			{Label: s.t("Plugins"), Value: s.t("%s (%d enabled)", s.cfg.PluginsDir, enabled)},
 			{Label: s.t("Extra themes"), Value: s.cfg.ThemesDir},
 			{Label: s.t("Maximum upload"), Value: filesize(s.cfg.MaxUploadBytes)},
 		}},

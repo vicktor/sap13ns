@@ -14,7 +14,8 @@ go vet ./... && go test ./...
 go test ./internal/web -run TestSafeNext     # a single test
 go run ./scripts/devseed -env data/dev.env   # sample content; creates admin / dev-password-123
 ./bin/sap13ns serve -env data/dev.env        # dev server on 127.0.0.1:8137
-make check                                   # vet + Go and JS tests + every plugin's tests
+make i18n                                    # every UI string has a Spanish translation
+make check                                   # vet + Go and JS tests + i18n + every plugin's tests
 ```
 
 - **Asset outputs:** `npm run build` writes `ui/themes/*/static/theme.css`, `ui/static/admin.css`, `ui/static/vendor/basecoat/` and `internal/icons/lucide/`. These outputs are committed, because the binary embeds them and production never runs Node. Re-run the build after changing templates (Tailwind scans them for classes) or `scripts/icons.txt`. An icon must be listed there before `{{icon "name"}}` can use it.
@@ -41,7 +42,7 @@ make check                                   # vet + Go and JS tests + every plu
   - Templates every theme shares are in `ui/shared/templates`; `head.html` and `widgets.html` are among them.
   - Every theme must work in light and dark mode.
 - **i18n:**
-  - **UI strings:** source strings are English. Translations go in `ui/i18n/<lang>.json` (English → translation). Call `{{T "..."}}` in templates and `s.t(...)` in Go.
+  - **UI strings:** source strings are English. Translations go in `ui/i18n/<lang>.json` (English → translation). Call `{{T "..."}}` in templates and `s.t(...)` in Go. `scripts/i18ncheck` extracts every key (templates, Go calls, label tables) and `make i18n` fails when a translation is missing. Add the Spanish text to `es.json` (sorted, 2-space JSON; `internal/i18n/catalog_test.go` checks the format, placeholders and tags). A string the extractor cannot see goes in `scripts/i18ncheck/hand.go`.
   - **Content:** posts, terms and menus have per-language translations in the database. Public URLs carry a language prefix for non-default languages (`lang.go`).
 - **Content pipeline:** `internal/content` renders Markdown with goldmark and sanitises it with bluemonday. Anything that reaches a page goes through this pipeline: posts, comments, plugin output, AI answers, WordPress imports.
 - **Plugins:** see `internal/plugin` and `pluginsdk`.

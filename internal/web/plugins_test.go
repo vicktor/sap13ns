@@ -457,7 +457,9 @@ func TestPluginsEndToEnd(t *testing.T) {
 		return url.Values{"_token": {tok}, "_back": {pu.Path}, "_lang": {e.s.mainLang()}, "email": {"visitor@example.test"}}
 	}
 	form := "application/x-www-form-urlencoded"
-	if body := outcome(submit(fields(tok1[1]), form)); !strings.Contains(body, "That was too fast") {
+	// The messages are in the form's language, whatever the test site uses.
+	tr := func(key string) string { return e.s.i18n.T(e.s.mainLang(), key) }
+	if body := outcome(submit(fields(tok1[1]), form)); !strings.Contains(body, tr("That was too fast. Wait a moment and send the form again.")) {
 		t.Fatal("a form sent at once was accepted")
 	}
 	if rec := submit(fields(tok2[1]), "multipart/form-data; boundary=x"); rec.Code != http.StatusUnsupportedMediaType {
@@ -471,7 +473,7 @@ func TestPluginsEndToEnd(t *testing.T) {
 	}
 	hp := fields("")
 	hp.Set("_hp", "http://spam.example")
-	if body := outcome(submit(hp, form)); !strings.Contains(body, "Thanks! Your message was sent.") || e.mailer.count() != 0 {
+	if body := outcome(submit(hp, form)); !strings.Contains(body, tr("Thanks! Your message was sent.")) || e.mailer.count() != 0 {
 		t.Fatal("honeypot")
 	}
 	time.Sleep(time.Until(fetched.Add(formMinAge + 100*time.Millisecond)))
@@ -485,7 +487,7 @@ func TestPluginsEndToEnd(t *testing.T) {
 	if e.mailer.count() != 1 || e.mailer.sent[0] != "admin@example.test visitor@example.test Contact" {
 		t.Fatalf("mails %v", e.mailer.sent)
 	}
-	if body := outcome(submit(fields(tok2[1]), form)); !strings.Contains(body, "This form expired") {
+	if body := outcome(submit(fields(tok2[1]), form)); !strings.Contains(body, tr("This form expired. Check the fields and send it again.")) {
 		t.Fatal("a token was used twice")
 	}
 

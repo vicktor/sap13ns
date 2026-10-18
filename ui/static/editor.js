@@ -2090,6 +2090,8 @@ function setupEditor() {
   const tools = $("[data-editor-tools]");
   const toolbar = $(".editor-toolbar");
   const say = (k, fb) => root.dataset["msg" + k] || fb;
+  // The labels of raw Markdown boxes, in the page language.
+  Object.assign(LABELS, { footnote: say("Footnote", LABELS.footnote), ref: say("LinkRefs", LABELS.ref), shortcode: say("Shortcode", LABELS.shortcode) });
   const csrf = () => (document.querySelector('input[name="csrf"]') || {}).value || "";
   const toast = (category, title) => document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: escHTML(title) } } }));
   const storeKey = "sap13ns:editor-mode:" + (root.dataset.editorUser || "0");

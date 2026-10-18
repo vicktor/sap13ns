@@ -30,7 +30,7 @@
       <div class="card stat"><span class="stat-icon" aria-hidden="true">{{icon "eye-off"}}</span><span class="stat-label">{{T "Hidden"}}</span><strong class="stat-value">{{.Excluded}}</strong><span class="stat-foot">{{T "public, excluded by their editor"}}</span></div>
     </div>
     <dl class="meta-list">
-      <div><dt>{{T "Search"}}</dt><dd>{{if .Semantic}}<span class="text-success">{{icon "circle-check" "size-4"}}</span> {{T "Hybrid: full text and semantic"}}{{else}}<span class="text-warning">{{icon "info" "size-4"}}</span> {{T "Full text only"}}{{with .Problem}} — {{.}}{{end}}{{end}}</dd></div>
+      <div><dt>{{T "Search"}}</dt><dd>{{if .Semantic}}<span class="text-success">{{icon "circle-check" "size-4"}}</span> {{T "Hybrid: full text and semantic"}}{{else}}<span class="text-warning">{{icon "info" "size-4"}}</span> {{T "Full text only"}}{{with .Problem}} — {{T .}}{{end}}{{end}}</dd></div>
       <div><dt>{{T "Embedding model"}}</dt><dd class="mono">{{with .Model}}{{.}}{{else}}—{{end}}{{with .Vector}} · {{.}}{{end}}</dd></div>
       <div><dt>pgvector</dt><dd>{{.Pgvector}}</dd></div>
       <div><dt>{{T "Embedded passages"}}</dt><dd class="tabular">{{.Embedded}} / {{.Chunks}}</dd></div>

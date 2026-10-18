@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -322,7 +323,13 @@ func (s *Server) adminPluginScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "plugin.scanned", p.ID, map[string]string{"verdict": rep.Verdict, "sha256": rep.WasmSHA256})
-	s.redirect(w, r, "/admin/plugins/"+p.ID+"#report", "success", s.t("Scan finished: %s.", rep.Verdict))
+	s.redirect(w, r, "/admin/plugins/"+p.ID+"#report", "success", s.t("Scan finished: %s.", cmp.Or(s.t(scanVerdictLabels[rep.Verdict]), rep.Verdict)))
+}
+
+// scanVerdictLabels are the interface names of the scanner verdicts, as in
+// the scan-report-summary template.
+var scanVerdictLabels = map[string]string{
+	plugin.VerdictBlocked: "Blocked", plugin.VerdictReview: "Needs review", plugin.VerdictClean: "No problems found",
 }
 
 func (s *Server) adminPluginUninstall(w http.ResponseWriter, r *http.Request) {

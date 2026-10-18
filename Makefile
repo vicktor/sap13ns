@@ -7,7 +7,7 @@ VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X sap13ns/internal/web.Version=$(VERSION)
 PLUGINS := $(dir $(wildcard plugins/*/Makefile))
 
-.PHONY: all assets build test vet check plugins plugins-test dev seed clean
+.PHONY: all assets build test vet i18n check plugins plugins-test dev seed clean
 
 all: assets build
 
@@ -30,7 +30,11 @@ test:
 	$(GO) test ./...
 	npm test
 
-check: vet test plugins-test
+# Every UI string must have a Spanish translation.
+i18n:
+	$(GO) run ./scripts/i18ncheck -lang es -strict
+
+check: vet test i18n plugins-test
 
 # Each official plugin is its own Go module with its own Makefile.
 plugins:
