@@ -82,8 +82,10 @@ jobs:
               exit 1
             fi
             files=(sap13ns)
-            for f in LICENSE README.md; do
-              if [[ -f "$f" ]]; then cp "$f" "$work/"; files+=("$f"); fi
+            # deploy/ carries install.sh, the systemd units and the nginx site;
+            # sap13ns update extracts only the binary and skips the rest.
+            for f in LICENSE README.md deploy; do
+              if [[ -e "$f" ]]; then cp -R "$f" "$work/"; files+=("$f"); fi
             done
             tar -C "$work" --owner=0 --group=0 --numeric-owner --sort=name \
               --mtime="@${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}" \

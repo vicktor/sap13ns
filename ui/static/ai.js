@@ -166,7 +166,7 @@
       const r = await call("write", { ...article(), mode, text, brief, tone: $("[data-ai-tone]", panel).value.trim() });
       const pre = el("div", { class: "ai-text" }, r.text);
       const actions = el("div", { class: "flex flex-wrap gap-2" },
-        (mode === "improve" || mode === "shorten") ? btn(msg.msgReplace, () => { replaceSelection(r.text); show(); }, "default") : null,
+        (mode === "improve" || mode === "shorten") ? btn(msg.msgReplace, () => { replaceSelection(r.text); show(); }, "primary") : null,
         btn(msg.msgInsert, () => { insertBlock(r.text); show(); }),
         btn(msg.msgCopy, async (e) => { try { await navigator.clipboard.writeText(r.text); e.target.textContent = msg.msgCopied; } catch { /* denied */ } }, "ghost"));
       show(pre, actions, r.findings?.length ? lintList(r.findings) : null);

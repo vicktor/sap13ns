@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://sap13ns.site">sap13ns.site</a> ·
+  <a href="docs/DEPLOY.md">Deploy</a> ·
   <a href="docs/RELEASES.md">Releases</a> ·
   <a href="LICENSE">CPAL-1.0</a>
 </p>
@@ -146,6 +147,8 @@ EOF
 ```
 
 Open `http://localhost:8080/admin`. You'll be asked to set up two-factor authentication on first sign-in.
+
+For a production server (systemd, nginx, TLS, backups), follow [docs/DEPLOY.md](docs/DEPLOY.md) or run `deploy/install.sh`.
 
 ### Configuration
 All settings are environment variables, which can be given in an env file with `-env`:

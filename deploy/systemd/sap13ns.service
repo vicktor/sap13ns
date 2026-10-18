@@ -1,0 +1,70 @@
+# The sap13ns web server.
+#
+#   install -m 0644 sap13ns.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now sap13ns
+#
+# It listens on /run/sap13ns/sap13ns.sock (set SAP13NS_LISTEN to
+# unix:/run/sap13ns/sap13ns.sock) and keeps its data in /var/lib/sap13ns.
+# Migrations run on start. Logs: `journalctl -u sap13ns`.
+
+[Unit]
+Description=sap13ns content management system
+Documentation=https://github.com/vicktor/sap13ns
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=sap13ns
+Group=sap13ns
+UMask=0027
+ExecStart=/usr/local/bin/sap13ns serve -env /etc/sap13ns/sap13ns.env
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=30s
+SyslogIdentifier=sap13ns
+
+# /run/sap13ns (the socket) and /var/lib/sap13ns (uploads, plugins, caches).
+RuntimeDirectory=sap13ns
+RuntimeDirectoryMode=0750
+StateDirectory=sap13ns
+StateDirectoryMode=0750
+
+LimitNOFILE=65536
+
+# --- Hardening (check with `systemd-analyze security sap13ns`) ---
+# MemoryDenyWriteExecute is deliberately NOT set: the WebAssembly runtime
+# compiles plugins to machine code, which needs executable memory.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sap13ns
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+KeyringMode=private
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RemoveIPC=yes
+# AF_UNIX for the socket and a local database, AF_INET* for SMTP, AI
+# providers, release checks and plugins with http permissions.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

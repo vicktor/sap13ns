@@ -13,8 +13,9 @@
 //	                                          exact bytes of SHA256SUMS
 //
 // For example sap13ns_1.4.0_linux_amd64.tar.gz for tag v1.4.0. Each tarball
-// holds the sap13ns binary at its root (plus LICENSE and README.md when the
-// repository has them); nothing else in it is ever written to disk.
+// holds the sap13ns binary at its root (plus LICENSE, README.md and the
+// deploy/ directory when the repository has them); nothing else in it is
+// ever written to disk.
 //
 // # Trust
 //
