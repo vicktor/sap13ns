@@ -10,12 +10,12 @@ import (
 
 func TestTermSafe(t *testing.T) {
 	for in, want := range map[string]string{
-		"plain text, ñ and 🙂": "plain text, ñ and 🙂",
-		"a\x1b[2Jb":           `a\u001b[2Jb`,
-		"line\rover":          `line\u000dover`,
-		"x\u202egnp.exe":      `x\u202egnp.exe`,
-		"\u009b31m":           `\u009b31m`,
-		"\x9b31m":             `\ufffd31m`,
+		"plain text, ñ and 🙂":   "plain text, ñ and 🙂",
+		"a\x1b[2Jb":             `a\u001b[2Jb`,
+		"line\rover":            `line\u000dover`,
+		"x\u202egnp.exe":        `x\u202egnp.exe`,
+		"\u009b31m":             `\u009b31m`,
+		"\x9b31m":               `\ufffd31m`,
 		"bad \xff byte":         `bad \ufffd byte`,
 		"sep\u2028arator\u2066": `sep\u2028arator\u2066`,
 	} {
