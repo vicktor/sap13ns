@@ -63,7 +63,14 @@ sap13ns assumes the server, its operator and its administrators are trusted. Eve
 - Archive extraction (backups, the importer, plugin packages) refuses absolute paths, `..`, links and special files, and enforces size limits.
 
 ### Outbound requests
-All server-side fetches go through an SSRF guard that resolves the host and refuses loopback, private, link-local, CGNAT, multicast and cloud metadata addresses, on every redirect as well. This covers plugin HTTP calls, imported media, AI image URLs and release downloads. Release downloads are further restricted to GitHub hosts over https.
+Plugin HTTP calls, imported media and AI image downloads go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
+
+- loopback, private, link-local, CGNAT, multicast, cloud metadata, documentation, benchmarking and reserved addresses;
+- IPv6 ranges that embed or translate to IPv4 (IPv4-mapped and -compatible, NAT64, 6to4, Teredo), as well as site-local and unique-local addresses.
+
+The AI API endpoint is chosen by an administrator and is not guarded. Plain `http://` is accepted only to this machine, with **Allow plain http:// to this machine** (for LM Studio and similar). With that option, image downloads may reach loopback too.
+
+Update checks and release downloads are restricted to GitHub hosts over https with certificate validation. They honour the environment's proxy settings, and they do not use the guard.
 
 ### Plugins
 - Plugins are WebAssembly modules run by wazero:

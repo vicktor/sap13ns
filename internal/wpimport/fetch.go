@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"sap13ns/internal/netguard"
 )
 
 var (
@@ -60,37 +62,8 @@ func NewHTTPFetcher(allowedHosts ...string) *HTTPFetcher {
 	return &HTTPFetcher{AllowedHosts: allowedHosts}
 }
 
-// blockedPrefixes are never reachable (same list as the plugin network
-// guard): loopback, private networks, link-local (cloud metadata), CGNAT,
-// documentation and benchmark ranges, multicast, reserved.
-var blockedPrefixes = func() []netip.Prefix {
-	var out []netip.Prefix
-	for _, s := range []string{
-		"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
-		"172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24", "192.168.0.0/16",
-		"198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
-		"::/128", "::1/128", "::ffff:0:0/96", "64:ff9b::/96", "100::/64", "2001:db8::/32",
-		"fc00::/7", "fe80::/10", "ff00::/8",
-	} {
-		out = append(out, netip.MustParsePrefix(s))
-	}
-	return out
-}()
-
 // PublicAddr reports whether a is a public unicast address.
-func PublicAddr(a netip.Addr) bool {
-	a = a.Unmap()
-	if !a.IsValid() || a.IsLoopback() || a.IsPrivate() || a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast() ||
-		a.IsInterfaceLocalMulticast() || a.IsMulticast() || a.IsUnspecified() {
-		return false
-	}
-	for _, p := range blockedPrefixes {
-		if p.Contains(a) {
-			return false
-		}
-	}
-	return true
-}
+func PublicAddr(a netip.Addr) bool { return netguard.Public(a) }
 
 func normHost(h string) string {
 	h = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(h), "."))

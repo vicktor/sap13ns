@@ -33,6 +33,16 @@ func (m *Mailer) Enabled() bool { return m.cfg.Enabled() }
 // headerSafe rejects CR/LF to prevent header injection.
 func headerSafe(s string) bool { return !strings.ContainsAny(s, "\r\n") }
 
+// crlf ends every line of a body with CRLF. A bare CR becomes a line break
+// too: left alone, "\r.\r\n" ends the message early on servers that accept
+// a bare CR as a line ending (SMTP smuggling), as dot-stuffing only looks
+// at line feeds.
+func crlf(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\r", "\n")
+	return strings.ReplaceAll(body, "\n", "\r\n")
+}
+
 func (m *Mailer) Send(to, subject, body string) error { return m.SendMessage(to, "", subject, body) }
 
 // SendMessage sends a plain-text message, with a Reply-To header when
@@ -60,7 +70,7 @@ func (m *Mailer) SendMessage(to, replyTo, subject, body string) error {
 		"Content-Transfer-Encoding: 8bit",
 		"Auto-Submitted: auto-generated",
 		"",
-		strings.ReplaceAll(body, "\n", "\r\n"),
+		crlf(body),
 	), "\r\n")
 
 	addr := net.JoinHostPort(m.cfg.Host, strconv.Itoa(m.cfg.Port))

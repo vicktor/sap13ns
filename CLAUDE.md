@@ -46,7 +46,7 @@ make check                                   # vet + Go and JS tests + every plu
 - **Content pipeline:** `internal/content` renders Markdown with goldmark and sanitises it with bluemonday. Anything that reaches a page goes through this pipeline: posts, comments, plugin output, AI answers, WordPress imports.
 - **Plugins:** see `internal/plugin` and `pluginsdk`.
   - Plugins are WebAssembly modules (wasip1) run in-process by wazero, with explicit permissions and approval pinned to the module's SHA-256.
-  - Host functions are in `hostfuncs.go`; the upload-time scanner is in `scan.go`. Every outbound fetch goes through the SSRF guard (`netguard.go`).
+  - Host functions are in `hostfuncs.go`; the upload-time scanner is in `scan.go`. Plugin fetches, imported media and AI image downloads go through the shared SSRF guard (`internal/netguard`); never write another address list.
 - **Other subsystems:**
 
   | Package | What it does |

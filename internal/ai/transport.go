@@ -22,6 +22,8 @@ import (
 	"unicode/utf8"
 
 	_ "golang.org/x/image/webp"
+
+	"sap13ns/internal/netguard"
 )
 
 const (
@@ -52,10 +54,17 @@ type transport struct {
 }
 
 func newTransport(cfg Config, client *http.Client) *transport {
+	var guarded http.RoundTripper // image downloads: public addresses only
 	if client == nil {
 		tr := http.DefaultTransport.(*http.Transport).Clone()
 		tr.MaxResponseHeaderBytes = 64 << 10
 		client = &http.Client{Transport: tr}
+		dl := tr.Clone()
+		dl.Proxy = nil
+		dl.DialContext = netguard.Dialer(func(a netip.Addr) bool {
+			return netguard.Public(a) || (cfg.AllowInsecureLocal && a.Unmap().IsLoopback())
+		}, nil, 10*time.Second)
+		guarded = dl
 	}
 	t := &transport{
 		provider:     cfg.Provider,
@@ -68,6 +77,9 @@ func newTransport(cfg Config, client *http.Client) *transport {
 	api.Timeout, api.Jar = 0, nil
 	api.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	dl := api
+	if guarded != nil {
+		dl.Transport = guarded
+	}
 	dl.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 3 {
 			return errors.New("too many redirects")
@@ -106,8 +118,8 @@ func isLoopback(host string) bool {
 }
 
 // checkDownloadURL vets an image URL returned by a provider: https only, and
-// no literal private or loopback address (best effort against SSRF through a
-// hostile compatible server; DNS names are not resolved here).
+// no literal private or loopback address. Names are checked when they are
+// dialled: the default download client connects only to public addresses.
 func (t *transport) checkDownloadURL(u *url.URL) error {
 	if u.Scheme != "https" || u.User != nil || u.Hostname() == "" {
 		return fmt.Errorf("%w: image URL must use https", ErrBadResponse)
@@ -119,11 +131,8 @@ func (t *transport) checkDownloadURL(u *url.URL) error {
 	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
 		return fmt.Errorf("%w: image URL points to a local address", ErrBadResponse)
 	}
-	if a, err := netip.ParseAddr(host); err == nil {
-		a = a.Unmap()
-		if a.IsLoopback() || a.IsPrivate() || a.IsLinkLocalUnicast() || a.IsUnspecified() || a.IsMulticast() {
-			return fmt.Errorf("%w: image URL points to a local address", ErrBadResponse)
-		}
+	if a, err := netip.ParseAddr(host); err == nil && !netguard.Public(a) {
+		return fmt.Errorf("%w: image URL points to a local address", ErrBadResponse)
 	}
 	return nil
 }
