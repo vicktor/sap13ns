@@ -18,14 +18,22 @@ type Session struct {
 	ExpiresAt  time.Time  `db:"expires_at"`
 	IP         netip.Addr `db:"ip"`
 	UserAgent  string     `db:"user_agent"`
+	AMR        string     `db:"amr"` // how it was authenticated: AMRLocal, AMRSSO or AMRSSOOperator
 }
 
-const sessionCols = `token_hash, user_id, csrf_token, mfa_pending, created_at, last_seen_at, expires_at, coalesce(ip, '0.0.0.0'::inet) AS ip, user_agent`
+// Authentication methods of a session (sessions.amr).
+const (
+	AMRLocal       = ""             // password, passkey or TOTP on this site
+	AMRSSO         = "sso"          // single sign-on through the network portal
+	AMRSSOOperator = "sso-operator" // a network admin opening the site as administrator
+)
+
+const sessionCols = `token_hash, user_id, csrf_token, mfa_pending, created_at, last_seen_at, expires_at, coalesce(ip, '0.0.0.0'::inet) AS ip, user_agent, amr`
 
 func (s *Store) CreateSession(ctx context.Context, sess Session) error {
-	_, err := s.DB.Exec(ctx, `INSERT INTO sessions (token_hash, user_id, csrf_token, mfa_pending, expires_at, ip, user_agent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		sess.TokenHash, sess.UserID, sess.CSRFToken, sess.MFAPending, sess.ExpiresAt, ipArg(sess.IP), sess.UserAgent)
+	_, err := s.DB.Exec(ctx, `INSERT INTO sessions (token_hash, user_id, csrf_token, mfa_pending, expires_at, ip, user_agent, amr)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		sess.TokenHash, sess.UserID, sess.CSRFToken, sess.MFAPending, sess.ExpiresAt, ipArg(sess.IP), sess.UserAgent, sess.AMR)
 	return err
 }
 

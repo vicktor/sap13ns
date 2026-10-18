@@ -27,7 +27,14 @@ type User struct {
 	UpdatedAt     time.Time  `db:"updated_at"`
 	LastLoginAt   *time.Time `db:"last_login_at"`
 	PasskeyCount  int        `db:"passkey_count"`
+	// NetworkAccountID links the user to an account of the network portal
+	// (multisite only); nil is a local user.
+	NetworkAccountID *int64 `db:"network_account_id"`
 }
+
+// SSOPasswordHash is the password hash of users created by single sign-on.
+// It is not a PHC string, so auth.VerifyPassword never accepts it.
+const SSOPasswordHash = "!sso"
 
 // Name returns the public name of the user.
 func (u *User) Name() string {
@@ -37,10 +44,15 @@ func (u *User) Name() string {
 	return u.Username
 }
 
+// SSOOnly reports whether the user can only sign in through the network
+// portal: they have no password of their own to reset.
+func (u *User) SSOOnly() bool { return u.PasswordHash == SSOPasswordHash }
+
 const userCols = `id, username, email, display_name, bio, website, role, status, password_hash,
 	totp_secret, totp_enabled, totp_last_step, recovery_codes, failed_logins, locked_until,
 	created_at, updated_at, last_login_at,
-	(SELECT count(*)::int FROM passkeys k WHERE k.user_id = users.id) AS passkey_count`
+	(SELECT count(*)::int FROM passkeys k WHERE k.user_id = users.id) AS passkey_count,
+	network_account_id`
 
 func (s *Store) userBy(ctx context.Context, where string, arg any) (*User, error) {
 	rows, err := s.DB.Query(ctx, `SELECT `+userCols+` FROM users WHERE `+where, arg)
@@ -61,6 +73,11 @@ func (s *Store) UserByUsername(ctx context.Context, username string) (*User, err
 
 func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 	return s.userBy(ctx, `lower(email) = lower($1)`, email)
+}
+
+// UserByNetworkAccount returns the user linked to a network account.
+func (s *Store) UserByNetworkAccount(ctx context.Context, accountID int64) (*User, error) {
+	return s.userBy(ctx, `network_account_id = $1`, accountID)
 }
 
 // UserByLogin accepts either a username or an e-mail address.
@@ -123,6 +140,44 @@ func (s *Store) CreateUser(ctx context.Context, n NewUser) (int64, error) {
 		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 		n.Username, n.Email, n.DisplayName, n.Role, n.PasswordHash).Scan(&id)
 	return id, mapErr(err)
+}
+
+// NewSSOUser is a user created on a site at their first single sign-on.
+type NewSSOUser struct {
+	NetworkAccountID int64
+	Username         string
+	Email            string
+	DisplayName      string
+	Role             string
+}
+
+// CreateSSOUser creates a user linked to a network account, with no password
+// of their own. A taken username or e-mail address returns ErrConflict
+// naming the constraint (users_username_key, users_email_key), so the
+// caller can pick another username; a local user with the same e-mail is
+// never linked here.
+func (s *Store) CreateSSOUser(ctx context.Context, n NewSSOUser) (int64, error) {
+	var id int64
+	err := s.DB.QueryRow(ctx, `INSERT INTO users (username, email, display_name, role, password_hash, network_account_id)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		n.Username, n.Email, n.DisplayName, n.Role, SSOPasswordHash, n.NetworkAccountID).Scan(&id)
+	return id, mapErr(err)
+}
+
+// LinkNetworkAccount links a local user to a network account, which the
+// user asked for while signed in. ErrNotFound means the user does not
+// exist or is already linked; ErrConflict that the account is linked to
+// another user.
+func (s *Store) LinkNetworkAccount(ctx context.Context, userID, accountID int64) error {
+	tag, err := s.DB.Exec(ctx, `UPDATE users SET network_account_id = $2, updated_at = now()
+		WHERE id = $1 AND network_account_id IS NULL`, userID, accountID)
+	if err != nil {
+		return mapErr(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 type UserProfile struct {
