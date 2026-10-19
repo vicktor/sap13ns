@@ -660,7 +660,7 @@ type PlanView struct {
 	Free        bool
 	Commercial  bool // allowed for commercial sites
 	Highlight   bool
-	Features    []string
+	Features    []PlanFeature
 	SignupURL   string
 }
 

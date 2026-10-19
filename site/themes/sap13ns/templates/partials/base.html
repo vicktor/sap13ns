@@ -58,7 +58,7 @@
     {{with .Description}}<p class="plan-desc">{{T .}}</p>{{end}}
     <p class="plan-price">{{if .Free}}<strong>{{T "Free"}}</strong>{{else}}<strong>{{.Price}}</strong>{{with .Interval}}<span>/ {{if eq . "month"}}{{T "month"}}{{else if eq . "year"}}{{T "year"}}{{else}}{{.}}{{end}}</span>{{end}}{{end}}</p>
     <p class="plan-use">{{if .Commercial}}{{icon "badge-check"}} {{T "Commercial use allowed"}}{{else}}{{icon "user-round-check"}} {{T "Personal, non-commercial sites"}}{{end}}</p>
-    <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{T .}}</span></li>{{end}}</ul>
+    <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{if .Arg}}{{T .Text .Arg}}{{else}}{{T .Text}}{{end}}</span></li>{{end}}</ul>
     {{$hl := .Highlight}}{{with .SignupURL}}<a class="button {{if $hl}}button-primary{{else}}button-outline{{end}} plan-cta" href="{{.}}">{{T "Choose plan"}}</a>{{end}}
   </article>
   {{end}}

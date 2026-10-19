@@ -82,6 +82,8 @@ type Server struct {
 
 	custom customCache // published theme designs (customize.go)
 
+	plans planCache // the portal's pricing table (plans.go)
+
 	network     NetworkHooks  // nil on a single-site install
 	sso         SSOClient     // a tenant of a network: sign-in through the portal
 	portal      Portal        // the network portal

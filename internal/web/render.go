@@ -184,22 +184,6 @@ func (s *Server) themeText(th *theme.Theme, key string) string {
 	return s.t(key)
 }
 
-// planViews lists the network's hosting plans. Until billing is configured it
-// returns sample plans in development so that themes can be designed.
-func (s *Server) planViews() []PlanView {
-	if !s.cfg.Dev {
-		return nil
-	}
-	return []PlanView{
-		{Slug: "personal", Name: "Personal", Description: "For your blog, portfolio or CV.", Free: true, SignupURL: "/signup?plan=personal",
-			Features: []string{"1 site", "sap13ns.site subdomain", "1 GB storage", "All themes"}},
-		{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "5 €", Interval: "month", Commercial: true, Highlight: true,
-			SignupURL: "/signup?plan=pro", Features: []string{"Custom domain with HTTPS", "10 GB storage", "Your own themes and plugins", "Daily backups"}},
-		{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "12 €", Interval: "month", Commercial: true,
-			SignupURL: "/signup?plan=business", Features: []string{"Everything in Pro", "50 GB storage", "AI assistant credits", "Priority support"}},
-	}
-}
-
 func (s *Server) dateTime(t time.Time) string {
 	lt := t.In(s.loc())
 	return i18n.FormatShortDate(s.lang(), lt) + " " + lt.Format("15:04")
@@ -244,6 +228,10 @@ func initials(name string) string {
 
 func filesize(n int64) string {
 	switch {
+	case n >= 1<<30 && n%(1<<30) == 0:
+		return fmt.Sprintf("%d GB", n>>30)
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
 	case n >= 1<<20:
 		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
 	case n >= 1<<10:

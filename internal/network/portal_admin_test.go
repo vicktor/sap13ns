@@ -610,7 +610,7 @@ func TestNetworkAdminAdmins(t *testing.T) {
 	cb.portalSignIn(carl)
 	e.mfa(carl)
 	body := cb.page("/admin/network/plans")
-	for _, want := range []string{"Personal", "personal", "pro", "1024.0 MB"} {
+	for _, want := range []string{"Personal", "personal", "pro", "1 GB"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("the plans page has no %q", want)
 		}
