@@ -109,9 +109,17 @@ func (e *netEnv) logged(id int64, text string) int {
 func (e *netEnv) unloadAll() {
 	e.t.Helper()
 	e.clock.add(24 * time.Hour)
-	e.reg.Sweep(e.ctx)
-	if got := e.reg.Loaded(); !slices.Equal(got, []int64{e.portalID()}) {
-		e.t.Fatalf("still loaded: %v", got)
+	// A site stays loaded while a job a request started runs (a sign-in
+	// looks the new user's Gravatar up), so the sweep is retried.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		e.reg.Sweep(e.ctx)
+		got := e.reg.Loaded()
+		if slices.Equal(got, []int64{e.portalID()}) {
+			return
+		}
+		if time.Now().After(deadline) {
+			e.t.Fatalf("still loaded: %v", got)
+		}
 	}
 }
 
