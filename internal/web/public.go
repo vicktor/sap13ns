@@ -216,8 +216,15 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	page = s.applyLayout(r, th, page, pd)
 
 	var buf bytes.Buffer
-	if err := th.Render(&buf, page, pd.Site.Lang, pd); err != nil {
-		s.log.Error("render theme", "theme", th.Slug, "page", page, "err", err)
+	// An uploaded theme renders within an output and a time limit, and
+	// must render the credit (theme.RenderContext).
+	if err := th.RenderContext(ctx, &buf, page, pd.Site.Lang, pd); err != nil {
+		switch {
+		case errors.Is(err, theme.ErrRenderLimit), errors.Is(err, theme.ErrNoCredit):
+			s.log.Error("uploaded theme refused to render", "theme", th.Slug, "page", page, "path", r.URL.Path, "err", err)
+		default:
+			s.log.Error("render theme", "theme", th.Slug, "page", page, "err", err)
+		}
 		http.Error(w, "theme error", http.StatusInternalServerError)
 		return
 	}

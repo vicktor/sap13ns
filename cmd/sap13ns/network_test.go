@@ -323,6 +323,7 @@ func TestSingleSiteFlags(t *testing.T) {
 		{userCmd, []string{"create", "-site", "a", "-username", "x", "-email", "x@example.test"}},
 		{assistantCmd, []string{"status", "-site", "a"}},
 		{pluginCmd, []string{"list", "-site", "a"}},
+		{themeCmd, []string{"list", "-site", "a"}},
 		{backupCmd, []string{"list", "-site", "a"}},
 		{exportCmd, []string{"-site", "a", "-o", "a.xml"}},
 		{migrate, []string{"-site", "a"}},

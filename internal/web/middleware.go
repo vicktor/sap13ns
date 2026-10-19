@@ -423,6 +423,9 @@ func (s *Server) maxBody(r *http.Request) int64 {
 	if r.URL.Path == "/admin/plugins/upload" {
 		return pluginUploadLimit
 	}
+	if r.URL.Path == "/admin/appearance/themes/upload" {
+		return themeUploadLimit
+	}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return s.cfg.MaxUploadBytes + 1<<20
 	}

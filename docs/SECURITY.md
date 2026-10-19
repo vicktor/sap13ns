@@ -65,7 +65,7 @@ On a network of sites, a site's administrators are trusted on their own site onl
   - the content type is detected from the bytes and must match the file extension;
   - files are stored under random names and served with `Content-Security-Policy: sandbox` and `nosniff`;
   - anything other than images, audio, video and PDF is served as a download.
-- Archive extraction (backups, the importer, plugin packages) refuses absolute paths, `..`, links and special files, and enforces size limits.
+- Archive extraction (backups, the importer, plugin packages, theme uploads) refuses absolute paths, `..`, links and special files, and enforces size limits.
 
 ### Appearance (customiser and page builder)
 - **Drafts** are rendered only for signed-in users with the appearance capability who have set up the second factor the admin requires, and only when they ask for them (`?customize=draft`). Such requests carry a session, so the page cache never stores them, and the responses are `no-store`.
@@ -76,6 +76,23 @@ On a network of sites, a site's administrators are trusted on their own site onl
 - **Custom CSS** is tokenised the way browsers read it. `@import`, external `url()`, resource-building functions and legacy script hooks are refused. It is served as a same-origin stylesheet under the strict CSP, never inlined.
 - **Fonts:** only users with the appearance capability can upload WOFF2 files, because uploaded fonts end up in the site's stylesheet.
 - **Attribution:** the page builder always puts the footer credit back, and custom CSS cannot name `footer-meta`. CSS can still hide the credit in other ways, and sap13ns does not try to prevent that. Keeping the "Powered by sap13ns" attribution visible is the operator's obligation under CPAL-1.0 (Exhibit B).
+
+### Uploaded themes
+Administrators can upload a theme as a `.zip` (**Appearance → Themes**, or `sap13ns theme install`). A theme is code that runs on the server for every visitor, so an upload is checked before anything is installed, and it renders within limits. No operator reviews uploaded themes; these guarantees are what the checks enforce. The full list of rules is in [THEMES.md](THEMES.md#uploading-a-theme).
+
+- **Atomic install.** The archive is extracted under the shared archive limits (20 MB packed, 40 MB unpacked, 300 entries, a ratio of 100 to 1) into a staging directory, checked there, and moved into place only once it loads. A refused or failed upload leaves nothing behind, and a replacement that fails keeps the version that was there, so the active theme survives a bad upload.
+- **Passive files only.** `static/` holds stylesheets, fonts and raster images, each checked by its extension and by the type sniffed from its bytes. Scripts, HTML, XML, WebAssembly and SVG are refused (an SVG opened at its own URL is a document that can run scripts). Only `static/` is served, with `nosniff`.
+- **No code in the browser.** Templates hold no `<script>`, no event handler attributes, no `<style>` or `style=""`, no `<base>`, `<meta http-equiv>`, frames, `<object>` or `<embed>`, and no element or attribute names written by actions. The stylesheet passes the custom CSS checker, which only adds relative URLs, `data:` images and `.footer-meta` to what custom CSS may use. The CSP would block inline code anyway.
+- **No secrets.** Templates can call only the documented functions. They cannot read the signed-in user's CSRF token, write out a value that holds it, or put the shared templates that carry it (the admin bar, the comments and the comment form) inside an attribute or a comment, and they cannot call the assistant from the page data. A theme's own forms use `GET`, and the CSP's `form-action 'self'` keeps every form on the site.
+- **Bounded work.** Templates cannot recurse, loop only over lists of the page data (never over a number or a list they make), keep loops that may write nothing cheap, and expand to at most 100,000 steps per page. When rendering, a page of an uploaded theme gets at most 8 MB of output and 5 seconds, ends with the request, and its text functions refuse to make more than 1 MB. A page over a limit is a 500 and a log line (`uploaded theme refused to render`), never a partial page. Built-in and hand-installed themes keep their unbounded path.
+- **The credit.** The layout must render `shared/footer-meta` with the page data, in the page's text, on every path through its conditions, and the rendered page must contain the credit or it is not sent.
+- **Its own name.** An upload cannot take the slug of a built-in or network theme, and an uploaded theme never replaces one: if one with its slug appears later, the upload is not loaded.
+- **Audit.** Uploads, replacements, refusals (with the rules broken) and deletions are written to the audit log with the archive's SHA-256.
+
+**Known risks of uploaded themes:**
+- **CPU.** The step count bounds the work between writes, and the time limit is checked on every write, but one step can be a function over a long text. A crafted theme can make one uncached page cost seconds of CPU. The page cache serves visitors, and the work runs inside the uploading site's own limits.
+- **The credit can be hidden** with CSS, as with custom CSS. That breaches the licence, and sap13ns does not try to prevent it.
+- **CSS selectors** can make the browser fetch site URLs that depend on what a page holds, such as an attribute's value, as custom CSS already can. The requests stay on the site, which is the uploader's own, and the one secret on its pages, a session's CSRF token, only works with that session's cookie.
 
 ### Outbound requests
 Plugin HTTP calls, imported media and AI image downloads go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
@@ -145,7 +162,8 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
   - On a paid plan, an uploaded plugin is held until a network administrator approves that exact build: its module, its assets and the permissions it pins. A build that asks for more is reviewed again.
   - Personal sites can only install the operator's catalogue.
   - Either way, the site's administrator still approves the permissions before enabling the plugin.
-- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota. Exports are temporary and not counted, so they are bounded instead: one waiting per site, and none larger than the plan's storage ([MULTISITE.md](MULTISITE.md#exporting-one-site)).
+- **Themes.** Only plans with theme uploads can upload themes; on the others the form is hidden and the upload is refused with a 403. An uploaded theme goes into the site's own directory, so no other site can list, preview or load it. No operator reviews it: the checks of [Uploaded themes](#uploaded-themes) apply.
+- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota. Theme files count too, and deleting a theme gives its bytes back. Exports are temporary and not counted, so they are bounded instead: one waiting per site, and none larger than the plan's storage ([MULTISITE.md](MULTISITE.md#exporting-one-site)).
 - **Custom domains.**
   - **Proving control.** A host is routed only after a DNS check finds its TXT record with a token derived for that site and host, and finds that the host points to the network. Unverified hosts get a 404.
   - **Untrusted answers.** DNS answers are untrusted: names are normalised, only the exact value counts, and nothing from an answer is stored.

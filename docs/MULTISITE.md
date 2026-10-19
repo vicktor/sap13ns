@@ -167,11 +167,11 @@ Removing a member, or disabling an account, disables the linked users and ends t
 
 Plans are rows of `network.plans`. **Network → Plans** lists them. The network starts with three:
 
-| Plan | Price | Approval | Storage | Custom domains | Plugin uploads |
-|---|---|---|---|---|---|
-| Personal | free, non-commercial | by a network administrator | 1 GB | 0 | no (the catalogue only) |
-| Pro | Stripe subscription | none | 10 GB | 2 | yes, reviewed |
-| Business | Stripe subscription | none | 50 GB | 2 | yes, reviewed |
+| Plan | Price | Approval | Storage | Custom domains | Plugin uploads | Theme uploads |
+|---|---|---|---|---|---|---|
+| Personal | free, non-commercial | by a network administrator | 1 GB | 0 | no (the catalogue only) | no |
+| Pro | Stripe subscription | none | 10 GB | 2 | yes, reviewed | yes, checked, not reviewed |
+| Business | Stripe subscription | none | 50 GB | 2 | yes, reviewed | yes, checked, not reviewed |
 
 **One subscription is one site.** Each account may have one Personal site.
 
@@ -183,16 +183,19 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled or unpaid subscription holds the site, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
 
 **Limits.** A plan's limits apply to every site on it:
-- **Storage** counts uploads, their image variants and plugin packages, but not exports waiting for their download, which are bounded on their own ([Exporting one site](#exporting-one-site)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
+- **Storage** counts uploads, their image variants, plugin packages and uploaded themes, but not exports waiting for their download, which are bounded on their own ([Exporting one site](#exporting-one-site)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
 - **Custom domains** count verified and unverified ones.
-- **A downgrade** only blocks additions: files, domains and plugins over the new limits stay.
+- **A downgrade** only blocks additions: files, domains, plugins and themes over the new limits stay. A site moved to a plan without theme uploads keeps its uploaded themes, and can delete them, but cannot upload more.
 
 ## Plugins and themes
 
 - **The catalogue.** The plugins installed on the portal (valid, and not blocked by the scanner) form the network's catalogue. Every site sees them under **Plugins → From the network** and installs them from there, disabled. The site's administrator then reviews their permissions and enables them, as on any site.
 - **Uploads.** Personal sites cannot upload plugins. On Pro and Business, an uploaded plugin is installed disabled and **held for review**: a network administrator approves or rejects it under **Network → Plugin reviews**, which shows its permissions, its scan report and its hashes. Only then can the site's administrator enable it.
 - **The review pin.** The approval is pinned to the reviewed build: the module, the assets and the permissions it asks for. The same module uploaded again with a manifest that asks for more is a new build and waits again. A build approved before is approved again at once. [PLUGINS.md](PLUGINS.md#networks-of-sites) has the details.
-- **Themes.** A site can use the built-in themes, the themes in the network's `SAP13NS_THEMES_DIR`, and the themes in its own directory. There is no theme upload on a network yet.
+- **Themes.** A site can use the built-in themes, the themes in the network's `SAP13NS_THEMES_DIR`, and the themes in its own directory (`$SAP13NS_DATA_DIR/sites/<id>/themes`). A site on a plan with `theme_uploads` (Pro and Business) can upload its own under **Appearance → Themes**. On Personal the form is not shown and an upload is refused with 403.
+- **Theme uploads are not reviewed.** No network administrator looks at them. Every upload goes through the checks of [THEMES.md](THEMES.md#uploading-a-theme), and it is refused unless it passes all of them. Uploaded themes then render within output and time limits. What the checks guarantee is in [SECURITY.md](SECURITY.md#uploaded-themes).
+- **Theme storage.** An uploaded theme's unpacked files count against the plan's storage. They are reserved atomically before the theme is moved into place, and a replacement reserves only its growth. An upload that does not fit is refused with 413 and leaves nothing behind, and deleting a theme gives its bytes back.
+- **Theme isolation.** An uploaded theme lives in the site's own directory: no other site lists, previews or serves it. It cannot take the slug of a built-in or network theme. If the operator later adds a network theme with its slug, the network's theme wins, and the site's upload shows as not loaded until it is deleted.
 
 ## Custom domains
 
@@ -277,6 +280,8 @@ sap13ns site domain remove HOST
 
 sap13ns user create|reset-password -site S ...    -site network: a network account
 sap13ns plugin list|install -site S ...
+sap13ns theme list|install|remove -site S ...    the site's own themes; the same checks as
+                                                 an upload, without the plan's gate or quota
 sap13ns assistant reindex|status -site S ...
 sap13ns export -site S -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media]
         Export one site's content (see Backups).
@@ -328,4 +333,3 @@ So a site's exports take at most one finished file and one being written, each n
 - **Members.** Only network administrators manage the members of a site.
 - **Plans.** A site's plan changes only through billing, or when it is created from the command line. The plans themselves are edited in the database.
 - **Backups:** see [Backups](#backups).
-- **Theme uploads** do not exist yet, so the `theme_uploads` setting of a plan has no effect.

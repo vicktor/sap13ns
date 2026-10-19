@@ -7,6 +7,7 @@
 //	sap13ns user reset-password   set a new password for a user
 //	sap13ns plugin new|pack|check create, package and scan plugins (plugin.go)
 //	sap13ns plugin list|install   list and install the plugins of a site
+//	sap13ns theme list|install|remove  the themes of a site (theme.go)
 //	sap13ns assistant reindex     rebuild the site assistant's search index
 //	sap13ns export -o FILE        export the content as WXR or a .zip (export.go)
 //	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
@@ -73,6 +74,8 @@ func main() {
 		err = userCmd(args)
 	case "plugin":
 		err = pluginCmd(args)
+	case "theme":
+		err = themeCmd(args)
 	case "backup":
 		err = backupCmd(args)
 	case "export":
@@ -121,6 +124,10 @@ Commands:
                                  List or install this site's plugins (installed
                                  disabled; enable them in Admin → Plugins)
   plugin hash <dir>              Print the SHA-256 of a plugin's wasm module
+  theme list | install <file.zip> | remove <slug>
+                                 List the themes, or install a theme into this
+                                 site's themes directory after the checks of an
+                                 upload (not activated), or remove one
   backup create|list|verify|restore|prune
                                  Encrypted backups of the database and uploads
                                  (see docs/DEPLOY.md)
@@ -147,7 +154,7 @@ Networks (SAP13NS_MULTISITE=true):
   site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST
                                  Manage the sites; running servers follow
   migrate [-site S]              Migrate the network, then every site (or one)
-  user, plugin list|install, assistant, export -site S
+  user, plugin list|install, theme, assistant, export -site S
                                  Work on one site; -site network is the portal
 `)
 }

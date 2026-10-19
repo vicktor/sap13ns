@@ -10,9 +10,13 @@ package network
 // plan with plugin_uploads also lets a site upload its own, which are held
 // (review_required plus a plugin_reviews row) until a network admin
 // approves that very build: its module, assets and pinned permissions
-// (plugin.Build.Pin). Themes: a site uses the built-in themes and
-// the network's themes directory (SAP13NS_THEMES_DIR of the network);
-// there is no theme upload, so theme_uploads gates nothing yet.
+// (plugin.Build.Pin). Themes: a site uses the built-in themes and the
+// network's themes directory (SAP13NS_THEMES_DIR of the network); a plan
+// with theme_uploads also lets it upload its own into its directory
+// ($SAP13NS_DATA_DIR/sites/<id>/themes). Those need no review: the
+// validation of internal/theme refuses anything a theme cannot hold, and
+// uploaded themes render within output and time limits. Their files count
+// against the plan's storage like media.
 
 import (
 	"bytes"
@@ -109,6 +113,18 @@ func (h siteHooks) PluginPolicy(ctx context.Context) (web.PluginPolicy, error) {
 		return web.PluginPolicy{}, err
 	}
 	return web.PluginPolicy{Plan: p.Name, Uploads: p.PluginUploads}, nil
+}
+
+func (h siteHooks) ThemePolicy(ctx context.Context) (web.ThemePolicy, error) {
+	s, err := h.r.net.Site(ctx, h.id)
+	if err != nil {
+		return web.ThemePolicy{}, err
+	}
+	p, err := h.r.net.Plan(ctx, s.Plan)
+	if err != nil {
+		return web.ThemePolicy{}, err
+	}
+	return web.ThemePolicy{Plan: p.Name, Uploads: p.ThemeUploads}, nil
 }
 
 func (h siteHooks) RequestPluginReview(ctx context.Context, pluginID, sha, pin string) (bool, error) {

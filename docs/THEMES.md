@@ -3,24 +3,25 @@
 This is the contract between sap13ns and its themes: the folder layout, the manifest, the templates and the data they receive, the CSS pipeline and the design tokens, and the rules every theme follows. It also covers what operators can change without touching a theme: the customiser and the page builder.
 
 - **Writing a theme?** Copy a built-in theme from `ui/themes/` and read [Folder layout](#folder-layout), [Templates](#templates) and [CSS and design tokens](#css-and-design-tokens).
-- **Running a site?** Read [Installing a theme](#installing-a-theme), [The customiser](#the-customiser) and [The page builder](#the-page-builder).
+- **Running a site?** Read [Installing a theme](#installing-a-theme), [Uploading a theme](#uploading-a-theme), [The customiser](#the-customiser) and [The page builder](#the-page-builder).
 
 ## Contents
 
 1. [Folder layout](#folder-layout)
 2. [Installing a theme](#installing-a-theme)
-3. [theme.json](#themejson)
-4. [Templates](#templates)
-5. [Shared templates](#shared-templates)
-6. [Template data](#template-data)
-7. [Translations](#translations)
-8. [CSS and design tokens](#css-and-design-tokens)
-9. [Light and dark](#light-and-dark)
-10. [Content Security Policy](#content-security-policy)
-11. [Accessibility](#accessibility)
-12. [The customiser](#the-customiser)
-13. [The page builder](#the-page-builder)
-14. [Checklist](#checklist)
+3. [Uploading a theme](#uploading-a-theme)
+4. [theme.json](#themejson)
+5. [Templates](#templates)
+6. [Shared templates](#shared-templates)
+7. [Template data](#template-data)
+8. [Translations](#translations)
+9. [CSS and design tokens](#css-and-design-tokens)
+10. [Light and dark](#light-and-dark)
+11. [Content Security Policy](#content-security-policy)
+12. [Accessibility](#accessibility)
+13. [The customiser](#the-customiser)
+14. [The page builder](#the-page-builder)
+15. [Checklist](#checklist)
 
 ## Folder layout
 
@@ -50,18 +51,83 @@ my-theme/
 
 ## Installing a theme
 
-Themes come from two places, in this order:
+Themes come from these places, in this order:
 
 | Source | Where | Notes |
 |---|---|---|
 | Built in | `ui/themes/` | embedded in the binary |
-| Extra | `SAP13NS_THEMES_DIR` (default `$SAP13NS_DATA_DIR/themes`) | one folder per theme, no recompiling |
+| Network | the network's `SAP13NS_THEMES_DIR` | on a site of a network only: the themes the operator offers every site |
+| Extra | `SAP13NS_THEMES_DIR` (default `$SAP13NS_DATA_DIR/themes`); on a network, `$SAP13NS_DATA_DIR/sites/<id>/themes` | one folder per theme, no recompiling; [uploads](#uploading-a-theme) go here too |
 
-- **Adding a theme.** Copy its folder into the themes directory and restart sap13ns. Themes are discovered when the server starts. In development (`SAP13NS_DEV=true`) they are re-read on every request.
-- **Overriding.** An extra theme with the same slug as a built-in one replaces it.
-- **Failures.** A theme whose manifest or templates do not parse is skipped and logged ("theme failed to load"), and the other themes still load. The server refuses to start only when no theme loads at all.
+- **Adding a theme.** Upload it in **Appearance → Themes** or with `sap13ns theme install` ([Uploading a theme](#uploading-a-theme)). Or copy its folder into the themes directory and open or reload **Appearance → Themes**, which re-reads the directory; the server also reads it when it starts. In development (`SAP13NS_DEV=true`) themes are re-read on every request.
+- **Overriding.** A theme copied by hand into the extra directory with the same slug as a built-in one replaces it. An uploaded theme never does: uploads refuse the slugs of built-in and network themes, and an uploaded theme whose slug a built-in or network theme takes later is not loaded.
+- **Failures.** A theme whose manifest or templates do not parse is skipped and logged ("theme failed to load"), and the other themes still load. **Appearance → Themes** lists the themes of the site's directory that did not load, with a button to delete them. The server refuses to start only when no theme loads at all.
 - **Fallback.** If the active theme is missing, visitors get `apple`, then `dashboard`, then any theme that loaded.
 - **Preview and activate.** **Appearance → Themes** lists every theme. Users with the appearance capability can add `?preview_theme=<slug>` to any public URL to see another theme before activating it. Pagination, internal links and the search form keep the preview. Add `&scheme=dark` or `&scheme=light` to force a colour scheme for that view.
+
+## Uploading a theme
+
+An administrator can install a theme from a `.zip` file, without access to the server. The checks below run on every upload. A theme that fails any of them is refused, nothing is installed, and the page lists every problem found (up to 50), with its file and line, so the author can fix them in one go. No operator reviews uploaded themes: these checks and the rendering limits are what keep the site safe.
+
+**The flow.**
+
+- **Upload.** **Appearance → Themes → Upload a theme** takes a `.zip` of up to 20 MB, holding the theme's folder (`my-theme/theme.json`, …) or its files at the root, with `"slug"` in `theme.json`. It needs the appearance capability (administrators) and the form's CSRF token.
+- **Installed, not active.** A valid theme goes into the site's themes directory. Preview it with `?preview_theme=<slug>`, then activate it.
+- **Replacing.** Uploading a theme with the slug of one in the site's directory replaces it as a whole, atomically: the new version is unpacked and checked aside, and swapped in only once it loads. A version that fails the checks changes nothing, so the active theme keeps working.
+- **Deleting.** A theme of the site's directory can be deleted, but not the active one. Built-in and network themes cannot.
+- **Audit log.** `theme.uploaded`, `theme.updated`, `theme.refused` (with the rules it broke), `theme.deleted`, with the archive's SHA-256.
+- **Command line.** `sap13ns theme list`, `sap13ns theme install <file.zip>` and `sap13ns theme remove <slug>` do the same on the server (`-site <slug>` on a network). They run the same checks and write the same audit entries (with `"source": "cli"`), and skip the plan's gate and its storage count, which the network's daily measurement corrects.
+- **On a network,** the site's plan decides whether it can upload themes, and the files count against its storage ([MULTISITE.md](MULTISITE.md#plugins-and-themes)).
+
+**The archive.** The limits are the plugin packages' (`internal/archive`).
+
+- At most 20 MB packed, 40 MB unpacked, 300 entries, and a compression ratio of 100 to 1 per file; only deflate or stored entries.
+- No absolute paths, no `..`, no symbolic links or special files, no hidden files, no file twice. Every path segment is letters, digits, dots, hyphens and underscores.
+- Per-file limits: `theme.json` 64 KB; templates, translations and docs 256 KB; `src/` and `static/*.css` 1 MB; other static files 4 MB.
+
+**The layout.** Only what a theme needs:
+
+- `theme.json`;
+- `templates/<page>.html` for the page templates (`layout`, `home`, `single`, `page`, `archive`, `search`, `404`, `ask`), and `templates/partials/*.html`, at most 60 templates;
+- `i18n/<lang>.json`;
+- `src/**/*.css` (kept, never served);
+- `static/**`;
+- `README`, `LICENSE`, `LICENCE`, `COPYING` and `CHANGELOG` (optionally `.md` or `.txt`) at the root.
+
+`theme.json`, `templates/layout.html`, `templates/home.html`, `templates/single.html` and `static/theme.css` are required. Anything else is refused.
+
+**Static files.** By extension and by content: `.css`, `.woff2`, `.woff`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.gif` and `.ico`. Each file's content is sniffed with the media library's checks (`internal/media`) and must match its extension, so an HTML page cannot pass as a `.png`.
+
+- **No scripts, pages or WebAssembly** (`.js`, `.mjs`, `.html`, `.xml`, `.wasm`, `.php` …). The site's own `site.js` runs the toggles and menus.
+- **No SVG.** An SVG opened at its own URL is a document that can run scripts, and the CSP of the site's origin would be its only defence. Use PNG, WebP or AVIF, an `{{icon}}`, or a `data:image/…` URL in the stylesheet, which the CSP allows for images and which never runs when CSS draws it.
+- **Stylesheets** pass the customiser's CSS checker, with three relaxations for compiled stylesheets: `url()` may be relative to the stylesheet (`fonts/x.woff2`) or a fragment, `data:image/…` URLs are allowed, and rules may name `.footer-meta`. Everything else holds: no `@import`, no URLs with a scheme or a host, no `image()`, `image-set()`, `expression()`, `behavior` or `-moz-binding`, balanced and terminated, UTF-8 without NUL bytes.
+
+**theme.json.**
+
+- Valid JSON with the fields of [theme.json](#themejson). The slug, the folder's name or `"slug"`, is a valid slug, the two agree when both are given, and it is not the slug of a built-in theme or of a network theme.
+- `name` is required. Names, descriptions, labels, help and defaults have length limits and no control characters.
+- Menu, widget area and option ids are 1 to 40 lower-case letters, digits, hyphens and underscores, each declared once; at most 10 menus, 20 widget areas, 40 options and 12 swatches.
+- Option types are `text`, `textarea`, `select` or `bool`; a select has 1 to 50 choices and its default is one of them.
+- Colours are hexadecimal; tokens are the customiser's.
+
+**Translations.** `i18n/<lang>.json` is named after a language code (`es`, `pt-BR`), and holds a JSON object of strings. Formats in it take widths and precisions up to 99, and none computed at run time.
+
+**Templates.** Every template file is UTF-8. The theme is parsed with the server's real functions and the shared templates, as it runs, and an unknown function or template fails. Then each page, as it renders (the layout with the page's templates and the partials), is checked with the types of the page data:
+
+- **Functions.** The functions of [Template data](#template-data) except `seq`, and Go's built-in ones except `call`. The other functions of the server (the admin's helpers, `toJSON`) are refused. `printf`, `T` and `plural` take a literal format, with widths and precisions up to 99 and none computed at run time.
+- **Fields.** Every field and method must exist on the data it is used on. Templates cannot read the signed-in user's CSRF token (`.CSRF`), nor write out whole values that hold it, and cannot call `.Site.Assistant`, which does work on the server; the shared templates render the forms and the assistant.
+- **Loops.** `range` goes only over lists of the page data (`.Posts`, `.Site.Categories`, `index`, `slice` of them…), never over a number, a literal, a list the template makes with `list`, or the result of arithmetic. The page data is built by the server and bounded by the site's content, so every loop is.
+- **No recursion.** A template cannot call itself, directly or through other templates, including shared ones.
+- **Silent loops.** A loop whose passes may write nothing must stay cheap: at most 400 steps per pass, no function that reads a whole text (`contains`, `printf`…), and no other such loop inside it. A page that keeps writing is stopped by the output limit; one that writes nothing would not be.
+- **Size.** Each page expands to at most 100,000 steps.
+- **Protected templates.** A theme cannot redefine `shared/head`, `shared/footer-meta`, `shared/blocks-footer`, `shared/blocks-sections`, `shared/block` or `blocks/footer-meta`, nor name a template with `$`. It can still redefine the other shared templates.
+- **The credit.** The layout must render `{{template "shared/footer-meta" .}}` on every page, on every path through its conditions (`shared/blocks-footer` renders it when the page builder's footer is on), with the page data, in the page's text: not in an attribute, a comment, a `<title>` or a `<textarea>`. `shared/admin-bar`, `shared/comments` and `shared/comment-form`, which carry the CSRF token, must be in the page's text too.
+- **HTML.** No `<script>` (the JSON-LD of `shared/head` is the core's), no `<style>`, no `style=""`, no `on*=` event handlers, no `<meta http-equiv>`, no `<base>`, `<iframe>`, `<frame>`, `<frameset>`, `<object>`, `<embed>` or `<applet>`. A theme's own forms use `method="get"` only, and no `formaction`, `formmethod` or `form` attributes; the forms that change something are the core's. Actions cannot write the name of an element or of an attribute.
+- **Escaping.** Each page is rendered once without data, so that `html/template` reports a context it cannot escape (an action in the middle of an attribute name, for example).
+
+**Rendering limits.** An uploaded theme renders each page into a buffer of at most 8 MB, within 5 seconds, and stops when the visitor goes away. Text functions (`printf`, `print`, `join`, `paragraphs`, `T`…) refuse to make a text over 1 MB. The rendered page must hold the credit. A page over a limit is not sent: the visitor gets a 500, and the log says `uploaded theme refused to render` with the theme and the page. Built-in and hand-installed themes render as before.
+
+**What the checks do not decide.** The stylesheet can still hide the credit, as custom CSS can; the CPAL-1.0 licence requires it to stay visible, and the site answers for that. Design, accessibility and the content of the theme's own texts are the author's.
 
 ## theme.json
 
@@ -128,7 +194,7 @@ Templates are Go [`html/template`](https://pkg.go.dev/html/template), which esca
 - **`layout.html`** defines the template `layout`: the whole document, from `<!doctype html>` to `</html>`. It renders the page body with `{{template "content" .}}`.
 - **Each page template** defines `content`.
 - **`partials/*.html`** are parsed into every page. Use them for templates the theme's pages share, and give them names that cannot clash with `content` or `layout`.
-- **Overriding.** Shared templates are parsed first, so a theme can redefine any of them (`shared/…` or `blocks/…`) in a partial.
+- **Overriding.** Shared templates are parsed first, so a theme can redefine any of them (`shared/…` or `blocks/…`) in a partial. An uploaded theme cannot redefine the ones that render the head and the credit ([Uploading a theme](#uploading-a-theme)).
 
 | Page | Used for | Without it |
 |---|---|---|
@@ -254,7 +320,7 @@ Every page template gets a **PageData** (`.`).
 | `lang` | the page language |
 | `date`, `shortDate`, `dateTime`, `ago`, `monthName`, `isoDate` | localised dates in the site's time zone; `isoDate` is RFC 3339 for `datetime` attributes |
 | `icon` | `{{icon "search"}}`, `{{icon "sun" "theme-icon-light"}}`: an inline Lucide icon, hidden from assistive technology |
-| `dict`, `list`, `seq` | build arguments for templates and ranges |
+| `dict`, `list`, `seq` | build arguments for templates and ranges (`seq` is not available to uploaded themes) |
 | `add`, `sub`, `mul`, `div` | integer arithmetic |
 | `join`, `lower`, `upper`, `contains`, `hasPrefix`, `truncate`, `initials`, `paragraphs` | text helpers (`paragraphs` turns plain text into escaped `<p>` elements) |
 
@@ -455,3 +521,4 @@ A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-are
 - [ ] No inline script or style, no external fonts or stylesheets.
 - [ ] Light and dark checked at phone and desktop widths, with visible focus and reduced motion respected.
 - [ ] `static/theme.css` built and committed.
+- [ ] To upload it: zip the folder with only the files of [Uploading a theme](#uploading-a-theme) (no `node_modules`, scripts or SVG), and upload it to a test site first; the refusal lists every problem.

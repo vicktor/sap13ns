@@ -7,9 +7,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -190,21 +192,9 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	s.static = hashFiles(d.UI, "static")
 
 	funcs := s.funcMap()
-	shared, err := fs.Sub(d.UI, "shared/templates")
-	if err != nil {
+	if s.themes, err = s.newThemeManager(funcs); err != nil {
 		return nil, err
 	}
-	builtin, err := fs.Sub(d.UI, "themes")
-	if err != nil {
-		return nil, err
-	}
-	// The site's own themes override the network's (a site of a network),
-	// which override the built-in ones.
-	sources := []theme.Source{{FS: builtin, Builtin: true}}
-	if dir := d.Config.NetworkThemesDir; dir != "" {
-		sources = append(sources, theme.Source{FS: dirFS(dir)})
-	}
-	s.themes = theme.NewManager(shared, funcs, s.langFuncs, d.Log, d.Config.Dev, append(sources, theme.Source{FS: dirFS(d.Config.ThemesDir)})...)
 	if err := s.themes.Load(); err != nil {
 		return nil, err
 	}
@@ -217,6 +207,49 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		}
 	}
 	return s, nil
+}
+
+// newThemeManager builds the theme manager. The site's own themes
+// directory, where uploads are installed, overrides the network's (on a
+// site of a network), which overrides the built-in themes; an uploaded
+// theme never shadows a theme of the other two.
+func (s *Server) newThemeManager(funcs template.FuncMap) (*theme.Manager, error) {
+	shared, err := fs.Sub(s.ui, "shared/templates")
+	if err != nil {
+		return nil, err
+	}
+	builtin, err := fs.Sub(s.ui, "themes")
+	if err != nil {
+		return nil, err
+	}
+	sources := []theme.Source{{FS: builtin, Builtin: true}}
+	if dir := s.cfg.NetworkThemesDir; dir != "" {
+		sources = append(sources, theme.Source{FS: dirFS(dir)})
+	}
+	if dir := s.cfg.ThemesDir; dir != "" {
+		sources = append(sources, theme.Source{Dir: dir})
+	}
+	m := theme.NewManager(shared, funcs, s.langFuncs, s.log, s.cfg.Dev, sources...)
+	m.SetPageType(reflect.TypeFor[*PageData]())
+	return m, nil
+}
+
+// ThemeManager returns the theme manager of a site without a database or
+// a server, for the command line (sap13ns theme): the templates get the
+// server's functions, so an install validates as it does in the admin.
+func ThemeManager(cfg *config.Config, ui fs.FS, log *slog.Logger) (*theme.Manager, error) {
+	s := &Server{cfg: cfg, log: log, ui: ui}
+	var err error
+	if s.i18n, err = i18n.Load(ui, "i18n"); err != nil {
+		return nil, err
+	}
+	s.state.Store(&siteState{S: store.Settings{Language: "en", Timezone: "UTC"}, Loc: time.UTC})
+	s.static = hashFiles(ui, "static")
+	m, err := s.newThemeManager(s.funcMap())
+	if err != nil {
+		return nil, err
+	}
+	return m, m.Load()
 }
 
 // ReloadSettings refreshes the cached settings snapshot.

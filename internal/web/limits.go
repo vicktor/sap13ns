@@ -1,11 +1,13 @@
 package web
 
 // The limits of a site of a network under its plan (internal/network):
-// its storage, and how plugins reach it. Every plan installs from the
-// network's catalogue, the plugins the operator installed on the portal;
-// a plan with plugin uploads also lets the site upload its own, which the
-// network operator reviews before they can run. A single-site install and
-// the portal have no limits.
+// its storage, and how plugins and themes reach it. Every plan installs
+// from the network's catalogue, the plugins the operator installed on the
+// portal; a plan with plugin uploads also lets the site upload its own,
+// which the network operator reviews before they can run. A plan with
+// theme uploads lets the site upload its own themes, which the validation
+// of internal/theme checks instead of an operator. A single-site install
+// and the portal have no limits.
 
 import (
 	"bytes"
@@ -41,6 +43,15 @@ type SiteLimits interface {
 	// CatalogPackage packs one of them (store.ErrNotFound for any other).
 	PluginCatalog(ctx context.Context) ([]CatalogPlugin, error)
 	CatalogPackage(ctx context.Context, id string) ([]byte, error)
+	// ThemePolicy is what the plan allows for themes now; a downgrade
+	// stops uploads, and the uploaded themes stay.
+	ThemePolicy(ctx context.Context) (ThemePolicy, error)
+}
+
+// ThemePolicy is the theme policy of a site's plan.
+type ThemePolicy struct {
+	Plan    string // its name
+	Uploads bool   // the site may upload its own themes
 }
 
 // PluginPolicy is the plugin policy of a site's plan.

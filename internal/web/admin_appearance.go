@@ -17,12 +17,27 @@ import (
 // ---------------------------------------------------------------- themes --
 
 type themesData struct {
-	Themes []*theme.Theme
-	Active string
+	Themes   []*theme.Theme
+	Active   string
+	Uploads  bool   // the site can upload themes (admin_theme_upload.go)
+	Plan     string // the plan's name, on a site of a network
+	Tenant   bool   // a site of a network
+	MaxMB    int
+	Refused  *themeRefusal
+	Failures []theme.Failure // themes of the site's directory that did not load
 }
 
 func (s *Server) adminThemes(w http.ResponseWriter, r *http.Request) {
-	s.renderAdmin(w, r, "themes", s.t("Themes"), "themes", themesData{Themes: s.themes.List(), Active: s.themes.Active(s.settings().ActiveTheme).Slug})
+	// Themes copied into the themes directory appear without a restart.
+	if err := s.themes.Load(); err != nil {
+		s.log.Error("reload themes", "err", err)
+	}
+	d, err := s.themesPage(r)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderAdmin(w, r, "themes", s.t("Themes"), "themes", d)
 }
 
 func (s *Server) adminThemeActivate(w http.ResponseWriter, r *http.Request) {

@@ -83,6 +83,8 @@ Five built-in themes, each with light and dark modes:
 
 Themes are Go templates plus static files. They can be previewed before you switch, and extra themes are loaded from a directory at runtime.
 
+- **Theme uploads:** an administrator uploads a theme as a `.zip` in **Appearance → Themes** (or with `sap13ns theme install`). It is checked before it is installed: only passive static files, no scripts or SVG, stylesheets through the CSS checker, templates parsed with the real functions and checked for loops, recursion, secrets, inline code and the footer credit. It arrives inactive for a preview, a bad new version leaves the active one in place, and uploaded themes render within output and time limits ([docs/THEMES.md](docs/THEMES.md#uploading-a-theme)).
+
 - **Customiser:** colours, fonts (self-hosted WOFF2), radius, density, header and footer, with a live preview. Changes stay a draft until published, with ten revisions and export/import.
 - **Page builder:** 18 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, image, button, …) arranged per region and page type. Page types you have not built keep the theme's own template.
 
@@ -166,14 +168,15 @@ Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the
 
 ### Networks of sites (optional)
 With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any number of sites. The guide is [docs/MULTISITE.md](docs/MULTISITE.md).
-- **Isolated sites:** each site has its own PostgreSQL schema, users, settings, files and plugins, and picks its theme from the network's. It is served at `<slug>.<SITES_DOMAIN>` and on its own domains. Idle sites are unloaded from memory and load again on their next request.
+- **Isolated sites:** each site has its own PostgreSQL schema, users, settings, files, plugins and themes, and picks its theme from the built-in ones, the network's, or, on the plans that allow it, the ones it uploads. It is served at `<slug>.<SITES_DOMAIN>` and on its own domains. Idle sites are unloaded from memory and load again on their next request.
 - **Portal and single sign-on:** people sign up on the portal (when the operator opens registration), request sites and manage them from **My sites**. They sign in to every site they belong to through the portal. Operators reach any site with a separate, audited account.
 - **Plans and billing:**
-  - Personal (free, approved by the operator), Pro and Business, with storage, custom-domain and plugin-upload limits;
+  - Personal (free, approved by the operator), Pro and Business, with storage, custom-domain, plugin-upload and theme-upload limits;
   - one subscription pays for one site, through Stripe Checkout and the Customer Portal ([docs/BILLING.md](docs/BILLING.md));
   - a site whose payment lapses is held (its public pages answer 503) and never deleted.
 - **Custom domains:** proven with a DNS TXT record and checked again every day. TLS comes from nginx with a wildcard certificate, from Caddy's on-demand TLS, or from the built-in ACME client.
 - **Plugin catalogue and review:** sites install the plugins the operator offers. Uploads, on the plans that allow them, wait for the operator to review that exact build ([docs/PLUGINS.md](docs/PLUGINS.md#networks-of-sites)).
+- **Theme uploads:** on Pro and Business, sites upload their own themes, checked automatically with no operator review. Their files count against the plan's storage ([docs/MULTISITE.md](docs/MULTISITE.md#plugins-and-themes)).
 
 ### Operations
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
@@ -252,6 +255,7 @@ sap13ns export -o FILE.xml|FILE.zip   Export the content (-drafts, -pii, -no-med
 sap13ns update           Install the latest signed release (-check, -yes, -force)
 sap13ns plugin new|pack|check   Start, package and scan a plugin
 sap13ns plugin list|install     List or install the site's plugins
+sap13ns theme list|install|remove   List, install (checked as an upload) or remove the site's themes
 sap13ns assistant reindex|status
 sap13ns version
 
@@ -259,7 +263,7 @@ Networks of sites (SAP13NS_MULTISITE=true):
 sap13ns network init     Create the network and its portal, and an administrator
 sap13ns site create|list|suspend|resume|delete|purge
 sap13ns site domain add|verify|primary|remove
-sap13ns migrate|user|plugin|assistant|export -site S   Work on one site (-site network: the portal)
+sap13ns migrate|user|plugin|theme|assistant|export -site S   Work on one site (-site network: the portal)
 ```
 
 ## Development
@@ -293,7 +297,7 @@ Still missing on a network of sites:
 
 - **Per-site backups:** `sap13ns backup create` and `restore` refuse to run on a network for now; back it up with `pg_dump` and a copy of the data directory ([docs/MULTISITE.md](docs/MULTISITE.md#backups)). A single site's content leaves the network with its [export](#export).
 - **Conversion:** a single-site install cannot yet be turned into a network, or moved into one.
-- **Theme uploads** by the sites themselves, and member invitations by site owners.
+- **Member invitations** by site owners.
 
 ## License
 
