@@ -64,7 +64,7 @@
       <h3 class="font-semibold">{{.Name}} {{if .Required}}<span class="badge" data-variant="secondary">{{T "Always on"}}</span>{{else if .Toggle}}<span class="badge" data-variant="outline">{{T "Needs consent"}}</span>{{end}}</h3>
       <p class="hint">{{.Description}}</p>
       <div class="overflow-x-auto">
-      <table class="table">
+      <table class="table min-w-[44rem]">
         <thead><tr><th>{{T "Name"}}</th><th>{{T "Provider"}}</th><th>{{T "Purpose"}}</th><th>{{T "Duration"}}</th><th>{{T "Declared by"}}</th></tr></thead>
         <tbody>{{range .Items}}<tr>
           <td><span class="mono break-all">{{.Name}}</span><br><span class="text-muted-foreground text-xs">{{.KindLabel}}</span></td>
