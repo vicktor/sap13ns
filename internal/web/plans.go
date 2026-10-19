@@ -115,7 +115,8 @@ func (s *Server) portalPlans(ctx context.Context) ([]PlanView, error) {
 	return out, nil
 }
 
-// planFeatures describes what a plan gives, from its limits.
+// planFeatures describes what a plan gives, from its limits. The sap13ns
+// theme's "plan-feature" partial writes each format that takes an Arg.
 func planFeatures(p NetPlan, sitesDomain string) []PlanFeature {
 	var f []PlanFeature
 	switch {

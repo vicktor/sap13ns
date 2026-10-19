@@ -113,6 +113,10 @@ var refusedElements = map[string]string{
 	"iframe": "template.element", "frame": "template.element", "frameset": "template.element",
 	"object": "template.element", "embed": "template.element", "applet": "template.element",
 	"math": "template.element",
+	// A browser with JavaScript reads <noscript> as raw text, one without
+	// it as markup; no single reading checks both, and a theme, which has
+	// no JavaScript, has no use for it.
+	"noscript": "template.element",
 }
 
 // svgElements are the elements a theme's <svg> can hold: drawing ones.
@@ -1330,8 +1334,6 @@ func (sk *skeleton) nodeAt(off int) parse.Node {
 // checkHTML looks for what a theme's HTML cannot hold. The template
 // text is checked file by file, and each page with the theme's templates
 // inlined, where the shared templates a theme form holds are checked too.
-// The tokenizer reads <noscript> as markup, as a browser without
-// JavaScript does: what a browser may read as tags is checked as tags.
 func (c *checker) checkHTML(sk *skeleton) {
 	text := sk.b.String()
 	report := func(code string, off int, args ...any) {
@@ -1417,8 +1419,6 @@ func (c *checker) checkHTML(sk *skeleton) {
 			forms++
 		case "select":
 			selects++
-		case "noscript":
-			z.NextIsNotRawText()
 		}
 		for more {
 			var k, v []byte

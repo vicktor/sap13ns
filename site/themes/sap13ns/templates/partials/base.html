@@ -7,6 +7,18 @@
      menu is shorter). Data: dict "M" []MenuLink "N" int "Text" string. */}}
 {{define "sap/more"}}{{$n := .N}}{{$t := .Text}}{{range $i, $l := .M}}{{if eq $i $n}}<a class="more-link" href="{{$l.URL}}">{{or $t $l.Label}} {{icon "arrow-right"}}</a>{{end}}{{end}}{{end}}
 
+{{/* plan-feature: one line of a plan, a web.PlanFeature. A format with an
+     argument is written out, because T takes a field only without one;
+     planFeatures in internal/web/plans.go lists the same formats. */}}
+{{define "plan-feature"}}
+{{- if not .Arg}}{{T .Text}}
+{{- else if eq .Text "%s sites"}}{{T "%s sites" .Arg}}
+{{- else if eq .Text "Up to %s custom domains with HTTPS"}}{{T "Up to %s custom domains with HTTPS" .Arg}}
+{{- else if eq .Text "An address under %s"}}{{T "An address under %s" .Arg}}
+{{- else if eq .Text "%s storage"}}{{T "%s storage" .Arg}}
+{{- end}}
+{{- end}}
+
 {{/* Language-aware replacements of two shared partials: the core versions
      point to "/" and "/search" in every language. */}}
 {{define "shared/search-form"}}
@@ -58,7 +70,7 @@
     {{with .Description}}<p class="plan-desc">{{T .}}</p>{{end}}
     <p class="plan-price">{{if .Free}}<strong>{{T "Free"}}</strong>{{else}}<strong>{{.Price}}</strong>{{with .Interval}}<span>/ {{if eq . "month"}}{{T "month"}}{{else if eq . "year"}}{{T "year"}}{{else}}{{.}}{{end}}</span>{{end}}{{end}}</p>
     <p class="plan-use">{{if .Commercial}}{{icon "badge-check"}} {{T "Commercial use allowed"}}{{else}}{{icon "user-round-check"}} {{T "Personal, non-commercial sites"}}{{end}}</p>
-    <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{if .Arg}}{{T .Text .Arg}}{{else}}{{T .Text}}{{end}}</span></li>{{end}}</ul>
+    <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{template "plan-feature" .}}</span></li>{{end}}</ul>
     {{$hl := .Highlight}}{{with .SignupURL}}<a class="button {{if $hl}}button-primary{{else}}button-outline{{end}} plan-cta" href="{{.}}">{{T "Choose plan"}}</a>{{end}}
   </article>
   {{end}}

@@ -66,7 +66,7 @@ Tu plan sigue activo hasta el final del periodo que ya has pagado. Después el s
 
 ### ¿Puedo usar mi propio tema o plugin?
 
-En los planes comerciales, sí. Los temas siguen las mismas reglas de seguridad estrictas que los incluidos. Los plugins se ejecutan en el sandbox de WebAssembly y los revisamos antes de que puedan activarse.
+En los planes comerciales, sí. Los temas se comprueban automáticamente al subirlos: sin scripts, sin formularios externos, con el renderizado acotado y las mismas reglas de seguridad estrictas que los incluidos. Los plugins se ejecutan en el sandbox de WebAssembly y los revisamos antes de que puedan activarse.
 
 ### ¿Quién es responsable de mis datos?
 

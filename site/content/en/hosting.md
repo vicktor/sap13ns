@@ -66,7 +66,7 @@ Your plan stays active until the end of the period you have already paid for. Af
 
 ### Can I use my own theme or plugin?
 
-On commercial plans, yes. Themes follow the same strict security rules as the built-in ones. Plugins run in the WebAssembly sandbox and are reviewed by us before they can be enabled.
+On commercial plans, yes. Themes are checked automatically when you upload them: no scripts, no external forms, bounded rendering, and the same strict security rules as the built-in ones. Plugins run in the WebAssembly sandbox and are reviewed by us before they can be enabled.
 
 ### Who is responsible for my data?
 

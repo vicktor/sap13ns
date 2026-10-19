@@ -3,7 +3,9 @@ package web
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"sap13ns/internal/config"
@@ -98,6 +100,22 @@ func TestFilesizeGB(t *testing.T) {
 	for n, want := range map[int64]string{1 << 30: "1 GB", 50 << 30: "50 GB", 3 << 29: "1.5 GB", 5 << 20: "5.0 MB"} {
 		if got := filesize(n); got != want {
 			t.Errorf("filesize(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+// The sap13ns theme writes each feature format that takes an argument in
+// quotes (uploaded-theme checks refuse T with a field and arguments), so
+// a new format must be added to its plan-feature partial too.
+func TestPlanFeatureFormatsInTheme(t *testing.T) {
+	b, err := os.ReadFile("../../site/themes/sap13ns/templates/partials/base.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	features := append(planFeatures(NetPlan{SitesPerGrant: 2, CustomDomains: 2, StorageBytes: 1}, "x"), planFeatures(NetPlan{}, "x")...)
+	for _, f := range features {
+		if f.Arg != "" && !strings.Contains(string(b), `{{T "`+f.Text+`" .Arg}}`) {
+			t.Errorf("the plan-feature partial does not write %q", f.Text)
 		}
 	}
 }
