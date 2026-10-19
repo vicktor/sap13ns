@@ -223,6 +223,7 @@ func TestLoadMultisite(t *testing.T) {
 		"STRIPE_TRIAL_DAYS":             "14",
 		"BILLING_GRACE_DAYS":            "7",
 		"STRIPE_API_VERSION":            "2026-09-30.endive",
+		"STRIPE_PORTAL_CONFIGURATION":   "bpc_1abcdefgh",
 		"STRIPE_PRICE_BUSINESS_YEARLY":  "",
 		"STRIPE_PRICE_IGNORED_IF_EMPTY": "",
 		"BACKUP_DIR":                    "/srv/backups",
@@ -257,7 +258,7 @@ func TestLoadMultisite(t *testing.T) {
 			"business":  {Monthly: "price_business123"},
 			"team_plus": {Monthly: "price_teamplus123"},
 		},
-		APIVersion: "2026-09-30.endive", AutomaticTax: true, TaxIDCollection: false, BillingAddress: true, TrialDays: 14, GraceDays: 7,
+		APIVersion: "2026-09-30.endive", AutomaticTax: true, TaxIDCollection: false, BillingAddress: true, TrialDays: 14, GraceDays: 7, PortalConfiguration: "bpc_1abcdefgh",
 	}
 	if !reflect.DeepEqual(c.Stripe, want) {
 		t.Fatalf("Stripe = %#v\nwant %#v", c.Stripe, want)
@@ -328,6 +329,7 @@ func TestLoadMultisiteErrors(t *testing.T) {
 		{"bad plan name", map[string]string{"STRIPE_PRICE_9LIVES": "price_0123456789"}, true, "not a plan name"},
 		{"bad tax flag", map[string]string{"STRIPE_AUTOMATIC_TAX": "maybe"}, true, "SAP13NS_STRIPE_AUTOMATIC_TAX"},
 		{"trial too long", map[string]string{"STRIPE_TRIAL_DAYS": "1000"}, true, "SAP13NS_STRIPE_TRIAL_DAYS"},
+		{"bad portal configuration", map[string]string{"STRIPE_PORTAL_CONFIGURATION": "bpc_x"}, true, "SAP13NS_STRIPE_PORTAL_CONFIGURATION"},
 		{"negative grace", map[string]string{"BILLING_GRACE_DAYS": "-1"}, true, "SAP13NS_BILLING_GRACE_DAYS"},
 		{"backups flag", map[string]string{"SITE_BACKUPS": "nightly"}, false, "SAP13NS_SITE_BACKUPS"},
 		{"backup time", map[string]string{"SITE_BACKUP_TIME": "3am"}, false, "SAP13NS_SITE_BACKUP_TIME"},

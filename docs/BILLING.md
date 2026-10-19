@@ -137,6 +137,11 @@ Notes:
   URL per site anyway).
 - Fill in the links to the terms of service and privacy policy.
 
+If the Stripe account sells other products through the portal, create a
+separate configuration for sap13ns instead of changing the default (the API's
+`POST /v1/billing_portal/configurations`), and set
+`SAP13NS_STRIPE_PORTAL_CONFIGURATION` to its `bpc_…` ID.
+
 ## 5. Webhook endpoint
 
 sap13ns receives events at **`https://<portal>/billing/webhook`**, where
@@ -225,6 +230,7 @@ Personal sites, and the sites an operator creates on another plan with
 | `SAP13NS_STRIPE_PRICE_BUSINESS` | yes | | Business, monthly. |
 | `SAP13NS_STRIPE_PRICE_BUSINESS_YEARLY` | no | | Business, yearly. |
 | `SAP13NS_STRIPE_API_VERSION` | no | `2026-09-30.endive` | Override the pinned API version (keep it equal to the webhook endpoint's). |
+| `SAP13NS_STRIPE_PORTAL_CONFIGURATION` | no | the account's default | The Customer Portal configuration (`bpc_…`) of the portal sessions, for an account whose default configuration serves other products. |
 | `SAP13NS_STRIPE_AUTOMATIC_TAX` | no | `false` | `true` enables Stripe Tax on Checkout (`automatic_tax[enabled]`). |
 | `SAP13NS_STRIPE_TAX_ID_COLLECTION` | no | `true` | Show the business tax ID (VAT number) field in Checkout. |
 | `SAP13NS_STRIPE_BILLING_ADDRESS` | no | `true` | Checkout always collects a billing address (evidence of the customer's country for VAT). `false` lets Stripe decide. |

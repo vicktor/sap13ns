@@ -169,8 +169,9 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, p CheckoutParams, id
 
 // CreatePortalSession creates a Customer Portal session and returns its URL.
 // The portal's features (cancel, switch plan, update card, invoices) are
-// configured in the Stripe Dashboard.
-func (c *Client) CreatePortalSession(ctx context.Context, customerID, returnURL string) (string, error) {
+// configured in the Stripe Dashboard; configuration picks one of them
+// ("" is the account's default).
+func (c *Client) CreatePortalSession(ctx context.Context, customerID, returnURL, configuration string) (string, error) {
 	if err := checkID("customer", customerID); err != nil {
 		return "", err
 	}
@@ -182,6 +183,12 @@ func (c *Client) CreatePortalSession(ctx context.Context, customerID, returnURL 
 		URL    string `json:"url"`
 	}
 	params := map[string]any{"customer": customerID, "return_url": returnURL}
+	if configuration != "" {
+		if err := checkID("portal configuration", configuration); err != nil || !strings.HasPrefix(configuration, "bpc_") {
+			return "", fmt.Errorf("billing: invalid portal configuration ID %q", truncate(configuration, 64))
+		}
+		params["configuration"] = configuration
+	}
 	// A fresh key per call makes network retries safe without deduplicating
 	// separate clicks.
 	if err := c.do(ctx, http.MethodPost, "/v1/billing_portal/sessions", params, NewIdempotencyKey(), &out); err != nil {

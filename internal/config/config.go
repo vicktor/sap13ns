@@ -114,6 +114,9 @@ type Stripe struct {
 	BillingAddress  bool // Checkout always collects a billing address (VAT evidence)
 	TrialDays       int
 	GraceDays       int // days a site stays online after a failed renewal
+	// PortalConfiguration is the Customer Portal configuration (bpc_...)
+	// of the portal sessions; "" uses the account's default.
+	PortalConfiguration string
 }
 
 // StripePrices are the price IDs of one plan.
@@ -589,6 +592,11 @@ func loadStripe() (Stripe, error) {
 	s.TrialDays, err = strconv.Atoi(env("STRIPE_TRIAL_DAYS", "0"))
 	if err != nil || s.TrialDays < 0 || s.TrialDays > 730 {
 		return Stripe{}, errors.New("SAP13NS_STRIPE_TRIAL_DAYS must be between 0 and 730")
+	}
+	if s.PortalConfiguration = env("STRIPE_PORTAL_CONFIGURATION", ""); s.PortalConfiguration != "" {
+		if id, ok := strings.CutPrefix(s.PortalConfiguration, "bpc_"); !ok || !stripeIDRe.MatchString(id) {
+			return Stripe{}, errors.New("SAP13NS_STRIPE_PORTAL_CONFIGURATION must be a Customer Portal configuration ID (bpc_...)")
+		}
 	}
 	s.GraceDays, err = strconv.Atoi(env("BILLING_GRACE_DAYS", "14"))
 	if err != nil || s.GraceDays < 0 || s.GraceDays > 90 {

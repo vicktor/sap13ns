@@ -491,7 +491,7 @@ func (b *Billing) PortalURL(ctx context.Context, accountID, siteID int64) (strin
 	if customer == "" {
 		return "", fmt.Errorf("%w: no billing account yet", ErrState)
 	}
-	u, err := b.client.CreatePortalSession(ctx, customer, b.base.String()+"/admin/sites")
+	u, err := b.client.CreatePortalSession(ctx, customer, b.base.String()+"/admin/sites", b.stripe.PortalConfiguration)
 	if err != nil {
 		return "", err
 	}

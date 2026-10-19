@@ -527,7 +527,7 @@ func TestInvalidIDsNeverSent(t *testing.T) {
 	if _, err := c.CancelSubscription(ctx, "", true); err == nil {
 		t.Error("CancelSubscription accepted empty ID")
 	}
-	if _, err := c.CreatePortalSession(ctx, "cus 1", "https://x.example"); err == nil {
+	if _, err := c.CreatePortalSession(ctx, "cus 1", "https://x.example", ""); err == nil {
 		t.Error("CreatePortalSession accepted bad ID")
 	}
 }
@@ -597,17 +597,20 @@ func TestCreatePortalSession(t *testing.T) {
 			t.Errorf("%s key=%q", r.URL.Path, r.Header.Get("Idempotency-Key"))
 		}
 		f := readForm(t, r)
-		if f.Get("customer") != "cus_1" || f.Get("return_url") != "https://portal.sap13ns.site/sites/42/billing" {
+		if f.Get("customer") != "cus_1" || f.Get("return_url") != "https://portal.sap13ns.site/sites/42/billing" || f.Get("configuration") != "bpc_1abcdefgh" {
 			t.Errorf("form %v", f)
 		}
 		writeJSON(w, 200, map[string]any{"id": "bps_1", "object": "billing_portal.session", "url": "https://billing.stripe.com/p/session/test_x"})
 	})
-	u, err := c.CreatePortalSession(context.Background(), "cus_1", "https://portal.sap13ns.site/sites/42/billing")
+	u, err := c.CreatePortalSession(context.Background(), "cus_1", "https://portal.sap13ns.site/sites/42/billing", "bpc_1abcdefgh")
 	if err != nil || u != "https://billing.stripe.com/p/session/test_x" {
 		t.Fatalf("u=%q err=%v", u, err)
 	}
-	if _, err := c.CreatePortalSession(context.Background(), "cus_1", "javascript:alert(1)"); err == nil {
+	if _, err := c.CreatePortalSession(context.Background(), "cus_1", "javascript:alert(1)", ""); err == nil {
 		t.Error("bad return URL accepted")
+	}
+	if _, err := c.CreatePortalSession(context.Background(), "cus_1", "https://x.example", "cus_2"); err == nil {
+		t.Error("bad configuration accepted")
 	}
 }
 
