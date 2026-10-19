@@ -252,7 +252,7 @@ func TestOnepageTheme(t *testing.T) {
 		`href="#faq">Preguntas</a>`, `href="/blog"`, "onepage.js", "Ver los planes", "Desde el blog", "Onepage post",
 		`href="mailto:hello@example.com"`, `<h1 class="op-hero-title">`, `href="https://sap13ns.site">sap13ns</a>`)
 	lacks("/ (visitor)", front, "op-note", "/builder")
-	has("/ (administrator)", get("/", e.cookie), "op-note", `href="/admin/appearance/themes/onepage/builder?region=front"`)
+	has("/ (administrator)", get("/", e.cookie), "op-note", `href="/admin/appearance/themes/onepage/builder?region=front&amp;preset=one-page"`)
 
 	// The blog's pages use the shared fallbacks; the menu leads back to the
 	// front page's sections.
