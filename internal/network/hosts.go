@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // A siteRoute is what the router knows of a site: enough to route a
@@ -18,6 +19,7 @@ type siteRoute struct {
 	Primary string   // the host the site is served on
 	Custom  bool     // Primary is a custom domain
 	Hosts   []string // every routed host, the primary first
+	Held    bool     // billing: its public pages are not served (Network.Held)
 }
 
 // key identifies the configuration a site was loaded with: when it
@@ -42,13 +44,16 @@ type hostTable struct {
 // being provisioned or deleted are unknown hosts.
 var routable = []string{StatusPending, StatusActive, StatusSuspended}
 
-// hostTable reads the verified domains of the routable sites. The portal
-// is always served on the SAP13NS_BASE_URL host, which becomes its
-// primary if the operator changed the base URL after `network init`; its
-// other hosts then redirect there.
-func (n *Network) hostTable(ctx context.Context) (*hostTable, error) {
-	rows, err := n.db.Query(ctx, `SELECT s.id, s.kind, s.slug, s.status, d.host, d.kind = 'custom', d.is_primary
+// hostTable reads the verified domains of the routable sites, and whether
+// their billing holds them at now. The portal is always served on the
+// SAP13NS_BASE_URL host, which becomes its primary if the operator changed
+// the base URL after `network init`; its other hosts then redirect there.
+func (n *Network) hostTable(ctx context.Context, now time.Time) (*hostTable, error) {
+	rows, err := n.db.Query(ctx, `SELECT s.id, s.kind, s.slug, s.status, d.host, d.kind = 'custom', d.is_primary,
+			coalesce(p.paid, false) AND sub.id IS NOT NULL, coalesce(sub.state, ''), sub.grace_since
 		FROM domains d JOIN sites s ON s.id = d.site_id
+		LEFT JOIN plans p ON p.slug = s.plan
+		LEFT JOIN subscriptions sub ON sub.id = s.subscription_id
 		WHERE d.verified_at IS NOT NULL AND s.status = ANY($1)
 		ORDER BY s.id, d.is_primary DESC, d.host`, routable)
 	if err != nil {
@@ -58,12 +63,20 @@ func (n *Network) hostTable(ctx context.Context) (*hostTable, error) {
 	t := &hostTable{hosts: map[string]*siteRoute{}, sites: map[int64]*siteRoute{}}
 	for rows.Next() {
 		var (
-			s             siteRoute
-			host          string
-			custom, prime bool
+			s                   siteRoute
+			host, state         string
+			custom, prime, paid bool
+			graceSince          *time.Time
 		)
-		if err := rows.Scan(&s.ID, &s.Kind, &s.Slug, &s.Status, &host, &custom, &prime); err != nil {
+		if err := rows.Scan(&s.ID, &s.Kind, &s.Slug, &s.Status, &host, &custom, &prime, &paid, &state, &graceSince); err != nil {
 			return nil, err
+		}
+		if paid {
+			var since time.Time
+			if graceSince != nil {
+				since = *graceSince
+			}
+			s.Held = held(state, since, now, n.grace)
 		}
 		cur := t.sites[s.ID]
 		if cur == nil {

@@ -84,6 +84,7 @@ type Stripe struct {
 	APIVersion      string                  // "" = the version pinned by internal/billing
 	AutomaticTax    bool
 	TaxIDCollection bool
+	BillingAddress  bool // Checkout always collects a billing address (VAT evidence)
 	TrialDays       int
 	GraceDays       int // days a site stays online after a failed renewal
 }
@@ -398,6 +399,9 @@ func loadStripe() (Stripe, error) {
 		return Stripe{}, err
 	}
 	if s.TaxIDCollection, err = envStrictBool("STRIPE_TAX_ID_COLLECTION", true); err != nil {
+		return Stripe{}, err
+	}
+	if s.BillingAddress, err = envStrictBool("STRIPE_BILLING_ADDRESS", true); err != nil {
 		return Stripe{}, err
 	}
 	s.TrialDays, err = strconv.Atoi(env("STRIPE_TRIAL_DAYS", "0"))

@@ -93,6 +93,16 @@ func (s *Server) routes() *http.ServeMux {
 		network("GET /admin/network/plans", s.adminNetPlans)
 		admin("GET /admin/sites", auth.CapAdminPanel, s.adminMySites)
 		admin("POST /admin/sites/request", auth.CapAdminPanel, s.adminSiteRequest)
+
+		// Billing (billing.go), with a Stripe key only. Stripe calls the
+		// webhook without a session; the signature authenticates it.
+		if s.billing != nil {
+			mux.HandleFunc("POST /billing/webhook", s.handleBillingWebhook)
+			admin("POST /admin/sites/{id}/upgrade", auth.CapAdminPanel, s.adminSiteUpgrade)
+			admin("POST /admin/sites/{id}/billing", auth.CapAdminPanel, s.adminSiteBilling)
+			network("GET /admin/network/billing", s.adminNetBilling)
+			network("POST /admin/network/billing/{event}/retry", s.adminNetBillingRetry)
+		}
 	}
 
 	// Administration.

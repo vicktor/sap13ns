@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -82,6 +83,7 @@ type Network struct {
 	dataDir     string        // site directories are dataDir/sites/<id>
 	sitesDomain string
 	baseHost    string
+	grace       time.Duration // of a failed renewal before a paid site is held
 	log         *slog.Logger
 
 	// hook runs after each provisioning step; tests make it fail.
@@ -104,7 +106,7 @@ func New(pool *pgxpool.Pool, cfg *config.Config, log *slog.Logger) (*Network, er
 	}
 	return &Network{
 		pool: pool, db: h, keys: sealKeys(cfg.SecretKey), dataDir: cfg.DataDir,
-		sitesDomain: cfg.SitesDomain, baseHost: cfg.BaseURL.Hostname(), log: log,
+		sitesDomain: cfg.SitesDomain, baseHost: cfg.BaseURL.Hostname(), grace: graceOf(cfg.Stripe), log: log,
 	}, nil
 }
 

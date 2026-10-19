@@ -1,0 +1,30 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Billing events"}}</h1><p>{{T "Stripe events that failed, or that name no site of the network. Each failure is retried with a growing delay; a retry here runs it again now."}}</p></div>
+</div>
+<div class="card table-wrap">
+  <table class="table">
+    <thead><tr><th>{{T "Event"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Result"}}</th><th class="max-sm:hidden text-right">{{T "Attempts"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+    <tbody>
+      {{range $d.Events}}
+      <tr>
+        <td><strong class="mono">{{.Type}}</strong><div class="row-sub muted mono break-all">{{.ID}}</div><div class="row-sub muted">{{T "received %s" (ago .ReceivedAt)}}</div></td>
+        <td>
+          {{if .Unmapped}}<span class="badge" data-variant="secondary">{{T "Not mapped"}}</span>
+          {{else if .NextAttempt}}<span class="badge" data-variant="warning">{{T "Retrying"}}</span><div class="row-sub muted">{{dateTime .NextAttempt}}</div>
+          {{else}}<span class="badge" data-variant="destructive">{{T "Gave up"}}</span>{{end}}
+        </td>
+        <td class="max-md:hidden"><span class="break-all">{{.Result}}</span></td>
+        <td class="max-sm:hidden text-right tabular">{{.Attempts}}</td>
+        <td class="text-right nowrap"><form method="post" action="/admin/network/billing/{{.ID}}/retry">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Retry"}}</button></form></td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">{{template "empty" (dict "Icon" "circle-check" "Title" (T "Every event was applied"))}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" $d.Page}}
+{{end}}

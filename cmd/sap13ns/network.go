@@ -179,8 +179,18 @@ func serveNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger) err
 	if err := migrateSites(ctx, pool, n, log, ""); err != nil {
 		return err
 	}
+	// With a Stripe key, the configured prices must be what the key can
+	// sell (same mode, active, recurring): otherwise do not start.
+	bill, err := network.NewBilling(ctx, n, cfg, log)
+	if err != nil {
+		return err
+	}
+	if bill == nil {
+		log.Info("billing is off (no SAP13NS_STRIPE_SECRET_KEY): sites are Personal or granted by an operator")
+	}
 	checker := update.NewChecker(web.Version, nil, log)
-	reg, err := network.NewRegistry(network.RegistryOptions{Config: cfg, Network: n, Log: log, UI: uiFS(cfg), Updates: checker})
+	reg, err := network.NewRegistry(network.RegistryOptions{Config: cfg, Network: n, Log: log, UI: uiFS(cfg), Updates: checker,
+		Billing: bill})
 	if err != nil {
 		return err
 	}

@@ -124,3 +124,22 @@ func (r *Registry) origin(host string) string {
 	}
 	return o
 }
+
+// billingNotice has the portal tell an account about its billing, in the
+// portal's language.
+func (r *Registry) billingNotice(ctx context.Context, n BillingNotice) {
+	t := r.table.Load()
+	if t == nil || t.network == nil {
+		return
+	}
+	e, err := r.acquireFor(ctx, t.network, loadTimeout, false)
+	if err != nil {
+		r.log.Error("billing notice", "account", n.AccountID, "err", err)
+		return
+	}
+	defer r.releaseFor(e, false)
+	if err := e.app.Server().NotifyBilling(ctx, web.BillingNotice{Kind: n.Kind, AccountID: n.AccountID, Slug: n.Slug, Host: n.Host,
+		GraceDays: n.GraceDays}); err != nil {
+		r.log.Error("billing notice", "account", n.AccountID, "site", n.SiteID, "err", err)
+	}
+}

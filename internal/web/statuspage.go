@@ -27,6 +27,7 @@ const (
 	StatusPending   = "pending"   // 503: waiting for the network's approval
 	StatusSuspended = "suspended" // 503: suspended by a network admin
 	StatusBusy      = "busy"      // 503: the site cannot be loaded right now
+	StatusBilling   = "billing"   // 503: held for its billing; its administrators can sign in
 )
 
 func NewStatusPages(ui fs.FS) (*StatusPages, error) {

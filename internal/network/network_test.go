@@ -147,12 +147,12 @@ func TestMigrate(t *testing.T) {
 	if p := plans[0]; p.Slug != "personal" || p.Paid || !p.HandApproved || p.SitesPerGrant != 1 || p.StorageBytes != 1<<30 || p.CustomDomains != 0 {
 		t.Fatalf("personal plan: %+v", p)
 	}
-	if p := plans[2]; p.Slug != "business" || !p.Paid || p.HandApproved || p.SitesPerGrant != 3 || !p.PluginUploads {
+	if p := plans[2]; p.Slug != "business" || !p.Paid || p.HandApproved || p.SitesPerGrant != 1 || !p.PluginUploads {
 		t.Fatalf("business plan: %+v", p)
 	}
 	var site, net int
 	if err := f.n.db.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM schema_migrations), (SELECT count(*) FROM network_migrations)`).
-		Scan(&site, &net); err != nil || site < 10 || net != 1 {
+		Scan(&site, &net); err != nil || site < 10 || net != 2 {
 		t.Fatalf("migrations: site %d, network %d, %v", site, net, err)
 	}
 }

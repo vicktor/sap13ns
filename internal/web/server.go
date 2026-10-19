@@ -85,7 +85,9 @@ type Server struct {
 	network     NetworkHooks  // nil on a single-site install
 	sso         SSOClient     // a tenant of a network: sign-in through the portal
 	portal      Portal        // the network portal
+	billing     PortalBilling // the portal of a network with a Stripe key (billing.go)
 	ssoFailures *auth.Limiter // failed single sign-on callbacks, per IP
+	checkout    *auth.Limiter // Checkout and Customer Portal sessions, per account
 	hosts       []string      // other host names of this site (multisite aliases)
 	jobs        atomic.Int32  // background jobs started by requests (Busy)
 }
@@ -147,9 +149,13 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		cop:        http.NewCrossOriginProtection(),
 
 		ssoFailures: auth.NewLimiter(10, 15*time.Minute),
+		checkout:    auth.NewLimiter(30, time.Hour),
 	}
 	s.sso, _ = d.Network.(SSOClient)
 	s.portal, _ = d.Network.(Portal)
+	if b, ok := d.Network.(PortalBilling); ok && s.portal != nil && b.BillingEnabled() {
+		s.billing = b
+	}
 	if err := s.cop.AddTrustedOrigin(d.Config.BaseURL.String()); err != nil {
 		return nil, err
 	}

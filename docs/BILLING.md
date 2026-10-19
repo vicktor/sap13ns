@@ -172,9 +172,10 @@ Other points:
 
 ## 6. Environment variables
 
-These are the names the web/config layer should read (proposed; the
-`internal/billing` package itself takes plain arguments). Billing is disabled
-when `SAP13NS_STRIPE_SECRET_KEY` is unset.
+`internal/config` reads these in multisite mode (the `internal/billing`
+package itself takes plain arguments). Billing is disabled when
+`SAP13NS_STRIPE_SECRET_KEY` is unset: the network then has Personal and
+operator-granted sites only, and the portal shows no billing.
 
 | Variable | Required | Example | Meaning |
 | --- | --- | --- | --- |
@@ -187,13 +188,16 @@ when `SAP13NS_STRIPE_SECRET_KEY` is unset.
 | `SAP13NS_STRIPE_API_VERSION` | no | `2026-09-30.endive` | Override the pinned API version (keep it equal to the webhook endpoint's). |
 | `SAP13NS_STRIPE_AUTOMATIC_TAX` | no | `false` | `true` enables Stripe Tax on Checkout (`automatic_tax[enabled]`). |
 | `SAP13NS_STRIPE_TAX_ID_COLLECTION` | no | `true` | Show the business tax ID (VAT number) field in Checkout. |
-| `SAP13NS_STRIPE_TRIAL_DAYS` | no | `0` | Free trial length for new subscriptions. |
-| `SAP13NS_BILLING_GRACE_DAYS` | no | `14` | Days a site stays online after a failed renewal before suspension. |
+| `SAP13NS_STRIPE_BILLING_ADDRESS` | no | `true` | Checkout always collects a billing address (evidence of the customer's country for VAT). |
+| `SAP13NS_STRIPE_TRIAL_DAYS` | no | `0` | Free trial length, for an account's first subscription only. |
+| `SAP13NS_BILLING_GRACE_DAYS` | no | `14` | Days a site stays online after a failed renewal before suspension (`0`: at once). |
 
 The general rule `SAP13NS_STRIPE_PRICE_<PLAN>` / `SAP13NS_STRIPE_PRICE_<PLAN>_YEARLY`
-leaves room for more plans later. The service should refuse to start if a
-live key is combined with test price IDs or vice versa (prices are
-environment-specific, so Checkout would fail anyway).
+leaves room for more plans later. The service refuses to start when a
+configured price is not an active recurring price of the key's mode (a live
+key with test price IDs or the reverse: prices are environment-specific, so
+Checkout would fail anyway), when it names a plan that is not a paid plan of
+the network, or when two plans share a price.
 
 ## 7. What happens to a site
 

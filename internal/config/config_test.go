@@ -220,7 +220,7 @@ func TestLoadMultisite(t *testing.T) {
 			"business":  {Monthly: "price_business123"},
 			"team_plus": {Monthly: "price_teamplus123"},
 		},
-		APIVersion: "2026-09-30.endive", AutomaticTax: true, TaxIDCollection: false, TrialDays: 14, GraceDays: 7,
+		APIVersion: "2026-09-30.endive", AutomaticTax: true, TaxIDCollection: false, BillingAddress: true, TrialDays: 14, GraceDays: 7,
 	}
 	if !reflect.DeepEqual(c.Stripe, want) {
 		t.Fatalf("Stripe = %#v\nwant %#v", c.Stripe, want)

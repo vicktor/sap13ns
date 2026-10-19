@@ -87,6 +87,7 @@ type RegistryOptions struct {
 	UI      fs.FS
 	Mailer  *mail.Mailer    // shared by every site; nil: one from Config.SMTP
 	Updates *update.Checker // release checks shown on the portal; nil = none
+	Billing *Billing        // NewBilling; nil when billing is off
 
 	// Zero values give the defaults; tests shorten them.
 	Now         func() time.Time
@@ -150,6 +151,9 @@ func NewRegistry(o RegistryOptions) (*Registry, error) {
 	if o.Heap == nil {
 		o.Heap = liveHeap
 	}
+	if o.Billing != nil {
+		o.Billing.now = o.Now
+	}
 	pages, err := web.NewStatusPages(o.UI)
 	if err != nil {
 		return nil, err
@@ -212,6 +216,10 @@ func (r *Registry) Start(ctx context.Context) error {
 		return errClosed
 	}
 	r.wg.Add(6)
+	if b := r.o.Billing; b != nil {
+		b.notify = r.billingNotice
+		r.wg.Go(func() { b.Run(r.ctx) })
+	}
 	go r.listen()
 	go r.every(reloadEvery, reloadEvery, func(ctx context.Context) {
 		if err := r.Refresh(ctx); err != nil && ctx.Err() == nil {
@@ -534,7 +542,7 @@ func (r *Registry) Sweep(ctx context.Context) []int64 {
 // Refresh reloads the host table, then unloads the sites it no longer
 // serves and marks for reload those whose hosts changed.
 func (r *Registry) Refresh(ctx context.Context) error {
-	t, err := r.net.hostTable(ctx)
+	t, err := r.net.hostTable(ctx, r.o.Now())
 	if err != nil {
 		return err
 	}

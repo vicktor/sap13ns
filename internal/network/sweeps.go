@@ -188,6 +188,13 @@ func (r *Registry) Maintain(ctx context.Context) {
 			log.Error("reconcile the access of network accounts", "err", err)
 		}
 	}
+	if n, err := r.net.PurgeBillingEvents(ctx); err != nil {
+		if ctx.Err() == nil {
+			r.log.Error("purge billing events", "err", err)
+		}
+	} else if n > 0 {
+		r.log.Info("old billing events purged", "count", n)
+	}
 	if n, err := r.net.PurgeSSOCodes(ctx); err != nil {
 		if ctx.Err() == nil {
 			r.log.Error("purge SSO codes", "err", err)

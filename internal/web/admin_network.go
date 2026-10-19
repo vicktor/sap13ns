@@ -71,7 +71,10 @@ type NetSite struct {
 	ApprovedBy       string // a username; "" when approved by nobody (or not at all)
 	CreatedAt        time.Time
 	DeletedAt        *time.Time
-	Role             string // the account's role, from AccountSites
+	Role             string      // the account's role, from AccountSites
+	PlanName         string      // from SiteDetail and AccountSites
+	PlanPaid         bool        // likewise
+	Billing          *NetBilling // likewise; nil without a subscription
 }
 
 // AdminURL opens the site's administration through single sign-on.
@@ -493,14 +496,40 @@ type mySitesData struct {
 	Domain     string // of the default hosts
 	Slug       string
 	Error      string
+
+	// With billing: the sites the account can subscribe, what to, and how
+	// the last Checkout ended (?billing=success or canceled).
+	Billing    bool
+	Upgradable []NetSite
+	Offers     []PlanOffer
+	Returned   string
 }
 
 func (s *Server) mySitesData(r *http.Request) (mySitesData, error) {
 	u := currentUser(r)
 	sites, err := s.portal.AccountSites(r.Context(), u.ID)
+	if err != nil {
+		return mySitesData{}, err
+	}
 	d := mySitesData{Sites: sites, Open: s.settings().AllowRegistration, Domain: s.cfg.SitesDomain}
 	d.CanRequest = d.Open && !slices.ContainsFunc(sites, func(x NetSite) bool { return x.OwnerID == u.ID && x.Plan == "personal" })
-	return d, err
+	if s.billing == nil {
+		return d, nil
+	}
+	d.Billing = true
+	if d.Offers, err = s.billing.PlanOffers(r.Context()); err != nil {
+		return d, err
+	}
+	for _, x := range sites {
+		// A paid site without a subscription was granted by an operator.
+		if x.OwnerID == u.ID && x.Status == "active" && (x.Billing == nil && !x.PlanPaid || x.Billing != nil && x.Billing.State == "canceled") {
+			d.Upgradable = append(d.Upgradable, x)
+		}
+	}
+	if v := r.URL.Query().Get("billing"); v == "success" || v == "canceled" {
+		d.Returned = v
+	}
+	return d, nil
 }
 
 func (s *Server) adminMySites(w http.ResponseWriter, r *http.Request) {

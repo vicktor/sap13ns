@@ -352,6 +352,8 @@ type adminPage struct {
 	Portal       bool
 	NetworkAdmin bool
 	NetPending   int
+	Billing      bool // the network has billing
+	NetFailing   int  // billing events that failed, for network admins
 }
 
 func (p *adminPage) Can(c string) bool {
@@ -379,11 +381,16 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 		}
 	}
 	if s.portal != nil && p.User != nil {
-		p.Portal = true
+		p.Portal, p.Billing = true, s.billing != nil
 		if ok, err := s.portal.IsNetworkAdmin(r.Context(), p.User.ID); err == nil && ok {
 			p.NetworkAdmin = true
 			if _, n, err := s.portal.Sites(r.Context(), NetSiteQuery{Status: "pending", Limit: 1}); err == nil {
 				p.NetPending = n
+			}
+			if s.billing != nil {
+				if n, err := s.billing.FailingBillingEvents(r.Context()); err == nil {
+					p.NetFailing = n
+				}
 			}
 		}
 	}

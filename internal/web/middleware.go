@@ -198,7 +198,12 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		if strings.HasPrefix(r.URL.Path, "/admin") {
-			h.Set("Content-Security-Policy", policy)
+			p := policy
+			if s.billing != nil && r.URL.Path == "/admin/sites" {
+				// Its upgrade and billing forms redirect to Stripe.
+				p = strings.Replace(p, "form-action 'self'", "form-action 'self' "+stripeForms, 1)
+			}
+			h.Set("Content-Security-Policy", p)
 		} else {
 			h.Set("Content-Security-Policy", s.pluginCSP(policy)) // plus frame and image sources of enabled plugins
 		}

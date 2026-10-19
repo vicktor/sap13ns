@@ -22,7 +22,8 @@ import (
 //     other methods than GET and HEAD), except ACME challenges and the
 //     WebAuthn related origins file;
 //  5. a suspended site only answers a 503 page; a site waiting for
-//     approval a 503 page too, except its sign-in and admin;
+//     approval, or held for its billing (Network.Held), a 503 page too,
+//     except its sign-in and admin;
 //  6. otherwise the site, loaded if needed, serves the request, with at
 //     most MaxInflight requests at once.
 func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -52,6 +53,9 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	case rt.Status == StatusPending && !pendingServed(req.URL.Path):
 		r.statusPage(w, req, web.StatusPending, http.StatusServiceUnavailable)
+		return
+	case rt.Held && !pendingServed(req.URL.Path):
+		r.statusPage(w, req, web.StatusBilling, http.StatusServiceUnavailable)
 		return
 	}
 	e, err := r.acquire(req.Context(), rt, r.o.LoadWait)
@@ -83,7 +87,8 @@ func aliasServed(path string) bool {
 	return strings.HasPrefix(path, "/.well-known/acme-challenge/") || path == "/.well-known/webauthn"
 }
 
-// pendingServed are the paths of a site waiting for approval that work:
+// pendingServed are the paths of a site waiting for approval (or held for
+// its billing) that work:
 // sign-in (also through the network, /sso) and the admin, with the assets
 // their pages use.
 func pendingServed(path string) bool {

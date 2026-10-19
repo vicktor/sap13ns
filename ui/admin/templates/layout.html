@@ -46,6 +46,7 @@
           {{template "nav-item" (dict "URL" "/admin/network/sites" "Icon" "layers" "Label" (T "Sites") "Current" (.Active "net-sites") "Badge" .NetPending)}}
           {{template "nav-item" (dict "URL" "/admin/network/admins" "Icon" "shield-check" "Label" (T "Network administrators") "Current" (.Active "net-admins"))}}
           {{template "nav-item" (dict "URL" "/admin/network/plans" "Icon" "package" "Label" (T "Plans") "Current" (.Active "net-plans"))}}
+          {{if .Billing}}{{template "nav-item" (dict "URL" "/admin/network/billing" "Icon" "triangle-alert" "Label" (T "Billing events") "Current" (.Active "net-billing") "Badge" .NetFailing)}}{{end}}
           {{end}}
         </ul>
       </div>

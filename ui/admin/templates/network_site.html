@@ -16,6 +16,8 @@
 </div>
 {{if eq $s.Status "suspended"}}
 <div class="alert" data-variant="destructive" role="status">{{icon "ban"}}<h2>{{T "Suspended"}}{{with $s.SuspendedAt}} · {{dateTime .}}{{end}}</h2>{{with $s.SuspendedReason}}<section>{{.}}</section>{{end}}</div>
+{{else if and $s.Billing $s.Billing.Held}}
+<div class="alert" data-variant="destructive" role="status">{{icon "ban"}}<h2>{{T "Held for billing"}}</h2><section>{{T "Its public pages answer that it is suspended until its subscription is paid; its administrators can still sign in."}}</section></div>
 {{end}}
 <div class="split">
   <div class="stack">
@@ -32,6 +34,20 @@
         </dl>
       </section>
     </section>
+
+    {{with $s.Billing}}
+    <section class="card">
+      <header><h2>{{T "Subscription"}}</h2></header>
+      <section>
+        <dl class="meta-list">
+          <div><dt>{{T "State"}}</dt><dd>{{template "billing-state" .}}</dd></div>
+          <div><dt>{{T "Stripe status"}}</dt><dd class="mono">{{.Status}}</dd></div>
+          <div><dt>{{T "Period ends"}}</dt><dd>{{with .PeriodEnd}}{{dateTime .}}{{else}}—{{end}}{{if .CancelAtPeriodEnd}} <span class="muted">· {{T "canceled at the end of the period"}}</span>{{end}}</dd></div>
+          <div><dt>{{T "Grace since"}}</dt><dd>{{with .GraceSince}}{{dateTime .}}{{else}}—{{end}}</dd></div>
+        </dl>
+      </section>
+    </section>
+    {{end}}
 
     <section class="card table-wrap">
       <header><h2>{{T "Domains"}}</h2></header>
