@@ -43,6 +43,8 @@ Cada tema define sus colores para los dos modos. Un script mínimo que viene con
 
 Los temas declaran sus opciones en un manifiesto y el panel construye el formulario: colores de acento, si se muestra la presentación grande en la portada, imágenes destacadas en las tarjetas, barra lateral, etcétera. Los menús y las zonas de widgets se declaran igual y se rellenan desde la sección **Appearance** (Apariencia) del panel.
 
+Dos herramientas van más allá sin editar el tema. El **personalizador** cambia sus colores, sus fuentes, el redondeo de las esquinas, la densidad, la cabecera y el pie, con una vista previa en directo en modo claro y oscuro y avisos de contraste. El **constructor de páginas** monta la cabecera, el pie y cada tipo de página con secciones, columnas y bloques; un tipo de página que no hayas montado conserva la plantilla del tema. Los dos guardan los cambios como borrador hasta que los publicas, conservan las diez últimas versiones publicadas y exportan e importan su trabajo en un solo archivo.
+
 ## Crea el tuyo
 
 Un tema es una carpeta con un contrato pequeño y documentado:
@@ -58,10 +60,14 @@ mi-tema/
 │   ├── archive.html    categorías, etiquetas, autores, fechas (opcional)
 │   ├── search.html     resultados de búsqueda (opcional)
 │   ├── 404.html        página no encontrada (opcional)
+│   ├── ask.html        el asistente del sitio sin JavaScript (opcional)
 │   └── partials/       lo que quieras reutilizar
 ├── i18n/es.json        traducciones de los textos propios del tema
+├── src/theme.css       el código fuente de la hoja de estilos
 └── static/theme.css    la hoja de estilos compilada
 ```
+
+Para instalar un tema, copia su carpeta en el directorio de temas (`SAP13NS_THEMES_DIR`, por defecto `themes` dentro del directorio de datos) y reinicia sap13ns: no hay que recompilar nada. Todavía no hay un formulario para subir temas desde el panel.
 
 Las plantillas usan `html/template` de Go, que escapa la salida según el contexto, y un conjunto de parciales compartidos para lo que necesita cualquier sitio: la cabecera del documento con enlaces canónicos y `hreflang`, los menús, el selector de idioma, el interruptor de claro y oscuro, los comentarios, la paginación y el formulario de búsqueda. Un tema puede sustituir cualquiera de ellos.
 
@@ -73,7 +79,7 @@ Los textos de las plantillas se escriben en el idioma principal y pasan por la f
 
 - **Nada de scripts ni estilos en línea.** La política de seguridad de contenidos solo permite scripts y hojas de estilo servidos por el propio sitio. Sin bloques `<script>`, sin atributos `style`, sin `onclick`.
 - **Nada de JavaScript propio.** El script del núcleo ya se encarga del interruptor de color, el menú móvil, el selector de idioma y las respuestas a comentarios.
-- **Nada de fuentes externas ni CDN.** Las fuentes del sistema son rápidas, privadas y se ven bien en todas las plataformas.
+- **Nada de fuentes externas ni CDN.** Las fuentes son las del sistema o archivos WOFF2 que sirve el propio sitio, así que siguen siendo rápidas y privadas.
 - **Accesible de serie.** Regiones semánticas, enlace para saltar al contenido, foco visible, movimiento reducido y contraste legible en los dos modos.
 
 El contrato completo está en [THEMES.md](https://github.com/vicktor/sap13ns/blob/main/docs/THEMES.md).

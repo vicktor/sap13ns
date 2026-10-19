@@ -39,7 +39,9 @@ And there is an AI assistant, which we want to be precise about. It can draft an
 
 ## What is not finished
 
-Passkeys are planned but not available yet. Multisite, one account managing many sites each with its own domain and its own database schema, is how our hosting works; the commands to run it on your own server are coming soon. The documentation will keep growing as people ask questions we did not think of.
+Multisite, one account managing many sites each with its own domain and its own database schema, is how our hosting works, and you can run it on your own server too. A few parts of it are missing. `sap13ns backup` cannot yet back up or restore one site of a network, so a network is backed up as a whole with `pg_dump` and a copy of the data directory. An existing single-site install cannot be turned into a site of a network, and sites cannot upload their own themes. The documentation will keep growing as people ask questions we did not think of.
+
+*Update, 19 October 2026:* when we first published this post, passkeys were still planned and the commands to run multisite on your own server were coming soon. Both are available now. Passkeys work for passwordless sign-in and as the second factor, always with user verification. `SAP13NS_MULTISITE=true`, `sap13ns network init` and the `sap13ns site` commands run a network with single sign-on, a network admin area, Stripe billing, plan limits, and custom domains verified through DNS and served over TLS. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explains it.
 
 We would rather tell you this now than have you find out in the middle of a migration.
 

@@ -17,7 +17,7 @@ La mayoría de los ataques a gestores de contenidos no son ingeniosos. Van a por
 
 **Un binario, una versión.** Una actualización sustituye el programa entero de golpe. No existe un estado en el que la mitad de los archivos son nuevos y la otra mitad, viejos.
 
-**Un socket Unix detrás de nginx.** En producción, sap13ns escucha en un socket Unix que solo nginx puede abrir (modo `0660`, grupo compartido). La aplicación no expone ningún puerto a la red.
+**Un socket Unix detrás de nginx.** En producción, sap13ns escucha en un socket Unix con modo `0660`, que pertenece a un grupo al que solo se une nginx (`sap13ns-web`). nginx puede conectarse a él, pero no puede leer el archivo de configuración ni el directorio de datos. La aplicación no expone ningún puerto a la red.
 
 ## El navegador también trabaja
 
@@ -29,7 +29,7 @@ La mayoría de los ataques a gestores de contenidos no son ingeniosos. Van a por
 
 **Argon2id.** Las contraseñas se guardan con Argon2id, un algoritmo que exige mucha memoria y encarece cualquier intento de adivinarlas. Pedimos una longitud mínima y comprobamos que no esté en una lista de contraseñas comunes, en vez de exigir símbolos que nadie recuerda.
 
-**Verificación en dos pasos.** Códigos TOTP de cualquier aplicación de autenticación, con códigos de recuperación de un solo uso. Los administradores pueden hacerla obligatoria para administradores y editores. Las passkeys están previstas.
+**Un segundo factor para el equipo.** Por defecto, todo el que tiene acceso al panel de administración debe configurar un segundo factor: códigos TOTP de cualquier aplicación de autenticación, con códigos de recuperación de un solo uso, o una passkey. Los administradores pueden limitar la obligación a administradores y editores, pero no pueden desactivarla. Las passkeys (WebAuthn) exigen siempre la verificación del usuario, como una huella o un PIN, y también sirven para entrar sin contraseña. Para añadir una passkey o quitar el último segundo factor hace falta haber iniciado sesión hace poco o escribir la contraseña.
 
 **Límites de frecuencia.** Los intentos de inicio de sesión se limitan por cuenta y por dirección, y los fallos repetidos bloquean la cuenta durante un tiempo. El restablecimiento de contraseñas, los registros y los comentarios tienen sus propios límites.
 
@@ -41,7 +41,7 @@ La mayoría de los ataques a gestores de contenidos no son ingeniosos. Van a por
 
 **Protección CSRF, por partida doble.** Cada formulario que cambia algo lleva un token sincronizado con la sesión, y la protección entre orígenes de Go rechaza las peticiones que el navegador marca como procedentes de otro sitio.
 
-**Saneado con bluemonday.** El Markdown se procesa con el HTML en bruto desactivado y el resultado pasa por una lista de permitidos de bluemonday. El HTML que devuelven los plugins pasa por una lista propia, aún más estricta. Las URL peligrosas, como `javascript:`, se eliminan.
+**Saneado con bluemonday.** El Markdown se procesa con el HTML en bruto desactivado y el resultado pasa por una lista de permitidos de bluemonday. El HTML que devuelven los plugins pasa por una lista propia, que nunca deja pasar scripts, estilos, iframes, formularios ni manejadores de eventos. Las URL peligrosas, como `javascript:`, se eliminan.
 
 **Spam en comentarios.** Los formularios de comentarios llevan un campo trampa oculto y una marca de tiempo firmada. Los bots que lo rellenan todo, o que envían más rápido de lo que escribe una persona, se descartan sin decirles nada.
 
@@ -56,12 +56,12 @@ Las carpetas de subidas son una vía de entrada clásica. sap13ns trata cada arc
 
 ## Plugins aislados
 
-Los plugins se ejecutan como módulos de WebAssembly dentro de un sandbox sin acceso a archivos, red, variables de entorno ni base de datos. Cada capacidad adicional es un permiso que aprueba un administrador, ligado al hash SHA-256 del módulo: si el archivo cambia, el plugin se detiene hasta que se revise de nuevo. Las llamadas tienen límites de memoria y de tiempo, las peticiones salientes solo llegan a direcciones públicas de los dominios autorizados y el HTML devuelto se sanea. [Más sobre los plugins](/es/plugins).
+Los plugins se ejecutan como módulos de WebAssembly dentro de un sandbox sin acceso a archivos, red, variables de entorno ni base de datos. Cada capacidad adicional es un permiso que aprueba un administrador, ligado a los hashes SHA-256 del módulo y de sus recursos: si cambian los archivos o los permisos que piden, el plugin se detiene hasta que se revise de nuevo. Los paquetes subidos se analizan antes de instalarse y siempre se instalan desactivados. Las llamadas tienen límites de memoria y de tiempo, las peticiones salientes solo llegan a direcciones públicas de los dominios autorizados y el HTML devuelto se sanea. [Más sobre los plugins](/es/plugins).
 
 ## Aislamiento en el multisitio
 
-Con el multisitio, cada sitio vive en su propio esquema de PostgreSQL, con sus propios archivos subidos, temas y plugins. Un plugin activado en un sitio no puede ver el contenido de otro, y quien edita un sitio no tiene ningún permiso en otro si no se lo han dado.
+En una red de sitios (`SAP13NS_MULTISITE=true`), cada sitio vive en su propio esquema de PostgreSQL, con sus propios usuarios, archivos subidos y plugins. Cada consulta a la base de datos trabaja sobre el esquema de un único sitio, y una consulta que no indica ningún esquema se rechaza, así que un filtro olvidado falla en lugar de leer las filas de otro sitio. Un plugin activado en un sitio no puede ver el contenido de otro, y quien edita un sitio no tiene ningún permiso en otro si no le han hecho miembro. Los administradores de la red que abren un sitio lo hacen con una cuenta de operador aparte, y eso queda en los registros de auditoría. Las passkeys de un sitio pertenecen a su propio host, así que no sirven en ningún otro sitio. Los detalles están en [SECURITY.md](https://github.com/vicktor/sap13ns/blob/main/docs/SECURITY.md#networks-of-sites) y [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md).
 
 ## Informar de una vulnerabilidad
 
-Si encuentras un problema de seguridad, escríbenos a **victor@bauber.xyz** antes de hacerlo público. Cuéntanos qué has encontrado y cómo reproducirlo; te responderemos, te mantendremos al tanto mientras lo arreglamos y te daremos el crédito si quieres. La política completa está en [SECURITY.md](https://github.com/vicktor/sap13ns/blob/main/docs/SECURITY.md).
+Si encuentras un problema de seguridad, escríbenos a **victor@bauber.xyz**, o usa el botón **Report a vulnerability** de la pestaña Security del repositorio en GitHub, antes de hacerlo público. Cuéntanos qué has encontrado y cómo reproducirlo; te responderemos, te mantendremos al tanto mientras lo arreglamos y te daremos el crédito si quieres. La política completa está en [SECURITY.md](https://github.com/vicktor/sap13ns/blob/main/docs/SECURITY.md).

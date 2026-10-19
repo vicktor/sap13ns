@@ -20,7 +20,7 @@ Go can embed files into the program at build time. We use that for everything th
 | Inside the binary | Outside the binary |
 |---|---|
 | Admin templates and theme templates | PostgreSQL data |
-| Compiled stylesheets and the one small script | Uploaded files |
+| Compiled stylesheets and the small scripts | Uploaded files |
 | Icons and translations | The configuration file |
 | Database migrations | Extra themes and plugins you add |
 
@@ -50,6 +50,8 @@ We do not try to make sap13ns a complete web server. nginx is very good at TLS, 
 In production sap13ns listens on a Unix socket instead of a TCP port. The socket is created with mode `0660` and owned by the service's group, so nginx can talk to it and nobody else on the machine can. There is no application port to firewall, and no way to bypass nginx by hitting the app directly.
 
 Uploaded files are served by nginx straight from disk, with a `sandbox` Content Security Policy, so the Go process never spends time streaming images.
+
+*Update, 19 October 2026:* two details of this setup have changed. The socket now belongs to a dedicated `sap13ns-web` group that only nginx joins, so nginx can reach sap13ns but cannot read its configuration or its data directory. For the same reason, the nginx configuration we ship lets sap13ns serve uploads itself through the socket, with the same sandboxing policy; `SAP13NS_SERVE_UPLOADS=false` still leaves them to nginx, if you give it read access to the uploads directory. Updates also got easier: `sap13ns update` installs a signed release and keeps the previous binary for a rollback.
 
 ## What it costs
 

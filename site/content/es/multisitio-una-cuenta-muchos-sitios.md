@@ -17,14 +17,14 @@ El multisitio de sap13ns intenta darte la comodidad de lo segundo sin su riesgo.
 
 Tienes una sola cuenta, con una contraseña y una configuración de verificación en dos pasos. Con ella puedes pertenecer a todos los sitios que quieras, y tu rol se decide en cada sitio: puedes ser administrador de tu blog, editor en el sitio de un cliente y suscriptor en el de una amiga. Inicias sesión una vez y pasas de un sitio a otro sin volver a identificarte.
 
-Lo que una cuenta no significa es un único juego de permisos. Ser administrador en un sitio no te da nada en otro si nadie allí te invita.
+Lo que una cuenta no significa es un único juego de permisos. Ser administrador en un sitio no te da nada en otro si allí no te hacen miembro.
 
 ## Muchos sitios, separados de verdad
 
 Cada sitio tiene:
 
 - **su propio dominio**, o varios, y las peticiones se dirigen según el nombre de host;
-- **sus propios temas**, incluido cualquier tema a medida subido para él;
+- **su propio tema**, elegido entre los incluidos, los de la red y los que se instalen solo para ese sitio;
 - **sus propios plugins**, con sus propias aprobaciones y permisos;
 - **su propio directorio de archivos subidos**;
 - **su propio esquema de PostgreSQL**, con sus entradas, páginas, comentarios, menús, ajustes y datos de plugins.
@@ -40,14 +40,14 @@ Unas pocas cosas se comparten a propósito, porque compartirlas es precisamente 
 | Compartido | Propio de cada sitio |
 |---|---|
 | Cuentas, contraseñas y verificación en dos pasos | Roles y pertenencias |
-| El binario de sap13ns y sus temas incluidos | Contenido, ajustes, menús y widgets |
-| El servidor, PostgreSQL y nginx | Temas y plugins subidos, archivos subidos |
+| El binario de sap13ns, sus temas incluidos y los temas de la red | Contenido, ajustes, menús y widgets |
+| El servidor, PostgreSQL y nginx | Los temas y plugins propios del sitio, archivos subidos |
 
 Las actualizaciones también se comparten. Sustituyes un binario y sus migraciones se aplican al arrancar en el esquema de cada sitio.
 
 ## Las contrapartidas
 
-Los esquemas separados no salen gratis. Cada migración tiene que ejecutarse una vez por sitio, así que una instalación con cientos de sitios tarda más en actualizarse que una con un único juego de tablas compartido. Los informes que cruzan sitios, como «las últimas entradas de todos mis sitios», necesitan una consulta por sitio en lugar de una sola. Hacer la copia de un sitio es fácil; restaurarlo en otra instalación exige cuidado con las cuentas, porque las cuentas viven fuera del sitio.
+Los esquemas separados no salen gratis. Cada migración tiene que ejecutarse una vez por sitio, así que una instalación con cientos de sitios tarda más en actualizarse que una con un único juego de tablas compartido. Los informes que cruzan sitios, como «las últimas entradas de todos mis sitios», necesitan una consulta por sitio en lugar de una sola. Copiar un sitio consiste en volcar un esquema y un directorio; restaurarlo en otra instalación exige cuidado con las cuentas, porque las cuentas viven fuera del sitio.
 
 Creemos que merece la pena pagar ese precio. Se nota en una actualización más lenta o en un informe algo más complejo, no en una fuga de datos.
 
@@ -55,10 +55,17 @@ Creemos que merece la pena pagar ese precio. Se nota en una actualización más 
 
 El multisitio es como funciona el alojamiento en sap13ns.site: una cuenta para todos tus sitios, y cada sitio con su dirección, su diseño y su contenido. Si te alojas con nosotros, lo tienes desde el primer día.
 
-Para quien instala en su propio servidor, los comandos para crear y gestionar varios sitios desde una sola instalación llegarán pronto. Preferimos publicarlos cuando las copias de seguridad, la restauración y las actualizaciones por sitio estén bien probadas que sacarlos antes de tiempo y enterarnos de los problemas por tus incidencias.[^1]
+Quien instala en su propio servidor también puede usarlo. Activa `SAP13NS_MULTISITE=true`, crea la red y su portal con `sap13ns network init` y gestiona los sitios con `sap13ns site create`, `list`, `suspend`, `resume`, `delete`, `purge` y `domain`. Una red trae inicio de sesión único a través del portal, un área de administración de la red, planes con límites de almacenamiento y de dominios propios, cobro con Stripe y dominios propios que se verifican por DNS y se sirven con TLS.[^1]
 
-Hasta entonces, la forma fiable de tener varios sitios en tu servidor es usar varios servicios, uno por sitio, cada uno con su base de datos. Es menos cómodo, pero cada sitio ya está completamente aislado de los demás.
+Algunas piezas todavía no están:
+
+- **Copias por sitio.** `sap13ns backup create` y `restore` se niegan a funcionar en una red, porque un archivo de copia guarda una base de datos y un directorio de archivos subidos, no un sitio. Hasta que lleguen las copias por sitio, copia la red entera con `pg_dump` y una copia del directorio de datos.
+- **Conversión.** Una instalación de un solo sitio todavía no se puede convertir en un sitio de una red, así que una red empieza con una base de datos nueva.
+- **Subida de temas.** Los sitios todavía no pueden subir sus propios temas.
+- **Invitaciones.** Solo los administradores de la red añaden miembros a un sitio; los propietarios todavía no pueden invitar a nadie por su cuenta.
+
+*Actualización, 19 de octubre de 2026:* cuando publicamos esta entrada, los comandos para quien instala en su propio servidor estaban por llegar, y mientras tanto recomendábamos un servicio por sitio. Ya están publicados, con los límites de la lista anterior. Si hoy necesitas `sap13ns backup` para cada sitio, un servicio por sitio sigue siendo una buena opción.
 
 Si quieres seguir el trabajo, sigue el [repositorio en GitHub](https://github.com/vicktor/sap13ns). Y si hoy gestionas muchos sitios y tienes opinión sobre cómo debería funcionar esto, nos gustaría leerla en las [incidencias](https://github.com/vicktor/sap13ns/issues).
 
-[^1]: Cuando se publiquen los comandos, estarán documentados en DEPLOY.md y en la [página de instalación](/es/instalar).
+[^1]: Los comandos están documentados en [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), y la [página de instalación](/es/instalar) tiene una versión resumida.

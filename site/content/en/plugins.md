@@ -15,10 +15,12 @@ sap13ns takes the opposite position. A plugin starts with no access to anything 
 
 ## What a plugin is
 
-A plugin is two files in a folder:
+A plugin is a `.zip` package with two files that matter:
 
 - **`plugin.wasm`**, a WebAssembly module. You can write it in Go with our SDK, or in any language that compiles to WebAssembly with WASI.
-- **`plugin.json`**, a manifest that says who made it, which hooks it wants, which shortcodes and widgets it provides, which settings it has and which permissions it needs.
+- **`plugin.json`**, a manifest that says who made it, which hooks it wants, which shortcodes, widgets and forms it provides, which settings it has and which permissions it needs.
+
+A package can also carry assets such as stylesheets, scripts, images and fonts in `assets/`, plus a README, a licence and a changelog. Nothing else is accepted.
 
 ```json
 {
@@ -40,17 +42,19 @@ The contract between sap13ns and a plugin is called ABI 1. In practice it works 
 2. The plugin does its work and answers with JSON, usually a fragment of HTML.
 3. sap13ns sanitises that HTML before it goes anywhere near a page. Scripts, styles, iframes, forms and event handlers are removed.
 
-There are five hooks:
+There are seven hooks:
 
 | Hook | What it is for |
 |---|---|
 | `content.filter` | Transform the HTML of a post or page before it is shown |
 | `shortcode` | Render shortcodes such as `[callout]` inside posts |
 | `widget` | Render widgets that editors place in theme areas |
-| `head.meta` | Add `<meta>` tags to the page head |
+| `head.meta` | Add `<meta>` tags and Schema.org JSON-LD to the page head |
+| `comment.check` | Hold or reject a new comment before it is stored |
+| `form.submit` | Handle a form the plugin declares; the host renders and protects the form itself |
 | `event` | React in the background to `post.published`, `post.updated`, `post.trashed`, `comment.created`, `comment.approved`, `user.registered` and `cron.hourly` |
 
-Rendered output is cached together with the page, so a plugin does not run on every visit.
+The output of the first four is cached together with the page, so a plugin does not run on every visit.
 
 ## Permissions
 
@@ -61,14 +65,22 @@ Without permissions a plugin can only compute: take input, return output. Everyt
 | `kv` | A small private key-value store, visible only to that plugin |
 | `posts:read` | Querying published posts, never drafts or private content |
 | `http:example.com` | HTTPS requests to that host only; `http:*.example.com` allows its subdomains |
+| `http:*` | HTTPS requests to any public host (high risk) |
+| `mail` | E-mail to the site administrator, or to addresses saved in the plugin's settings |
+| `comments:pii` | Commenters' e-mail, IP address and browser when checking a comment (high risk) |
+| `assets:js` | Linking the plugin's own script on public pages (high risk) |
+
+A plugin can also ask to add exact `https://` sources to the page's `frame-src` or `img-src`, for example for a video player; that counts as a high-risk permission too. High-risk permissions need an explicit confirmation when the plugin is enabled. Network access and e-mail are never available while a page is rendered: requests only work in events, comment checks and form submissions, and e-mail only in events and form submissions.
 
 Even with an `http:` permission, a plugin can only reach public addresses. Loopback, private networks, link-local addresses and cloud metadata endpoints are blocked, and the address is checked at the moment of connecting so DNS tricks do not get around it.
 
 ## Approval is pinned to the module
 
-When you approve a plugin, sap13ns records the SHA-256 hash of its `.wasm` file next to the permissions you granted. If the file changes, because of an update, a compromised deploy or a curious colleague, the plugin stops loading and shows up as needing review. Nothing new runs until you approve it again.
+Before a package is installed, it is unpacked with strict limits and scanned: the manifest, the module's imports and exports, the strings inside it, its assets, and a dry run of every hook with sample data. Critical findings block it, and high ones need a confirmation. A plugin is always installed disabled.
 
-You can check the hash yourself before uploading:
+When you enable a plugin, sap13ns records the SHA-256 hashes of its `.wasm` module and its assets next to the permissions you granted. If any of them changes, because of an update, a compromised deploy or a curious colleague, the plugin stops and shows up as needing review. Nothing new runs until you approve it again.
+
+You can check the hashes yourself before uploading:
 
 ```bash
 sap13ns plugin hash ./callout
@@ -81,7 +93,7 @@ Every call runs with hard limits, so a buggy plugin slows nothing down for long:
 - 128 MiB of memory per instance and at most four instances per plugin at once;
 - 300 ms for each render call and 15 seconds for each background event;
 - modules up to 32 MiB, with capped input and output sizes;
-- a plugin that keeps failing is paused for a minute before it is tried again.
+- a plugin that fails five times in a row is paused for a minute before it is tried again.
 
 ## Writing a plugin in Go
 
@@ -108,6 +120,8 @@ Build it with the standard Go toolchain:
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
 ```
 
+`sap13ns plugin new my-plugin` starts a project from the skeleton, with an example and a test for each hook, and `sap13ns plugin pack` builds, scans and packages it into the `.zip` you upload.
+
 ## Example plugins
 
 The repository includes ten official plugins in `plugins/`, each one its own Go module with tests and a README that explains every permission it asks for:
@@ -127,6 +141,6 @@ They use the shared component styles, so they look at home in every theme, light
 
 ## Review
 
-On a server you run yourself, you are the reviewer: read the manifest, check the permissions and approve. On sap13ns.site hosting, plugins uploaded by customers are reviewed by us before they can be enabled, and the same hash pinning applies: an approved plugin cannot be swapped for a different file.
+On a server you run yourself, you are the reviewer: read the manifest, check the permissions and approve. On a network of sites, the operator also reviews every plugin a site uploads before the site can enable it, and sites can install the plugins the operator offers in the network's catalogue. On sap13ns.site hosting, that operator is us: plugins uploaded by customers are reviewed by us before they can be enabled, and the same hash pinning applies: an approved plugin cannot be swapped for a different file.
 
 The complete reference is in [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md).

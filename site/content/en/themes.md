@@ -43,6 +43,8 @@ Each theme defines its colours for both modes. A tiny script that ships with the
 
 Themes declare their options in a manifest and the admin panel builds the form: accent colours, whether to show the large introduction on the home page, featured images in cards, a sidebar, and so on. Menus and widget areas are declared the same way, and you fill them from **Appearance** in the admin.
 
+Two tools go further without editing a theme. The **customiser** changes its colours, fonts, corner radius, density, header and footer, with a live preview in light and dark mode and contrast warnings. The **page builder** lays out the header, the footer and each type of page from sections, columns and blocks; a page type you have not built keeps the theme's own template. Both keep changes as a draft until you publish them, keep the last ten published versions, and export and import their work as one file.
+
 ## Build your own
 
 A theme is a folder with a small, documented contract:
@@ -58,10 +60,14 @@ my-theme/
 │   ├── archive.html    categories, tags, authors, dates (optional)
 │   ├── search.html     search results (optional)
 │   ├── 404.html        not found (optional)
+│   ├── ask.html        the site assistant without JavaScript (optional)
 │   └── partials/       anything you want to reuse
 ├── i18n/es.json        translations of the theme's own strings
+├── src/theme.css       the stylesheet source
 └── static/theme.css    the compiled stylesheet
 ```
+
+To install a theme, copy its folder into the themes directory (`SAP13NS_THEMES_DIR`, by default `themes` in the data directory) and restart sap13ns: there is no recompiling. There is no form to upload a theme from the admin yet.
 
 Templates use Go's `html/template`, which escapes output by context, and a set of shared partials for the parts every site needs: the document head with canonical and `hreflang` links, menus, the language switcher, the light and dark toggle, comments, pagination and the search form. A theme can override any of them.
 
@@ -73,7 +79,7 @@ Strings in templates are written in the main language and passed through the tra
 
 - **No inline scripts or styles.** The Content Security Policy only allows scripts and stylesheets served by the site itself. No `<script>` blocks, no `style` attributes, no `onclick`.
 - **No theme JavaScript.** The core script already handles the colour toggle, the mobile menu, the language switcher and comment replies.
-- **No external fonts or CDNs.** System font stacks are fast, private and look right on every platform.
+- **No external fonts or CDNs.** Fonts are system stacks or WOFF2 files served by the site itself, so they stay fast and private.
 - **Accessible by default.** Landmarks, a skip link, visible focus, reduced motion and readable contrast in both modes.
 
 The full contract is in [THEMES.md](https://github.com/vicktor/sap13ns/blob/main/docs/THEMES.md).

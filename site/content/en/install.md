@@ -16,11 +16,14 @@ sap13ns needs three things: the `sap13ns` binary, a PostgreSQL database and, in 
 
 Use this to try sap13ns on your laptop or a test server. You need PostgreSQL running locally.
 
-**1. Get the binary.** Download the build for your platform from [GitHub Releases](https://github.com/vicktor/sap13ns/releases), name it `sap13ns` and make it executable:
+**1. Get the binary.** Download the archive for your platform from [GitHub Releases](https://github.com/vicktor/sap13ns/releases): `sap13ns_<version>_linux_amd64.tar.gz`, `linux_arm64`, `darwin_amd64` or `darwin_arm64`, together with `SHA256SUMS`. Check it and unpack it:
 
 ```bash
-chmod +x sap13ns
+sha256sum -c --ignore-missing SHA256SUMS
+tar xzf sap13ns_<version>_linux_amd64.tar.gz
 ```
+
+The archive holds the `sap13ns` binary and the `deploy/` folder with the installer, the systemd units and the nginx site.
 
 **2. Create a database.**
 
@@ -55,192 +58,126 @@ Open it, create the first administrator and you are in. The link only works once
 
 ## Production
 
-These steps assume a Debian or Ubuntu server with PostgreSQL and nginx installed. Adapt paths and user names to your distribution.
+These steps follow [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md) on a Debian 13 or Ubuntu 24.04 server, or newer, with PostgreSQL 16 or newer and nginx installed. Other distributions work the same way with their own package names.
 
-### 1. Install the binary
+### 1. Run the installer
 
-```bash
-sudo install -m 0755 sap13ns /usr/local/bin/
-sap13ns version
-```
-
-### 2. Create a system user and the database
+Unpack the Linux archive for your server, as in the quick start, and run the installer as root:
 
 ```bash
-sudo useradd --system --home /var/lib/sap13ns --create-home --shell /usr/sbin/nologin sap13ns
-sudo -u postgres createuser sap13ns
-sudo -u postgres createdb -O sap13ns sap13ns
+mkdir sap13ns && tar xzf sap13ns_<version>_linux_amd64.tar.gz -C sap13ns && cd sap13ns
+sudo ./deploy/install.sh example.com
 ```
 
-The `sap13ns` system user connects to PostgreSQL over the local socket with peer authentication, so the database needs no password.
+It is safe to run again: an existing configuration, database or role is left as it is. The installer:
+
+- creates the `sap13ns` system user, the `sap13ns-web` group and `/var/lib/sap13ns`;
+- installs the binary in `/usr/local/bin`;
+- creates the `sap13ns` database and role, and enables `pgvector` when it is installed. The service connects over the local socket with peer authentication, so the database needs no password;
+- writes `/etc/sap13ns/sap13ns.env`, readable only by root and the service, with a fresh secret key;
+- installs the systemd units of the service and of the nightly backup, and the nginx site.
+
+### 2. The socket and nginx
+
+sap13ns listens on the Unix socket `/run/sap13ns/sap13ns.sock`, with mode `0660` and the group `sap13ns-web`. nginx (`www-data`) joins that group and nothing else, so it can reach the socket but cannot read the configuration file or the data directory. If you set things up by hand, never add `www-data` to the `sap13ns` group.
+
+nginx passes every request to sap13ns over the socket, uploads included: sap13ns serves them itself with a sandboxing Content Security Policy.
 
 ### 3. Configure
 
-Create `/etc/sap13ns/sap13ns.env`, readable only by root and the service:
+The installer writes the configuration from `deploy/sap13ns.env.example`. These are the lines that matter:
 
 ```ini
 SAP13NS_DATABASE_URL=postgres:///sap13ns?host=/run/postgresql
 SAP13NS_SECRET_KEY=output-of-sap13ns-keygen
 SAP13NS_BASE_URL=https://example.com
 SAP13NS_LISTEN=unix:/run/sap13ns/sap13ns.sock
+SAP13NS_SOCKET_GROUP=sap13ns-web
 SAP13NS_DATA_DIR=/var/lib/sap13ns
-SAP13NS_SERVE_UPLOADS=false
 ```
+
+`SAP13NS_BASE_URL` is the public address of the site. With an `https` URL, cookies are marked `Secure` and HSTS is sent. Keep a copy of `SAP13NS_SECRET_KEY` somewhere other than the server: changing it signs everyone out and makes stored keys and passkeys unusable. Restart the service after any change.
+
+### 4. HTTPS
+
+Get a certificate. Until you have one, comment out the `443` server block of the nginx site:
 
 ```bash
-sudo mkdir -p /etc/sap13ns
-sap13ns keygen   # paste the result into SAP13NS_SECRET_KEY
-sudo chown root:sap13ns /etc/sap13ns/sap13ns.env
-sudo chmod 0640 /etc/sap13ns/sap13ns.env
+sudo certbot certonly --webroot -w /var/www/letsencrypt -d example.com
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-`SAP13NS_BASE_URL` is the public address of the site. With an `https` URL, secure cookies and HSTS are switched on automatically. `SAP13NS_SERVE_UPLOADS=false` leaves uploaded files to nginx, which is faster.
-
-### 4. Run the migrations
-
-```bash
-sudo -u sap13ns sap13ns migrate -env /etc/sap13ns/sap13ns.env
-```
-
-The server also applies pending migrations every time it starts, inside a transaction and with a lock so two processes never collide. Running them by hand first lets you see the result before the site goes live.
-
-### 5. The systemd unit
-
-Save this as `/etc/systemd/system/sap13ns.service`:
-
-```ini
-[Unit]
-Description=sap13ns
-After=network.target postgresql.service
-Requires=postgresql.service
-
-[Service]
-User=sap13ns
-Group=sap13ns
-EnvironmentFile=/etc/sap13ns/sap13ns.env
-ExecStart=/usr/local/bin/sap13ns serve
-RuntimeDirectory=sap13ns
-RuntimeDirectoryMode=0750
-Restart=on-failure
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-ReadWritePaths=/var/lib/sap13ns
-
-[Install]
-WantedBy=multi-user.target
-```
-
-`RuntimeDirectory` creates `/run/sap13ns` for the socket. sap13ns creates the socket with mode `0660`, so nginx must belong to the `sap13ns` group to connect:
-
-```bash
-sudo usermod -aG sap13ns www-data
-sudo systemctl daemon-reload
-sudo systemctl enable --now sap13ns
-```
-
-### 6. nginx
-
-A server block with the Unix-socket upstream. nginx serves uploads directly with a sandboxing policy and passes everything else to sap13ns:
-
-```nginx
-upstream sap13ns {
-    server unix:/run/sap13ns/sap13ns.sock;
-}
-
-server {
-    listen 80;
-    listen [::]:80;
-    server_name example.com;
-
-    client_max_body_size 16m;
-
-    location /uploads/ {
-        alias /var/lib/sap13ns/uploads/;
-        add_header Content-Security-Policy "sandbox" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        expires 30d;
-    }
-
-    location / {
-        proxy_pass http://sap13ns;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-`client_max_body_size` matches the default upload limit of 16 MB (`SAP13NS_MAX_UPLOAD_MB`). Reload nginx, then add HTTPS, for example with `sudo certbot --nginx -d example.com`.
-
-### 7. Create the first administrator
-
-Either open the `/setup?token=…` link that the service prints in its log:
-
-```bash
-sudo journalctl -u sap13ns | grep setup
-```
-
-or create the account from the command line:
+### 5. Create the first administrator and start
 
 ```bash
 sudo -u sap13ns sap13ns user create -env /etc/sap13ns/sap13ns.env \
   -username ana -email ana@example.com -role admin
+sudo systemctl start sap13ns
 ```
 
-If you pipe a password into the command it uses that one; otherwise it generates a strong password and prints it once. Then sign in at `/login` and turn on two-factor authentication from your profile.
+If you pipe a password into `user create` it uses that one; otherwise it generates a strong password and prints it once. If you start the service without creating a user, it prints a one-time `/setup?token=…` link in its log instead (`sudo journalctl -u sap13ns | grep setup`).
+
+Open `https://example.com/admin` and sign in. Before anything else you will be asked to set up a second factor: an authenticator app or a passkey.
+
+Migrations run every time the server starts, inside a transaction and with a lock so two processes never collide. To apply them before the first start, run `sudo -u sap13ns sap13ns migrate -env /etc/sap13ns/sap13ns.env`.
+
+### Installing by hand
+
+The installer's steps are short and commented in [`deploy/install.sh`](https://github.com/vicktor/sap13ns/blob/main/deploy/install.sh). These are the files it installs:
+
+| File | Installed as |
+|---|---|
+| `deploy/sap13ns.env.example` | `/etc/sap13ns/sap13ns.env` (root:sap13ns, `0640`) |
+| `deploy/systemd/sap13ns.service` | `/etc/systemd/system/` |
+| `deploy/systemd/sap13ns-backup.service` and `.timer` | `/etc/systemd/system/` |
+| `deploy/nginx/sap13ns.conf` | `/etc/nginx/sites-available/` |
+
+The service unit runs sap13ns as the `sap13ns` user with the `sap13ns-web` group added, and with systemd's sandboxing options turned on.
 
 ## Backups
 
-`sap13ns backup create` writes one archive with a PostgreSQL dump (custom format, made with `pg_dump`, so the PostgreSQL client tools must be installed) and the uploads directory. Archives can be encrypted with a passphrase and are written with mode `0600`. Before anything is restored, every file in the archive is checked against its manifest.
+`sap13ns backup create|list|verify|restore|prune` handles backups. An archive holds a PostgreSQL dump (made with `pg_dump`, so the PostgreSQL client tools must be installed) and the uploads directory, and is written with mode `0600`. When `SAP13NS_BACKUP_PASSPHRASE_FILE` points to a file readable only by `sap13ns`, archives are encrypted with AES-256-GCM, with a key derived from the passphrase with Argon2id. Keep a copy of the passphrase elsewhere: without it an archive cannot be restored. Before anything is restored, every file in the archive is checked against its manifest.
 
-Run it every night with a systemd timer. `/etc/systemd/system/sap13ns-backup.service`:
-
-```ini
-[Unit]
-Description=sap13ns backup
-
-[Service]
-Type=oneshot
-User=sap13ns
-Group=sap13ns
-EnvironmentFile=/etc/sap13ns/sap13ns.env
-ExecStart=/usr/local/bin/sap13ns backup create
-```
-
-`/etc/systemd/system/sap13ns-backup.timer`:
-
-```ini
-[Unit]
-Description=Nightly sap13ns backup
-
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
+The installer enables `sap13ns-backup.timer`, which runs `backup create` and then `backup prune` every night at 03:30. Pruning keeps 7 daily, 4 weekly and 12 monthly archives by default. To make a backup now, and to see the archives you have:
 
 ```bash
-sudo systemctl enable --now sap13ns-backup.timer
+sudo systemctl start sap13ns-backup
+sudo -u sap13ns sap13ns backup list -env /etc/sap13ns/sap13ns.env
 ```
+
+To restore, stop the service, run `sudo -u sap13ns sap13ns backup restore -env /etc/sap13ns/sap13ns.env ARCHIVE`, and start it again.
 
 Copy the archives somewhere other than the server itself. A backup that lives on the same disk is not a backup.
 
 ## Updating
 
-Replace the binary and restart. Migrations run on start.
+Administrators see a notice in the admin when a new release is out. Take a backup, then install it and restart:
 
 ```bash
-sudo install -m 0755 sap13ns /usr/local/bin/
+sudo systemctl start sap13ns-backup
+sudo sap13ns update
 sudo systemctl restart sap13ns
 ```
 
+`sap13ns update` downloads the release for your platform, checks its signed checksums and replaces the binary atomically. The previous binary stays as `/usr/local/bin/sap13ns.old`, so rolling back is moving it into place and restarting. Migrations run on start. Details are in [RELEASES.md](https://github.com/vicktor/sap13ns/blob/main/docs/RELEASES.md).
+
 ## Multisite
 
-Commands for creating and managing several sites from one installation are **coming soon**. Until then, run one service per site or use [hosting on sap13ns.site](/hosting).
+One installation can serve a whole network of sites: a portal where people have one account, and any number of sites, each with its own PostgreSQL schema, files, users and plugins. It is off unless you turn it on, and it starts with a new database: an existing single-site install cannot be turned into a network yet.
 
-The complete guide, including upgrades and troubleshooting, is in [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md).
+1. Point the portal's host and a wildcard for the sites to the server, and get a wildcard certificate for them. Custom domains get their certificates from Caddy's on-demand TLS, from the built-in ACME client, or one by one with nginx.
+2. Add `SAP13NS_MULTISITE=true` and `SAP13NS_SITES_DOMAIN` to the configuration. `SAP13NS_BASE_URL` becomes the portal's address. Disable `sap13ns-backup.timer`, because `sap13ns backup` does not work on a network yet.
+3. Create the network, its portal and a first network administrator, then start the service:
+
+   ```bash
+   sudo -u sap13ns sap13ns network init -env /etc/sap13ns/sap13ns.env -username ana -email ana@example.com
+   sudo systemctl start sap13ns
+   ```
+
+4. Let people register on the portal, when you open registration, and request sites, or create them with `sap13ns site create -slug blog -owner ana@example.com -plan pro`. `sap13ns site list`, `suspend`, `resume`, `delete`, `purge` and `domain` manage them.
+
+A network has single sign-on through the portal, a network admin area, plans with storage and custom-domain limits, Stripe billing, and custom domains verified through DNS and served over TLS. Some things are not available on a network yet: `sap13ns backup create` and `restore` refuse to run there, so you back it up with `pg_dump` and a copy of the data directory; an existing single-site install cannot be turned into a network site; and sites cannot upload themes. The guide is [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), and [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md#networks-of-sites) has the nginx and Caddy configurations.
+
+If you would rather not run a server at all, there is [hosting on sap13ns.site](/hosting).
+
+The complete guide, including the hardening notes and troubleshooting, is in [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md).

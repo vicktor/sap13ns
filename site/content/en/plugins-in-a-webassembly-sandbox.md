@@ -59,6 +59,8 @@ The manifest above is an illustration, not a plugin we ship. It shows the idea: 
 
 Even an approved `http:` permission only reaches public addresses. Requests to loopback, private ranges, link-local addresses or cloud metadata services are refused, and the check happens on the address actually being dialled, so a DNS record that changes between lookup and connection does not get around it.
 
+*Update, 19 October 2026:* the contract has grown since we wrote this. Besides these three, a plugin can now ask for `http:*` (any public host), `mail` (e-mail to the administrator or to addresses saved in its settings), `comments:pii` (a commenter's e-mail, IP address and browser while a comment is checked), `assets:js` (its own script on public pages) and extra sources for the page's `frame-src` or `img-src`. The ones that reach furthest are marked high risk and need an explicit confirmation. There are new hooks for checking comments and handling forms, plugins are uploaded as `.zip` packages that are scanned before they are installed, and the approval now pins the hashes of the module and its assets. [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md) has the current list.
+
 ## Approval is pinned to a hash
 
 Permissions on their own are not enough. If you approve a plugin today and its file is replaced tomorrow, the new code would inherit the old approval. That is exactly the "trusted plugin goes bad" story we wanted to rule out.

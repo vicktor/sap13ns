@@ -59,6 +59,8 @@ El manifiesto de arriba es un ejemplo ilustrativo, no un plugin que distribuyamo
 
 Incluso un permiso `http:` aprobado solo llega a direcciones públicas. Se rechazan las peticiones a direcciones locales, rangos privados, direcciones de enlace local o servicios de metadatos de la nube, y la comprobación se hace sobre la dirección a la que realmente se conecta, así que un registro DNS que cambie entre la consulta y la conexión no sirve para saltársela.
 
+*Actualización, 19 de octubre de 2026:* el contrato ha crecido desde que escribimos esto. Además de estos tres, un plugin puede pedir ahora `http:*` (cualquier dominio público), `mail` (correos al administrador o a direcciones guardadas en sus ajustes), `comments:pii` (el correo, la dirección IP y el navegador de quien comenta mientras se revisa un comentario), `assets:js` (su propio script en las páginas públicas) y orígenes adicionales para `frame-src` o `img-src` de la página. Los que llegan más lejos se marcan como de riesgo alto y exigen una confirmación expresa. Hay hooks nuevos para revisar comentarios y atender formularios, los plugins se suben como paquetes `.zip` que se analizan antes de instalarse y la aprobación fija ahora los hashes del módulo y de sus recursos. [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md) tiene la lista actual.
+
 ## La aprobación va ligada a un hash
 
 Los permisos por sí solos no bastan. Si apruebas hoy un plugin y mañana alguien sustituye su archivo, el código nuevo heredaría la aprobación antigua. Es justo la historia del «plugin de confianza que se tuerce» que queríamos descartar.

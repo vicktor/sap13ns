@@ -15,21 +15,39 @@ The documentation is kept in the repository, next to the code it describes, so i
 
 ### Deploying — DEPLOY.md
 
-Running sap13ns in production: the configuration variables, PostgreSQL, the systemd unit, nginx with a Unix socket, HTTPS, backups and updates. The [install page](/install) is a short version of it.
+Running sap13ns in production: the installer, the configuration, PostgreSQL, the systemd units, nginx with a Unix socket, HTTPS, backups and updates, and the proxy setup for a network of sites. The [install page](/install) is a short version of it.
 
 [Read DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md)
 
 ### Themes — THEMES.md
 
-How a theme is put together: the `theme.json` manifest, menus, widget areas and options, the templates and the data each one receives, the shared partials, translations of theme strings and how to build the stylesheet with Tailwind CSS.
+How a theme is put together: the `theme.json` manifest, menus, widget areas and options, the templates and the data each one receives, the shared partials, translations of theme strings and how to build the stylesheet with Tailwind CSS. It also covers what operators can change without touching a theme: the customiser and the page builder.
 
 [Read THEMES.md](https://github.com/vicktor/sap13ns/blob/main/docs/THEMES.md)
 
 ### Plugins — PLUGINS.md
 
-The plugin contract (ABI 1): the manifest, hooks and events, permissions, limits, the host functions, the Go SDK and how approval and hash pinning work.
+The plugin contract (ABI 1): the package format, the manifest, hooks and events, permissions, limits, the host functions, the scanner, the Go SDK, how approval and hash pinning work, and the review of uploads on a network of sites.
 
 [Read PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md)
+
+### Networks of sites — MULTISITE.md
+
+Running many sites from one installation: the portal, single sign-on, the network admin area, plans and limits, custom domains, TLS, the command-line reference, backups and what is not available yet.
+
+[Read MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md)
+
+### Billing — BILLING.md
+
+Setting up Stripe for a network of sites: products and prices, the customer portal, the webhook, the environment variables and what happens to a site whose payment lapses.
+
+[Read BILLING.md](https://github.com/vicktor/sap13ns/blob/main/docs/BILLING.md)
+
+### Releases and updates — RELEASES.md
+
+How releases are built and signed, how a site learns about a new one, and how `sap13ns update` installs it and rolls it back.
+
+[Read RELEASES.md](https://github.com/vicktor/sap13ns/blob/main/docs/RELEASES.md)
 
 ### Security — SECURITY.md
 
@@ -45,23 +63,34 @@ The threat model, the defences in each layer and how to report a vulnerability.
 | put a site online | DEPLOY.md |
 | change how a site looks | THEMES.md |
 | add a feature | PLUGINS.md |
+| run many sites from one installation | MULTISITE.md |
 | understand the risks | SECURITY.md and the [security overview](/security) |
 | skip the server entirely | [Hosting on sap13ns.site](/hosting) |
 
 ## Command line at a glance
 
 ```text
-sap13ns serve                  run the web server (default)
-sap13ns migrate                apply database migrations and exit
-sap13ns keygen                 print a new SAP13NS_SECRET_KEY
-sap13ns user create            create a user (-username, -email, -role, -name)
-sap13ns user reset-password    set a new password for a user
-sap13ns plugin hash <dir>      print the SHA-256 of a plugin's module
-sap13ns backup create          write a backup archive
-sap13ns version                print the version
+sap13ns serve                         run the web server (default)
+sap13ns migrate                       apply database migrations and exit
+sap13ns keygen                        print a new SAP13NS_SECRET_KEY
+sap13ns user create                   create a user (-username, -email, -role, -name)
+sap13ns user reset-password           set a new password for a user
+sap13ns plugin new|pack|check         start, package and scan a plugin
+sap13ns plugin list|install           list or install the site's plugins
+sap13ns plugin hash <dir>             print the SHA-256 of a plugin's module and assets
+sap13ns backup create|list|verify|restore|prune
+                                      encrypted backups of the database and uploads
+sap13ns assistant reindex|status      the site assistant's search index
+sap13ns update                        install the latest signed release
+sap13ns version                       print the version
+
+Networks of sites (SAP13NS_MULTISITE=true):
+sap13ns network init                  create the network, its portal and an administrator
+sap13ns site create|list|suspend|resume|delete|purge
+sap13ns site domain add|verify|primary|remove
 ```
 
-Every command accepts `-env <file>` to load its configuration from a file.
+Every command accepts `-env <file>` to load its configuration from a file. On a network, the commands that work on one site take `-site <slug>`.
 
 ## Help and feedback
 

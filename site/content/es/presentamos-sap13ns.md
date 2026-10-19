@@ -39,7 +39,9 @@ Y hay un asistente de IA, sobre el que queremos ser precisos. Puede redactar un 
 
 ## Qué falta
 
-Las passkeys están previstas, pero todavía no están disponibles. El multisitio, una cuenta que gestiona muchos sitios con su propio dominio y su propio esquema de base de datos cada uno, es como funciona nuestro alojamiento; los comandos para usarlo en tu propio servidor llegarán pronto. La documentación seguirá creciendo a medida que la gente pregunte cosas en las que no habíamos pensado.
+El multisitio, una cuenta que gestiona muchos sitios con su propio dominio y su propio esquema de base de datos cada uno, es como funciona nuestro alojamiento, y también puedes usarlo en tu propio servidor. Le faltan algunas piezas. `sap13ns backup` todavía no sabe copiar ni restaurar un solo sitio de una red, así que una red se copia entera con `pg_dump` y una copia del directorio de datos. Una instalación de un solo sitio no se puede convertir en un sitio de una red, y los sitios no pueden subir sus propios temas. La documentación seguirá creciendo a medida que la gente pregunte cosas en las que no habíamos pensado.
+
+*Actualización, 19 de octubre de 2026:* cuando publicamos esta entrada, las passkeys estaban previstas y los comandos para usar el multisitio en tu propio servidor llegarían pronto. Las dos cosas ya están disponibles. Las passkeys sirven para entrar sin contraseña y como segundo factor, siempre con verificación del usuario. `SAP13NS_MULTISITE=true`, `sap13ns network init` y los comandos `sap13ns site` ponen en marcha una red con inicio de sesión único, un área de administración de la red, cobro con Stripe, límites por plan y dominios propios verificados por DNS y servidos con TLS. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) lo explica.
 
 Preferimos contártelo ahora a que lo descubras en mitad de una migración.
 

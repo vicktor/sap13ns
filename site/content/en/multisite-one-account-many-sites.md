@@ -17,14 +17,14 @@ Multisite in sap13ns tries to give you the convenience of the second without the
 
 You have one account, with one password and one set of two-factor credentials. With it you can belong to any number of sites, and your role is decided per site: you might be the administrator of your own blog, an editor on a client's site and a subscriber on a friend's. Sign in once, and you can move between the sites you belong to without signing in again.
 
-What one account does not mean is one set of permissions. Being an administrator on one site gives you nothing on another unless someone there invites you.
+What one account does not mean is one set of permissions. Being an administrator on one site gives you nothing on another unless you are made a member there.
 
 ## Many sites, really separate
 
 Each site has:
 
 - **its own domain**, or more than one, with requests routed by host name;
-- **its own themes**, including any custom theme uploaded for it;
+- **its own theme**, chosen from the built-in themes, the network's and any installed for that site alone;
 - **its own plugins**, with their own approvals and their own permissions;
 - **its own uploads directory**;
 - **its own PostgreSQL schema**, holding its posts, pages, comments, menus, settings and plugin data.
@@ -40,14 +40,14 @@ A few things are deliberately shared, because sharing them is the point:
 | Shared | Per site |
 |---|---|
 | Accounts, passwords, two-factor credentials | Roles and memberships |
-| The sap13ns binary and its built-in themes | Content, settings, menus, widgets |
-| The server, PostgreSQL and nginx | Uploaded themes and plugins, uploads |
+| The sap13ns binary, its built-in themes and the network's themes | Content, settings, menus, widgets |
+| The server, PostgreSQL and nginx | The site's own themes and plugins, uploads |
 
 Upgrades are shared as well. You replace one binary, and its migrations run for every site's schema on start.
 
 ## The trade-offs
 
-Separate schemas are not free. Every migration has to run once per site, so an installation with hundreds of sites takes longer to upgrade than one with a single shared set of tables. Cross-site reports, such as "the latest posts from all my sites", need a query per site instead of one query. Backups of one site are easy; restoring one site into a different installation needs care with accounts, because accounts live outside the site.
+Separate schemas are not free. Every migration has to run once per site, so an installation with hundreds of sites takes longer to upgrade than one with a single shared set of tables. Cross-site reports, such as "the latest posts from all my sites", need a query per site instead of one query. Backing up one site means dumping one schema and one directory; restoring one site into a different installation needs care with accounts, because accounts live outside the site.
 
 We think those costs are worth paying. They show up as a slower upgrade or a slightly more complex report, not as a data leak.
 
@@ -55,10 +55,17 @@ We think those costs are worth paying. They show up as a slower upgrade or a sli
 
 Multisite is how hosting on sap13ns.site works: one account for all your sites, and each site with its own address, its own design and its own content. If you host with us, you get it from the first day.
 
-For self-hosters, the commands to create and manage several sites from one installation are coming soon. We would rather release them when backup, restore and upgrades are well tested per site than ship them early and learn about the problems from your support tickets.[^1]
+Self-hosters can run it too. Set `SAP13NS_MULTISITE=true`, create the network and its portal with `sap13ns network init`, and manage the sites with `sap13ns site create`, `list`, `suspend`, `resume`, `delete`, `purge` and `domain`. A network comes with single sign-on through the portal, a network admin area, plans with storage and custom-domain limits, Stripe billing, and custom domains that are verified through DNS and served over TLS.[^1]
 
-Until then, the reliable way to run several sites on your own server is several services, one per site, each with its own database. It is less convenient, but every site is already completely isolated from the others.
+Some parts are not there yet:
+
+- **Per-site backups.** `sap13ns backup create` and `restore` refuse to run on a network, because an archive holds one database and one uploads directory, not one site. Until per-site archives arrive, back up the whole network with `pg_dump` and a copy of the data directory.
+- **Conversion.** An existing single-site install cannot be turned into a site of a network yet, so a network starts with a new database.
+- **Theme uploads.** Sites cannot upload their own themes yet.
+- **Invitations.** Only the network's administrators add members to a site; owners cannot invite people themselves yet.
+
+*Update, 19 October 2026:* when we published this post, the commands for self-hosters were still to come, and we suggested running one service per site in the meantime. They are released now, with the limits listed above. If you need `sap13ns backup` for each site today, one service per site is still a sound choice.
 
 If you want to follow the work, watch the [repository on GitHub](https://github.com/vicktor/sap13ns). And if you run many sites today and have opinions about how this should work, we would like to hear them in the [issues](https://github.com/vicktor/sap13ns/issues).
 
-[^1]: When the commands are released, they will be documented in DEPLOY.md and on the [install page](/install).
+[^1]: The commands are documented in [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), and the [install page](/install) has a short version.

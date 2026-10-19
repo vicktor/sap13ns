@@ -20,7 +20,7 @@ Go puede incrustar archivos en el programa al compilarlo. Lo usamos para todo lo
 | Dentro del binario | Fuera del binario |
 |---|---|
 | Plantillas del panel y de los temas | Los datos de PostgreSQL |
-| Hojas de estilo compiladas y el único script pequeño | Los archivos subidos |
+| Hojas de estilo compiladas y los scripts pequeños | Los archivos subidos |
 | Iconos y traducciones | El archivo de configuración |
 | Migraciones de la base de datos | Los temas y plugins adicionales que añadas |
 
@@ -50,6 +50,8 @@ No intentamos que sap13ns sea un servidor web completo. nginx es muy bueno con T
 En producción, sap13ns escucha en un socket Unix en lugar de en un puerto TCP. El socket se crea con modo `0660` y pertenece al grupo del servicio, así que nginx puede hablar con él y nadie más en la máquina. No hay ningún puerto de la aplicación que proteger con el cortafuegos ni forma de saltarse nginx atacando directamente a la aplicación.
 
 nginx sirve los archivos subidos directamente desde el disco, con una política de seguridad `sandbox`, para que el proceso de Go no pierda tiempo enviando imágenes.
+
+*Actualización, 19 de octubre de 2026:* dos detalles de esta configuración han cambiado. El socket pertenece ahora a un grupo propio, `sap13ns-web`, al que solo se une nginx, así que nginx puede llegar a sap13ns pero no puede leer su configuración ni su directorio de datos. Por eso mismo, la configuración de nginx que distribuimos deja que sap13ns sirva él mismo los archivos subidos a través del socket, con la misma política de aislamiento; `SAP13NS_SERVE_UPLOADS=false` sigue dejándoselos a nginx, si le das permiso de lectura sobre el directorio de archivos subidos. Además, actualizar es más fácil: `sap13ns update` instala una versión firmada y conserva el binario anterior por si hay que volver atrás.
 
 ## Lo que nos cuesta
 

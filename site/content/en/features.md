@@ -31,9 +31,9 @@ Public pages are rendered once and then served from memory. Anything that change
 
 ## Writing and publishing
 
-### Markdown editor with live preview
+### Visual and Markdown editing, with a preview
 
-Authors write in Markdown with tables, footnotes, task lists and fenced code blocks, and see the rendered result next to the text as they type. The preview uses the same renderer as the public site, so what you see is what gets published.
+Authors write in a visual editor or straight in Markdown, with tables, footnotes, task lists and fenced code blocks. Both modes edit the same Markdown source, and pasting from Word, Google Docs or a web page keeps the headings, lists, tables and links while dropping the stray formatting. The preview mode uses the same renderer as the public site, so what you see is what gets published. Drafts are saved automatically, and an edit lock keeps two people from overwriting each other.
 
 ### Media with responsive variants
 
@@ -53,7 +53,7 @@ Comments are optional and can be moderated always, only for first-time commenter
 
 ### Redirects
 
-When you move content, old links should keep working. Redirects are managed from the admin panel, and changing a slug can leave a permanent redirect behind so nobody hits a dead end.
+When you move content, old links should keep working. Redirects are managed from the admin panel, and when a published post changes its slug, a permanent redirect is created automatically so nobody hits a dead end.
 
 ## Looks
 
@@ -61,17 +61,21 @@ When you move content, old links should keep working. Redirects are managed from
 
 sap13ns ships with Apple, Neumorphism, Glassmorphism, Bento Grid and Dashboard / SaaS. Every theme has a light and a dark mode that follows the visitor's system setting, with a toggle that remembers their choice and no flash of the wrong colours on load. [See the themes](/themes).
 
+### Customiser and page builder
+
+The customiser changes a theme's colours, fonts, corner radius, density, header and footer without touching its files, with a live preview in light and dark. The page builder lays out the header, the footer and each type of page from sections, columns and blocks. Both keep your changes as a draft until you publish them, and keep the last ten published versions.
+
 ### Automatic OG images
 
-Each post gets a social preview image generated from its title and the site name, with no design tool and no AI involved. Links shared on social networks and chat apps look intentional instead of showing a blank grey box.
+Posts and pages without a featured image get a social preview card generated from their title and the site name, with no design tool and no AI involved. Links shared on social networks and chat apps look intentional instead of showing a blank grey box.
 
 ## Extending
 
 ### Plugins in a WebAssembly sandbox
 
-Plugins are WebAssembly modules. By default a plugin cannot read files, open network connections or see the database; it receives the data the core hands it and returns HTML that is sanitised before it reaches a page. Anything more, such as private storage, reading published posts or calling one specific external API, is a permission declared by the plugin and approved by an administrator.
+Plugins are WebAssembly modules. By default a plugin cannot read files, open network connections or see the database; it receives the data the core hands it and returns HTML that is sanitised before it reaches a page. Anything more, such as private storage, reading published posts, calling one specific external API or e-mailing the administrator, is a permission declared by the plugin and approved by an administrator.
 
-Approval is tied to the SHA-256 hash of the module. If someone replaces the file, the plugin stops loading until you review and approve it again. [How plugins work](/plugins).
+Plugins are uploaded as `.zip` packages, scanned before they are installed, and installed disabled. Approval is tied to the SHA-256 hashes of the module and its assets and to the permissions granted. If any of them changes, the plugin stops until you review and approve it again. [How plugins work](/plugins).
 
 ## Teams and accounts
 
@@ -79,9 +83,9 @@ Approval is tied to the SHA-256 hash of the module. If someone replaces the file
 
 Five roles cover the usual newsroom: administrators run the site, editors publish and moderate everyone's work, authors publish their own posts, contributors write drafts for review, and subscribers can sign in to comment.
 
-### Two-factor authentication
+### Two-factor authentication and passkeys
 
-Accounts can use TOTP codes from any authenticator app, with single-use recovery codes for the day the phone goes missing. Administrators can make two-factor authentication mandatory for admins and editors. Passkeys are planned.
+A second factor is mandatory for staff by default: TOTP codes from any authenticator app, with single-use recovery codes for the day the phone goes missing, or a passkey. Administrators can limit the requirement to administrators and editors, but they cannot switch it off. Passkeys (WebAuthn) also work for passwordless sign-in, always with user verification.
 
 ### Audit log
 
@@ -91,17 +95,21 @@ Sign-ins, publishing, user and role changes, settings changes and plugin approva
 
 ### WordPress importer
 
-Bring an existing WordPress site over from its export file (WXR): posts, pages, categories, tags, comments and media. Content is converted to clean Markdown on the way in.
+Bring an existing WordPress site over from its export file (WXR): authors, posts, pages, categories, tags, comments and media, with redirects from the old URLs. Content is converted to clean Markdown on the way in, and the import runs in the background, with a dry run and a report.
 
 ## AI, on your terms
 
 ### An assistant that never publishes on its own
 
-The editor can ask a language model for help: an excerpt, SEO title and description, a translation, an image prompt or a second opinion on a paragraph. You choose the provider: Claude, any OpenAI-compatible API (including local models through Ollama or llama.cpp) or Gemini. Nothing happens unless an editor clicks a button, and nothing is published without a person reviewing it. A local checker also flags the stock phrases that make text sound machine-written.
+The editor can ask a language model for help: an excerpt, SEO title and description, a translation, an image prompt, a header image where the provider can draw one, or a second opinion on a paragraph. You choose the provider: Claude, any OpenAI-compatible API (including local models through LM Studio, Ollama or llama.cpp) or Gemini. Nothing happens unless an editor clicks a button, and nothing is published without a person reviewing it. A local checker also flags the stock phrases that make text sound machine-written.
 
 ### llms.txt and llms-full.txt
 
-Sites can publish `/llms.txt` and `/llms-full.txt`, plain-text indexes of your content for language models and the tools built on them, generated from what is already public.
+Sites can publish `/llms.txt` and `/llms-full.txt`, plain-text indexes of your content for language models and the tools built on them, generated from what is already public. Every post and page also has a clean Markdown version at its own address plus `.md`. An AI access policy (open, no training, or block) decides what `robots.txt` tells AI crawlers and whether these endpoints answer at all.
+
+### A site assistant for visitors
+
+An optional chatbot answers visitors' questions from your own posts and pages and cites them, with a page at `/ask` that works without JavaScript. It searches with PostgreSQL full-text search, plus pgvector when the extension is installed. Drafts, scheduled and private posts are never indexed, and any post can be left out. A read-only MCP endpoint lets external AI agents search the same index.
 
 ## Knowing your audience without tracking it
 
@@ -113,11 +121,17 @@ Built-in analytics count page views, referrers and popular content in aggregate.
 
 ### Backups
 
-One command produces a single archive with a PostgreSQL dump and the uploaded files, optionally encrypted with a passphrase. Run it from a systemd timer and keep a few days of history. Archives are verified before anything is restored.
+One command produces a single archive with a PostgreSQL dump and the uploaded files, encrypted with AES-256-GCM when you give it a passphrase. The systemd timer that ships with sap13ns runs it every night and prunes old archives, keeping daily, weekly and monthly ones. Archives are verified before anything is restored.
 
-### Multisite
+### Signed updates
 
-One account can manage many sites. Each site has its own domain, its own themes and plugins, its own uploads and its own PostgreSQL schema, so one site's content and plugins cannot reach another's. Sign in once and switch between the sites you belong to, with a different role on each if needed.
+Administrators see a notice in the admin when a new release is out. `sap13ns update` downloads it, checks its Ed25519-signed checksums and swaps the binary atomically, keeping the previous one for a rollback.
+
+### Networks of sites
+
+Multisite is optional. With `SAP13NS_MULTISITE=true`, one process serves a network: a portal where people have one account, and any number of sites. Each site has its own PostgreSQL schema, users, settings, uploads and plugins, and picks its theme from the network's, so one site's content and plugins cannot reach another's. People sign in to every site they belong to through the portal, with a different role on each. Plans with storage and domain limits, Stripe billing, and custom domains verified through DNS and served over TLS are built in.
+
+Per-site backups, turning an existing single-site install into a network site, and theme uploads are not available yet. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explains how a network works.
 
 ## At a glance
 
@@ -125,10 +139,10 @@ One account can manage many sites. Each site has its own domain, its own themes 
 |---|---|
 | Runtime | One Go binary, PostgreSQL, nginx in front, no Node.js in production |
 | Speed | In-memory page cache, PostgreSQL full-text search, responsive images |
-| Writing | Markdown with live preview, translations, feeds, comments |
-| Design | Five themes, each with light and dark mode |
-| Extending | WebAssembly plugins with per-permission approval pinned to the module hash |
-| Accounts | Five roles, TOTP 2FA with recovery codes, audit log, passkeys planned |
+| Writing | Visual and Markdown editor with preview, translations, feeds, comments |
+| Design | Five themes, each with light and dark mode; customiser and page builder |
+| Extending | WebAssembly plugins with per-permission approval pinned to the module and asset hashes |
+| Accounts | Five roles, mandatory second factor (TOTP with recovery codes, or a passkey), passwordless passkey sign-in, audit log |
 | Migration | WordPress importer, redirects |
-| AI | Optional assistant (Claude, OpenAI-compatible, local, Gemini), llms.txt |
-| Operations | Backups, cookie-less analytics, multisite |
+| AI | Optional writing assistant (Claude, OpenAI-compatible, local, Gemini), site assistant for visitors, llms.txt |
+| Operations | Encrypted backups, signed updates, cookie-less analytics, optional networks of sites |
