@@ -43,6 +43,12 @@ On a network of sites, a site's administrators are trusted on their own site onl
   - `HttpOnly` cookies, `Secure` over https, `SameSite=Lax`;
   - idle and absolute lifetimes;
   - users can list their sessions and end them.
+- **Sign-in address:** `/login`, or one an administrator chooses (Settings → Accounts & security).
+  - **Defence in depth only, not a security boundary.** A chosen address keeps away the scanners that try `/login` and quietens the audit log. It is not a secret, though. Anyone who signs in, or reads a reset e-mail, a link from the site or a browser's history, can know it, and so can anyone who starts a single sign-on on a network (below). Nothing relies on it staying unknown. The rate limits, lockouts and second factor above protect the sign-in at any address.
+  - **The old address.** Once the address changes, the old one and the pages under it answer as any address the site does not serve: the same page, status and headers. The sign-in pages are matched before the site's own routes. No page, redirect or restored redirect can take their address, and an address the site already uses is refused.
+  - **robots.txt** names `/login` only, never a chosen address.
+  - **Hide the administration from visitors** is off by default. When it is on, every `/admin` address answers someone who is not signed in as an unknown address would, instead of redirecting to the sign-in address, and the footer has no Log in link. The comment form (when comments need an account) and the registration page still link to the sign-in page, because their users need it.
+  - **Recovery.** `sap13ns settings login-path [-site S]` prints the address on the server, `-reset` puts back `/login` and `-set /x` applies the checks of the settings page. A running server picks up the change within a minute. A restore keeps a backup's address only when it is free on the restored site, and says so in its report.
 - **Capabilities:** every admin route checks a capability of the user's role (administrator, editor, author, contributor, subscriber), and object-level checks keep authors to their own content.
 
 ### Requests
@@ -177,6 +183,7 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
   - a site's user is never matched to a network account by e-mail.
 
   Removing a membership, or disabling an account, ends the linked sessions on every site.
+- **Sign-in addresses** belong to each site, the portal included, and single sign-on does not use them. `/sso/start` and `/sso/callback` stay where they are, and the switcher and **My sites** link there. The portal's `/sso/authorize` sends a signed-out browser to the portal's sign-in address, even when the portal hides its administration. Anyone can start a sign-on from any site of the network, so the portal's address is effectively public. A site that is not open (pending, or held for billing) answers its own sign-in pages at its own address, and the network's status page everywhere else. That page's Log in button points to `/sso/start`.
 - **The site switcher** of the admin lists only the sites the account is a member of, with their titles, read by the network. On a site, the account is the one linked to the user of a session that came through the portal; nothing in the request names it. Its entries are links to each site's `/sso/start`, so every switch is a new sign-on with the checks above, never a session or token carried from one site to another.
 - **Operators.** A network administrator who is not a member of a site opens it only in two cases, as a separate operator user. Every sign-in is written to the audit logs of both the portal and the site.
   - **Support access** is the consent of the site's owner or one of its administrators, for 24 hours, 7 days or until revoked, granted on the portal (`/admin/sites/<id>/support`). Without it the portal issues no code, and the redemption checks the grant again under the same row locks as the membership. Every request of an operator session checks the grant, cached for at most 30 seconds and never past its end; a revocation also deletes the operators' sessions at once. No grant opens on a suspended site.

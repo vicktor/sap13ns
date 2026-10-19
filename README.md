@@ -136,6 +136,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 - **Roles:** administrator, editor, author, contributor and subscriber, with capability checks on every admin route.
 - **Passwords:** hashed with Argon2id. Logins are rate-limited and locked out after failures; changing a password closes the user's other sessions.
 - **Two-factor authentication** (TOTP) is mandatory for staff by default. **Passkeys (WebAuthn)** work for passwordless sign-in or as the second factor, with user verification required.
+- **Sign-in address:** `/login` by default, or one the administrator chooses under **Settings → Accounts & security**, such as `/entrar` or `/team/access`. The old address then answers like a page that does not exist. **Hide the administration from visitors** answers `/admin` the same way to anyone who is not signed in. This keeps the bots that try `/login` away, but the address is not a secret: the rate limits and the second factor are what protect the sign-in. If you lose the address, `sap13ns settings login-path` prints it on the server, and `-reset` puts back `/login`.
 - **Photos:** users upload a photo, which is cropped to a square and re-encoded without its metadata, or show their Gravatar. The server fetches the Gravatar with a hash of the e-mail address and serves a copy, so visitors' browsers never contact Gravatar. Commenters' Gravatars are opt-in. Without either, the initials are shown.
 - **Hardening:**
   - **Security headers:** a strict CSP with no inline scripts, styles or style attributes, plus HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and COOP.
@@ -265,6 +266,7 @@ sap13ns migrate          Apply database migrations
 sap13ns keygen           Generate a secret key
 sap13ns user create      Create a user
 sap13ns user reset-password
+sap13ns settings login-path   Print the sign-in address (-reset: back to /login, -set /PATH)
 sap13ns backup create|list|verify|restore|prune|decrypt   The database and uploads
 sap13ns backup create|list|prune|restore -format site      The site's own backups (-wp-base URL)
 sap13ns export -o FILE.xml|FILE.zip   Export the content (-drafts, -pii, -no-media)
@@ -279,7 +281,7 @@ Networks of sites (SAP13NS_MULTISITE=true):
 sap13ns network init     Create the network and its portal, and an administrator
 sap13ns site create|list|suspend|resume|delete|purge
 sap13ns site domain add|verify|primary|remove
-sap13ns migrate|user|plugin|theme|assistant|export|backup -site S   Work on one site (-site network: the portal)
+sap13ns migrate|user|settings|plugin|theme|assistant|export|backup -site S   Work on one site (-site network: the portal)
 ```
 
 ## Development

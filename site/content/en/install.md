@@ -51,7 +51,7 @@ Adjust the database URL to your setup; `postgres://user:password@localhost/sap13
 On the first start sap13ns creates its tables and, because there are no users yet, prints a one-time installation link in the log:
 
 ```text
-no users yet: finish the installation at http://localhost:8080/setup?token=…
+no users yet: finish the installation at http://localhost:8080/login/setup?token=…
 ```
 
 Open it, create the first administrator and you are in. The link only works once, and only someone who can read the server log can see it.
@@ -115,7 +115,7 @@ sudo -u sap13ns sap13ns user create -env /etc/sap13ns/sap13ns.env \
 sudo systemctl start sap13ns
 ```
 
-If you pipe a password into `user create` it uses that one; otherwise it generates a strong password and prints it once. If you start the service without creating a user, it prints a one-time `/setup?token=…` link in its log instead (`sudo journalctl -u sap13ns | grep setup`).
+If you pipe a password into `user create` it uses that one; otherwise it generates a strong password and prints it once. If you start the service without creating a user, it prints a one-time `/login/setup?token=…` link in its log instead (`sudo journalctl -u sap13ns | grep setup`).
 
 Open `https://example.com/admin` and sign in. Before anything else you will be asked to set up a second factor: an authenticator app or a passkey.
 

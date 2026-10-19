@@ -157,6 +157,8 @@ The service refuses to start when a value is invalid: a host name with upper-cas
 3. The portal sends back a single-use code that is valid for 60 seconds.
 4. The site redeems the code, which checks the access again, and opens a session.
 
+**Sign-in addresses.** Each site has its own sign-in address (**Settings → Accounts & security**), and so does the portal. The address only matters for a password sign-in on that site. Single sign-on uses the fixed addresses `/sso/start` and `/sso/callback`, so the switcher, **My sites** and the status pages keep working whatever a site chooses. A site that is not open answers its sign-in pages at its own address, and the network's status page everywhere else, `/login` included once the address has changed. When the portal has an address of its own, `/sso/authorize` sends a signed-out browser there. If an operator loses an address, `sap13ns settings login-path -site S` prints it (`-site network` for the portal), and `-reset` puts back `/login`. A tenant's administrators have no shell, but members can always sign in through the portal.
+
 When the account is already signed in to the portal, this takes no clicks. The site's user is created the first time and follows the membership from then on: role, e-mail, name and status. It is never matched to a local user by e-mail. A local user can link their account explicitly from their profile.
 
 Removing a member, or disabling an account, disables the linked users and ends their sessions at once, also on sites that are not loaded. A session that came through the portal does not ask for the site's second factor, because the portal has already asked for one.
@@ -330,6 +332,7 @@ sap13ns site domain primary HOST
 sap13ns site domain remove HOST
 
 sap13ns user create|reset-password -site S ...    -site network: a network account
+sap13ns settings login-path -site S [-reset | -set /PATH]   The site's sign-in address (-site network: the portal's)
 sap13ns plugin list|install -site S ...
 sap13ns theme list|install|remove -site S ...    the site's own themes; the same checks as
                                                  an upload, without the plan's gate or quota

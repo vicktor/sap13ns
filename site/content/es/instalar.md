@@ -51,7 +51,7 @@ Ajusta la URL de la base de datos a tu instalación; también vale `postgres://u
 En el primer arranque, sap13ns crea sus tablas y, como todavía no hay usuarios, escribe en el log un enlace de instalación de un solo uso:
 
 ```text
-no users yet: finish the installation at http://localhost:8080/setup?token=…
+no users yet: finish the installation at http://localhost:8080/login/setup?token=…
 ```
 
 Ábrelo, crea el primer administrador y ya estás dentro. El enlace solo funciona una vez, y solo lo ve quien puede leer el log del servidor.
@@ -115,7 +115,7 @@ sudo -u sap13ns sap13ns user create -env /etc/sap13ns/sap13ns.env \
 sudo systemctl start sap13ns
 ```
 
-Si le pasas una contraseña por la entrada estándar, `user create` usa esa; si no, genera una contraseña fuerte y la muestra una sola vez. Si arrancas el servicio sin crear ningún usuario, en su lugar escribe en el log un enlace `/setup?token=…` de un solo uso (`sudo journalctl -u sap13ns | grep setup`).
+Si le pasas una contraseña por la entrada estándar, `user create` usa esa; si no, genera una contraseña fuerte y la muestra una sola vez. Si arrancas el servicio sin crear ningún usuario, en su lugar escribe en el log un enlace `/login/setup?token=…` de un solo uso (`sudo journalctl -u sap13ns | grep setup`).
 
 Abre `https://example.com/admin` e inicia sesión. Antes de nada se te pedirá que configures un segundo factor: una aplicación de autenticación o una passkey.
 

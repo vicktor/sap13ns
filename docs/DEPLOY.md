@@ -85,6 +85,7 @@ Everything else (site title, languages, themes, comments, two-factor policy, AI,
 | Export the content | `sudo -u sap13ns sap13ns export -env /etc/sap13ns/sap13ns.env -o /var/lib/sap13ns/site.zip` |
 | Update | `sudo sap13ns update && sudo systemctl restart sap13ns` |
 | Reset a password | `sudo -u sap13ns sap13ns user reset-password -env /etc/sap13ns/sap13ns.env -username U` |
+| Lost the sign-in address | `sudo -u sap13ns sap13ns settings login-path -env /etc/sap13ns/sap13ns.env` prints it; `-reset` puts back `/login` |
 
 ### Backups
 `sap13ns-backup.timer` runs every night at 03:30 and makes two kinds of archive, each pruned after it is made:

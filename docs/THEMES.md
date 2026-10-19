@@ -353,6 +353,7 @@ Every page template gets a **PageData** (`.`).
 | `.FeedRSS`, `.FeedAtom`, `.FeedJSON` | feed URLs |
 | `.FooterText` | the customiser's footer line, empty when not set |
 | `.Viewer` | the signed-in user, nil for visitors |
+| `.LoginURL` | the site's sign-in address (`/login`, or the one chosen in Settings → Accounts & security); empty when the administration is hidden from visitors, so link to it only when it is set |
 | `.Custom` | the customiser's settings (see [The customiser](#the-customiser)) |
 | `.Asset "<file>"` | the hashed URL of a file in the theme's `static/` |
 | `.Static "<file>"` | the hashed URL of a core static file |
