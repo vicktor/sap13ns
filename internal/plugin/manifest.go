@@ -233,6 +233,10 @@ type Manifest struct {
 	// OAuth declares the providers the administrator connects the plugin
 	// to (oauth.go); each needs the "oauth:<id>" permission.
 	OAuth []OAuthDecl `json:"oauth"`
+	// Privacy declares what the plugin stores in the visitor's browser
+	// and the other sites it loads content from (privacy.go). The site's
+	// cookie consent lists them.
+	Privacy []PrivacyDecl `json:"privacy"`
 }
 
 var (
@@ -344,6 +348,7 @@ func (m *Manifest) Validate() error {
 	errs = append(errs, m.validateAssets()...)
 	errs = append(errs, m.validateCSP()...)
 	errs = append(errs, m.validateOAuth()...)
+	errs = append(errs, m.validatePrivacy()...)
 	return errors.Join(errs...)
 }
 
