@@ -8,7 +8,7 @@
 //	sap13ns settings login-path   print or reset the sign-in address (settings.go)
 //	sap13ns plugin new|pack|check create, package and scan plugins (plugin.go)
 //	sap13ns plugin list|install   list and install the plugins of a site
-//	sap13ns theme list|install|remove  the themes of a site (theme.go)
+//	sap13ns theme list|install|remove|import  the themes of a site; import converts a WordPress block theme (theme.go)
 //	sap13ns assistant reindex     rebuild the site assistant's search index
 //	sap13ns export -o FILE        export the content as WXR or a .zip (export.go)
 //	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
@@ -136,6 +136,10 @@ Commands:
                                  List the themes, or install a theme into this
                                  site's themes directory after the checks of an
                                  upload (not activated), or remove one
+  theme import [-slug S] [-o out.zip] <wordpress-theme.zip>
+                                 Convert a WordPress block theme and install it
+                                 as "theme install" does, or only write the
+                                 converted theme with -o (docs/THEME-IMPORT.md)
   backup create|list|verify|restore|prune
                                  Encrypted backups of the database and uploads
                                  (see docs/DEPLOY.md)
