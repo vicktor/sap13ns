@@ -59,7 +59,7 @@
               <span class="sm:hidden">{{if .IsScheduled $d.Now}}{{template "status-badge" "scheduled"}}{{else}}{{template "status-badge" .Status}}{{end}}</span>
               {{if $d.Langs}}<span class="badge" data-variant="outline" title="{{T "Language"}}">{{upper .Lang}}</span>{{end}}
               <span class="muted">/{{if eq .Type "post"}}blog/{{end}}{{.Slug}}</span>
-              {{if .CommentCount}}<span class="muted">· {{icon "message-circle" "size-3"}} {{.CommentCount}}</span>{{end}}
+              {{if .CommentCount}}<span class="muted inline-flex items-center gap-1">{{icon "message-circle" "size-3"}}{{.CommentCount}}</span>{{end}}
             </div>
           </td>
           <td class="max-md:hidden">{{.AuthorName}}</td>

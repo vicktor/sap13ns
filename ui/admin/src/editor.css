@@ -17,6 +17,9 @@
 @media (max-width: 40rem) {
   [data-editor] > .editor-toolbar { flex-wrap: wrap; }
   [data-editor] .toolbar-buttons {
+    /* Positioned, so the media button's visually hidden label (absolute)
+       is clipped by this scroller instead of widening the page. */
+    position: relative;
     flex: 1 1 100%;
     min-width: 0;
     flex-wrap: nowrap;

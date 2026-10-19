@@ -30,13 +30,13 @@
   <section class="card table-wrap">
     {{if $d.Redirects}}
     <table class="table">
-      <thead><tr><th>{{T "From"}}</th><th>{{T "To"}}</th><th class="text-right">{{T "Hits"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+      <thead><tr><th>{{T "From"}}</th><th>{{T "To"}}</th><th class="text-right max-sm:hidden">{{T "Hits"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
       <tbody>
         {{range $d.Redirects}}
         <tr>
-          <td><span class="mono text-sm break-all">{{.Source}}</span>{{if .Auto}} <span class="badge" data-variant="secondary">{{T "Automatic"}}</span>{{end}}</td>
-          <td><span class="badge" data-variant="outline">{{.Status}}</span> <span class="mono text-sm break-all">{{or .Target (T "Gone")}}</span></td>
-          <td class="text-right tabular">{{.Hits}}{{with .LastHitAt}}<div class="row-sub muted">{{ago .}}</div>{{end}}</td>
+          <td><span class="mono text-sm break-words">{{.Source}}</span>{{if .Auto}} <span class="badge" data-variant="secondary">{{T "Automatic"}}</span>{{end}}</td>
+          <td><span class="badge" data-variant="outline">{{.Status}}</span> <span class="mono text-sm break-words">{{or .Target (T "Gone")}}</span><div class="row-sub muted sm:hidden">{{T "Hits"}}: {{.Hits}}{{with .LastHitAt}} · {{ago .}}{{end}}</div></td>
+          <td class="text-right tabular max-sm:hidden">{{.Hits}}{{with .LastHitAt}}<div class="row-sub muted">{{ago .}}</div>{{end}}</td>
           <td class="text-right nowrap">
             <form method="post" action="/admin/tools/redirects/{{.ID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Delete"}}" data-confirm="{{T "Delete this redirect?"}}">{{icon "trash-2"}}</button></form>
           </td>

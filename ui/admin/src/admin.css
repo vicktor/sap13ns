@@ -174,7 +174,7 @@
 .eyebrow { @apply mb-1 text-sm; }
 .eyebrow a { @apply inline-flex items-center gap-1 text-muted-foreground; }
 
-.split { @apply grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]; }
+.split { @apply grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]; }
 .stack { @apply flex flex-col gap-6; }
 .narrow { @apply max-w-2xl; }
 .grid-2 { @apply grid gap-4 sm:grid-cols-2; }
@@ -245,10 +245,13 @@
 .badge[data-variant="warning"] { @apply border-transparent; background: color-mix(in oklch, var(--warning) 18%, transparent); color: color-mix(in oklch, var(--warning) 70%, var(--foreground)); }
 .badge[data-variant="info"] { @apply border-transparent; background: color-mix(in oklch, var(--info) 15%, transparent); color: var(--info); }
 .badge[data-variant="destructive"] { background: color-mix(in oklch, var(--destructive) 14%, transparent); color: var(--destructive); }
-.badge[data-variant="default"] { @apply bg-primary text-primary-foreground; }
 .alert { @apply mb-6; }
 .alert[data-variant="warning"] { border-color: color-mix(in oklch, var(--warning) 45%, transparent); background: color-mix(in oklch, var(--warning) 8%, var(--card)); }
 .alert[data-variant="warning"] > svg { color: var(--warning); }
+.alert[data-variant="success"] { border-color: color-mix(in oklch, var(--success) 40%, transparent); background: color-mix(in oklch, var(--success) 7%, var(--card)); }
+.alert[data-variant="success"] > svg { color: var(--success); }
+.alert[data-variant="info"] { border-color: color-mix(in oklch, var(--info) 40%, transparent); background: color-mix(in oklch, var(--info) 7%, var(--card)); }
+.alert[data-variant="info"] > svg { color: var(--info); }
 
 /* ------------------------------------------------------------- dashboard */
 .stat-grid { @apply mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4; }
@@ -285,14 +288,16 @@
 .search-inline { @apply flex w-full flex-wrap items-center gap-2 sm:w-auto; }
 .search-inline > .input-icon { @apply min-w-0 flex-1 sm:w-56 sm:flex-none; }
 .bulk-bar { @apply mb-3 flex flex-wrap items-center gap-2; }
-.table-wrap { @apply overflow-x-auto py-0; }
+.table-wrap { @apply relative overflow-x-auto py-0; }
 .table-wrap > .table { @apply text-sm; }
 /* A table card has no vertical padding, so the table meets the edges; a
    header above it or a footer below it gets the card's padding back. */
 .table-wrap > header:first-child { @apply pt-6; }
 .table-wrap > :is(header, section, footer, form):last-child { @apply pb-6; }
-.table th { @apply text-muted-foreground h-10 px-4 text-left text-xs font-medium whitespace-nowrap; }
+.table th { @apply text-muted-foreground h-10 px-4 text-xs font-medium whitespace-nowrap; }
 .table td { @apply px-4 py-3 align-middle; }
+/* Cells wrap (Vega keeps them on one line); .nowrap still wins, as a utility. */
+@layer components { .table td { white-space: normal; } }
 .table tbody tr { @apply transition-colors hover:bg-muted/50; }
 .row-title { @apply font-medium text-foreground hover:text-primary; }
 .row-sub { @apply mt-0.5 flex flex-wrap items-center gap-2 text-xs; }
@@ -505,7 +510,8 @@
 .lang-grid { @apply grid gap-2 sm:grid-cols-2 lg:grid-cols-3; }
 .translations { @apply m-0 grid list-none gap-2 p-0 text-sm; }
 .translations li { @apply flex items-center justify-between gap-2; }
-.translations a { @apply flex min-w-0 items-center gap-2 truncate; }
+.translations a { @apply flex min-w-0 items-center gap-2; }
+.translations .badge { @apply shrink-0; }
 .translate-actions { @apply flex flex-wrap gap-2; }
 .translate-actions .hint { @apply w-full; }
 .settings-nav { @apply flex gap-1 overflow-x-auto text-sm lg:sticky lg:top-20 lg:flex-col; }

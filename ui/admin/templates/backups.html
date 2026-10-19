@@ -58,12 +58,14 @@
   <header><h2>{{icon "hard-drive-download"}} {{T "Saved backups"}}</h2><p>{{T "Download links work for you only, in this session, for an hour."}}</p></header>
   <section>
     {{if $d.List}}
+    <div class="relative overflow-x-auto">
     <table class="table">
-      <thead><tr><th>{{T "Created"}}</th><th>{{T "Size"}}</th><th>{{T "Kind"}}</th><th></th></tr></thead>
-      <tbody>{{range $d.List}}<tr><td>{{dateTime .Created}}</td><td class="tabular">{{filesize .Size}}</td>
+      <thead><tr><th>{{T "Created"}}</th><th class="max-sm:hidden">{{T "Size"}}</th><th>{{T "Kind"}}</th><th></th></tr></thead>
+      <tbody>{{range $d.List}}<tr><td>{{dateTime .Created}}<div class="row-sub muted sm:hidden">{{filesize .Size}}</div></td><td class="tabular max-sm:hidden">{{filesize .Size}}</td>
         <td>{{if .PreRestore}}<span class="badge" data-variant="warning">{{T "Before a restore"}}</span>{{else}}<span class="badge" data-variant="secondary">{{T "Backup"}}</span>{{end}}{{if .Encrypted}} <span class="badge" data-variant="outline">{{icon "lock" "size-3"}} {{T "Encrypted"}}</span>{{end}}</td>
-        <td class="text-right"><a class="btn" data-variant="outline" data-size="sm" href="{{.URL}}" rel="nofollow">{{icon "download"}}{{T "Download"}}</a></td></tr>{{end}}</tbody>
+        <td class="text-right"><a class="btn" data-variant="outline" data-size="sm" href="{{.URL}}" rel="nofollow">{{icon "download"}}<span class="max-sm:sr-only">{{T "Download"}}</span></a></td></tr>{{end}}</tbody>
     </table>
+    </div>
     {{else}}<p class="muted">{{T "This site has no backup yet."}}</p>{{end}}
   </section>
 </section>

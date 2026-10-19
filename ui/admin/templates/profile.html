@@ -129,7 +129,7 @@
         {{else if and $pk.Available $pk.List}}<span class="text-success">{{icon "shield-check"}}</span><p>{{T "Protected by your passkeys. After a password login you confirm with a passkey; you can also add an authenticator app."}}</p>
         {{else}}<span class="text-warning">{{icon "shield"}}</span><p>{{T "Not enabled. Add a second step to protect your account even if your password leaks."}}</p>{{end}}
       </section>
-      <footer><a class="btn" data-variant="{{if $u.TOTPEnabled}}outline{{else}}default{{end}}" data-size="sm" href="/admin/profile/2fa">{{if $u.TOTPEnabled}}{{T "Manage"}}{{else}}{{T "Set up"}}{{end}}</a></footer>
+      <footer><a class="btn" data-variant="{{if $u.TOTPEnabled}}outline{{else}}primary{{end}}" data-size="sm" href="/admin/profile/2fa">{{if $u.TOTPEnabled}}{{T "Manage"}}{{else}}{{T "Set up"}}{{end}}</a></footer>
     </section>
     {{end}}
 
