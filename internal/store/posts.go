@@ -491,6 +491,14 @@ func (s *Store) ClaimDueAnnouncements(ctx context.Context) ([]int64, error) {
 	return pgx.CollectRows(rows, pgx.RowTo[int64])
 }
 
+// NextAnnouncement returns when the next scheduled post of the site is
+// due, or nil if none is waiting.
+func (s *Store) NextAnnouncement(ctx context.Context) (*time.Time, error) {
+	var at *time.Time
+	err := s.DB.QueryRow(ctx, `SELECT min(published_at) FROM posts WHERE announce_pending AND status = 'published'`).Scan(&at)
+	return at, err
+}
+
 func (s *Store) DeletePost(ctx context.Context, id int64) error {
 	_, err := s.DB.Exec(ctx, `DELETE FROM posts WHERE id = $1`, id)
 	return err

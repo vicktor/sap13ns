@@ -1717,7 +1717,13 @@ func (h *Host) RunCron(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
-			h.Emit("cron.hourly", map[string]string{"time": now.UTC().Format(time.RFC3339)})
+			h.Cron(now)
 		}
 	}
+}
+
+// Cron emits one cron.hourly. A network calls it for its sites instead of
+// running RunCron in each.
+func (h *Host) Cron(now time.Time) {
+	h.Emit("cron.hourly", map[string]string{"time": now.UTC().Format(time.RFC3339)})
 }

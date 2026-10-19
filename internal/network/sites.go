@@ -391,6 +391,71 @@ func (n *Network) WakeAt(ctx context.Context, siteID int64, at time.Time) error 
 	return err
 }
 
+// SetNextAnnounce records when a site's next scheduled post is due, read
+// from its schema; nil when none is.
+func (n *Network) SetNextAnnounce(ctx context.Context, siteID int64, at *time.Time) error {
+	_, err := n.db.Exec(ctx, `UPDATE sites SET next_announce_at = $2 WHERE id = $1`, siteID, at)
+	return err
+}
+
+// PostponeAnnounce moves a due wake-up d later, after a site failed to
+// load, so a broken site is not loaded every minute.
+func (n *Network) PostponeAnnounce(ctx context.Context, siteID int64, d time.Duration) error {
+	_, err := n.db.Exec(ctx, `UPDATE sites SET next_announce_at = now() + $2::bigint * interval '1 second'
+		WHERE id = $1 AND next_announce_at <= now()`, siteID, int64(d/time.Second))
+	return err
+}
+
+// DueAnnouncements lists the active sites with a scheduled post due, the
+// longest waiting first.
+func (n *Network) DueAnnouncements(ctx context.Context, limit int) ([]int64, error) {
+	rows, err := n.db.Query(ctx, `SELECT id FROM sites WHERE status = 'active' AND next_announce_at <= now()
+		ORDER BY next_announce_at, id LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[int64])
+}
+
+// SetWantsCron records whether an enabled plugin of a site handles
+// cron.hourly, so that the hourly cron loads it when it is not loaded.
+func (n *Network) SetWantsCron(ctx context.Context, siteID int64, wants bool) error {
+	_, err := n.db.Exec(ctx, `UPDATE sites SET wants_cron = $2 WHERE id = $1 AND wants_cron <> $2`, siteID, wants)
+	return err
+}
+
+// CronSites lists the active sites whose plugins want cron.hourly.
+func (n *Network) CronSites(ctx context.Context) ([]int64, error) {
+	rows, err := n.db.Query(ctx, `SELECT id FROM sites WHERE status = 'active' AND wants_cron ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[int64])
+}
+
+// SchemaBytes is the disk space of a site's tables, with their indexes and
+// TOAST data.
+func (n *Network) SchemaBytes(ctx context.Context, schema string) (int64, error) {
+	var b int64
+	err := n.db.QueryRow(ctx, `SELECT coalesce(sum(pg_total_relation_size(c.oid)), 0)::bigint
+		FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
+		WHERE ns.nspname = $1 AND c.relkind IN ('r', 'm')`, schema).Scan(&b)
+	return b, err
+}
+
+// SetStorage records the space a site uses (schema and directory).
+func (n *Network) SetStorage(ctx context.Context, siteID, bytes int64) error {
+	_, err := n.db.Exec(ctx, `UPDATE sites SET storage_bytes = $2, storage_checked_at = now() WHERE id = $1`, siteID, bytes)
+	return err
+}
+
+// PurgeSSOCodes deletes the single sign-on codes that expired more than a
+// day ago, used or not.
+func (n *Network) PurgeSSOCodes(ctx context.Context) (int64, error) {
+	tag, err := n.db.Exec(ctx, `DELETE FROM sso_codes WHERE expires_at < now() - interval '1 day'`)
+	return tag.RowsAffected(), err
+}
+
 // setStatus moves a tenant site from one of the statuses in from; it
 // returns ErrNotFound for no such tenant and ErrState for another status.
 func (n *Network) setStatus(ctx context.Context, id int64, from []string, set string, args ...any) error {

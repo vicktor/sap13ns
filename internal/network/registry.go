@@ -20,6 +20,8 @@ package network
 //     running server. A site that is no longer served (suspended, deleted)
 //     is unloaded at once, after its requests in flight; a site whose hosts
 //     changed is reloaded when idle.
+//   - The work that must reach unloaded sites (scheduled posts, the plugin
+//     cron, daily maintenance and storage accounting) is in sweeps.go.
 
 import (
 	"cmp"
@@ -57,6 +59,12 @@ const (
 	closeTimeout       = 30 * time.Second
 	sweepEvery         = 30 * time.Second
 	reloadEvery        = time.Minute
+	announceEvery      = time.Minute
+	cronEvery          = time.Hour
+	maintainFirst      = 10 * time.Minute // after a start, not during it
+	maintainEvery      = 24 * time.Hour
+	announceRetry      = 10 * time.Minute // after a failed wake-up load
+	cronLoads          = 2                // unloaded sites the cron loads at once
 
 	pluginPages     = 512 // 32 MiB per plugin instance
 	pluginInstances = 2   // per plugin and site
@@ -203,21 +211,24 @@ func (r *Registry) Start(ctx context.Context) error {
 	if r.closed {
 		return errClosed
 	}
-	r.wg.Add(3)
+	r.wg.Add(6)
 	go r.listen()
-	go r.every(reloadEvery, func(ctx context.Context) {
+	go r.every(reloadEvery, reloadEvery, func(ctx context.Context) {
 		if err := r.Refresh(ctx); err != nil && ctx.Err() == nil {
 			r.log.Error("network host table", "err", err)
 		}
 	})
-	go r.every(sweepEvery, func(ctx context.Context) { r.Sweep(ctx) })
+	go r.every(sweepEvery, sweepEvery, func(ctx context.Context) { r.Sweep(ctx) })
+	go r.every(announceEvery, announceEvery, func(ctx context.Context) { r.Announce(ctx) })
+	go r.every(cronEvery, cronEvery, func(ctx context.Context) { r.Cron(ctx) })
+	go r.every(maintainFirst, maintainEvery, r.Maintain)
 	return nil
 }
 
-// every runs fn every d until Close.
-func (r *Registry) every(d time.Duration, fn func(context.Context)) {
+// every runs fn after first, then every d until Close.
+func (r *Registry) every(first, d time.Duration, fn func(context.Context)) {
 	defer r.wg.Done()
-	t := time.NewTicker(d)
+	t := time.NewTimer(first)
 	defer t.Stop()
 	for {
 		select {
@@ -225,6 +236,7 @@ func (r *Registry) every(d time.Duration, fn func(context.Context)) {
 			return
 		case <-t.C:
 			fn(r.ctx)
+			t.Reset(d)
 		}
 	}
 }
@@ -276,6 +288,15 @@ func (r *Registry) Loaded() []int64 {
 // counts a request in flight on it until release. It waits at most wait
 // for a load.
 func (r *Registry) acquire(ctx context.Context, rt *siteRoute, wait time.Duration) (*entry, error) {
+	return r.acquireFor(ctx, rt, wait, true)
+}
+
+func (r *Registry) release(e *entry) { r.releaseFor(e, true) }
+
+// acquireFor is acquire; touch is false for the registry's own work (a
+// wake-up, the cron), which does not count as a use of the site: a site
+// loaded only for it is unloaded by the next sweep.
+func (r *Registry) acquireFor(ctx context.Context, rt *siteRoute, wait time.Duration, touch bool) (*entry, error) {
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
 	for {
@@ -308,30 +329,34 @@ func (r *Registry) acquire(ctx context.Context, rt *siteRoute, wait time.Duratio
 			return nil, errBusy
 		}
 		e.inflight++
-		e.lastUsed = r.o.Now()
+		if touch {
+			e.lastUsed = r.o.Now()
+		}
 		r.mu.Unlock()
 
 		select {
 		case <-e.ready:
 		case <-timer.C:
-			r.release(e)
+			r.releaseFor(e, touch)
 			return nil, errUnavailable
 		case <-ctx.Done():
-			r.release(e)
+			r.releaseFor(e, touch)
 			return nil, ctx.Err()
 		}
 		if e.err != nil {
-			r.release(e)
+			r.releaseFor(e, touch)
 			return nil, e.err
 		}
 		return e, nil
 	}
 }
 
-func (r *Registry) release(e *entry) {
+func (r *Registry) releaseFor(e *entry, touch bool) {
 	r.mu.Lock()
 	e.inflight--
-	e.lastUsed = r.o.Now()
+	if touch {
+		e.lastUsed = r.o.Now()
+	}
 	r.mu.Unlock()
 }
 
@@ -407,18 +432,33 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	if err != nil {
 		return nil, err
 	}
+	if wants := app.Plugins().WantsCron(); wants != s.WantsCron {
+		if err := r.net.SetWantsCron(ctx, s.ID, wants); err != nil {
+			r.log.Error("record the cron of a site", "site", s.ID, "err", err)
+		}
+	}
 	r.opened.Add(1)
 	r.log.Info("site loaded", "site", s.ID, "slug", s.Slug)
 	return app, nil
 }
 
 // unload closes the App of e, which the caller marked closing, and
-// removes the entry.
+// removes the entry. Then, with nothing of the site running, it records
+// what wakes the site up while unloaded: whether its plugins want the
+// cron (an admin may have changed them) and when its next scheduled post
+// is due (a wake-up recorded while it ran may have been overwritten).
 func (r *Registry) unload(ctx context.Context, e *entry) {
 	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), closeTimeout)
 	defer cancel()
+	wants := e.app.Plugins().WantsCron()
 	if err := e.app.Close(cctx); err != nil {
 		r.log.Error("close site", "site", e.id, "err", err)
+	}
+	if err := r.net.SetWantsCron(cctx, e.id, wants); err != nil {
+		r.log.Error("record the cron of a site", "site", e.id, "err", err)
+	}
+	if err := r.recordNextAnnounce(cctx, e); err != nil {
+		r.log.Error("record the next scheduled post of a site", "site", e.id, "err", err)
 	}
 	r.unloaded.Add(1) // before the site can load again
 	r.mu.Lock()
