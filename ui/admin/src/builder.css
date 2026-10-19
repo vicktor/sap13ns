@@ -10,6 +10,8 @@
   @apply flex min-w-0 flex-col gap-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:pr-1;
   scrollbar-gutter: stable;
 }
+/* The panel scrolls: its parts keep their height instead of shrinking. */
+.bl-panel > * { @apply shrink-0; }
 .bl-bar { @apply flex items-end gap-2; }
 .bl-region-field { @apply flex min-w-0 flex-1 flex-col; }
 .bl-region-field > .select { @apply w-full; }
@@ -102,6 +104,25 @@
 
 /* Front page presets (Landing, One-page) offered before building. */
 .bl-intro-or { @apply mt-1 text-xs font-medium text-muted-foreground; }
+/* A region still on the theme's template: what that means, and how to start. */
+.bl-empty-title { @apply flex items-center gap-2 text-base font-semibold; }
+.bl-empty-title > svg { @apply size-4 shrink-0 text-muted-foreground; }
+.bl-empty-text { @apply text-sm leading-6 text-muted-foreground; }
+.bl-empty-actions { @apply flex flex-wrap gap-2; }
+.bl-front-preset[data-recommended] { @apply border-primary; }
+.bl-front-preset > strong { @apply flex items-center gap-2; }
+/* Code: the HTML block and the class fields. */
+.bl-code { @apply min-h-56 font-mono text-xs leading-5; tab-size: 2; }
+.bl-mono { @apply font-mono text-xs; }
+/* Custom CSS. */
+.bl-css { @apply gap-0 py-0; }
+.bl-css > summary { @apply flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold; }
+.bl-css > summary::-webkit-details-marker { display: none; }
+.bl-css > summary > svg { @apply size-4 text-muted-foreground; }
+.bl-css > summary > .bl-css-chevron { @apply ml-auto transition-transform; }
+.bl-css[open] > summary > .bl-css-chevron { @apply rotate-180; }
+.bl-css-body { @apply flex flex-col gap-2 px-4 pb-4; }
+.bl-css-body a { @apply font-medium text-foreground underline underline-offset-2; }
 .bl-front-presets { @apply grid w-full gap-2; }
 .bl-front-preset { @apply flex w-full flex-col items-start gap-0.5 rounded-lg border bg-background p-3 text-left hover:border-primary hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring; }
 .bl-front-preset > span { @apply text-xs text-muted-foreground; }

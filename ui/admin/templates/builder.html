@@ -18,7 +18,7 @@
   <div class="page-actions">
     <p class="cz-status" id="bl-status" role="status" aria-live="polite">{{if $d.HasDraft}}{{T "Unpublished changes"}}{{else}}{{T "Up to date with the published layout"}}{{end}}</p>
     <a class="btn" data-variant="ghost" data-size="sm" href="{{$cz}}">{{icon "paintbrush"}}{{T "Colours and fonts"}}</a>
-    <form method="post" action="{{$base}}/discard">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="bl-discard" data-confirm="{{T "Discard the draft and go back to the published layout?"}}"{{if not $d.HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
+    <form method="post" action="{{$base}}/discard">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="bl-discard" data-confirm="{{T "Discard the draft layout and custom CSS, and go back to the published ones?"}}"{{if not $d.HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
     <form method="post" action="{{$base}}/publish" data-bl-publish>{{.CSRFField}}<button class="btn" data-size="sm" type="submit" id="bl-publish"{{if not $d.HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
   </div>
 </div>
@@ -30,6 +30,14 @@
   data-msg-pending="{{T "Saving before publishing…"}}" data-msg-unpublished="{{T "Unpublished changes"}}"
   data-msg-external="{{T "External links open in a new tab."}}" data-msg-blocked="{{T "Forms that send data are disabled in the preview."}}"
   data-msg-theme-region="{{T "This part uses the theme's design."}}" data-msg-block-region="{{T "This part is built with blocks."}}"
+  data-msg-theme-region-help="{{T "The theme draws this part from its own fixed template, so there is nothing to drag or add yet. Build it with blocks to choose its sections and blocks yourself: text, images, buttons, your own HTML and more."}}"
+  data-msg-theme-front-help="{{T "The preview shows the theme's sample front page: a fixed template whose texts come from the theme's options. To add, remove or reorder its sections, or to write your own HTML, build it with blocks. A ready-made page gives you sections to edit straight away."}}"
+  data-msg-build-basic="{{T "Start with a hero section"}}" data-msg-start-empty="{{T "Start from an empty layout"}}"
+  data-msg-started-empty="{{T "Empty layout created: add a block to its section."}}" data-msg-recommended="{{T "Recommended"}}"
+  data-msg-empty-next="{{T "Then add sections and blocks, drag them by their handle and publish when the preview looks right. Until then visitors keep seeing the published design."}}"
+  data-msg-class="{{T "CSS class"}}" data-msg-class-hint="{{T "Optional. Up to 5 class names separated by spaces (lower-case letters, digits and hyphens, starting with a letter), for your Custom CSS."}}"
+  data-msg-bad-class="{{T "Use up to 5 class names of lower-case letters, digits and hyphens, each starting with a letter."}}"
+  data-msg-css-refused="{{T "The custom CSS was not saved: %s"}}" data-msg-css-invalid="{{T "Fix the custom CSS before publishing."}}"
   data-msg-build="{{T "Build it with blocks"}}" data-msg-unbuild="{{T "Use the theme's design"}}"
   data-msg-unbuilt="{{T "Back to the theme's design. Undo with Ctrl+Z."}}"
   data-msg-no-preview="{{T "There is no page of this type to preview yet."}}"
@@ -73,6 +81,16 @@
     <div class="bl-structure" id="bl-structure" aria-label="{{T "Structure"}}"></div>
     <p class="sr-only" id="bl-live" role="status" aria-live="assertive"></p>
     <section class="card bl-settings" id="bl-settings" aria-labelledby="bl-settings-title"></section>
+    <details class="card bl-css" id="bl-css">
+      <summary>{{icon "code"}}<span>{{T "Custom CSS"}}</span><span class="badge" data-variant="secondary" id="bl-css-badge" hidden>{{T "Unpublished"}}</span>{{icon "chevron-down" "bl-css-chevron"}}</summary>
+      <div class="bl-css-body">
+        <p class="hint" id="bl-css-help">{{T "Your own CSS for this theme, applied after its styles on every page. Give a section or an HTML block a CSS class, then style it here, such as .promo { padding: 2rem; }. It is saved with the draft: the preview shows it and Publish puts it live."}}</p>
+        <label class="sr-only" for="bl-css-input">{{T "Custom CSS"}}</label>
+        <textarea class="textarea cz-code w-full" id="bl-css-input" rows="12" maxlength="65536" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="bl-css-help bl-css-rules"></textarea>
+        <p class="hint" id="bl-css-rules">{{T "Up to 64 KB, served as a separate file after the theme's styles. Not allowed: @import, url() to other sites, javascript:, expression(), behavior and -moz-binding. Use the theme's variables, such as var(--primary)."}} <a href="{{$cz}}">{{T "Also in Customise"}}</a></p>
+        <p class="cz-status" id="bl-css-status" role="status" aria-live="polite"></p>
+      </div>
+    </details>
   </div>
 
   <section class="cz-preview bl-preview" aria-label="{{T "Preview"}}">

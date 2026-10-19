@@ -162,6 +162,30 @@ export function setAnchor(l, name, s, anchor) {
   });
 }
 
+/** validClasses normalises a CSS class field as the server does
+ * (internal/builder ValidClasses): up to 5 names of lower-case letters,
+ * digits and hyphens starting with a letter, without repeats. It returns
+ * null when v cannot be used. */
+export function validClasses(v) {
+  const out = [];
+  for (const c of String(v ?? "").split(/\s+/).filter(Boolean)) {
+    if (!/^[a-z][a-z0-9-]{0,39}$/.test(c)) return null;
+    if (!out.includes(c)) out.push(c);
+  }
+  return out.length > 5 ? null : out.join(" ");
+}
+
+/** setSectionClass sets section s's CSS classes; empty removes them. */
+export function setSectionClass(l, name, s, cls) {
+  return edit(l, name, (r) => {
+    const sec = r.sections[s];
+    if (cls) sec.class = cls; else delete sec.class;
+  });
+}
+
+/** hasBlock reports whether a section has a block of type. */
+export const hasBlock = (sec, type) => (sec?.columns || []).some((c) => c.some((b) => b.type === type));
+
 /** setStyle sets a section appearance option; the default is not stored. */
 export function setStyle(l, name, s, key, value, def) {
   return edit(l, name, (r) => {
@@ -407,12 +431,26 @@ export function starter(name, msg = {}, l = {}, rand) {
   return { sections: [] };
 }
 
+/** emptyRegion is a region with nothing in it yet but what it requires:
+ * one empty section to add blocks to, the post content on posts and pages,
+ * the credits line in the footer (the licence requires it). */
+export function emptyRegion(name, l = {}, rand) {
+  const taken = new Set();
+  const id = (p) => newID(l, p, taken, rand);
+  const sec = (columns, style) => ({ id: id("s"), layout: "1", ...(style ? { style } : {}), columns });
+  if (name === "single" || name === "page") return { sections: [sec([[{ id: id(CONTENT), type: CONTENT }]], { width: "narrow" })] };
+  if (name === "footer") return { sections: [sec([[]]), sec([[{ id: id(META), type: META }]], { padding: "small" })] };
+  return { sections: [sec([[]])] };
+}
+
 /** summary is a short description of a block for the structure list. */
 export function summary(block, t, menus = [], areas = []) {
   const s = block.settings || {};
   const pick = (k) => (s[k] || "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[#*_`>[\]()]/g, "").replace(/\s+/g, " ").trim();
   let out = "";
-  if (t?.fields?.some((f) => f.type === "menu")) out = menus.find((m) => m.id === (s.menu || "primary"))?.label || s.menu || "";
+  if (block.type === "html") {
+    out = (s.html || "").replace(/<[^>]*>?/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim() || (s.class ? `.${s.class.split(" ").join(" .")}` : "");
+  } else if (t?.fields?.some((f) => f.type === "menu")) out = menus.find((m) => m.id === (s.menu || "primary"))?.label || s.menu || "";
   else if (t?.fields?.some((f) => f.type === "area")) out = areas.find((a) => a.id === (s.area || "sidebar"))?.label || s.area || "";
   else out = pick("title") || pick("label") || pick("text") || pick("caption");
   return out.length > 48 ? out.slice(0, 47) + "…" : out;
@@ -424,11 +462,12 @@ export function summary(block, t, menus = [], areas = []) {
  * item is the index of a block's item (….items[3].settings.title), or -1
  * for the list itself (….items); anchor marks a section's anchor. */
 export function parseErrorPath(path) {
-  const m = /^(header|footer|pages\.([a-z0-9]+))(?:\.sections\[(\d+)\](?:(\.anchor)|\.columns(?:\[(\d+)\](?:\[(\d+)\](?:(\.items)(?:\[(\d+)\])?)?(?:\.(settings|i18n)\.([a-z0-9_-]+)(?:\.([a-z0-9_]+))?)?)?)?)?)?/i.exec(path || "");
+  const m = /^(header|footer|pages\.([a-z0-9]+))(?:\.sections\[(\d+)\](?:(\.anchor|\.class)|\.columns(?:\[(\d+)\](?:\[(\d+)\](?:(\.items)(?:\[(\d+)\])?)?(?:\.(settings|i18n)\.([a-z0-9_-]+)(?:\.([a-z0-9_]+))?)?)?)?)?)?/i.exec(path || "");
   if (!m) return null;
   const n = (v) => (v == null ? null : Number(v));
   const out = { region: m[2] || m[1], s: n(m[3]), c: n(m[5]), b: n(m[6]), item: m[7] ? (m[8] == null ? -1 : Number(m[8])) : null, key: "", lang: "" };
-  if (m[4]) out.anchor = true;
+  if (m[4] === ".anchor") out.anchor = true;
+  if (m[4] === ".class") out.sectionClass = true;
   if (m[9] === "settings") out.key = m[10];
   if (m[9] === "i18n") { out.lang = m[10]; out.key = m[11] || ""; }
   return out;
@@ -536,9 +575,12 @@ function init(root) {
 
   // The region to open: ?region=front (a link from a theme's sample front
   // page), else the last one edited.
-  let region = "home";
+  // A theme with its own front page (onepage's sample sections) opens on it.
+  let region = state.theme_front ? "front" : "home";
   try { const r = localStorage.getItem("sap-builder-region"); if (regions.some((x) => x.name === r)) region = r; } catch (_) {}
   const asked = new URLSearchParams(location.search).get("region");
+  // ?preset=one-page (the theme's own note) puts that ready-made page first.
+  const recommended = new URLSearchParams(location.search).get("preset") || "";
   if (regions.some((x) => x.name === asked)) region = asked;
   let selected = null;            // id of the selected section or block
   let errors = [];                // the last refusal's field errors
@@ -581,24 +623,43 @@ function init(root) {
     const r = getRegion(layout(), region);
     const kids = [];
     const icn = region === "header" ? "panel-top" : region === "footer" ? "panel-bottom" : "layout-template";
-    kids.push(h("p", { class: "bl-intro-text" }, icon(icn), h("span", { text: r ? msg.msgBlockRegion : msg.msgThemeRegion })));
+    if (r) kids.push(h("p", { class: "bl-intro-text" }, icon(icn), h("span", { text: msg.msgBlockRegion })));
     if (!r) {
-      kids.push(h("button", { type: "button", class: "btn", "data-size": "sm", onclick: () => {
+      // The theme's template is fixed: say so, and offer the ways to start
+      // building, the first one primary.
+      const presets = region === "front" ? state.front_presets || [] : [];
+      kids.push(h("h2", { class: "bl-empty-title" }, icon(icn), h("span", { text: msg.msgThemeRegion })),
+        h("p", { class: "bl-empty-text", text: region === "front" && state.theme_front ? msg.msgThemeFrontHelp : msg.msgThemeRegionHelp }));
+      if (presets.length) {
+        const order = [...presets].sort((a, b) => (b.name === recommended) - (a.name === recommended));
+        kids.push(h("p", { class: "bl-intro-or", text: msg.msgPresetsIntro }),
+          h("ul", { class: "bl-front-presets" }, order.map((p) => h("li", {}, h("button", {
+            type: "button", class: "bl-front-preset", "data-preset": p.name, "data-recommended": p.name === recommended ? "" : null, onclick: () => {
+              const start = reid(p.region, layout());
+              selected = null;
+              commit(setRegion(layout(), region, start));
+              say(fmt(msg.msgPresetApplied, p.label));
+            },
+          }, h("strong", {}, p.label, p.name === recommended ? h("span", { class: "badge", "data-variant": "secondary", text: msg.msgRecommended }) : null),
+          h("span", { text: p.help }))))));
+      }
+      const build = () => {
         const start = starter(region, { title404: msg.msgNfTitle, text404: msg.msgNfText, button404: msg.msgNfButton }, layout());
         selected = start.sections[0]?.id || null;
         commit(setRegion(layout(), region, start));
-      } }, icon("plus"), msg.msgBuild));
-      // The front page can start from a whole ready-made page.
-      const presets = region === "front" ? state.front_presets || [] : [];
-      if (presets.length) {
-        kids.push(h("p", { class: "bl-intro-or", text: msg.msgPresetsIntro }),
-          h("ul", { class: "bl-front-presets" }, presets.map((p) => h("li", {}, h("button", { type: "button", class: "bl-front-preset", onclick: () => {
-            const start = reid(p.region, layout());
-            selected = null;
-            commit(setRegion(layout(), region, start));
-            say(fmt(msg.msgPresetApplied, p.label));
-          } }, h("strong", { text: p.label }), h("span", { text: p.help }))))));
-      }
+      };
+      const empty = () => {
+        const start = emptyRegion(region, layout());
+        selected = start.sections[0]?.id || null;
+        commit(setRegion(layout(), region, start));
+        say(msg.msgStartedEmpty);
+      };
+      kids.push(h("div", { class: "bl-empty-actions" },
+        h("button", { type: "button", class: "btn", "data-size": "sm", "data-variant": presets.length ? "outline" : null, onclick: build },
+          icon("plus"), presets.length ? msg.msgBuildBasic : msg.msgBuild),
+        h("button", { type: "button", class: "btn", "data-variant": presets.length ? "ghost" : "outline", "data-size": "sm", onclick: empty },
+          icon("columns-2"), msg.msgStartEmpty)),
+        h("p", { class: "hint", text: msg.msgEmptyNext }));
     } else {
       if (r.sections.some((s) => s.anchor)) {
         kids.push(h("p", { class: "hint bl-intro-hint" }, msg.msgAnchorsHint, " ",
@@ -627,7 +688,7 @@ function init(root) {
   // The server's messages are in English; the ones typing can cause are
   // shown in the admin's language.
   const errText = (f, e) => (e.anchor ? (/already the anchor/.test(e.message) ? fmt(msg.msgAnchorTaken, /^"([^"]*)"/.exec(e.message)?.[1] || "") : msg.msgBadAnchor)
-    : f?.type === "url" ? msg.msgBadUrl : f?.type === "email" ? msg.msgBadEmail
+    : f?.type === "url" ? msg.msgBadUrl : f?.type === "email" ? msg.msgBadEmail : f?.type === "class" ? msg.msgBadClass
     : /^at most \d+ characters$/.test(e.message) ? fmt(msg.msgTooLong, f?.max || "") : e.message);
   // fid is the id of a field's input: a block's, or an item's (item i).
   const fid = (key, lang, item) => `bl-f-${item != null && item >= 0 ? `i${item}-` : ""}${key}${lang ? "-" + lang : ""}`;
@@ -759,9 +820,40 @@ function init(root) {
     });
     const up = () => { commit(moveSection(layout(), region, pos.s, pos.s - 1)); say(fmt(msg.msgMoved, label)); };
     const down = () => { commit(moveSection(layout(), region, pos.s, pos.s + 1)); say(fmt(msg.msgMoved, label)); };
-    const errs = errors.filter((e) => e.region === region && e.s === pos.s && e.c == null && !e.anchor).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
+    const errs = errors.filter((e) => e.region === region && e.s === pos.s && e.c == null && !e.anchor && !e.sectionClass).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
     settings.replaceChildren(header("columns-2", `${label} · ${msg.msgSectionSettings}`),
-      h("section", { class: "bl-form" }, ...errs, presets, anchorField(sec, pos), ...fields, moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
+      h("section", { class: "bl-form" }, ...errs, presets, anchorField(sec, pos), ...fields,
+        // The credits' section takes no class (the server refuses one).
+        hasBlock(sec, META) ? null : sectionClassField(sec, pos),
+        moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
+  }
+
+  // classInput is a CSS class field: checked as it is typed, and only
+  // saved once it is valid (validClasses).
+  function classInput(id, value, err, hint, onValid) {
+    const note = h("p", { class: err ? "cz-field-error" : "hint", id: `${id}-help`, text: err ? msg.msgBadClass : hint });
+    const input = h("input", {
+      class: "input w-full bl-mono", type: "text", id, maxlength: 210, autocomplete: "off", spellcheck: "false", autocapitalize: "off",
+      "aria-describedby": `${id}-help`, "aria-invalid": err ? "true" : null,
+      oninput: (e) => {
+        const v = validClasses(e.target.value);
+        note.textContent = v == null ? msg.msgBadClass : hint;
+        note.className = v == null ? "cz-field-error" : "hint";
+        if (v == null) { e.target.setAttribute("aria-invalid", "true"); return; }
+        e.target.removeAttribute("aria-invalid");
+        onValid(v);
+      },
+    });
+    input.value = value || "";
+    return [input, note];
+  }
+
+  function sectionClassField(sec, pos) {
+    const id = "bl-section-class";
+    const err = errors.find((e) => e.region === region && e.s === pos.s && e.sectionClass);
+    const [input, note] = classInput(id, sec.class, err, msg.msgClassHint,
+      (v) => commit(setSectionClass(layout(), region, pos.s, v), `${sec.id}.class`, { keepSettings: true }));
+    return h("div", { class: "field" }, h("label", { for: id, text: msg.msgClass }), input, note);
   }
 
   // anchorField edits a section's anchor (#pricing): checked as it is
@@ -845,6 +937,16 @@ function init(root) {
         if (!state.images.length) help.push(msg.msgNoImages);
         break;
       }
+      case "class": {
+        const [el, note] = classInput(id, stored, err, help.join(" "), set);
+        return h("div", { class: "field" }, h("label", { for: id, text: f.label }), el, note);
+      }
+      case "html":
+        // Code: monospace, no spell checking; sanitised on the server.
+        input = h("textarea", { class: "textarea w-full bl-code", rows: 14, maxlength: f.max || null, spellcheck: "false", autocapitalize: "off",
+          autocomplete: "off", ...common, oninput: (e) => set(e.target.value) });
+        input.value = stored;
+        break;
       case "textarea": case "markdown":
         input = h("textarea", { class: "textarea w-full", rows: f.type === "markdown" ? 7 : 3, maxlength: f.max || null, placeholder: main || null, ...common, oninput: (e) => set(e.target.value) });
         input.value = stored;
@@ -1308,23 +1410,86 @@ function init(root) {
     }
   }
 
-  // Publish exactly what the preview shows: finish a pending save first.
+  // ---------------------------------------------------------- custom CSS --
+  // The theme's custom CSS, saved into the design's draft (POST …/css):
+  // the preview links the draft stylesheet, Publish puts it live.
+  const cssBox = document.getElementById("bl-css-input");
+  const cssStatus = document.getElementById("bl-css-status");
+  const cssBadge = document.getElementById("bl-css-badge");
+  let cssSaved = state.css || "";
+  let cssTimer = 0;
+  let cssInflight = null;
+  let cssAgain = false;
+  let cssError = false;
+  const cssUnsaved = () => Boolean(cssBox) && cssBox.value !== cssSaved;
+  const setCSSStatus = (text, kind = "") => { cssStatus.textContent = text; cssStatus.className = kind === "error" ? "cz-field-error" : "cz-status"; };
+  if (cssBox) {
+    cssBox.value = cssSaved;
+    if (cssSaved) cssBox.closest("details").open = true;
+    if (cssBadge) cssBadge.hidden = !state.css_pending;
+    cssBox.addEventListener("input", () => { clearTimeout(cssTimer); cssTimer = setTimeout(() => { cssTimer = 0; saveCSS(); }, 900); });
+  }
+  async function saveCSS() {
+    clearTimeout(cssTimer); cssTimer = 0;
+    if (cssInflight) { cssAgain = true; return cssInflight; }
+    if (!cssUnsaved()) return;
+    const sent = cssBox.value;
+    setCSSStatus(msg.msgSaving);
+    cssInflight = (async () => {
+      try {
+        const res = await fetch(base + "/css", {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-Token": csrf() }, body: JSON.stringify({ css: sent }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          cssError = true;
+          cssBox.setAttribute("aria-invalid", "true");
+          setCSSStatus(fmt(msg.msgCssRefused, data.errors?.[0]?.message || data.message || res.status), "error");
+          return;
+        }
+        cssError = false;
+        cssBox.removeAttribute("aria-invalid");
+        cssSaved = sent;
+        setCSSStatus(fmt(msg.msgSaved, data.saved_at || ""));
+        if (cssBadge) cssBadge.hidden = !data.pending;
+        if (data.pending) {
+          if (publishBtn) publishBtn.disabled = false;
+          if (discardBtn) discardBtn.disabled = false;
+          setStatus(msg.msgUnpublished, "");
+        }
+        reloadFrame();
+      } catch (_) {
+        setCSSStatus(msg.msgOffline, "error");
+      } finally {
+        cssInflight = null;
+        if (cssAgain) { cssAgain = false; saveCSS(); }
+      }
+    })();
+    return cssInflight;
+  }
+
+  // Publish exactly what the preview shows: finish pending saves first.
   const publishForm = document.querySelector("form[data-bl-publish]");
   publishForm?.addEventListener("submit", async (e) => {
-    if (!timer && !inflight && !unsaved()) return;
+    if (!timer && !inflight && !unsaved() && !cssTimer && !cssInflight && !cssUnsaved()) return;
     e.preventDefault();
     setStatus(msg.msgPending, "saving");
     await save();
     if (inflight) await inflight;
-    if (!unsaved() && !errors.length) publishForm.submit();
+    await saveCSS();
+    if (cssInflight) await cssInflight;
+    if (cssError) { cssBox.focus(); setStatus(msg.msgCssInvalid, "error"); return; }
+    if (!unsaved() && !errors.length && !cssUnsaved()) publishForm.submit();
   });
   window.addEventListener("beforeunload", (e) => {
-    if (inflight || unsaved()) { e.preventDefault(); e.returnValue = ""; }
+    if (inflight || unsaved() || cssInflight || cssUnsaved()) { e.preventDefault(); e.returnValue = ""; }
   });
 
   render();
   frame.src = withScheme(regions.find((x) => x.name === region)?.preview || regions[0]?.preview || "/");
   applyScheme();
+  if (recommended) intro.querySelector(`[data-preset="${CSS.escape(recommended)}"]`)?.focus();
 }
 
 if (typeof document !== "undefined") {

@@ -209,8 +209,8 @@
       <div class="cz-body">
         <div class="field">
           <label for="cz-css">{{T "Extra CSS rules"}}</label>
-          <textarea class="textarea cz-code" id="cz-css" name="css" rows="12" maxlength="32768" spellcheck="false" autocapitalize="off" aria-describedby="cz-css-help">{{$D.CSS}}</textarea>
-          <p class="hint" id="cz-css-help">{{T "Up to 32 KB, served as a separate file after the theme's styles. @import and url() to other sites are not allowed. Use the theme's variables, such as var(--primary)."}}</p>
+          <textarea class="textarea cz-code" id="cz-css" name="css" rows="12" maxlength="65536" spellcheck="false" autocapitalize="off" aria-describedby="cz-css-help">{{$D.CSS}}</textarea>
+          <p class="hint" id="cz-css-help">{{T "Up to 64 KB, served as a separate file after the theme's styles. Not allowed: @import, url() to other sites, javascript:, expression(), behavior and -moz-binding. Use the theme's variables, such as var(--primary)."}} {{T "Sections and HTML blocks of the page builder can have a CSS class for these rules."}}</p>
         </div>
       </div>
     </details>

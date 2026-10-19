@@ -6,6 +6,7 @@ import {
   setStyle, insertBlock, removeBlock, moveBlock, dropIndex, duplicateBlock, setValue, find, step, count, allowed,
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
   addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
+  validClasses, setSectionClass, hasBlock, emptyRegion,
 } from "../../static/builder.js";
 
 // A seeded random source, so ids are reproducible.
@@ -318,4 +319,38 @@ test("chooseOption picks what a native select would show", () => {
   assert.deepEqual(chooseOption(opts, undefined), { index: 0, value: "", label: "No image" });
   assert.deepEqual(chooseOption(opts.slice(1), "gone"), { index: 0, value: "3", label: "Logo" }, "unknown: the first");
   assert.deepEqual(chooseOption([], "x"), { index: -1, value: "", label: "" });
+});
+
+test("validClasses checks CSS class fields as the server does", () => {
+  assert.equal(validClasses(""), "");
+  assert.equal(validClasses("  promo   wide promo "), "promo wide");
+  assert.equal(validClasses("a b c d e"), "a b c d e");
+  for (const bad of ["A", "1a", "a_b", "a.b", "-a", "a b c d e f", 'a"b', "x".repeat(41)]) assert.equal(validClasses(bad), null, bad);
+});
+
+test("setSectionClass sets and removes a section's classes", () => {
+  let l = setSectionClass(base(), "home", 1, "promo");
+  assert.equal(getRegion(l, "home").sections[1].class, "promo");
+  l = setSectionClass(l, "home", 1, "");
+  assert.ok(!("class" in getRegion(l, "home").sections[1]));
+});
+
+test("emptyRegion keeps what a region requires", () => {
+  const front = emptyRegion("front", {}, seeded());
+  assert.equal(front.sections.length, 1);
+  assert.deepEqual(front.sections[0].columns, [[]]);
+  const page = emptyRegion("page", {}, seeded());
+  assert.ok(hasBlock(page.sections[0], "single-content"));
+  const footer = emptyRegion("footer", {}, seeded());
+  assert.ok(footer.sections.some((s) => hasBlock(s, "footer-meta")));
+  assert.ok(!hasBlock(footer.sections[0], "footer-meta"));
+});
+
+test("summary of an HTML block is its text", () => {
+  assert.equal(summary({ type: "html", settings: { html: "<section class=\"x\"><h2>Our&nbsp;offer</h2><p>Now</p></section>" } }, { fields: [] }), "Our offer Now");
+  assert.equal(summary({ type: "html", settings: { class: "promo wide" } }, { fields: [] }), ".promo .wide");
+});
+
+test("parseErrorPath marks a section's class", () => {
+  assert.deepEqual(parseErrorPath("pages.front.sections[2].class"), { region: "front", s: 2, c: null, b: null, item: null, key: "", lang: "", sectionClass: true });
 });
