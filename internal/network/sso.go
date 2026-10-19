@@ -68,14 +68,21 @@ type SSOGrant struct {
 // RedeemSSOCode uses a code once, for the site and callback it was issued
 // for, checking the verifier, and then the access again: the site served,
 // the account active and still a member (or, for an operator, still a
-// network admin). A failed check after the code was used still uses it,
-// so a code cannot be tried twice.
+// network admin). It all happens in one transaction that holds the rows
+// it read, so a concurrent suspension, disabling or removal waits for it
+// and its revocation comes after. A failed check after the code was used
+// still uses it, so a code cannot be tried twice.
 func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifier, redirectURI string) (*SSOGrant, error) {
+	tx, err := n.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
 	var (
 		g         SSOGrant
 		challenge []byte
 	)
-	err := n.db.QueryRow(ctx, `UPDATE sso_codes SET used_at = now()
+	err = tx.QueryRow(ctx, `UPDATE sso_codes SET used_at = now()
 		WHERE code_hash = $1 AND site_id = $2 AND redirect_uri = $3 AND used_at IS NULL AND expires_at > now()
 		RETURNING account_id, challenge, operator`, auth.HashToken(code), siteID, redirectURI).Scan(&g.AccountID, &challenge, &g.Operator)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -84,42 +91,96 @@ func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifie
 	if err != nil {
 		return nil, err
 	}
+	var refused error
 	sum := sha256.Sum256([]byte(verifier))
 	if subtle.ConstantTimeCompare(sum[:], challenge) != 1 {
-		return nil, ErrSSOCode
-	}
-	s, err := n.Site(ctx, siteID)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrSSODenied
+		refused = ErrSSOCode
+	} else if err := grantAccess(ctx, tx, siteID, &g, true); errors.Is(err, ErrSSODenied) {
+		refused = err
 	} else if err != nil {
 		return nil, err
 	}
-	if s.Kind != KindTenant || s.Status != StatusActive && s.Status != StatusPending {
-		return nil, ErrSSODenied
-	}
-	var status string
-	err = n.db.QueryRow(ctx, `SELECT username, email, display_name, status FROM users WHERE id = $1`, g.AccountID).
-		Scan(&g.Username, &g.Email, &g.DisplayName, &status)
-	if errors.Is(err, pgx.ErrNoRows) || err == nil && status != "active" {
-		return nil, ErrSSODenied
-	} else if err != nil {
-		return nil, err
-	}
-	role, operator, err := n.SSOAccess(ctx, siteID, g.AccountID)
-	if err != nil {
-		return nil, err
-	}
-	if operator != g.Operator {
-		// The membership changed since the code was issued: sign in again.
-		return nil, ErrSSODenied
-	}
-	g.Role = role
-	if !operator {
-		if _, err := n.db.Exec(ctx, `UPDATE site_members SET last_sso_at = now() WHERE site_id = $1 AND account_id = $2`, siteID, g.AccountID); err != nil {
+	if refused == nil && !g.Operator {
+		if _, err := tx.Exec(ctx, `UPDATE site_members SET last_sso_at = now() WHERE site_id = $1 AND account_id = $2`, siteID, g.AccountID); err != nil {
 			return nil, err
 		}
 	}
+	// Commit even when refused: the code stays used.
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	if refused != nil {
+		return nil, refused
+	}
 	return &g, nil
+}
+
+// CheckSSOGrant tells whether a redeemed grant still holds, as
+// RedeemSSOCode checked it: ErrSSODenied once the site is no longer
+// served, or the account is disabled, deleted, no longer a member (or no
+// longer a network admin, for an operator).
+func (n *Network) CheckSSOGrant(ctx context.Context, siteID, accountID int64, operator bool) error {
+	return grantAccess(ctx, n.db, siteID, &SSOGrant{AccountID: accountID, Operator: operator}, false)
+}
+
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// grantAccess fills in the account and role of a grant on a site, or
+// returns ErrSSODenied: the site must be a served tenant, the account
+// active, and a member (or, for an operator, a network admin who is not
+// a member). With lock, in a transaction, it holds the rows it read until
+// the transaction ends.
+func grantAccess(ctx context.Context, q querier, siteID int64, g *SSOGrant, lock bool) error {
+	share, update := "", ""
+	if lock {
+		// The membership is updated next (last_sso_at): locked for that
+		// already, so two sign-ins at once do not deadlock upgrading.
+		share, update = " FOR SHARE", " FOR NO KEY UPDATE"
+	}
+	var kind, status string
+	err := q.QueryRow(ctx, `SELECT kind, status FROM sites WHERE id = $1`+share, siteID).Scan(&kind, &status)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrSSODenied
+	case err != nil:
+		return err
+	case kind != KindTenant || status != StatusActive && status != StatusPending:
+		return ErrSSODenied
+	}
+	err = q.QueryRow(ctx, `SELECT username, email, display_name, status FROM users WHERE id = $1`+share, g.AccountID).
+		Scan(&g.Username, &g.Email, &g.DisplayName, &status)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrSSODenied
+	case err != nil:
+		return err
+	case status != "active":
+		return ErrSSODenied
+	}
+	var role string
+	err = q.QueryRow(ctx, `SELECT role FROM site_members WHERE site_id = $1 AND account_id = $2`+update, siteID, g.AccountID).Scan(&role)
+	switch {
+	case err == nil && g.Operator:
+		return ErrSSODenied // a member since the code was issued: sign in again
+	case err == nil:
+		g.Role = role
+		return nil
+	case !errors.Is(err, pgx.ErrNoRows):
+		return err
+	case !g.Operator:
+		return ErrSSODenied
+	}
+	var one int
+	err = q.QueryRow(ctx, `SELECT 1 FROM network_admins WHERE account_id = $1`+share, g.AccountID).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrSSODenied
+	} else if err != nil {
+		return err
+	}
+	g.Role = auth.RoleAdmin
+	return nil
 }
 
 // SSOAccess returns the role an account signs in to a tenant site with:

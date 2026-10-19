@@ -72,15 +72,33 @@ func (b *browser) cookie(host, name string) *http.Cookie {
 }
 
 // portalSignIn signs the browser in to the portal as an account, as a
-// finished password and second-factor login would.
-func (b *browser) portalSignIn(accountID int64) {
+// finished password and second-factor login would, and returns the
+// session's CSRF token.
+func (b *browser) portalSignIn(accountID int64) string {
 	b.e.t.Helper()
-	token := auth.NewToken(32)
+	token, csrf := auth.NewToken(32), auth.NewToken(24)
 	if err := b.e.portal.CreateSession(b.e.ctx, store.Session{TokenHash: auth.HashToken(token), UserID: accountID,
-		CSRFToken: auth.NewToken(24), ExpiresAt: time.Now().Add(time.Hour), UserAgent: "test"}); err != nil {
+		CSRFToken: csrf, ExpiresAt: time.Now().Add(time.Hour), UserAgent: "test"}); err != nil {
 		b.e.t.Fatal(err)
 	}
 	b.jar.SetCookies(&url.URL{Scheme: "https", Host: "sap13ns.site"}, []*http.Cookie{{Name: "__Host-sap13ns", Value: token, Path: "/", Secure: true}})
+	return csrf
+}
+
+// networkAdmin creates a portal admin with a second factor who is also a
+// network admin, signed in on a new browser.
+func (e *netEnv) networkAdmin(name string) (int64, *browser, string) {
+	e.t.Helper()
+	id, err := e.portal.CreateUser(e.ctx, store.NewUser{Username: name, Email: name + "@example.com", Role: "admin", PasswordHash: "x"})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	e.mfa(id)
+	if err := e.n.AddNetworkAdmin(e.ctx, id, 0); err != nil {
+		e.t.Fatal(err)
+	}
+	b := e.browser()
+	return id, b, b.portalSignIn(id)
 }
 
 // siteSignIn signs the browser in to a site as one of its users and returns

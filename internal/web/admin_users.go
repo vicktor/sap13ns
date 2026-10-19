@@ -56,6 +56,9 @@ type userEditData struct {
 	Sessions []store.Session
 	Others   []store.User // reassignment targets when deleting
 	Self     bool
+	// Protected: a network admin's account on the portal, which only
+	// another network admin may change.
+	Protected bool
 }
 
 func (s *Server) adminUserNew(w http.ResponseWriter, r *http.Request) {
@@ -113,9 +116,42 @@ func (s *Server) loadUser(w http.ResponseWriter, r *http.Request) (*store.User, 
 	return u, true
 }
 
+// protectedAccount reports whether, on the portal, u is the account of a
+// network admin and the signed-in user is not one: whoever takes over that
+// account opens every site of the network as an operator, so only another
+// network admin may change it.
+func (s *Server) protectedAccount(r *http.Request, u *store.User) (bool, error) {
+	if s.portal == nil {
+		return false, nil
+	}
+	admin, err := s.portal.IsNetworkAdmin(r.Context(), u.ID)
+	if err != nil || !admin {
+		return false, err
+	}
+	actor, err := s.portal.IsNetworkAdmin(r.Context(), uid(r))
+	return !actor, err
+}
+
+// refuseProtected answers 403 to a change of a protected account.
+func (s *Server) refuseProtected(w http.ResponseWriter, r *http.Request, u *store.User) bool {
+	protected, err := s.protectedAccount(r, u)
+	if err != nil {
+		s.serverError(w, r, err)
+		return true
+	}
+	if protected {
+		s.audit(r, uid(r), "user.change_refused", u.Username, map[string]string{"reason": "network administrator", "path": r.URL.Path})
+		s.adminError(w, r, http.StatusForbidden, s.t("Only a network administrator can change the account of a network administrator."))
+	}
+	return protected
+}
+
 func (s *Server) userEditData(r *http.Request, u *store.User, msg string) (userEditData, error) {
 	d := userEditData{User: u, Roles: assignableRoles, Error: msg, Self: u.ID == uid(r)}
 	var err error
+	if d.Protected, err = s.protectedAccount(r, u); err != nil {
+		return d, err
+	}
 	if d.Sessions, err = s.store.ListUserSessions(r.Context(), u.ID); err != nil {
 		return d, err
 	}
@@ -155,7 +191,7 @@ func (s *Server) wouldRemoveLastAdmin(r *http.Request, u *store.User, newRole, n
 
 func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 	u, ok := s.loadUser(w, r)
-	if !ok {
+	if !ok || s.refuseProtected(w, r, u) {
 		return
 	}
 	edited := *u
@@ -220,11 +256,16 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// A role change or suspension must take effect immediately.
-		s.store.DeleteUserSessions(ctx, u.ID, nil)
+		if err := s.store.DeleteUserSessions(ctx, u.ID, nil); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
 		s.audit(r, uid(r), "user.role_changed", u.Username, map[string]string{"from": u.Role + "/" + u.Status, "to": role + "/" + status})
 		if status != u.Status {
 			// On the portal, the account's users on the network's sites
-			// follow its status.
+			// follow its status, applied once it changed here and its
+			// sessions are closed (a sign-in redeemed meanwhile is checked
+			// again, see confirmSSO).
 			if err := s.accountChanged(r, u.ID, false); err != nil {
 				s.serverError(w, r, err)
 				return
@@ -255,7 +296,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 	u, ok := s.loadUser(w, r)
-	if !ok {
+	if !ok || s.refuseProtected(w, r, u) {
 		return
 	}
 	ctx := r.Context()
@@ -312,7 +353,18 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 				s.serverError(w, r, err)
 				return
 			}
-			// Before the account goes: its memberships go with it.
+			// The account stops first, disabled and signed out, so nothing
+			// signs in with it while its users on the sites are revoked;
+			// then it goes, and its memberships with it. A failure leaves
+			// it disabled.
+			if err := s.store.UpdateUserRoleStatus(ctx, u.ID, u.Role, "disabled"); err != nil {
+				s.serverError(w, r, err)
+				return
+			}
+			if err := s.store.DeleteUserSessions(ctx, u.ID, nil); err != nil {
+				s.serverError(w, r, err)
+				return
+			}
 			if err := s.accountChanged(r, u.ID, true); err != nil {
 				s.serverError(w, r, err)
 				return

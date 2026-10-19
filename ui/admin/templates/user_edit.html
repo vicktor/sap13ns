@@ -8,6 +8,8 @@
   </div>
 </div>
 {{template "form-error" $d.Error}}
+{{if $d.Protected}}<div class="alert" role="status">{{icon "shield-check"}}<h2>{{T "This account administers the network"}}</h2>
+  <section>{{T "Only a network administrator can change it, close its sessions, reset its two-factor authentication or delete it."}}</section></div>{{end}}
 <div class="split">
   <section class="card">
     <section>
@@ -75,7 +77,7 @@
           {{if not $d.New}}<p class="hint">{{T "Leave empty to keep the current password. Changing it closes the user's sessions."}}</p>{{end}}
         </fieldset>
         {{end}}
-        <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{if $d.New}}{{T "Create user"}}{{else}}{{T "Save"}}{{end}}</button></div>
+        {{if not $d.Protected}}<div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{if $d.New}}{{T "Create user"}}{{else}}{{T "Save"}}{{end}}</button></div>{{end}}
       </form>
     </section>
   </section>
@@ -94,13 +96,15 @@
           {{if $u.LockedUntil}}{{if $u.LockedUntil.After now}}<div><dt>{{T "Locked until"}}</dt><dd class="text-destructive">{{dateTime $u.LockedUntil}}</dd></div>{{end}}{{end}}
         </dl>
       </section>
+      {{if not $d.Protected}}
       <footer class="stack-actions">
         <form method="post" action="/admin/users/{{$u.ID}}/logout">{{.CSRFField}}<button class="btn w-full" data-variant="outline" data-size="sm" type="submit">{{icon "log-out"}}{{T "Close all sessions"}}</button></form>
         {{if or $u.TOTPEnabled $u.PasskeyCount}}<form method="post" action="/admin/users/{{$u.ID}}/reset-2fa">{{.CSRFField}}<button class="btn w-full" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Disable two-factor authentication and delete the passkeys of this user? Do it only if they lost their device."}}">{{icon "shield"}}{{T "Reset two-factor"}}</button></form>{{end}}
         {{if or $u.LockedUntil $u.FailedLogins}}<form method="post" action="/admin/users/{{$u.ID}}/unlock">{{.CSRFField}}<button class="btn w-full" data-variant="outline" data-size="sm" type="submit">{{icon "lock"}}{{T "Unlock account"}}</button></form>{{end}}
       </footer>
+      {{end}}
     </section>
-    {{if not $d.Self}}
+    {{if not (or $d.Self $d.Protected)}}
     <section class="card danger-zone">
       <header><h2>{{T "Delete account"}}</h2><p>{{T "Comments stay; you can give their posts to someone else."}}</p></header>
       <section>

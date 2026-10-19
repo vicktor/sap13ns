@@ -54,6 +54,9 @@ type SSOClient interface {
 	// another site or callback, or whose verifier does not match, and
 	// ErrSSODenied when the account may not sign in to the site (any more).
 	RedeemSSO(ctx context.Context, code, verifier, redirectURI string) (*SSOGrant, error)
+	// CheckSSO tells whether a redeemed grant still holds: ErrSSODenied
+	// once the account lost its access to the site.
+	CheckSSO(ctx context.Context, g *SSOGrant) error
 }
 
 // An SSOGrant is a redeemed code: who signs in, and with which role.
@@ -289,6 +292,13 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	if err := s.confirmSSO(ctx, u, g); errors.Is(err, ErrSSODenied) {
+		fail(http.StatusForbidden, "revoked during the sign-in", s.t("Your sap13ns account does not have access to this site."))
+		return
+	} else if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	s.store.RecordLoginSuccess(ctx, u.ID)
 	s.audit(r, u.ID, action, u.Username, map[string]string{"method": method,
 		"network_account": strconv.FormatInt(g.AccountID, 10), "account": g.Username})
@@ -300,6 +310,27 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 var errSSOEmailTaken = errors.New("sso: a local user has the account's e-mail address")
+
+// confirmSSO checks a grant again once its user is synced and signed in.
+// A revocation (a membership removed, an account disabled) that ran
+// between the redemption and the sync was undone by the sync, so then the
+// user is disabled and signed out here; a revocation after this check
+// comes after the sync and does it itself. When the check fails, it fails
+// closed the same way: the next sign-in through the portal restores the
+// user.
+func (s *Server) confirmSSO(ctx context.Context, u *store.User, g *SSOGrant) error {
+	err := s.sso.CheckSSO(ctx, g)
+	if err == nil {
+		return nil
+	}
+	if _, _, rerr := s.store.SetNetworkAccess(ctx, g.AccountID, g.Operator, "", "disabled"); rerr != nil && !errors.Is(rerr, store.ErrNotFound) {
+		err = errors.Join(err, rerr)
+	}
+	if derr := s.store.DeleteUserSessions(ctx, u.ID, nil); derr != nil {
+		err = errors.Join(err, derr)
+	}
+	return err
+}
 
 // ssoUser returns the user an account signs in as, created on its first
 // sign-in, with the role, e-mail address and name the network gave. A
@@ -445,6 +476,14 @@ func (s *Server) finishSSOLink(w http.ResponseWriter, r *http.Request, st *ssoSt
 		"account": g.Username, "role": g.Role})
 	// A fresh session: the link and a role change close the old ones.
 	if err := s.newSession(w, r, u, false, store.AMRSSO); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if err := s.confirmSSO(ctx, u, g); errors.Is(err, ErrSSODenied) {
+		s.audit(r, u.ID, "sso.failed", g.Username, map[string]string{"reason": "revoked during the sign-in", "network_account": strconv.FormatInt(g.AccountID, 10)})
+		s.renderAuth(w, r, http.StatusForbidden, "login", s.t("Log in"), &authForm{Error: s.t("Your sap13ns account does not have access to this site."), Next: "/admin/profile"})
+		return
+	} else if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
