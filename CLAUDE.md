@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-sap13ns is a lightweight WordPress-style CMS. It ships as one Go binary (CGO off) with the whole UI embedded, and it runs on PostgreSQL behind nginx. README.md describes the features, docs/DEPLOY.md the production setup, docs/PLUGINS.md the plugin contract (manifest, hooks, host functions, permissions, scanner), and docs/SECURITY.md the security model that changes must keep.
+sap13ns is a lightweight WordPress-style CMS. It ships as one Go binary (CGO off) with the whole UI embedded, and it runs on PostgreSQL behind nginx. README.md describes the features, docs/DEPLOY.md the production setup, docs/PLUGINS.md the plugin contract (manifest, hooks, host functions, permissions, scanner), docs/MULTISITE.md the optional network of sites (SSO, billing with docs/BILLING.md, plan limits, custom domains), and docs/SECURITY.md the security model that changes must keep.
 
 ## Commands
 
@@ -25,9 +25,13 @@ make check                                   # vet + Go and JS tests + i18n + ev
 
 ## Architecture
 
-- **`cmd/sap13ns`:** the CLI: `serve`, `migrate`, `keygen`, `user`, `plugin`, `backup`, `assistant`, `update` and `version`. `serve` wires config → store → plugin host → `web.New`, starts the background loops, and listens on TCP or a Unix socket (`SAP13NS_LISTEN=unix:…`, group set by `SAP13NS_SOCKET_GROUP`).
+- **`cmd/sap13ns`:** the CLI: `serve`, `migrate`, `keygen`, `user`, `plugin`, `backup`, `assistant`, `update`, `version`, and on a network `network` and `site`. `serve` opens the site through `internal/siteapp` (config → store → plugin host → `web.New`, plus the background loops) and listens on TCP or a Unix socket (`SAP13NS_LISTEN=unix:…`, group set by `SAP13NS_SOCKET_GROUP`). With `SAP13NS_MULTISITE=true` it serves a network instead, and `user`, `plugin` and `assistant` need `-site`.
 - **`internal/config`:** every setting comes from `SAP13NS_*` environment variables, or from an env file given with `-env`.
-- **`internal/db`:** pgx pool plus embedded migrations `migrations/NNNN_name.sql`. They are applied in order on start, each in its own transaction. Add a new numbered file; never edit an applied one.
+- **`internal/db`:** pgx pool plus embedded migrations `migrations/NNNN_name.sql`. They are applied in order on start, each in its own transaction. Add a new numbered file; never edit an applied one. On a network the same site migrations run in every site schema (`site_N`, plus `network` for the portal), and `internal/network/migrations` holds the network's own tables.
+- **Multisite (`internal/network`, `internal/siteapp`):** off unless `SAP13NS_MULTISITE=true`; single-site keeps the plain code path.
+  - Each site is an ordinary `web.Server` with its own config, plugin host and a store on a `db.Scoped` handle, which pins the site's schema on a shared pool. A connection that was never scoped fails closed (`internal/db/scoped.go`).
+  - The registry loads sites on first request and unloads idle ones; the router maps the Host header to a site; the sweeps run cron, scheduled posts and maintenance for unloaded sites.
+  - `web` sees the network only through nil-safe hooks (`NetworkHooks`, `SSOClient`, `Portal`, `PortalBilling`, `SiteLimits` in `server.go`).
 - **`internal/store`:** all SQL lives here, one file per area. Runtime site settings, such as language, theme and AI configuration, are rows here, not config.
 - **`internal/web`:** the HTTP layer, with all routes in `routes.go`.
   - **Server state:** `Server` holds the settings snapshot (`s.settings()`, swapped atomically by `ReloadSettings`), the template sets, the page cache and the subsystems (AI, assistant, analytics, updates, plugins).
@@ -77,4 +81,5 @@ make check                                   # vet + Go and JS tests + i18n + ev
   - `netguard` for outbound HTTP;
   - the media type sniffing in `internal/media`;
   - archive extraction limits.
+- **Shared connections on a network:** SQL never changes session state (`SET search_path`, `SET ROLE`, `set_config` outside `internal/db`); `internal/db/lint_test.go` checks it. A site's data is read only through that site's scoped store, never the raw pool.
 - **Dev server ports:** the dev server listens on 8137, and a local llama-server may be running on 8080. Leave both alone when testing, and use a separate port and a database copy instead.
