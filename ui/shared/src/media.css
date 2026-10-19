@@ -1,0 +1,146 @@
+/* Videos and images in post content, for every theme and the editor.
+
+   Not in a layer, unlike the rest of shared.css: the themes style
+   ".prose img" and ".prose a" without one, and those rules must not reach
+   into the video player. The selectors carry an element and a class, so
+   they outrank a theme's ".article .prose img" while a theme can still
+   restyle the player with its own, more specific rules.
+
+   Tokens: --radius, --ring (focus), --primary (play button on hover). */
+
+/* ------------------------------------------------- click-to-load video --
+   content/video.go renders figure.sap-video > a.sap-video-link, a link to
+   the video page; static/video.js turns it into a button and, on click,
+   into the provider's player (iframe.sap-video-frame). */
+figure.sap-video {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  margin-inline: 0;
+  overflow: hidden;
+  border-radius: var(--radius, 0.75rem);
+  /* Dark in both modes: the poster and the players are dark too. */
+  background: radial-gradient(120% 90% at 50% 40%, #2b2d33 0%, #131417 70%);
+  color: #fff;
+  isolation: isolate;
+  clear: both;
+}
+figure.sap-video.sap-video-portrait { aspect-ratio: 9 / 16; width: min(100%, 22rem); margin-inline: auto; }
+figure.sap-video :is(a, button).sap-video-link {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+figure.sap-video :is(a, button).sap-video-link:hover { color: #fff; text-decoration: none; }
+figure.sap-video :is(a, button).sap-video-link:focus-visible { outline: 3px solid var(--ring, #3b82f6); outline-offset: -3px; }
+/* Shade at the top (title) and bottom, over any poster. */
+figure.sap-video :is(a, button).sap-video-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0) 34%, rgb(0 0 0 / 0) 72%, rgb(0 0 0 / 0.28));
+  pointer-events: none;
+}
+figure.sap-video img.sap-video-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+figure.sap-video span.sap-video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 4.5rem;
+  height: 3.15rem;
+  border-radius: 0.95rem;
+  background: rgb(18 18 20 / 0.78);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+  transform: translate(-50%, -50%);
+  transition: background-color 0.15s, transform 0.15s;
+}
+figure.sap-video span.sap-video-play::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.15rem;
+  height: 1.35rem;
+  background: #fff;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  transform: translate(-38%, -50%);
+}
+figure.sap-video :is(a, button).sap-video-link:is(:hover, :focus-visible) span.sap-video-play {
+  background: var(--primary, #e11d48);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+figure.sap-video :is(a, button).sap-video-link:hover img.sap-video-poster { transform: scale(1.02); }
+figure.sap-video span.sap-video-caption {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem 1.5rem;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
+}
+figure.sap-video span.sap-video-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-weight: 600;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+figure.sap-video span.sap-video-source { font-size: 0.8rem; opacity: 0.85; }
+figure.sap-video iframe.sap-video-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+@media (max-width: 480px) {
+  figure.sap-video span.sap-video-play { width: 3.6rem; height: 2.5rem; border-radius: 0.75rem; }
+  figure.sap-video span.sap-video-caption { padding: 0.6rem 0.75rem 1rem; font-size: 0.85rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  figure.sap-video img.sap-video-poster, figure.sap-video span.sap-video-play { transition: none; }
+  figure.sap-video :is(a, button).sap-video-link:hover img.sap-video-poster { transform: none; }
+}
+
+/* ----------------------------------------------- image size and wrap --
+   ![alt](src){width=480 align=left}: width and height are attributes
+   (the height keeps the space while the image loads), the alignment a
+   class. Left and right float, so the text flows around the image. */
+.entry-content, .editor-visual, .editor-preview { display: flow-root; }
+img.align-left, img.align-right { max-width: 60%; height: auto; }
+img.align-left { float: left; margin: 0.3em 1.5em 0.75em 0; }
+img.align-right { float: right; margin: 0.3em 0 0.75em 1.5em; }
+img.align-center { display: block; max-width: 100%; height: auto; margin-inline: auto; }
+img.align-full { display: block; width: 100%; max-width: 100%; height: auto; }
+img[width]:not(.align-full) { height: auto; }
+/* A heading, a list or a quote starts below the image, not beside it. */
+:is(.entry-content, .editor-visual, .editor-preview) :is(h2, h3, h4, hr, pre, table, .table-scroll, figure.sap-video, .md-video) { clear: both; }
+@media (max-width: 640px) {
+  img.align-left, img.align-right { float: none; display: block; width: 100%; max-width: 100%; margin: 1em 0; }
+}

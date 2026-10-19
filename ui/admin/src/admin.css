@@ -633,6 +633,8 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 
 /* Visual editor: surface, opaque blocks and popovers. */
 @import "./editor.css";
+/* The same video player and image alignment as the themes. */
+@import "../../shared/src/media.css";
 
 /* Theme customiser: controls panel and live preview. */
 @import "./customizer.css";

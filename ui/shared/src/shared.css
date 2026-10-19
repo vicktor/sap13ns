@@ -8,6 +8,8 @@
 
 /* Page builder regions and blocks (Appearance → Page builder). */
 @import "./blocks.css";
+/* Video players and image alignment in post content (unlayered). */
+@import "./media.css";
 
 @layer components {
   /* Customiser base size: every rem follows it (1 when not customised). */
