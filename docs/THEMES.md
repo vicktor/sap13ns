@@ -555,14 +555,14 @@ Themes are expected to meet WCAG 2.2 AA.
 | Footer | the footer widget columns (1 to 4) and a footer text, per language |
 | Home page | the large introduction, the post layout (list, grid or bento) and the posts per page |
 | Theme options | the options from `theme.json` |
-| Custom CSS | up to 32 KB of extra rules, served as a separate file after the theme's styles |
+| Custom CSS | up to 64 KB of extra rules, served as a separate file after the theme's styles (also editable in the page builder) |
 
 - **Drafts.** Every change is saved as a draft and shown in the live preview (desktop or mobile, light or dark). Only users with the appearance capability see drafts, through `?customize=draft`. Visitors keep the published design.
 - **Publish, discard, reset.** Publishing makes the draft live and writes its theme options to the theme's stored options. Discard drops the draft. Reset starts a draft with nothing customised, so publishing it restores the theme's own look.
 - **Revisions.** The last 10 published versions are kept. Restoring one copies it into the draft.
 - **Export and import.** The export is one JSON file with the design, the theme options in effect and the page builder's layouts. Importing validates the whole file before changing anything, then replaces the drafts of what the file carries: the design, the layouts, or both.
 - **Inactive themes** can be customised too. What is published applies when the theme is activated.
-- **Validation.** Colours must be hex values, every other setting is a named choice, and fonts and logos must be files in the media library. Custom CSS may not use `@import`, external `url()`, functions that fetch resources or legacy script hooks, and it may not name `footer-meta`. Only users with the appearance capability can upload WOFF2 fonts.
+- **Validation.** Colours must be hex values, every other setting is a named choice, and fonts and logos must be files in the media library. Custom CSS may not use `@import`, `url()` to other sites (site paths, paths relative to the stylesheet, `#fragments` and `data:` images are fine), functions that fetch resources, legacy script hooks (`expression()`, `behavior`, `-moz-binding`), `javascript:` or `</style`, and it may not name `footer-meta`. Brackets must balance. Only users with the appearance capability can upload WOFF2 fonts.
 
 **What a theme does to support it:**
 
@@ -576,8 +576,10 @@ Themes are expected to meet WCAG 2.2 AA.
 
 **Appearance → Page builder** replaces a theme's regions with layouts made of sections, columns and blocks. Each theme has its own layouts.
 
+- **Starting.** A region that has no layout uses the theme's template, which is fixed: the structure panel says so and offers the ways to start, which are a ready-made page (front page only), the theme-neutral starter (a hero, the post list, the post content…) or an empty layout. Only then are there sections and blocks to add and drag. **Use the theme's design** goes back to the template. A theme with its own front page (onepage) opens the builder on the front page, and its admin note links to the One-page preset.
 - **Regions.** The header and the footer (on every page), and one main area per page type: the front page (a landing page, shown when **Settings → Reading** picks the theme's front page; see [Front pages](#front-pages-and-one-page-sites)), the latest posts, posts, pages, archives, search results and not found.
 - **Sections** have a column layout (`1`, `1-1`, `2-1`, `1-2` or `1-1-1`; columns stack on small screens) and a style: background (none, muted, card, primary, accent, inverted), spacing, width (content, narrow, wide, full) and alignment.
+- **CSS classes.** A section and an HTML block can have up to 5 class names (`[a-z][a-z0-9-]*`, separated by spaces), added to their element for the theme's custom CSS. The section with the footer credits takes none.
 - **Anchors.** A section can have an anchor (`features` makes it `#features`): 1 to 40 lower-case letters, digits and hyphens, starting with a letter, unique in its region, and not `main`, `menu`, `primary-menu`, `comments`, `respond`, `search` or `sap-…`. A menu link or a button to `#features` scrolls to it, on the front page or, through `/#features`, from any other.
 - **Presets.** An empty front page offers two ready-made pages: **Landing** (hero, features, testimonials, pricing and a call to action, with `#features`, `#pricing` and `#contact`) and **One-page site** (sections with anchors: `#intro`, `#about`, `#services`, `#testimonials`, `#faq`, `#contact`). Their texts are written in the site's main language, with translations for the others, and stay editable.
 - **Limits.** 40 sections per region, 40 blocks per column, 600 blocks in all, and at most 30 items per landing block (6 plans, 8 figures, 12 features or testimonials, 24 logos).
@@ -585,7 +587,7 @@ Themes are expected to meet WCAG 2.2 AA.
 | Block | Where |
 |---|---|
 | Site header: brand, menu, search, language switch, light/dark toggle | header, once |
-| Menu, Search, Hero, Widget area, Text (Markdown), Image, Button, Spacer or divider, Social links | anywhere |
+| Menu, Search, Hero, Widget area, Text (Markdown), HTML, Image, Button, Spacer or divider, Social links | anywhere, the header and footer included |
 | Breadcrumbs | posts, pages, archives, search, not found; once |
 | Features, Stats, Testimonials, Pricing, Questions and answers, Logos, Call to action (the landing blocks, each with its list of items) | anywhere |
 | Post list (grid, list or bento) | front page, home, archives, search; once |
@@ -595,6 +597,8 @@ Themes are expected to meet WCAG 2.2 AA.
 | Footer line and credits | footer; always there |
 
 - **Validation.** Every block is checked against its schema: settings are typed, links accept `https:`, `http:`, site paths, `#…`, `mailto:` and `tel:`, and appearance is always a named choice.
+- **HTML block.** Up to 50,000 characters per language of the owner's own markup, sanitised when saved and again when rendered (`content.SanitizeHTMLBlock`, bluemonday). It keeps structural and text elements, links, images, lists, tables, `figure`, `details` and `summary`, `class` and `id`, a fixed set of `aria-*` attributes and `role`, and `data-*` attributes other than the ones the site's scripts act on (`data-video-*`, `data-form`, `data-icon`…). Scripts, `<style>`, `style=""`, event handlers, iframes, objects, forms and `javascript:` or `data:` links are removed: the CSP would block most of them anyway. Videos keep their own path (a Markdown link in a Text block). An option applies the theme's text styles (`prose`).
+- **Custom CSS** is the customiser's (see [The customiser](#the-customiser)), edited in the builder's **Custom CSS** panel too. It is saved into the design's draft, so the preview shows it. **Publish** in the builder publishes it with the layout as a new design version and leaves the design's other unpublished changes in the draft; **Discard draft** puts the published CSS back.
 - **Landing blocks.** Each item has its own fields: a feature's icon, title and text; a plan's name, price, period, description, features (one per line), button and highlight; a question and its answer, in Markdown through the content pipeline. Icons come from a fixed list of Lucide icons compiled into the binary and images from the media library. Pricing is written by hand and never reads a network's plans. An item without its main text (a question without an answer, a logo without an image…) is left out of the page.
 - **Languages.** Text settings have a main value and an optional translation per site language. A missing translation shows the main value.
 - **Drafts and publishing** work like the customiser's: a draft shows only in the preview, publishing makes it live, the last 10 published versions are kept, and the layouts travel in the customiser's export file.

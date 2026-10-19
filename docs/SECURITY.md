@@ -82,8 +82,10 @@ On a network of sites, a site's administrators are trusted on their own site onl
 - **Designs and layouts** are validated against a schema:
   - colours are hex values, while fonts, scales, section styles and block appearance are named choices, so a page only ever gets known classes;
   - links in blocks accept `https:`, `http:`, site paths, `#…`, `mailto:` and `tel:`, never `javascript:` or `data:`;
-  - Markdown in blocks goes through the content pipeline.
-- **Custom CSS** is tokenised the way browsers read it. `@import`, external `url()`, resource-building functions and legacy script hooks are refused. It is served as a same-origin stylesheet under the strict CSP, never inlined.
+  - Markdown in blocks goes through the content pipeline;
+  - the HTML block is sanitised by `content.HTMLBlockPolicy` (bluemonday) when it is saved and again when it is rendered: no scripts, styles, event handlers, frames, objects, forms or `javascript:` and `data:` links, and no `data-*` attribute that the site's own scripts act on (the video player's `data-video-src`, plugin forms' `data-form`…);
+  - CSS class fields take at most 5 names of `[a-z][a-z0-9-]*`, and the footer credits' section takes none.
+- **Custom CSS** (up to 64 KB) is tokenised the way browsers read it, escapes decoded. `@import` and the other unlisted at-rules, `url()` to anything but a site path, a relative path, a fragment or a `data:` image, resource-building functions, legacy script hooks (`expression()`, `behavior`, `-moz-binding`), `javascript:`, `vbscript:`, `</style` and unbalanced brackets are refused; `scroll-behavior` and the like stay allowed. It is served as a same-origin `text/css` stylesheet with `nosniff` under the strict CSP, never inlined. Only users with the appearance capability can change it, from the customiser or the page builder (`POST …/builder/css`, JSON with the CSRF token).
 - **Fonts:** only users with the appearance capability can upload WOFF2 files, because uploaded fonts end up in the site's stylesheet.
 - **Attribution:** the page builder always puts the footer credit back, and custom CSS cannot name `footer-meta`. CSS can still hide the credit in other ways, and sap13ns does not try to prevent that. Keeping the "Powered by sap13ns" attribution visible is the operator's obligation under CPAL-1.0 (Exhibit B).
 

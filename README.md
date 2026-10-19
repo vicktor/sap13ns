@@ -97,7 +97,7 @@ Themes are Go templates plus static files. They can be previewed before you swit
 - **WordPress themes:** a WordPress block theme (Twenty Twenty-Five, Ollie…) uploads as it is: it is converted into a sap13ns theme, with a report of what was kept and left out, its palette wired to the customiser and a derived dark mode. None of its PHP runs ([docs/THEME-IMPORT.md](docs/THEME-IMPORT.md)).
 
 - **Customiser:** colours, fonts (self-hosted WOFF2), radius, density, header and footer, with a live preview. Changes stay a draft until published, with ten revisions and export/import.
-- **Page builder:** 25 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, image, button, …) arranged per region and page type. Page types you have not built keep the theme's own template.
+- **Page builder:** 26 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, your own HTML, image, button, …) arranged per region and page type, with drag and drop, undo and a live preview. Page types you have not built keep the theme's own template until you start from a preset or an empty layout. Sections and HTML blocks take CSS classes for the theme's custom CSS, which the builder edits too. HTML is sanitised and the CSS checked, so neither can run scripts.
 - **Landing pages:** seven landing blocks (features, figures, testimonials, pricing written by hand, questions and answers, logos, call to action), section anchors for one-page menus, and a front page region that starts from a **Landing** or **One-page site** preset in any theme.
 
 See [docs/THEMES.md](docs/THEMES.md) for writing a theme.

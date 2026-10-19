@@ -47,7 +47,7 @@ Each theme defines its colours for both modes. A tiny script that ships with the
 
 Themes declare their options in a manifest and the admin panel builds the form: accent colours, whether to show the large introduction on the home page, featured images in cards, a sidebar, and so on. Menus and widget areas are declared the same way, and you fill them from **Appearance** in the admin.
 
-Two tools go further without editing a theme. The **customiser** changes its colours, fonts, corner radius, density, header and footer, with a live preview in light and dark mode and contrast warnings. The **page builder** lays out the header, the footer and each type of page from sections, columns and blocks; a page type you have not built keeps the theme's own template. Both keep changes as a draft until you publish them, keep the last ten published versions, and export and import their work as one file.
+Two tools go further without editing a theme. The **customiser** changes its colours, fonts, corner radius, density, header and footer, with a live preview in light and dark mode and contrast warnings. The **page builder** lays out the header, the footer and each type of page from sections, columns and blocks, including blocks of your own HTML, and edits the theme's custom CSS; a page type you have not built keeps the theme's own template. Both keep changes as a draft until you publish them, keep the last ten published versions, and export and import their work as one file.
 
 ## Landing pages and one-page sites
 

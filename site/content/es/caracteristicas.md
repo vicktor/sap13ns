@@ -67,7 +67,7 @@ La portada no tiene por qué listar entradas. Puede ser una landing o una web de
 
 ### Personalizador y constructor de páginas
 
-El personalizador cambia los colores, las fuentes, el redondeo de las esquinas, la densidad, la cabecera y el pie de un tema sin tocar sus archivos, con una vista previa en directo en claro y en oscuro. El constructor de páginas monta la cabecera, el pie y cada tipo de página con secciones, columnas y bloques. Los dos guardan tus cambios como borrador hasta que los publicas y conservan las diez últimas versiones publicadas.
+El personalizador cambia los colores, las fuentes, el redondeo de las esquinas, la densidad, la cabecera y el pie de un tema sin tocar sus archivos, con una vista previa en directo en claro y en oscuro. El constructor de páginas monta la cabecera, el pie y cada tipo de página con secciones, columnas y bloques, entre ellos tu propio HTML, y da a las secciones clases CSS para tu CSS personalizado. Los dos guardan tus cambios como borrador hasta que los publicas y conservan las diez últimas versiones publicadas.
 
 ### Imágenes OG automáticas
 

@@ -47,7 +47,7 @@ Cada tema define sus colores para los dos modos. Un script mínimo que viene con
 
 Los temas declaran sus opciones en un manifiesto y el panel construye el formulario: colores de acento, si se muestra la presentación grande en la portada, imágenes destacadas en las tarjetas, barra lateral, etcétera. Los menús y las zonas de widgets se declaran igual y se rellenan desde la sección **Appearance** (Apariencia) del panel.
 
-Dos herramientas van más allá sin editar el tema. El **personalizador** cambia sus colores, sus fuentes, el redondeo de las esquinas, la densidad, la cabecera y el pie, con una vista previa en directo en modo claro y oscuro y avisos de contraste. El **constructor de páginas** monta la cabecera, el pie y cada tipo de página con secciones, columnas y bloques; un tipo de página que no hayas montado conserva la plantilla del tema. Los dos guardan los cambios como borrador hasta que los publicas, conservan las diez últimas versiones publicadas y exportan e importan su trabajo en un solo archivo.
+Dos herramientas van más allá sin editar el tema. El **personalizador** cambia sus colores, sus fuentes, el redondeo de las esquinas, la densidad, la cabecera y el pie, con una vista previa en directo en modo claro y oscuro y avisos de contraste. El **constructor de páginas** monta la cabecera, el pie y cada tipo de página con secciones, columnas y bloques, también bloques con tu propio HTML, y edita el CSS personalizado del tema; un tipo de página que no hayas montado conserva la plantilla del tema. Los dos guardan los cambios como borrador hasta que los publicas, conservan las diez últimas versiones publicadas y exportan e importan su trabajo en un solo archivo.
 
 ## Landings y webs de una sola página
 

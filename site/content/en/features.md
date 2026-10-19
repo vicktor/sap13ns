@@ -67,7 +67,7 @@ The front page does not have to list posts. It can be a landing page or a one-pa
 
 ### Customiser and page builder
 
-The customiser changes a theme's colours, fonts, corner radius, density, header and footer without touching its files, with a live preview in light and dark. The page builder lays out the header, the footer and each type of page from sections, columns and blocks. Both keep your changes as a draft until you publish them, and keep the last ten published versions.
+The customiser changes a theme's colours, fonts, corner radius, density, header and footer without touching its files, with a live preview in light and dark. The page builder lays out the header, the footer and each type of page from sections, columns and blocks, your own HTML among them, and gives sections CSS classes for your custom CSS. Both keep your changes as a draft until you publish them, and keep the last ten published versions.
 
 ### Automatic OG images
 
