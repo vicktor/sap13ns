@@ -3,6 +3,10 @@
 <header><h1>{{T "Log in"}}</h1><p>{{T "Welcome back. Enter your details to continue."}}</p></header>
 <section>
   {{template "form-alerts" .D}}
+  {{if .D.SSO}}
+  <a class="btn w-full" href="/sso/start?next={{.D.Next}}">{{icon "log-in"}}{{T "Sign in with your sap13ns account"}}</a>
+  <div class="auth-divider"><span>{{T "or"}}</span></div>
+  {{end}}
   <form method="post" action="/login" class="form auth-form">
     <input type="hidden" name="next" value="{{.D.Next}}">
     <div class="field">

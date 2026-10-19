@@ -30,6 +30,9 @@ type User struct {
 	// NetworkAccountID links the user to an account of the network portal
 	// (multisite only); nil is a local user.
 	NetworkAccountID *int64 `db:"network_account_id"`
+	// NetworkOperator marks the user a network admin signs in as when they
+	// open a site they are not a member of.
+	NetworkOperator bool `db:"network_operator"`
 }
 
 // SSOPasswordHash is the password hash of users created by single sign-on.
@@ -48,11 +51,15 @@ func (u *User) Name() string {
 // portal: they have no password of their own to reset.
 func (u *User) SSOOnly() bool { return u.PasswordHash == SSOPasswordHash }
 
+// Linked reports whether the network decides the user's role and status:
+// the linked user of a member, or an operator user.
+func (u *User) Linked() bool { return u.NetworkAccountID != nil }
+
 const userCols = `id, username, email, display_name, bio, website, role, status, password_hash,
 	totp_secret, totp_enabled, totp_last_step, recovery_codes, failed_logins, locked_until,
 	created_at, updated_at, last_login_at,
 	(SELECT count(*)::int FROM passkeys k WHERE k.user_id = users.id) AS passkey_count,
-	network_account_id`
+	network_account_id, network_operator`
 
 func (s *Store) userBy(ctx context.Context, where string, arg any) (*User, error) {
 	rows, err := s.DB.Query(ctx, `SELECT `+userCols+` FROM users WHERE `+where, arg)
@@ -75,9 +82,15 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 	return s.userBy(ctx, `lower(email) = lower($1)`, email)
 }
 
-// UserByNetworkAccount returns the user linked to a network account.
+// UserByNetworkAccount returns the user linked to a network account (not
+// its operator user).
 func (s *Store) UserByNetworkAccount(ctx context.Context, accountID int64) (*User, error) {
-	return s.userBy(ctx, `network_account_id = $1`, accountID)
+	return s.userBy(ctx, `network_account_id = $1 AND NOT network_operator`, accountID)
+}
+
+// OperatorUser returns the operator user of a network admin's account.
+func (s *Store) OperatorUser(ctx context.Context, accountID int64) (*User, error) {
+	return s.userBy(ctx, `network_account_id = $1 AND network_operator`, accountID)
 }
 
 // UserByLogin accepts either a username or an e-mail address.
@@ -145,6 +158,7 @@ func (s *Store) CreateUser(ctx context.Context, n NewUser) (int64, error) {
 // NewSSOUser is a user created on a site at their first single sign-on.
 type NewSSOUser struct {
 	NetworkAccountID int64
+	Operator         bool // the operator user of a network admin
 	Username         string
 	Email            string
 	DisplayName      string
@@ -155,13 +169,101 @@ type NewSSOUser struct {
 // of their own. A taken username or e-mail address returns ErrConflict
 // naming the constraint (users_username_key, users_email_key), so the
 // caller can pick another username; a local user with the same e-mail is
-// never linked here.
+// never linked here. An account that already has such a user is a
+// conflict on users_network_account_id_key.
 func (s *Store) CreateSSOUser(ctx context.Context, n NewSSOUser) (int64, error) {
 	var id int64
-	err := s.DB.QueryRow(ctx, `INSERT INTO users (username, email, display_name, role, password_hash, network_account_id)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		n.Username, n.Email, n.DisplayName, n.Role, SSOPasswordHash, n.NetworkAccountID).Scan(&id)
+	err := s.DB.QueryRow(ctx, `INSERT INTO users (username, email, display_name, role, password_hash, network_account_id, network_operator)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		n.Username, n.Email, n.DisplayName, n.Role, SSOPasswordHash, n.NetworkAccountID, n.Operator).Scan(&id)
 	return id, mapErr(err)
+}
+
+// NetworkProfile is what a single sign-on brings to the user of a network
+// account: the account's e-mail address and name, and the role it has on
+// the site.
+type NetworkProfile struct {
+	Email       string
+	DisplayName string
+	Role        string
+}
+
+// SyncNetworkUser applies a single sign-on to a linked or operator user:
+// role, e-mail address and name from the network, and the status active,
+// since the network has just let them in. A role change deletes the
+// user's sessions, which were opened with the old role (maybe without the
+// second factor the new one needs). An e-mail address another user has is
+// ErrConflict, and nothing changes then.
+func (s *Store) SyncNetworkUser(ctx context.Context, id int64, p NetworkProfile) error {
+	return mapErr(s.InTx(ctx, func(tx pgx.Tx) error {
+		var old string
+		if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 AND network_account_id IS NOT NULL FOR UPDATE`, id).Scan(&old); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE users SET role = $2, email = $3, display_name = $4, status = 'active', updated_at = now()
+			WHERE id = $1`, id, p.Role, p.Email, p.DisplayName); err != nil {
+			return err
+		}
+		if old == p.Role {
+			return nil
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM sessions WHERE user_id = $1`, id)
+		return err
+	}))
+}
+
+// SetNetworkAccess applies a decision of the network to the user of a
+// network account (operator: its operator user), loaded site or not: the
+// role ("" keeps it) and the status. When either changes, the user's
+// sessions are deleted, so that a removal takes effect at once and a new
+// role only after a new sign-in. It returns the user's username and
+// whether anything changed; ErrNotFound when the account has no such user.
+func (s *Store) SetNetworkAccess(ctx context.Context, accountID int64, operator bool, role, status string) (string, bool, error) {
+	var (
+		username string
+		changed  bool
+	)
+	err := s.InTx(ctx, func(tx pgx.Tx) error {
+		var (
+			id                 int64
+			oldRole, oldStatus string
+		)
+		if err := tx.QueryRow(ctx, `SELECT id, username, role, status FROM users
+			WHERE network_account_id = $1 AND network_operator = $2 FOR UPDATE`, accountID, operator).Scan(&id, &username, &oldRole, &oldStatus); err != nil {
+			return err
+		}
+		if role == "" {
+			role = oldRole
+		}
+		if role == oldRole && status == oldStatus {
+			return nil
+		}
+		changed = true
+		if _, err := tx.Exec(ctx, `UPDATE users SET role = $2, status = $3, updated_at = now() WHERE id = $1`, id, role, status); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM sessions WHERE user_id = $1`, id)
+		return err
+	})
+	return username, changed, mapErr(err)
+}
+
+// A LinkedUser is a user whose access the network decides.
+type LinkedUser struct {
+	ID        int64  `db:"id"`
+	AccountID int64  `db:"network_account_id"`
+	Operator  bool   `db:"network_operator"`
+	Username  string `db:"username"`
+	Role      string `db:"role"`
+	Status    string `db:"status"`
+}
+
+// LinkedUsers lists the users of network accounts, operator users
+// included.
+func (s *Store) LinkedUsers(ctx context.Context) ([]LinkedUser, error) {
+	rows, err := s.DB.Query(ctx, `SELECT id, network_account_id, network_operator, username, role, status
+		FROM users WHERE network_account_id IS NOT NULL ORDER BY id`)
+	return collect[LinkedUser](rows, err)
 }
 
 // LinkNetworkAccount links a local user to a network account, which the

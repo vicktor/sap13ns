@@ -1,0 +1,8 @@
+{{template "auth" .}}
+{{define "content"}}
+<header><h1>{{T "Single sign-on"}}</h1></header>
+<section>
+  {{template "form-alerts" .D}}
+</section>
+<footer><p><a href="/">{{icon "arrow-left" "size-3.5"}} {{T "Back to the homepage"}}</a></p></footer>
+{{end}}

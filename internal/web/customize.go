@@ -298,7 +298,7 @@ func (s *Server) loadPublished(ctx context.Context, th *theme.Theme, gen uint64)
 // appearance capability, with the second factor the admin would demand.
 func (s *Server) canCustomize(r *http.Request) bool {
 	u := currentUser(r)
-	return u != nil && auth.Can(u.Role, auth.CapAppearance) && !s.mustEnroll2FA(u)
+	return u != nil && auth.Can(u.Role, auth.CapAppearance) && !s.mustEnroll2FA(r, u)
 }
 
 // wantsDraft reports whether this request should render the draft design.

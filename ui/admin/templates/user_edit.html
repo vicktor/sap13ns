@@ -19,10 +19,19 @@
           <input class="input" id="username" name="username" value="{{$u.Username}}" required minlength="3" maxlength="32" pattern="[a-z0-9][a-z0-9_.\-]{2,31}" autocapitalize="none" spellcheck="false" autocomplete="off">
         </div>
         {{end}}
+        {{if $u.Linked}}
+        <div class="alert" role="status">{{icon "link"}}<h2>{{if $u.NetworkOperator}}{{T "A network administrator who opened this site"}}{{else}}{{T "Linked to a sap13ns account"}}{{end}}</h2>
+          <section>{{T "The network decides the role and the access of this user, and their name and e-mail address come from their account."}}</section></div>
+        <div class="grid-2">
+          <div class="field"><label for="display_name">{{T "Public name"}}</label><input class="input" id="display_name" value="{{$u.DisplayName}}" disabled></div>
+          <div class="field"><label for="email">{{T "E-mail"}}</label><input class="input" id="email" type="email" value="{{$u.Email}}" disabled></div>
+        </div>
+        {{else}}
         <div class="grid-2">
           <div class="field"><label for="display_name">{{T "Public name"}}</label><input class="input" id="display_name" name="display_name" value="{{$u.DisplayName}}" maxlength="100"></div>
           <div class="field"><label for="email">{{T "E-mail"}}</label><input class="input" id="email" name="email" type="email" value="{{$u.Email}}" required maxlength="254"></div>
         </div>
+        {{end}}
         {{if not $d.New}}
         <div class="field"><label for="website">{{T "Website"}}</label><input class="input" id="website" name="website" type="url" value="{{$u.Website}}" maxlength="300" placeholder="https://"></div>
         <div class="field"><label for="bio">{{T "Biography"}}</label><textarea class="textarea" id="bio" name="bio" rows="3" maxlength="2000">{{$u.Bio}}</textarea></div>
@@ -30,15 +39,15 @@
         <div class="grid-2">
           <div class="field">
             <label for="role">{{T "Role"}}</label>
-            <select class="select w-full" id="role" name="role"{{if $d.Self}} disabled{{end}}>
+            <select class="select w-full" id="role" name="role"{{if or $d.Self $u.Linked}} disabled{{end}}>
               {{range $d.Roles}}<option value="{{.}}"{{if eq . $u.Role}} selected{{end}}>{{roleLabel .}}</option>{{end}}
             </select>
-            {{if $d.Self}}<p class="hint">{{T "You cannot change your own role."}}</p>{{end}}
+            {{if $u.Linked}}<p class="hint">{{T "Managed by the network."}}</p>{{else if $d.Self}}<p class="hint">{{T "You cannot change your own role."}}</p>{{end}}
           </div>
           {{if not $d.New}}
           <div class="field">
             <label for="status">{{T "Account"}}</label>
-            <select class="select w-full" id="status" name="status"{{if $d.Self}} disabled{{end}}>
+            <select class="select w-full" id="status" name="status"{{if or $d.Self $u.Linked}} disabled{{end}}>
               <option value="active"{{if eq $u.Status "active"}} selected{{end}}>{{T "Active"}}</option>
               <option value="disabled"{{if eq $u.Status "disabled"}} selected{{end}}>{{T "Disabled (cannot log in)"}}</option>
             </select>
@@ -55,6 +64,7 @@
             <li><strong>{{roleLabel "subscriber"}}</strong>: {{T "manages their profile and comments."}}</li>
           </ul>
         </details>
+        {{if not $u.SSOOnly}}
         <fieldset class="fieldset">
           <legend>{{if $d.New}}{{T "Password"}}{{else}}{{T "Set a new password"}}{{end}}</legend>
           <div class="grid-2">
@@ -64,6 +74,7 @@
           <div class="strength" id="pw-strength" aria-live="polite"><span></span></div>
           {{if not $d.New}}<p class="hint">{{T "Leave empty to keep the current password. Changing it closes the user's sessions."}}</p>{{end}}
         </fieldset>
+        {{end}}
         <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{if $d.New}}{{T "Create user"}}{{else}}{{T "Save"}}{{end}}</button></div>
       </form>
     </section>

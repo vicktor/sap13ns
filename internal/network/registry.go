@@ -418,7 +418,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	p := siteapp.Params{
 		Config: cfg, Store: store.New(h), Log: r.log.With("site", s.ID), UI: r.o.UI, Mailer: r.mailer,
 		Blocklist:  filepath.Join(r.cfg.DataDir, "plugin-blocklist.txt"),
-		Network:    hooks{r: r, id: s.ID},
+		Network:    siteHooks{hooks{r: r, id: s.ID}},
 		Hosts:      rt.aliases(),
 		CacheSizes: siteCaches,
 		Plugins:    siteapp.PluginLimits{Cache: r.cache, MemoryLimitPages: pluginPages, MaxInstances: pluginInstances, Limit: r.limit},
@@ -427,6 +427,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	}
 	if s.Kind == KindNetwork {
 		p.Updates = r.o.Updates
+		p.Network = portalHooks{hooks{r: r, id: s.ID}}
 	}
 	app, err := siteapp.Open(ctx, p)
 	if err != nil {
@@ -630,17 +631,5 @@ func (r *Registry) listenOnce() error {
 		if err := r.Refresh(r.ctx); err != nil {
 			r.log.Error("network host table", "err", err)
 		}
-	}
-}
-
-// hooks connect a site's server to the registry.
-type hooks struct {
-	r  *Registry
-	id int64
-}
-
-func (h hooks) Wakeup(ctx context.Context, at time.Time) {
-	if err := h.r.net.WakeAt(ctx, h.id, at); err != nil {
-		h.r.log.Error("schedule wake-up", "site", h.id, "err", err)
 	}
 }

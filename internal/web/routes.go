@@ -66,6 +66,17 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /setup", s.handleSetupForm)
 	mux.HandleFunc("POST /setup", s.handleSetup)
 
+	// Single sign-on through the network portal (sso.go): a tenant site
+	// starts it and receives the code, the portal issues the code.
+	if s.sso != nil {
+		mux.HandleFunc("GET /sso/start", s.handleSSOStart)
+		mux.HandleFunc("GET "+ssoCallback, s.handleSSOCallback)
+		admin("POST /admin/profile/network/link", auth.CapAdminPanel, s.adminNetworkLink)
+	}
+	if s.portal != nil {
+		mux.HandleFunc("GET /sso/authorize", s.handleSSOAuthorize)
+	}
+
 	// Administration.
 	mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/", http.StatusMovedPermanently)

@@ -266,8 +266,15 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 	})
 }
 
-// startSession issues a fresh session (never reusing an old identifier).
+// startSession issues a fresh session (never reusing an old identifier),
+// authenticated on this site.
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User, mfaPending bool) error {
+	return s.newSession(w, r, u, mfaPending, store.AMRLocal)
+}
+
+// newSession issues a fresh session authenticated as amr says
+// (store.AMRLocal, AMRSSO, AMRSSOOperator).
+func (s *Server) newSession(w http.ResponseWriter, r *http.Request, u *store.User, mfaPending bool, amr string) error {
 	if old, err := r.Cookie(s.cookieName()); err == nil {
 		s.store.DeleteSession(r.Context(), auth.HashToken(old.Value))
 	}
@@ -283,7 +290,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 	}
 	err := s.store.CreateSession(r.Context(), store.Session{
 		TokenHash: auth.HashToken(token), UserID: u.ID, CSRFToken: auth.NewToken(24),
-		MFAPending: mfaPending, ExpiresAt: expires, IP: clientIP(r), UserAgent: ua,
+		MFAPending: mfaPending, ExpiresAt: expires, IP: clientIP(r), UserAgent: ua, AMR: amr,
 	})
 	if err != nil {
 		return err
@@ -336,7 +343,7 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		if s.mustEnroll2FA(u) && !strings.HasPrefix(r.URL.Path, "/admin/profile") {
+		if s.mustEnroll2FA(r, u) && !strings.HasPrefix(r.URL.Path, "/admin/profile") {
 			s.flash(w, "warning", s.t("Two-factor authentication is required for your role. Set it up to continue."))
 			http.Redirect(w, r, "/admin/profile/2fa", http.StatusSeeOther)
 			return
@@ -349,11 +356,16 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// mustEnroll2FA reports whether u has to set up a second factor before
-// using the admin. Two-factor authentication is mandatory for staff; a
-// passkey counts as one.
-func (s *Server) mustEnroll2FA(u *store.User) bool {
+// mustEnroll2FA reports whether u, signed in by r, has to set up a second
+// factor before using the admin. Two-factor authentication is mandatory
+// for staff; a passkey counts as one, and so does a single sign-on through
+// the network portal, which required the second factor before letting
+// staff in.
+func (s *Server) mustEnroll2FA(r *http.Request, u *store.User) bool {
 	if hasSecondFactor(u) || !auth.Can(u.Role, auth.CapAdminPanel) {
+		return false
+	}
+	if sess := rctx(r).Session; sess != nil && sess.UserID == u.ID && strings.HasPrefix(sess.AMR, store.AMRSSO) {
 		return false
 	}
 	if s.cfg.Dev && s.cfg.DevSkip2FA {

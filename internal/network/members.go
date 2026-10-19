@@ -2,12 +2,14 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/store"
 )
 
 // A Member is a network account with a role on a site. The membership is
@@ -48,12 +50,13 @@ func (n *Network) Member(ctx context.Context, siteID, accountID int64) (*Member,
 
 // SetMember adds an account to a tenant site, or changes its role there.
 // invitedBy is 0 when nobody invited them (the CLI). The owner stays an
-// admin.
+// admin. The account's linked user on the site, if any, takes the role
+// at once (its sessions end, so the new role needs a new sign-in).
 func (n *Network) SetMember(ctx context.Context, siteID, accountID int64, role string, invitedBy int64) error {
 	if !auth.ValidRole(role) {
 		return fmt.Errorf("%w: role %q", ErrInvalid, role)
 	}
-	return n.mutate(ctx, siteID, func(tx pgx.Tx) error {
+	err := n.mutate(ctx, siteID, func(tx pgx.Tx) error {
 		var owner int64
 		if err := tx.QueryRow(ctx, `SELECT owner_id FROM sites WHERE id = $1 AND kind = 'tenant'`, siteID).Scan(&owner); err != nil {
 			return err
@@ -65,11 +68,29 @@ func (n *Network) SetMember(ctx context.Context, siteID, accountID int64, role s
 			ON CONFLICT (site_id, account_id) DO UPDATE SET role = EXCLUDED.role`, siteID, accountID, role, invitedBy)
 		return err
 	})
+	if err != nil {
+		return err
+	}
+	return n.syncSite(ctx, siteID, accountID)
+}
+
+// syncSite applies the access of an account to its user on a site.
+func (n *Network) syncSite(ctx context.Context, siteID, accountID int64) error {
+	s, err := n.Site(ctx, siteID)
+	if err != nil {
+		return err
+	}
+	if err := n.syncAccess(ctx, s, accountID); err != nil {
+		return fmt.Errorf("network: apply the membership to the site's user: %w", err)
+	}
+	return nil
 }
 
 // RemoveMember removes an account from a site; the owner cannot be removed.
+// The account's linked user there is disabled and signed out, whether or
+// not the site is loaded.
 func (n *Network) RemoveMember(ctx context.Context, siteID, accountID int64) error {
-	return n.mutate(ctx, siteID, func(tx pgx.Tx) error {
+	err := n.mutate(ctx, siteID, func(tx pgx.Tx) error {
 		var owner int64
 		if err := tx.QueryRow(ctx, `SELECT coalesce(owner_id, 0) FROM sites WHERE id = $1`, siteID).Scan(&owner); err != nil {
 			return err
@@ -83,6 +104,18 @@ func (n *Network) RemoveMember(ctx context.Context, siteID, accountID int64) err
 		}
 		return err
 	})
+	if errors.Is(err, store.ErrNotFound) {
+		// Not a member (any more): make sure a revocation that failed
+		// before is applied now.
+		if serr := n.syncSite(ctx, siteID, accountID); serr != nil && !errors.Is(serr, store.ErrNotFound) {
+			return errors.Join(err, serr)
+		}
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	return n.syncSite(ctx, siteID, accountID)
 }
 
 type NetworkAdmin struct {
@@ -118,9 +151,10 @@ func (n *Network) AddNetworkAdmin(ctx context.Context, accountID, grantedBy int6
 	})
 }
 
-// RemoveNetworkAdmin revokes a network admin, but never the last one.
+// RemoveNetworkAdmin revokes a network admin, but never the last one. The
+// operator users they had on the sites are disabled and signed out.
 func (n *Network) RemoveNetworkAdmin(ctx context.Context, accountID int64) error {
-	return n.mutate(ctx, 0, func(tx pgx.Tx) error {
+	err := n.mutate(ctx, 0, func(tx pgx.Tx) error {
 		// Locking every row makes two concurrent removals see each other.
 		rows, err := tx.Query(ctx, `SELECT account_id FROM network_admins FOR UPDATE`)
 		if err != nil {
@@ -143,4 +177,8 @@ func (n *Network) RemoveNetworkAdmin(ctx context.Context, accountID int64) error
 		_, err = tx.Exec(ctx, `DELETE FROM network_admins WHERE account_id = $1`, accountID)
 		return err
 	})
+	if err != nil {
+		return err
+	}
+	return n.revokeOperatorEverywhere(ctx, accountID)
 }

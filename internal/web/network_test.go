@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"sap13ns/internal/config"
+	"sap13ns/internal/mail"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 	"sap13ns/internal/testutil"
@@ -40,7 +42,7 @@ func networkServer(t *testing.T, st *store.Store, edit func(*config.Config, *Dep
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { host.Close(context.Background()) })
-	d := Deps{Config: cfg, Log: testutil.Log(), Store: st, UI: ui.FS, Plugins: host}
+	d := Deps{Config: cfg, Log: testutil.Log(), Store: st, UI: ui.FS, Plugins: host, Mailer: mail.New(config.SMTP{}, testutil.Log(), false)}
 	if edit != nil {
 		edit(cfg, &d)
 	}
@@ -124,6 +126,52 @@ func TestNetworkSiteOptions(t *testing.T) {
 		t.Fatalf("wake-ups %v, want %v", hooks.wakes, at)
 	}
 	hooks.mu.Unlock()
+}
+
+// A single site, and a site whose hooks are not an SSO client, keep
+// today's sign-in: no SSO button and no /sso routes.
+func TestNoSSOWithoutNetwork(t *testing.T) {
+	st := testutil.Store(t)
+	for name, edit := range map[string]func(*config.Config, *Deps){
+		"single site":       nil,
+		"hooks without SSO": func(_ *config.Config, d *Deps) { d.Network = &fakeHooks{} },
+	} {
+		s := networkServer(t, st, edit)
+		if s.sso != nil || s.portal != nil {
+			t.Fatalf("%s: sso %v, portal %v", name, s.sso, s.portal)
+		}
+		h := s.Handler()
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "https://blog.sap13ns.site/login", nil))
+		if rec.Code != 200 || strings.Contains(rec.Body.String(), "/sso/start") {
+			t.Fatalf("%s: login page %d offers SSO: %s", name, rec.Code, rec.Body)
+		}
+		for _, p := range []string{"/sso/start", "/sso/callback", "/sso/authorize"} {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest("GET", "https://blog.sap13ns.site"+p, nil))
+			if rec.Code != 404 {
+				t.Errorf("%s: %s = %d", name, p, rec.Code)
+			}
+		}
+	}
+}
+
+func TestSSOUsername(t *testing.T) {
+	for i, want := range map[int]string{0: "alice", 1: "alice-2", 8: "alice-9"} {
+		if got := ssoUsername("alice", i); got != want {
+			t.Errorf("ssoUsername(alice, %d) = %q", i, got)
+		}
+	}
+	long := strings.Repeat("a", 32)
+	for i := range 12 {
+		got := ssoUsername(long, i)
+		if !usernameRe.MatchString(got) || len(got) > 32 {
+			t.Errorf("ssoUsername(long, %d) = %q", i, got)
+		}
+	}
+	if ssoUsername("bob", 9) == ssoUsername("bob", 10) {
+		t.Error("random suffixes repeat")
+	}
 }
 
 func TestBusy(t *testing.T) {

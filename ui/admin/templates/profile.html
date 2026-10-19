@@ -14,10 +14,18 @@
     <section>
       <form method="post" action="/admin/profile" class="form" data-unsaved>
         {{.CSRFField}}
+        {{if $u.Linked}}
+        <div class="grid-2">
+          <div class="field"><label for="display_name">{{T "Public name"}}</label><input class="input" id="display_name" value="{{$u.DisplayName}}" disabled></div>
+          <div class="field"><label for="email">{{T "E-mail"}}</label><input class="input" id="email" type="email" value="{{$u.Email}}" disabled></div>
+        </div>
+        <p class="hint">{{T "Your name and e-mail address come from your sap13ns account. Change them there."}}</p>
+        {{else}}
         <div class="grid-2">
           <div class="field"><label for="display_name">{{T "Public name"}}</label><input class="input" id="display_name" name="display_name" value="{{$u.DisplayName}}" maxlength="100"></div>
           <div class="field"><label for="email">{{T "E-mail"}}</label><input class="input" id="email" name="email" type="email" value="{{$u.Email}}" required maxlength="254" data-reveal-on-change="email-password"></div>
         </div>
+        {{end}}
         <div class="field" id="email-password" hidden>
           <label for="current_password_email">{{T "Current password"}}</label>
           <input class="input" id="current_password_email" name="current_password" type="password" autocomplete="current-password" maxlength="256">
@@ -31,6 +39,25 @@
   </section>
 
   <div class="stack" id="security">
+    {{if $d.CanLink}}
+    <section class="card" id="network-account">
+      <header><h2>{{T "sap13ns account"}}</h2><p>{{T "Link your sap13ns account to log in here with it. Your role on this site will then follow your membership in the network."}}</p></header>
+      <footer>
+        <form method="post" action="/admin/profile/network/link">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "link"}}{{T "Link your sap13ns account"}}</button></form>
+      </footer>
+    </section>
+    {{else if $u.Linked}}
+    <section class="card" id="network-account">
+      <header><h2>{{T "sap13ns account"}}</h2></header>
+      <section class="twofa-summary"><span class="text-success">{{icon "link"}}</span><p>{{if $u.NetworkOperator}}{{T "You opened this site as a network administrator. Your access ends when you stop being one."}}{{else}}{{T "Linked. You log in with your sap13ns account, and the network decides your role on this site."}}{{end}}</p></section>
+    </section>
+    {{end}}
+    {{if $u.SSOOnly}}
+    <section class="card">
+      <header><h2>{{T "Password"}}</h2></header>
+      <section><p class="muted text-sm">{{T "You have no password here: the password and two-factor authentication of your sap13ns account protect your access."}}</p></section>
+    </section>
+    {{else}}
     <section class="card">
       <header><h2>{{T "Password"}}</h2></header>
       <section>
@@ -104,6 +131,7 @@
       </section>
       <footer><a class="btn" data-variant="{{if $u.TOTPEnabled}}outline{{else}}default{{end}}" data-size="sm" href="/admin/profile/2fa">{{if $u.TOTPEnabled}}{{T "Manage"}}{{else}}{{T "Set up"}}{{end}}</a></footer>
     </section>
+    {{end}}
 
     <section class="card">
       <header><h2>{{T "Sessions"}}</h2><p>{{T "Devices where you are logged in."}}</p></header>

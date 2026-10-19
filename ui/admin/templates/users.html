@@ -24,7 +24,8 @@
       <tr>
         <td><a class="user-cell" href="/admin/users/{{.ID}}"><span class="avatar-initials" aria-hidden="true">{{initials .Name}}</span><span><strong>{{.Name}}</strong><small class="muted">@{{.Username}}</small></span></a></td>
         <td class="max-md:hidden muted">{{.Email}}</td>
-        <td><span class="badge" data-variant="{{if eq .Role "admin"}}default{{else}}outline{{end}}">{{roleLabel .Role}}</span>{{if ne .Status "active"}} {{template "status-badge" .Status}}{{end}}</td>
+        <td><span class="badge" data-variant="{{if eq .Role "admin"}}default{{else}}outline{{end}}">{{roleLabel .Role}}</span>{{if ne .Status "active"}} {{template "status-badge" .Status}}{{end}}
+          {{if .NetworkOperator}} <span class="badge" data-variant="secondary" title="{{T "A network administrator who opened this site"}}">{{T "Network operator"}}</span>{{else if .Linked}} <span class="badge" data-variant="secondary" title="{{T "The network decides the role of this user"}}">{{T "sap13ns account"}}</span>{{end}}</td>
         <td class="max-sm:hidden">{{if or .TOTPEnabled .PasskeyCount}}<span class="text-success" title="{{T "Two-factor authentication enabled"}}">{{icon "shield-check" "size-4"}}</span>{{else}}<span class="muted" title="{{T "Password only"}}">{{icon "shield" "size-4"}}</span>{{end}}</td>
         <td class="max-lg:hidden muted nowrap">{{if .LastLoginAt}}{{ago .LastLoginAt}}{{else}}—{{end}}</td>
       </tr>

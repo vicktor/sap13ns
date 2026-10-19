@@ -82,9 +82,12 @@ type Server struct {
 
 	custom customCache // published theme designs (customize.go)
 
-	network NetworkHooks // nil on a single-site install
-	hosts   []string     // other host names of this site (multisite aliases)
-	jobs    atomic.Int32 // background jobs started by requests (Busy)
+	network     NetworkHooks  // nil on a single-site install
+	sso         SSOClient     // a tenant of a network: sign-in through the portal
+	portal      Portal        // the network portal
+	ssoFailures *auth.Limiter // failed single sign-on callbacks, per IP
+	hosts       []string      // other host names of this site (multisite aliases)
+	jobs        atomic.Int32  // background jobs started by requests (Busy)
 }
 
 type Deps struct {
@@ -104,7 +107,8 @@ type Deps struct {
 
 // NetworkHooks connect the server of one site to the network that runs it
 // (internal/network). A site of a network never uses the web installer:
-// its users come from the network.
+// its users come from the network. The hooks of a tenant also implement
+// SSOClient, those of the portal Portal (sso.go).
 type NetworkHooks interface {
 	// Wakeup asks the network to load the site at at, when a scheduled
 	// post is due, in case it is unloaded by then.
@@ -141,7 +145,11 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		resetIP:    auth.NewLimiter(5, time.Hour),
 		uploadUser: auth.NewLimiter(120, time.Hour),
 		cop:        http.NewCrossOriginProtection(),
+
+		ssoFailures: auth.NewLimiter(10, 15*time.Minute),
 	}
+	s.sso, _ = d.Network.(SSOClient)
+	s.portal, _ = d.Network.(Portal)
 	if err := s.cop.AddTrustedOrigin(d.Config.BaseURL.String()); err != nil {
 		return nil, err
 	}

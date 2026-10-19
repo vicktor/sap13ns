@@ -165,6 +165,11 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 	if u.ID == uid(r) {
 		role, status = u.Role, u.Status // nobody can demote or lock themselves out
 	}
+	if u.Linked() {
+		// The network decides: the role of the membership, the account's
+		// e-mail address and name, synced at every sign-in.
+		role, status, edited.Email, edited.DisplayName = u.Role, u.Status, u.Email, u.DisplayName
+	}
 	fail := func(msg string) {
 		d, err := s.userEditData(r, &edited, msg)
 		if err != nil {
@@ -185,7 +190,21 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 		fail(s.t("This is the last active administrator. Promote someone else first."))
 		return
 	}
+	pw := r.FormValue("password")
+	if pw != "" && u.SSOOnly() {
+		fail(s.t("This user signs in with their sap13ns account and has no password here."))
+		return
+	}
 	ctx := r.Context()
+	if s.portal != nil && status == "disabled" && u.Status != "disabled" {
+		if err := s.portal.CheckAccountChange(ctx, u.ID, false); errors.Is(err, ErrLastNetworkAdmin) {
+			fail(s.t("This is the last network administrator. Make someone else a network administrator first."))
+			return
+		} else if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+	}
 	err := s.store.UpdateUserProfile(ctx, u.ID, store.UserProfile{Email: edited.Email, DisplayName: edited.DisplayName, Bio: edited.Bio, Website: edited.Website})
 	if errors.Is(err, store.ErrConflict) {
 		fail(s.t("That username or e-mail address is already registered."))
@@ -203,8 +222,16 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 		// A role change or suspension must take effect immediately.
 		s.store.DeleteUserSessions(ctx, u.ID, nil)
 		s.audit(r, uid(r), "user.role_changed", u.Username, map[string]string{"from": u.Role + "/" + u.Status, "to": role + "/" + status})
+		if status != u.Status {
+			// On the portal, the account's users on the network's sites
+			// follow its status.
+			if err := s.accountChanged(r, u.ID, false); err != nil {
+				s.serverError(w, r, err)
+				return
+			}
+		}
 	}
-	if pw := r.FormValue("password"); pw != "" {
+	if pw != "" {
 		if msg := s.checkNewPassword(u, pw, r.FormValue("password_confirm")); msg != "" {
 			fail(msg)
 			return
@@ -273,6 +300,24 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 			s.redirect(w, r, back, "error", s.t("This is the last active administrator. Promote someone else first."))
 			return
 		}
+		if s.portal != nil {
+			switch err := s.portal.CheckAccountChange(ctx, u.ID, true); {
+			case errors.Is(err, ErrLastNetworkAdmin):
+				s.redirect(w, r, back, "error", s.t("This is the last network administrator. Make someone else a network administrator first."))
+				return
+			case errors.Is(err, ErrOwnsSites):
+				s.redirect(w, r, back, "error", s.t("This account owns sites of the network, so it cannot be deleted. Disable it instead."))
+				return
+			case err != nil:
+				s.serverError(w, r, err)
+				return
+			}
+			// Before the account goes: its memberships go with it.
+			if err := s.accountChanged(r, u.ID, true); err != nil {
+				s.serverError(w, r, err)
+				return
+			}
+		}
 		var reassign int64
 		if to := formInt64Ptr(r, "reassign_to"); to != nil && *to != u.ID {
 			if o, err := s.store.UserByID(ctx, *to); err == nil {
@@ -338,6 +383,7 @@ type profileData struct {
 	Error    string
 	Tab      string
 	Passkeys passkeySection
+	CanLink  bool // a local user of a network's site: link to a network account
 }
 
 func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status int, u *store.User, tab, msg string) {
@@ -355,7 +401,8 @@ func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status in
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "profile", s.t("Your profile"), "profile", profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks})
+	s.renderAdminStatus(w, r, status, "profile", s.t("Your profile"), "profile", profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks,
+		CanLink: s.sso != nil && !u.Linked()})
 }
 
 func (s *Server) adminProfile(w http.ResponseWriter, r *http.Request) {
@@ -367,6 +414,10 @@ func (s *Server) adminProfileUpdate(w http.ResponseWriter, r *http.Request) {
 	edited := *u
 	edited.Email = strings.ToLower(trimmed(r, "email"))
 	edited.DisplayName, edited.Bio, edited.Website = trimmed(r, "display_name"), trimmed(r, "bio"), trimmed(r, "website")
+	if u.Linked() {
+		// They come from the network account, at every sign-in.
+		edited.Email, edited.DisplayName = u.Email, u.DisplayName
+	}
 	if msg := s.profileError(edited.Email, edited.DisplayName, edited.Bio, edited.Website); msg != "" {
 		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", msg)
 		return
@@ -394,6 +445,10 @@ func (s *Server) adminProfileUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminPasswordChange(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	if u.SSOOnly() {
+		s.renderProfile(w, r, http.StatusUnprocessableEntity, u, "security", s.t("You sign in with your sap13ns account and have no password here."))
+		return
+	}
 	if !s.loginUser.Allow("pw:" + u.Username) {
 		s.renderProfile(w, r, http.StatusTooManyRequests, u, "security", s.t("Too many attempts. Wait a few minutes and try again."))
 		return
@@ -468,7 +523,7 @@ func (s *Server) pendingSecret(r *http.Request, u *store.User) ([]byte, error) {
 func (s *Server) render2FA(w http.ResponseWriter, r *http.Request, status int, d twofaData) {
 	u := currentUser(r)
 	d.Enabled = u.TOTPEnabled
-	d.Required = s.mustEnroll2FA(u)
+	d.Required = s.mustEnroll2FA(r, u)
 	if pks, err := s.passkeySection(r, u); err == nil {
 		d.Passkeys = pks
 	}

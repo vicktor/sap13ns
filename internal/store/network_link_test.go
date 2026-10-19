@@ -103,3 +103,92 @@ func TestNetworkLink(t *testing.T) {
 		t.Fatalf("ListUserSessions = %+v, %v", list, err)
 	}
 }
+
+func TestNetworkAccess(t *testing.T) {
+	if os.Getenv("SAP13NS_TEST_DATABASE_URL") == "" {
+		t.Skip("SAP13NS_TEST_DATABASE_URL not set")
+	}
+	st := testutil.Store(t)
+	ctx := context.Background()
+
+	member, err := st.CreateSSOUser(ctx, store.NewSSOUser{NetworkAccountID: 7, Username: "eve", Email: "eve@example.com", Role: "author"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same account has its own operator user, distinct from its member.
+	op, err := st.CreateSSOUser(ctx, store.NewSSOUser{NetworkAccountID: 7, Operator: true, Username: "operator-eve", Email: "operator-7@operator.invalid", Role: "admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CreateSSOUser(ctx, store.NewSSOUser{NetworkAccountID: 7, Operator: true, Username: "operator-eve2", Email: "x@operator.invalid", Role: "admin"}); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("second operator user: err = %v", err)
+	}
+	if u, err := st.UserByNetworkAccount(ctx, 7); err != nil || u.ID != member || u.NetworkOperator {
+		t.Fatalf("member user: %+v, %v", u, err)
+	}
+	if u, err := st.OperatorUser(ctx, 7); err != nil || u.ID != op || !u.NetworkOperator || !u.Linked() || !u.SSOOnly() {
+		t.Fatalf("operator user: %+v, %v", u, err)
+	}
+	if _, err := st.CreateUser(ctx, store.NewUser{Username: "local", Email: "local@example.com", Role: "admin", PasswordHash: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	session := func(uid int64, tok string) []byte {
+		hash := auth.HashToken(tok)
+		if err := st.CreateSession(ctx, store.Session{TokenHash: hash, UserID: uid, CSRFToken: "c", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		return hash
+	}
+	alive := func(hash []byte) bool {
+		_, err := st.SessionByHash(ctx, hash)
+		return err == nil
+	}
+
+	// A single sign-on syncs the profile; a new role closes the sessions.
+	s1 := session(member, "member-1")
+	if err := st.SyncNetworkUser(ctx, member, store.NetworkProfile{Email: "eve@example.org", DisplayName: "Eve", Role: "author"}); err != nil {
+		t.Fatal(err)
+	}
+	if !alive(s1) {
+		t.Fatal("a sync without a role change closed the sessions")
+	}
+	if err := st.SyncNetworkUser(ctx, member, store.NetworkProfile{Email: "eve@example.org", DisplayName: "Eve", Role: "editor"}); err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := st.UserByID(ctx, member); u.Role != "editor" || u.Email != "eve@example.org" || u.DisplayName != "Eve" || alive(s1) {
+		t.Fatalf("after a role change: %+v, session alive %v", u, alive(s1))
+	}
+	if err := st.SyncNetworkUser(ctx, member, store.NetworkProfile{Email: "LOCAL@example.com", Role: "editor"}); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("sync onto a taken e-mail: err = %v", err)
+	}
+
+	// The network revokes and restores access, on member and operator
+	// users separately.
+	s2, s3 := session(member, "member-2"), session(op, "op-1")
+	name, changed, err := st.SetNetworkAccess(ctx, 7, false, "", "disabled")
+	if err != nil || !changed || name != "eve" || alive(s2) || !alive(s3) {
+		t.Fatalf("revoke the member: %q %v %v, sessions %v %v", name, changed, err, alive(s2), alive(s3))
+	}
+	if u, _ := st.UserByID(ctx, member); u.Status != "disabled" || u.Role != "editor" {
+		t.Fatalf("revoked member: %+v", u)
+	}
+	if _, changed, err := st.SetNetworkAccess(ctx, 7, false, "", "disabled"); err != nil || changed {
+		t.Fatalf("revoking again: %v %v", changed, err)
+	}
+	if _, changed, err := st.SetNetworkAccess(ctx, 7, true, "", "disabled"); err != nil || !changed || alive(s3) {
+		t.Fatalf("revoke the operator: %v %v", changed, err)
+	}
+	if _, changed, err := st.SetNetworkAccess(ctx, 7, false, "author", "active"); err != nil || !changed {
+		t.Fatalf("restore: %v %v", changed, err)
+	}
+	if u, _ := st.UserByID(ctx, member); u.Status != "active" || u.Role != "author" {
+		t.Fatalf("restored member: %+v", u)
+	}
+	if _, _, err := st.SetNetworkAccess(ctx, 99, false, "", "disabled"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("unknown account: %v", err)
+	}
+	linked, err := st.LinkedUsers(ctx)
+	if err != nil || len(linked) != 2 || linked[0].ID != member || linked[1].ID != op || !linked[1].Operator || linked[1].Status != "disabled" {
+		t.Fatalf("LinkedUsers = %+v, %v", linked, err)
+	}
+}

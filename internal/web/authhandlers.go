@@ -29,6 +29,7 @@ type authForm struct {
 	Passkeys          bool // this build supports passkeys (sign-in button, autofill)
 	TOTP              bool // second step: the account has an authenticator app
 	HasPasskey        bool // second step: the account has passkeys
+	SSO               bool // a site of a network: sign in with the network account
 }
 
 func (s *Server) renderAuth(w http.ResponseWriter, r *http.Request, status int, name, title string, f *authForm) {
@@ -38,6 +39,7 @@ func (s *Server) renderAuth(w http.ResponseWriter, r *http.Request, status int, 
 	f.AllowRegistration = s.settings().AllowRegistration
 	f.CanReset = s.mailer.Enabled() || s.cfg.Dev
 	f.Passkeys = passkeysAvailable
+	f.SSO = s.sso != nil
 	w.Header().Set("X-Robots-Tag", "noindex")
 	s.renderAdminStatus(w, r, status, name, title, "", f)
 }
@@ -100,6 +102,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		auth.VerifyDummy(password) // equalize timing
 		s.loginUser.Allow(login)
 		s.audit(r, 0, "login.failed", login, map[string]string{"reason": "unknown user"})
+		fail(http.StatusUnauthorized, s.t("Invalid username or password."))
+		return
+	}
+	if u.SSOOnly() {
+		// No password of their own: they sign in through the network
+		// portal. Take as long as a password check would.
+		auth.VerifyDummy(password)
+		s.loginUser.Allow(login)
+		s.audit(r, u.ID, "login.failed", u.Username, map[string]string{"reason": "single sign-on only"})
 		fail(http.StatusUnauthorized, s.t("Invalid username or password."))
 		return
 	}
@@ -369,7 +380,12 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 		s.renderAuth(w, r, http.StatusTooManyRequests, "forgot", s.t("Reset your password"), form)
 		return
 	}
-	if u, err := s.store.UserByEmail(r.Context(), email); err == nil && u.Status == "active" {
+	u, err := s.store.UserByEmail(r.Context(), email)
+	if err == nil && u.SSOOnly() {
+		// Nothing to reset: they sign in through the network portal. The
+		// answer is the same, so it does not tell who has an account.
+		s.audit(r, u.ID, "password.reset_refused", u.Username, map[string]string{"reason": "single sign-on only"})
+	} else if err == nil && u.Status == "active" {
 		token := auth.NewToken(32)
 		if err := s.store.CreatePasswordReset(r.Context(), auth.HashToken(token), u.ID, time.Hour); err != nil {
 			s.serverError(w, r, err)
@@ -421,7 +437,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, err := s.store.UserByID(r.Context(), userID)
-	if err != nil {
+	if err != nil || u.SSOOnly() {
 		invalid()
 		return
 	}

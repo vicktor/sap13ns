@@ -184,6 +184,9 @@ func (r *Registry) Maintain(ctx context.Context) {
 		if err := r.measure(ctx, &s); err != nil && ctx.Err() == nil {
 			log.Error("measure storage", "err", err)
 		}
+		if err := r.net.ReconcileAccess(ctx, &s); err != nil && ctx.Err() == nil {
+			log.Error("reconcile the access of network accounts", "err", err)
+		}
 	}
 	if n, err := r.net.PurgeSSOCodes(ctx); err != nil {
 		if ctx.Err() == nil {

@@ -348,7 +348,7 @@ func (s *Server) adminPasskeyDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, "passkey.deleted", u.Username, map[string]string{"id": strconv.FormatInt(id, 10), "name": k.Name})
 	u.PasskeyCount--
-	if s.mustEnroll2FA(u) {
+	if s.mustEnroll2FA(r, u) {
 		s.redirect(w, r, "/admin/profile/2fa", "warning", s.t("Passkey deleted. Your role requires two-factor authentication: set up an authenticator app or add a new passkey."))
 		return
 	}
