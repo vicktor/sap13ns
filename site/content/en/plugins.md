@@ -124,13 +124,14 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
 
 ## Example plugins
 
-The repository includes ten official plugins in `plugins/`, each one its own Go module with tests and a README that explains every permission it asks for:
+The repository includes eleven official plugins in `plugins/`, each one its own Go module with tests and a README that explains every permission it asks for:
 
 - **callouts**: GitHub-style Markdown alerts plus the `callout` and `kbd` shortcodes.
 - **toc**: an automatic table of contents.
 - **external-links**: UTM parameters and link attributes for links to other sites.
 - **announcement**: a scheduled announcement widget.
-- **embeds**: YouTube and Vimeo links become click-to-load players. Nothing is requested from the video site until the visitor presses play, and then the player comes from youtube-nocookie.com or Vimeo with Do Not Track.
+- **embeds**: YouTube, Vimeo and TikTok links become click-to-load players. Nothing is requested from the video site until the visitor presses play, and then the player comes from youtube-nocookie.com, from Vimeo with Do Not Track, or from TikTok.
+- **youtube**: the latest videos of a YouTube channel or playlist as a grid or a carousel, in a post or as a widget. The list is refreshed every hour on the server, and a video plays from youtube-nocookie.com only after a click.
 - **schema**: Schema.org JSON-LD for posts, pages, breadcrumbs, the site search box and the publisher.
 - **related**: related posts by shared tags and categories, after each post and as a widget.
 - **contact**: a contact form with privacy consent, sent to the administrator with the visitor as Reply-To.

@@ -135,8 +135,10 @@ Built-in notes:
   from www.tiktok.com, which sees the visitor like any visit to TikTok and
   may set cookies or use the browser's storage. TikTok's embed documentation
   says nothing about cookies or data collection, so the click is the only
-  protection: before it, nothing is requested from TikTok. TikTok also says
-  it "may apply usage limits to embedded players on a per-domain basis".
+  protection: before it, nothing is requested from TikTok. In a test from
+  Spain (October 2026) the player first showed TikTok's own "Allow cookies
+  from TikTok on this browser?" dialog over the video. TikTok also says it
+  "may apply usage limits to embedded players on a per-domain basis".
 - The plugin stores nothing and sets no cookies. Each video needs its own
   click; the choice is not remembered.
 - Add your privacy policy with `privacy_url` so visitors can read how the site

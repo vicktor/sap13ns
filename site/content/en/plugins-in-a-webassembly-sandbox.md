@@ -90,6 +90,6 @@ There is also a cost in convenience: JSON in and JSON out is slower than calling
 
 ## Try it
 
-The repository has ten official plugins in `plugins/`. One of them, `callouts`, turns Markdown alerts into styled notes, adds two shortcodes for notes and keyboard keys and needs no permissions at all. It is a good starting point. The [plugins page](/plugins) has an overview, and [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md) the full contract.
+The repository has eleven official plugins in `plugins/`. One of them, `callouts`, turns Markdown alerts into styled notes, adds two shortcodes for notes and keyboard keys and needs no permissions at all. It is a good starting point. The [plugins page](/plugins) has an overview, and [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md) the full contract.
 
 [^1]: The sandbox protects your site from a plugin. It does not make a plugin's own output correct; a plugin with `http:` permission can still show wrong data from the service it calls.

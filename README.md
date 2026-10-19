@@ -170,7 +170,8 @@ Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the
 | [callouts](plugins/callouts) | Callouts and GitHub-style alerts |
 | [external-links](plugins/external-links) | External and affiliate links |
 | [announcement](plugins/announcement) | Announcement bar |
-| [embeds](plugins/embeds) | Click-to-load YouTube (no-cookie) and Vimeo (do-not-track) players |
+| [embeds](plugins/embeds) | Click-to-load YouTube (no-cookie), Vimeo (do-not-track) and TikTok players |
+| [youtube](plugins/youtube) | The latest videos of a YouTube channel or playlist as a grid or a carousel, played only after a click |
 | [schema](plugins/schema) | Schema.org JSON-LD for every public page |
 | [social](plugins/social) | Posts new articles to Bluesky and Mastodon |
 | [related](plugins/related) | Related posts by shared tags and categories |
