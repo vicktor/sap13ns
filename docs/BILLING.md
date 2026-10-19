@@ -5,8 +5,10 @@ sap13ns.site offers three hosting plans:
 | Plan | Who | Billing |
 | --- | --- | --- |
 | **Personal** | Non-commercial personal sites | Free. Validated by hand by the operator. **No Stripe involved.** |
-| **Pro** | Commercial sites | Stripe subscription (monthly or yearly) |
-| **Business** | Larger commercial sites | Stripe subscription (monthly or yearly) |
+| **Pro** | Commercial sites | Stripe subscription: 9 € a month or 99 € a year, VAT included |
+| **Business** | Larger commercial sites | Stripe subscription: 30 € a month or 330 € a year, VAT added |
+
+A year costs eleven months: one month free.
 
 Paid plans use Stripe Checkout (hosted page) to subscribe, the Stripe Customer
 Portal for self-service (card, invoices, plan change, cancellation), and
@@ -72,24 +74,42 @@ interval. Personal has no product.
 | sap13ns Business | `sap13ns_business_monthly`, `sap13ns_business_yearly` | `plan=business` |
 
 Dashboard: **Product catalog → Add product**, then add a *recurring* price in
-EUR for each interval. Or with the Stripe CLI (amounts in cents; adjust):
+EUR for each interval. Or with the Stripe CLI (amounts in cents):
 
 ```sh
 stripe products create -d name="sap13ns Pro" -d "metadata[plan]=pro"
-stripe prices create -d product=prod_XXXX -d currency=eur -d unit_amount=1900 \
+stripe prices create -d product=prod_XXXX -d currency=eur -d unit_amount=900 \
   -d "recurring[interval]=month" -d lookup_key=sap13ns_pro_monthly \
   -d tax_behavior=inclusive
-stripe prices create -d product=prod_XXXX -d currency=eur -d unit_amount=19000 \
+stripe prices create -d product=prod_XXXX -d currency=eur -d unit_amount=9900 \
   -d "recurring[interval]=year" -d lookup_key=sap13ns_pro_yearly \
   -d tax_behavior=inclusive
+
+stripe products create -d name="sap13ns Business" -d "metadata[plan]=business"
+stripe prices create -d product=prod_YYYY -d currency=eur -d unit_amount=3000 \
+  -d "recurring[interval]=month" -d lookup_key=sap13ns_business_monthly \
+  -d tax_behavior=exclusive
+stripe prices create -d product=prod_YYYY -d currency=eur -d unit_amount=33000 \
+  -d "recurring[interval]=year" -d lookup_key=sap13ns_business_yearly \
+  -d tax_behavior=exclusive
 ```
+
+The pricing table (the `plans` template function, which the sap13ns theme
+shows on its hosting page) reads the configured prices at start: a plan
+sold by the month and by the year shows its monthly price, then the yearly
+one with the months it saves ("1 month free" when the year costs eleven
+months), and "VAT included" or "+ VAT" from each price's tax behavior
+(nothing when it is unspecified). Its buttons lead to `/register`, never
+to Stripe: a purchase starts from **My sites**, signed in. After changing
+a price in Stripe, restart sap13ns so that it reads it again.
 
 Notes:
 
 - **Tax behavior** (`inclusive` = price includes VAT, `exclusive` = VAT added
   on top) only matters if you use Stripe Tax, and once set to inclusive or
   exclusive it cannot be changed on that price: create a new price instead.
-  Consumer-facing EU prices are usually shown VAT-inclusive.
+  Consumer-facing EU prices are usually shown VAT-inclusive; Pro is
+  inclusive and Business, sold mostly to businesses, exclusive.
 - If you plan to use Stripe Tax, set the product's **tax code** to the
   software-as-a-service category that fits (Stripe's tax code list has
   separate SaaS entries for business and personal use).
@@ -133,9 +153,9 @@ and only when billing is configured.
    | `checkout.session.completed` | Links the Stripe customer and subscription to the site (via `client_reference_id` / `metadata[site_id]`). |
    | `customer.subscription.created` | Stores plan, status and period end. |
    | `customer.subscription.updated` | Status changes (trial → active, active → past_due, cancellation scheduled), plan switches, renewals. |
-   | `customer.subscription.deleted` | Subscription ended: the site is held. |
-   | `invoice.paid` | Payment succeeded: clears grace, lifts a hold, records the paid period. |
-   | `invoice.payment_failed` | Starts or continues the grace period, and e-mails the owner a link to manage billing. |
+   | `customer.subscription.deleted` | Subscription ended: the site is held once the period it paid for is over (section 7). |
+   | `invoice.paid` | Payment succeeded: clears grace, lifts a hold, records the paid period (the end of the invoice's service period, when it charged something). |
+   | `invoice.payment_failed` | Starts or continues the grace period. The first failure of a grace period e-mails the owner a link to manage billing; the retries that fail again do not. |
 
    Optional: `customer.subscription.paused`, `customer.subscription.resumed`
    (only if you use pausing) and `customer.subscription.trial_will_end`
@@ -221,8 +241,8 @@ the network, or when two plans share a price.
 | --- | --- | --- |
 | `active`, `trialing` | active | Site served with the plan's features. |
 | `incomplete` | pending | First payment not confirmed yet (3-D Secure, delayed method). Plan not granted yet. Becomes `incomplete_expired` after about 23 h if unpaid. |
-| `past_due`, `unpaid`, `paused` | grace | Site stays online; the owner sees the state in **My sites** and gets emails. After `SAP13NS_BILLING_GRACE_DAYS` the site is **held**: its public pages answer 503, while sign-in and the admin still work so the owner can pay. |
-| `canceled`, `incomplete_expired` | canceled | The site is held right away. Re-subscribing starts a new Checkout. |
+| `past_due`, `unpaid`, `paused` | grace | Site stays online; the owner sees the state in **My sites** and gets one e-mail, at the first failed payment (Stripe's own failed-payment e-mails, step 2, remind them at each retry). After `SAP13NS_BILLING_GRACE_DAYS` the site is **held**: its public pages answer 503, while sign-in and the admin still work so the owner can pay. |
+| `canceled`, `incomplete_expired` | canceled | The site stays online until the end of the period it paid for, then is held; held right away when nothing paid for that time (a renewal that failed, a first payment that never went through). Re-subscribing starts a new Checkout. |
 
 Nothing is ever deleted for billing: a held site keeps its content, files
 and domains. Removing it for good is an operator decision (`sap13ns site
@@ -231,7 +251,29 @@ of your terms.
 
 A cancellation from the portal "at period end" keeps the status `active`
 (with `cancel_at_period_end=true`) until the paid period ends; Stripe then
-sends `customer.subscription.deleted`.
+sends `customer.subscription.deleted`, and the site is held.
+
+A subscription canceled at once (Dashboard → subscription → **Cancel
+subscription → Immediately**) ends before the period it paid for: the site
+stays online until that period's end, as if it had been canceled at the end
+of the period, and **My sites** shows "online until" that date. The host
+table is reloaded every minute, so the hold starts within a minute of that
+end. The paid period is the end of the latest paid invoice that charged
+something (a trial's invoice of 0 € pays for no time).
+
+To take a site offline now, for example after refunding the customer,
+suspend it: `sap13ns site suspend -slug <slug> -reason "refunded"`
+(Network → Sites in the portal does the same). A suspended site shows only
+a "suspended" page, to everyone, until an operator resumes it
+(`sap13ns site resume -slug <slug>`); the billing hold and the suspension
+are separate.
+
+**What visitors see.** A held site answers its public pages with a 503 page
+that says "This site is paused" and that it will be back soon, with a
+**Log in** button for its administrators; it says nothing about billing.
+An operator's suspension shows "This site is suspended" instead. Both pages
+follow the site's language: the first of its languages the visitor accepts,
+or else its main language.
 
 ## 8. Testing with the Stripe CLI
 

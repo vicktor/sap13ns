@@ -37,7 +37,7 @@ The portal is never unloaded and has no custom domains.
 | `suspended` | A 503 page saying that the site is suspended, on every path. Set by a network administrator, with a reason the owner sees. |
 | `deleted` | Nothing (404). Its data stays until it is purged with `sap13ns site purge`. |
 
-A paid site whose subscription is not paid is **held**: it is served like a pending site (a 503 notice on the public pages, while sign-in and the admin work), so its owner can still pay. See [Plans, billing and limits](#plans-billing-and-limits).
+A paid site whose subscription is not paid is **held**: it is served like a pending site (a 503 notice saying that the site is paused, in the site's language and without a word about billing, on the public pages, while sign-in and the admin work), so its owner can still pay. See [Plans, billing and limits](#plans-billing-and-limits).
 
 **Hosts.** Every site has a **default host**, `<slug>.<SAP13NS_SITES_DOMAIN>`, for its whole life. It may add **custom domains** when its plan allows them. One verified host is the **primary** one: the site is served there, and its other hosts redirect to it (301 for GET and HEAD, 308 otherwise). ACME challenges and the WebAuthn related-origins file are answered on every host. A host the network does not route gets a 404, or a 302 to the portal with `SAP13NS_UNKNOWN_HOST=redirect`.
 
@@ -231,7 +231,7 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 2. The webhook (`POST /billing/webhook` on the portal) gives the site its plan.
 3. **Manage billing** opens Stripe's customer portal.
 
-A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled or unpaid subscription holds the site, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
+A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled subscription holds the site once the period it paid for is over (at once when nothing paid for it), an unpaid one holds it, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
 
 **Limits.** A plan's limits apply to every site on it:
 - **Storage** counts uploads, their image variants, users' photos and Gravatar copies, plugin packages and uploaded themes, but not exports waiting for their download nor backups, which are bounded on their own ([Exporting one site](#exporting-one-site), [Backups](#where-they-are-and-how-long-they-stay)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
