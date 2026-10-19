@@ -51,6 +51,7 @@ type Server struct {
 	i18n      *i18n.Catalogs
 	themes    *theme.Manager
 	plugins   *plugin.Host
+	official  *plugin.Official // the official plugins in the binary (plugins_official.go); nil = none
 	media     *media.Processor
 	mailer    *mail.Mailer
 
@@ -116,6 +117,9 @@ type Deps struct {
 	UI      fs.FS
 	Plugins *plugin.Host
 	Mailer  *mail.Mailer
+	// Official is the bundle of official plugins the site can install
+	// (plugin.LoadOfficial of internal/plugin/bundled); nil = none.
+	Official *plugin.Official
 
 	// Set by a network for each of its sites; nil and zero on a
 	// single-site install, which keeps today's behaviour.
@@ -150,6 +154,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		keys:       auth.NewKeys(d.Config.SecretKey),
 		ui:         d.UI,
 		plugins:    d.Plugins,
+		official:   d.Official,
 		mailer:     d.Mailer,
 		network:    d.Network,
 		hosts:      d.Hosts,

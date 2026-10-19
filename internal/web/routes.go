@@ -101,6 +101,7 @@ func (s *Server) routes() *http.ServeMux {
 		if s.reviews != nil {
 			network("GET /admin/network/plugins", s.adminNetPlugins)
 			network("POST /admin/network/plugins/review", s.adminNetPluginReview)
+			network("POST /admin/network/plugins/official", s.adminNetOfficialPlugin)
 		}
 		admin("GET /admin/sites", auth.CapAdminPanel, s.adminMySites)
 		admin("POST /admin/sites/request", auth.CapAdminPanel, s.adminSiteRequest)
@@ -221,6 +222,7 @@ func (s *Server) routes() *http.ServeMux {
 	if s.limits != nil {
 		admin("POST /admin/plugins/catalog/{id}/install", auth.CapPlugins, s.adminPluginCatalogInstall)
 	}
+	admin("POST /admin/plugins/official/{id}/install", auth.CapPlugins, s.adminPluginOfficialInstall)
 	admin("GET /admin/plugins/{id}", auth.CapPlugins, s.adminPlugin)
 	admin("POST /admin/plugins/{id}/approve", auth.CapPlugins, s.adminPluginApprove)
 	admin("POST /admin/plugins/{id}/disable", auth.CapPlugins, s.adminPluginDisable)

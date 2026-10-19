@@ -381,12 +381,12 @@
 .plugin-list { @apply flex flex-col gap-3; }
 .plugin-card { @apply flex-row flex-wrap items-start gap-4 px-5 py-5 sm:flex-nowrap; }
 .plugin-icon { @apply grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground; }
-.plugin-body { @apply min-w-0 flex-1; }
+.plugin-body { @apply min-w-0 grow basis-[calc(100%-4rem)] sm:basis-0; }
 .plugin-body h2 { @apply font-medium; }
 .plugin-body h2 a { @apply text-foreground; }
 .plugin-body p { @apply text-muted-foreground mt-0.5 text-sm; }
 .plugin-tags { @apply mt-2 flex flex-wrap gap-1.5; }
-.plugin-state { @apply flex items-center gap-2; }
+.plugin-state { @apply ml-14 flex flex-wrap items-center gap-2 sm:ml-0; }
 .plugin-card[data-status="modified"] { @apply ring-2 ring-warning/60; }
 .review { @apply ring-2 ring-primary/40; }
 .perm-list { @apply flex flex-col gap-2; }
@@ -395,7 +395,7 @@
 .perm-list li[data-risk="medium"] > svg { color: var(--warning); }
 .perm-list li[data-risk="high"] { border-color: color-mix(in oklch, var(--destructive) 40%, transparent); }
 .perm-list li[data-risk="high"] > svg { color: var(--destructive); }
-.perm-list code { @apply mr-1 rounded bg-muted px-1 font-mono text-xs; }
+.perm-list code { @apply mr-1 rounded bg-muted px-1 font-mono text-xs wrap-anywhere; }
 .log-list { @apply flex max-h-80 flex-col gap-1 overflow-y-auto text-xs; }
 .log-list time { @apply text-muted-foreground; }
 .log-list .lvl { @apply uppercase; }

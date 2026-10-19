@@ -98,6 +98,9 @@ type RegistryOptions struct {
 	Mailer  *mail.Mailer    // shared by every site; nil: one from Config.SMTP
 	Updates *update.Checker // release checks shown on the portal; nil = none
 	Billing *Billing        // NewBilling; nil when billing is off
+	// Official are the official plugins in the binary: every site can
+	// install them, except those the operator hides; nil = none.
+	Official *plugin.Official
 
 	// Zero values give the defaults; tests shorten them.
 	Now         func() time.Time
@@ -469,6 +472,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	}
 	p := siteapp.Params{
 		Config: cfg, Store: store.New(h), Log: r.log.With("site", s.ID), UI: r.o.UI, Mailer: r.mailer,
+		Official:   r.o.Official,
 		Blocklist:  filepath.Join(r.cfg.DataDir, "plugin-blocklist.txt"),
 		Network:    siteHooks{hooks{r: r, id: s.ID, slug: s.Slug}},
 		Quota:      siteHooks{hooks{r: r, id: s.ID, slug: s.Slug}},

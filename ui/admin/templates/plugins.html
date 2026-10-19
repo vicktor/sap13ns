@@ -57,6 +57,9 @@
 </section>
 {{end}}
 
+{{/* With nothing installed the official plugins come first; once some are, the installed list does. */}}
+{{if not $d.Plugins}}{{template "plugins-official" $}}{{end}}
+
 {{if $d.Uploads}}
 <section class="card plugin-upload" id="upload">
   <header>
@@ -120,5 +123,49 @@
 </ul>
 {{else}}
 <div class="card">{{template "empty" (dict "Icon" "puzzle" "Title" (T "No plugins installed") "Text" (T "Upload a plugin package above, or copy a plugin folder (plugin.json + plugin.wasm) into %s and press Rescan." $d.Dir))}}</div>
+{{end}}
+{{if $d.Plugins}}{{template "plugins-official" $}}{{end}}
+{{end}}
+
+{{define "plugins-official"}}
+{{with .D.Official}}
+<section class="card" id="official">
+  <header>
+    <h2>{{icon "badge-check"}} {{T "Official plugins"}}</h2>
+    <p>{{T "Made by the sap13ns team and shipped with this version of sap13ns. They are scanned like an upload and installed disabled: review their permissions, then switch them on."}}</p>
+  </header>
+  <section>
+    <ul class="plugin-list">
+      {{range .}}
+      <li class="card plugin-card" id="official-{{.ID}}">
+        <span class="plugin-icon" aria-hidden="true">{{icon "puzzle"}}</span>
+        <div class="plugin-body">
+          <h2>{{.Name}} <span class="muted text-xs">v{{.Version}}</span></h2>
+          <p>{{.Description}}</p>
+          <p class="text-xs">{{with .Author}}{{T "Author"}}: {{.}} · {{end}}{{T "License"}}: {{or .License "?"}}{{with .Installed}} · {{T "Installed"}}: v{{.}}{{end}}</p>
+          {{if .Perms}}
+          <ul class="perm-list mt-3" aria-label="{{T "Requested permissions"}}">
+            {{range .Perms}}
+            <li data-risk="{{.Risk}}">
+              {{if eq .Risk "high"}}{{icon "triangle-alert"}}{{else if eq .Risk "medium"}}{{icon "circle-alert"}}{{else}}{{icon "circle-check"}}{{end}}
+              <span><code>{{.Name}}</code> {{.Help}}{{if eq .Risk "high"}} <strong class="risk">{{T "High risk."}}</strong>{{end}}</span>
+            </li>
+            {{end}}
+          </ul>
+          {{else}}<p>{{T "No permissions: it can only transform the content it receives."}}</p>{{end}}
+        </div>
+        <div class="plugin-state">
+          {{if .Installed}}<span class="badge" data-variant="warning">{{T "Update available"}}</span>{{end}}
+          <form method="post" action="/admin/plugins/official/{{.ID}}/install">
+            {{$.CSRFField}}
+            {{if .Installed}}<button class="btn" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Update"}}</button>
+            {{else}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "plus"}}{{T "Install"}}</button>{{end}}
+          </form>
+        </div>
+      </li>
+      {{end}}
+    </ul>
+  </section>
+</section>
 {{end}}
 {{end}}

@@ -54,17 +54,21 @@ type pluginsData struct {
 	Uploads bool
 	Plan    string
 	Catalog []CatalogPlugin
+	// Official are the official plugins in the binary the site can
+	// install or update (plugins_official.go).
+	Official []officialRow
 	// Inert: a suspended site opened for an emergency access, whose
 	// plugins do not load (plugin.HostOptions.Inert).
 	Inert bool
 }
 
-// pluginsPage is the list of plugins, with the upload form and, on a site
-// of a network, the catalogue.
+// pluginsPage is the list of plugins, with the official plugins, the
+// upload form and, on a site of a network, the catalogue.
 func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
 	d := pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Uploads: true,
 		Inert: s.plugins.Inert()}
 	if s.limits == nil {
+		d.Official = s.officialOffers(nil)
 		return d, nil
 	}
 	pol, err := s.limits.PluginPolicy(r.Context())
@@ -72,6 +76,7 @@ func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
 		return d, err
 	}
 	d.Tenant, d.Uploads, d.Plan = true, pol.Uploads, pol.Plan
+	d.Official = s.officialOffers(pol.Hidden)
 	if d.Catalog, err = s.limits.PluginCatalog(r.Context()); err != nil {
 		s.log.Error("the network's plugin catalogue", "err", err) // the page works without it
 	}
@@ -277,22 +282,7 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull())
 		return
 	case errors.Is(err, plugin.ErrRefused):
-		details := map[string]string{"file": truncateStr(hdr.Filename, 120), "package_sha256": res.Report.PackageSHA256}
-		var rules []string
-		for _, f := range res.Report.Findings {
-			if f.Severity == plugin.SevCritical && !slices.Contains(rules, f.Rule) {
-				rules = append(rules, f.Rule)
-			}
-		}
-		details["critical"] = strings.Join(rules, " ")
-		s.audit(r, uid(r), "plugin.refused", res.ID, details)
-		d, err := s.pluginsPage(r)
-		if err != nil {
-			s.serverError(w, r, err)
-			return
-		}
-		d.Refused = res.Report
-		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "plugins", s.t("Plugins"), "plugins", d)
+		s.pluginRefused(w, r, res, map[string]string{"file": truncateStr(hdr.Filename, 120)})
 		return
 	case errors.Is(err, plugin.ErrDowngrade):
 		fail(s.t("Version %s is older than the installed %s. Tick “Allow an older version” to install it anyway.", res.Version, res.Previous))
@@ -312,9 +302,37 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.pluginsChanged()
+	s.pluginInstalled(w, r, res, held, map[string]string{"file": truncateStr(hdr.Filename, 120)})
+}
+
+// pluginRefused answers an install the scanner refused: the plugins page
+// with the report (422), and plugin.refused in the audit log.
+func (s *Server) pluginRefused(w http.ResponseWriter, r *http.Request, res *plugin.InstallResult, details map[string]string) {
+	details["package_sha256"] = res.Report.PackageSHA256
+	var rules []string
+	for _, f := range res.Report.Findings {
+		if f.Severity == plugin.SevCritical && !slices.Contains(rules, f.Rule) {
+			rules = append(rules, f.Rule)
+		}
+	}
+	details["critical"] = strings.Join(rules, " ")
+	s.audit(r, uid(r), "plugin.refused", res.ID, details)
+	d, err := s.pluginsPage(r)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	d.Refused = res.Report
+	s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "plugins", s.t("Plugins"), "plugins", d)
+}
+
+// pluginInstalled audits an install or an update (plugin.installed,
+// plugin.updated) and sends the administrator to the plugin's page; held
+// means it waits for the network operator's review.
+func (s *Server) pluginInstalled(w http.ResponseWriter, r *http.Request, res *plugin.InstallResult, held bool, details map[string]string) {
 	action := "plugin.installed"
-	details := map[string]string{"version": res.Version, "sha256": res.Report.WasmSHA256, "package_sha256": res.Report.PackageSHA256,
-		"verdict": res.Report.Verdict, "file": truncateStr(hdr.Filename, 120)}
+	details["version"], details["sha256"], details["package_sha256"] = res.Version, res.Report.WasmSHA256, res.Report.PackageSHA256
+	details["verdict"] = res.Report.Verdict
 	msg := s.t("Plugin installed. It is disabled: review the scan report and the permissions, then switch it on.")
 	if held {
 		msg = s.t("Plugin installed. The network operator reviews it before it can be switched on.")

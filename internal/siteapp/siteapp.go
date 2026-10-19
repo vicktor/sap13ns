@@ -46,6 +46,9 @@ type Params struct {
 	Plugins    PluginLimits
 	Background web.BackgroundOptions
 	Updates    *update.Checker // release checks shown to administrators; nil = none
+	// Official are the official plugins in the binary, which the site
+	// can install (internal/plugin/bundled); nil = none.
+	Official *plugin.Official
 
 	// Inert opens the site without running anything of the tenant's: its
 	// plugin host is inert (plugin.HostOptions.Inert), so no plugin loads
@@ -133,7 +136,7 @@ func Open(ctx context.Context, p Params) (*App, error) {
 	host.SetMailer(mailer)                       // the mail_send host function
 	host.SetBlocklistFile(blocklist)
 	srv, err := web.New(ctx, web.Deps{Config: cfg, Log: p.Log, Store: p.Store, UI: p.UI, Plugins: host, Mailer: mailer,
-		Network: p.Network, Hosts: p.Hosts, CacheSizes: p.CacheSizes})
+		Official: p.Official, Network: p.Network, Hosts: p.Hosts, CacheSizes: p.CacheSizes})
 	if err != nil {
 		host.Close(context.WithoutCancel(ctx))
 		return nil, err

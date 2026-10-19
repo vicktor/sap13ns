@@ -33,4 +33,31 @@
     </tbody>
   </table>
 </div>
+
+{{with $d.Official}}
+<section class="card table-wrap mt-6" id="official">
+  <header>
+    <h2>{{icon "badge-check"}} {{T "Official plugins"}}</h2>
+    <p>{{T "They ship with this version of sap13ns, and every site can install them on any plan, without your review: they are scanned and installed disabled, and the site's administrator switches them on. A hidden plugin cannot be installed or updated from the sites; the copies they installed stay."}}</p>
+  </header>
+  <table class="table">
+    <thead><tr><th>{{T "Plugin"}}</th><th class="max-md:hidden">{{T "Requested permissions"}}</th><th>{{T "Sites"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+    <tbody>
+      {{range .}}
+      <tr>
+        <td><strong>{{.Name}}</strong> <span class="muted text-xs">v{{.Version}}</span><div class="row-sub muted mono">{{.ID}}</div></td>
+        <td class="max-md:hidden">{{with .EffectivePermissions}}<span class="mono break-all">{{join . ", "}}</span>{{else}}<span class="muted">{{T "No permissions: it can only transform the content it receives."}}</span>{{end}}</td>
+        <td>{{if .Hidden}}<span class="badge" data-variant="secondary">{{T "Hidden from the sites"}}</span>{{else}}<span class="badge" data-variant="success">{{T "Offered to the sites"}}</span>{{end}}</td>
+        <td class="text-right nowrap">
+          <form method="post" action="/admin/network/plugins/official" class="inline-flex">{{$.CSRFField}}<input type="hidden" name="plugin" value="{{.ID}}">
+            {{if .Hidden}}<input type="hidden" name="hidden" value="0"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "eye"}}{{T "Offer to the sites"}}</button>
+            {{else}}<input type="hidden" name="hidden" value="1"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "eye-off"}}{{T "Hide from the sites"}}</button>{{end}}
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
 {{end}}

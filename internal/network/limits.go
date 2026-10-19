@@ -6,7 +6,9 @@ package network
 // stays.
 //
 // Plugins: every site installs from the network's catalogue, the plugins
-// the operator installed on the portal (not blocked by the scanner). A
+// the operator installed on the portal (not blocked by the scanner), and
+// the official plugins in the binary, except those the operator hides
+// (official_plugins_hidden). A
 // plan with plugin_uploads also lets a site upload its own, which are held
 // (review_required plus a plugin_reviews row) until a network admin
 // approves that very build: its module, assets and pinned permissions
@@ -112,7 +114,11 @@ func (h siteHooks) PluginPolicy(ctx context.Context) (web.PluginPolicy, error) {
 	if err != nil {
 		return web.PluginPolicy{}, err
 	}
-	return web.PluginPolicy{Plan: p.Name, Uploads: p.PluginUploads}, nil
+	hidden, err := h.r.net.HiddenOfficialPlugins(ctx)
+	if err != nil {
+		return web.PluginPolicy{}, err
+	}
+	return web.PluginPolicy{Plan: p.Name, Uploads: p.PluginUploads, Hidden: hidden}, nil
 }
 
 func (h siteHooks) ThemePolicy(ctx context.Context) (web.ThemePolicy, error) {
@@ -183,6 +189,44 @@ func (r *Registry) withPortal(ctx context.Context, fn func(*siteapp.App) error) 
 	}
 	defer r.releaseFor(e, false)
 	return fn(e.app)
+}
+
+// ---------------------------------------------------- official plugins --
+
+// HiddenOfficialPlugins lists the official plugins the operator hides
+// from the sites, by id.
+func (n *Network) HiddenOfficialPlugins(ctx context.Context) ([]string, error) {
+	rows, err := n.db.Query(ctx, `SELECT plugin_id FROM official_plugins_hidden ORDER BY plugin_id`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}
+
+// HideOfficialPlugin hides an official plugin from the sites, or offers
+// it again. The copies sites installed stay.
+func (n *Network) HideOfficialPlugin(ctx context.Context, id string, hidden bool, by int64) error {
+	if !plugin.ValidID(id) {
+		return fmt.Errorf("%w: plugin id %q", ErrInvalid, id)
+	}
+	if !hidden {
+		_, err := n.db.Exec(ctx, `DELETE FROM official_plugins_hidden WHERE plugin_id = $1`, id)
+		return err
+	}
+	var hider *int64
+	if by > 0 {
+		hider = &by
+	}
+	_, err := n.db.Exec(ctx, `INSERT INTO official_plugins_hidden (plugin_id, hidden_by) VALUES ($1, $2) ON CONFLICT (plugin_id) DO NOTHING`, id, hider)
+	return err
+}
+
+func (h portalHooks) HiddenOfficialPlugins(ctx context.Context) ([]string, error) {
+	return h.r.net.HiddenOfficialPlugins(ctx)
+}
+
+func (h portalHooks) HideOfficialPlugin(ctx context.Context, id string, hidden bool, by int64) error {
+	return webErr(h.r.net.HideOfficialPlugin(ctx, id, hidden, by))
 }
 
 // ------------------------------------------------------ plugin reviews --

@@ -3,7 +3,8 @@ package web
 // The limits of a site of a network under its plan (internal/network):
 // its storage, and how plugins and themes reach it. Every plan installs
 // from the network's catalogue, the plugins the operator installed on the
-// portal; a plan with plugin uploads also lets the site upload its own,
+// portal, and the official plugins in the binary that the operator does
+// not hide; a plan with plugin uploads also lets the site upload its own,
 // which the network operator reviews before they can run. A plan with
 // theme uploads lets the site upload its own themes, which the validation
 // of internal/theme checks instead of an operator. A single-site install
@@ -58,6 +59,9 @@ type ThemePolicy struct {
 type PluginPolicy struct {
 	Plan    string // its name
 	Uploads bool   // the site may upload its own plugins, held for the operator's review
+	// Hidden are the official plugins the operator does not offer to the
+	// sites: they cannot be installed or updated from the site's admin.
+	Hidden []string
 }
 
 // A CatalogPlugin is a plugin of the network's catalogue.
@@ -146,6 +150,10 @@ type PortalPlugins interface {
 	// a site: store.ErrNotFound when it is not waiting, ErrNetworkState
 	// when the site has another build of it now.
 	ReviewPlugin(ctx context.Context, siteID int64, pluginID, pin string, approve bool, by int64) error
+	// HiddenOfficialPlugins lists the official plugins the operator hides
+	// from the sites; HideOfficialPlugin hides one, or offers it again.
+	HiddenOfficialPlugins(ctx context.Context) ([]string, error)
+	HideOfficialPlugin(ctx context.Context, id string, hidden bool, by int64) error
 }
 
 // A NetPluginReview is a build of a plugin a site uploaded.
@@ -170,7 +178,12 @@ func (s *Server) adminNetPlugins(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "network_plugins", s.t("Plugin reviews"), "net-plugins", map[string]any{"Reviews": reviews})
+	official, err := s.netOfficialRows(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderAdmin(w, r, "network_plugins", s.t("Plugin reviews"), "net-plugins", map[string]any{"Reviews": reviews, "Official": official})
 }
 
 var pinRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
