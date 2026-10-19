@@ -90,6 +90,6 @@ También hay un coste en comodidad: enviar y recibir JSON es más lento que llam
 
 ## Pruébalo
 
-El repositorio incluye once plugins oficiales en `plugins/`. Uno de ellos, `callouts`, convierte los avisos de Markdown en notas con estilo, añade dos shortcodes para notas y teclas y no necesita ningún permiso. Es un buen punto de partida. La [página de plugins](/es/plugins) tiene un resumen, y [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md), el contrato completo.
+El repositorio incluye catorce plugins oficiales en `plugins/`. Uno de ellos, `callouts`, convierte los avisos de Markdown en notas con estilo, añade dos shortcodes para notas y teclas y no necesita ningún permiso. Es un buen punto de partida. La [página de plugins](/es/plugins) tiene un resumen, y [PLUGINS.md](https://github.com/vicktor/sap13ns/blob/main/docs/PLUGINS.md), el contrato completo.
 
 [^1]: El sandbox protege tu sitio de un plugin. No hace que lo que muestra el plugin sea correcto: un plugin con permiso `http:` puede seguir mostrando datos erróneos del servicio al que llama.

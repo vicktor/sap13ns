@@ -14,6 +14,7 @@
   <a href="docs/DEPLOY.md">Deploy</a> ·
   <a href="docs/MULTISITE.md">Multisite</a> ·
   <a href="docs/PLUGINS.md">Plugins</a> ·
+  <a href="docs/SOCIAL.md">Social</a> ·
   <a href="docs/SECURITY.md">Security</a> ·
   <a href="docs/RELEASES.md">Releases</a> ·
   <a href="LICENSE">CPAL-1.0</a>
@@ -179,6 +180,9 @@ Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the
 | [youtube](plugins/youtube) | The latest videos of a YouTube channel or playlist as a grid or a carousel, played only after a click |
 | [schema](plugins/schema) | Schema.org JSON-LD for every public page |
 | [social](plugins/social) | Posts new articles to Bluesky and Mastodon |
+| [x-autopost](plugins/x-autopost) | Posts new articles to X |
+| [linkedin](plugins/linkedin) | Shares new articles on your LinkedIn profile, with an article card |
+| [instagram](plugins/instagram) | Publishes new articles' featured images to Instagram, and shows your latest Instagram posts as a carousel or a grid |
 | [related](plugins/related) | Related posts by shared tags and categories |
 | [antispam](plugins/antispam) | Holds or rejects spam comments, optionally with StopForumSpam |
 | [contact](plugins/contact) | Contact form e-mailed to the site, with Reply-To |

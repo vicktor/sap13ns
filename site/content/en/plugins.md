@@ -124,7 +124,7 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
 
 ## Example plugins
 
-The repository includes eleven official plugins in `plugins/`, each one its own Go module with tests and a README that explains every permission it asks for:
+The repository includes fourteen official plugins in `plugins/`, each one its own Go module with tests and a README that explains every permission it asks for:
 
 - **callouts**: GitHub-style Markdown alerts plus the `callout` and `kbd` shortcodes.
 - **toc**: an automatic table of contents.
@@ -137,6 +137,9 @@ The repository includes eleven official plugins in `plugins/`, each one its own 
 - **contact**: a contact form with privacy consent, sent to the administrator with the visitor as Reply-To.
 - **antispam**: local checks on new comments (links, a blocklist, mixed alphabets, shouting, repeated text), with an optional StopForumSpam lookup that is off by default.
 - **social**: posts new articles to Bluesky and Mastodon, in the post's language, and never twice.
+- **x-autopost**: posts new articles to X, fitted to 280 characters the way X counts them.
+- **linkedin**: shares new articles on your LinkedIn profile, with an article card. You connect the account once; sap13ns keeps the token and warns before it ends.
+- **instagram**: publishes the featured image of new articles to your Instagram professional account, and shows your latest Instagram posts as a carousel or a grid. The token renews itself.
 
 They use the shared component styles, so they look at home in every theme, light and dark.
 

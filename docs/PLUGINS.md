@@ -632,7 +632,7 @@ The scanner checks, in order:
 
 The plugins the sap13ns team maintains (`plugins/` in the repository, MIT-licensed) ship inside the binary, so they arrive with every release and with `sap13ns update`. **Plugins → Official plugins** lists each one the site has not installed, with its version, author, licence and the permissions it will ask for in plain words, and an **Install** button. `sap13ns plugin list -official` and `sap13ns plugin install -official <id>` do the same from the command line.
 
-- **Same pipeline as an upload.** Installing (`POST /admin/plugins/official/{id}/install`, with the `plugins` capability and the CSRF token) unpacks the package under the archive limits, scans it like any upload, and installs it **disabled**, with source `official`. Enabling it is the usual approval pinned to its build, with the confirmation box for high-risk permissions (`embeds`, `youtube` and `antispam` ask for some).
+- **Same pipeline as an upload.** Installing (`POST /admin/plugins/official/{id}/install`, with the `plugins` capability and the CSRF token) unpacks the package under the archive limits, scans it like any upload, and installs it **disabled**, with source `official`. Enabling it is the usual approval pinned to its build, with the confirmation box for high-risk permissions (`embeds`, `youtube`, `instagram` and `antispam` ask for some).
 - **Updates.** When the binary carries a newer version of a plugin installed from there, the section shows **Update available** and an **Update** button. An update is an install of the new package: it is scanned again, keeps the settings and data, and stops the plugin until it is approved again if its module, assets, permissions or capabilities changed. An older version in the binary (after a rollback) is not offered and does not downgrade.
 - **Uninstalling** puts the plugin back in the list. Installing it again over kept data works as for any package (`manifest.retained-data`).
 - **Another plugin with the same id**, uploaded or copied by hand, is not replaced: the section leaves it out, and an install asks you to uninstall it first.
@@ -640,7 +640,7 @@ The plugins the sap13ns team maintains (`plugins/` in the repository, MIT-licens
 - **Videos in the core and in `embeds` and `youtube`.** The core embeds bare YouTube and Vimeo links itself (see [content.filter](#contentfilter)), so the two plugins work beside it without doing anything twice:
   - **`embeds` (1.1.0)** turns into players what the core leaves as links: TikTok links, titled YouTube and Vimeo links, and every YouTube and Vimeo link when **Settings → Videos** is off. Its own settings (`youtube`, `vimeo`, `tiktok`) still decide what it embeds.
   - **`youtube`** shows a channel's or playlist's gallery with `[youtube_videos]`, a shortcode of its own: the core's `[video]` and bare links do not touch it, and its players are its own markup, which the core leaves alone.
-- **Size.** The official modules are built with `-ldflags="-s -w"`, which only drops the WebAssembly `name` section (function names in trap traces): about 1.7% smaller. The eleven packages add about 18 MB to the binary.
+- **Size.** The official modules are built with `-ldflags="-s -w"`, which only drops the WebAssembly `name` section (function names in trap traces): about 1.7% smaller. The fourteen packages add about 23 MB to the binary.
 
 ## Networks of sites
 
@@ -698,13 +698,14 @@ sap13ns plugin hash <dir>                           # SHA-256 of the module and 
 
 ## Developing and testing
 
-- **The SDK.** `github.com/vicktor/sap13ns/pluginsdk` registers the handler (`pluginsdk.Handle`), decodes payloads (`req.Decode`), builds responses (`HTML`, `Head`, `MetaTags`, `Verdict`, `FormOK`, `FormErrors`, `FormPlaceholder`) and wraps the host functions (`Log`, `KVGet`, `KVSet`, `KVDelete`, `QueryPosts`, `Fetch` and `SendMail`).
+- **The SDK.** `github.com/vicktor/sap13ns/pluginsdk` registers the handler (`pluginsdk.Handle`), decodes payloads (`req.Decode`), builds responses (`HTML`, `Head`, `MetaTags`, `Verdict`, `FormOK`, `FormErrors`, `FormPlaceholder`) and wraps the host functions (`Log`, `KVGet`, `KVSet`, `KVDelete`, `QueryPosts`, `Fetch`, `SendMail` and `OAuth`).
 - **Native builds.** The SDK also compiles natively, where host functions return `ErrUnavailable`.
 - **Testing without WebAssembly.** `pluginsdk/sdktest` provides a fake host for `go test`. `env := sdktest.New(t)` installs it, and the plugin's handler then runs through the same JSON envelope as on the server.
   - **Calls:** `env.Shortcode`, `env.Widget`, `env.Filter` (and `env.FilterIn` for a feed), `env.Head`, `env.Event`, `env.CheckComment` and `env.SubmitForm`.
-  - **Setup:** `env.Plugin.Settings`, `env.Posts`, `env.KV`, `env.HTTP`, `env.HTTPHosts` (the hosts of your `http:` permissions) and `env.MailRecipients`.
+  - **Setup:** `env.Plugin.Settings`, `env.Posts`, `env.KV`, `env.HTTP`, `env.HTTPHosts` (the hosts of your `http:` permissions), `env.MailRecipients` and `env.OAuth` (the tokens of connected providers; a missing one is not connected, a past `ExpiresAt` an ended connection).
   - **Results:** `env.KV`, `env.Mails` and `env.Logs`.
   - **It enforces the server's rules:** missing permissions (`env.Denied`), unknown recipients, non-https URLs, hosts outside `env.HTTPHosts` and the per-request limits (200 KV operations, 10 post queries, 4 HTTP requests, 5 e-mails) fail as they would in production. `posts_query` searches whole words, with `-word` and `or`, like the server; it looks in `Title` and `Excerpt` only, since the fake posts have no content.
+- **Auto-posting.** `pluginsdk/autopost` holds what the official auto-post plugins share: the events, the queue of scheduled posts, retries, the record that keeps a post from being sent twice, and texts fitted to a network's limit. A plugin describes its network (`autopost.Network`) and calls `Poster.Handle`; [SOCIAL.md](SOCIAL.md) compares the four that use it.
 - **The skeleton** (`plugins/skeleton`) has one example per hook, tests for each, and a `Makefile` with `build`, `test`, `vet`, `check` and `pack`.
 - **The official plugins** are built, packed and scanned into the binary's bundle with `make plugins` at the root, and tested with `make plugins-test` ([Official plugins](#official-plugins)).
 
