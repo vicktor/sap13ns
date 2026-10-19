@@ -31,5 +31,16 @@ sudo systemctl restart sap13ns</pre>
     </section>
     {{if .D.Checks}}<footer><form method="post" action="/admin/system/update-check">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm">{{icon "refresh-cw"}}{{T "Check now"}}</button></form></footer>{{end}}
   </section>
+  {{if .D.SingleSite}}
+  <section class="card" id="multisite">
+    <header><h2>{{T "Multiple sites"}}</h2><p>{{T "This installation runs one site."}}</p></header>
+    <section class="flex flex-col gap-3">
+      <p>{{T "A network of sites, with one account for many sites, is a separate mode. It starts on a new database with:"}}</p>
+      <pre class="report">sap13ns network init</pre>
+      <p class="hint">{{T "Converting this site into a network, or into a site of one, is not available yet."}}</p>
+    </section>
+    <footer><a class="btn" data-variant="outline" data-size="sm" href="{{.D.Guide}}" target="_blank" rel="noopener">{{icon "book-open"}}{{T "Read the guide to networks of sites"}}</a></footer>
+  </section>
+  {{end}}
 </div>
 {{end}}

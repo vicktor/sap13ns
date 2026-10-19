@@ -192,7 +192,13 @@ type systemData struct {
 	Groups  []sysGroup
 	Updates []sysRow
 	Checks  bool // release checks are on: offer "Check now"
+	// A single site: how a network of sites is started instead.
+	SingleSite bool
+	Guide      string
 }
+
+// multisiteGuide documents networks of sites (docs/MULTISITE.md).
+const multisiteGuide = "https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md"
 
 type sysGroup struct {
 	Title string
@@ -264,6 +270,7 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 		}},
 	}}
 	d.Updates, d.Checks = s.updateRows(), s.updates != nil && !s.updates.Disabled
+	d.SingleSite, d.Guide = s.network == nil, multisiteGuide
 	s.renderAdmin(w, r, "system", s.t("System"), "system", d)
 }
 
