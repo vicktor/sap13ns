@@ -1,0 +1,333 @@
+/* Onepage — a one-page site with an editorial voice. Warm paper and ink,
+   one strong accent, large serif (or sans) headlines, numbered sections
+   and a sticky header whose menu follows the reader (onepage.js). The
+   landing blocks of the page builder (blocks/landing.html) get the same
+   look, so a front page built from the One-page preset matches the
+   theme's own (templates/front.html). Light and dark. */
+@import "tailwindcss" source(none);
+@source "../templates";
+@source "../../../shared/templates";
+
+@import "basecoat-css/base/base.css";
+/* Only the components plugins may emit. */
+@import "basecoat-css/components/alert.css";
+@import "basecoat-css/components/badge.css";
+@import "basecoat-css/components/button.css";
+@import "basecoat-css/components/card.css";
+@import "basecoat-css/components/kbd.css";
+@import "../../../shared/src/shared.css";
+
+:root {
+  --radius: calc(1rem * var(--sap-radius-scale, 1));
+  --background: var(--sap-light-background, #f6f3ec);
+  --foreground: var(--sap-light-foreground, #17140f);
+  --card: var(--sap-light-card, #fffdf8);
+  --card-foreground: var(--sap-light-card-foreground, #17140f);
+  --muted: var(--sap-light-muted, #ece7dc);
+  --muted-foreground: var(--sap-light-muted-foreground, #6b645a);
+  --border: var(--sap-light-border, #ddd5c6);
+  --input: var(--sap-light-border, #ddd5c6);
+  --primary: var(--sap-light-primary, #c43a20);
+  --primary-foreground: var(--sap-light-primary-foreground, #ffffff);
+  --accent: var(--sap-light-accent, #f1e6d6);
+  --accent-foreground: var(--sap-light-accent-foreground, #17140f);
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+  --ring: color-mix(in srgb, var(--primary) 55%, transparent);
+  --destructive: #c4211b;
+  --sap-measure: 44rem;
+  --op-width: var(--sap-content-width, 76rem);
+  --op-space: var(--sap-space-scale, 1);
+  --op-shadow: 0 calc(24px * var(--sap-shadow-scale, 1)) calc(48px * var(--sap-shadow-scale, 1)) calc(-30px * var(--sap-shadow-scale, 1)) rgb(23 20 15 / 0.35);
+}
+.dark {
+  --background: var(--sap-dark-background, #12110f);
+  --foreground: var(--sap-dark-foreground, #f3eee4);
+  --card: var(--sap-dark-card, #1b1916);
+  --card-foreground: var(--sap-dark-card-foreground, #f3eee4);
+  --muted: var(--sap-dark-muted, #24211d);
+  --muted-foreground: var(--sap-dark-muted-foreground, #a39b8e);
+  --border: var(--sap-dark-border, #34302a);
+  --input: var(--sap-dark-border, #34302a);
+  --primary: var(--sap-dark-primary, #ff6b4a);
+  --primary-foreground: var(--sap-dark-primary-foreground, #1a0c07);
+  --accent: var(--sap-dark-accent, #2c2722);
+  --accent-foreground: var(--sap-dark-accent-foreground, #f3eee4);
+  --destructive: #ff6159;
+  --op-shadow: 0 calc(24px * var(--sap-shadow-scale, 1)) calc(48px * var(--sap-shadow-scale, 1)) calc(-30px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.7);
+}
+.accent-ultramarine { --primary: var(--sap-light-primary, #2f4bd8); }
+.dark.accent-ultramarine { --primary: var(--sap-dark-primary, #8197ff); --primary-foreground: var(--sap-dark-primary-foreground, #0a1033); }
+.accent-emerald { --primary: var(--sap-light-primary, #0d7a52); }
+.dark.accent-emerald { --primary: var(--sap-dark-primary, #43d39a); --primary-foreground: var(--sap-dark-primary-foreground, #03251a); }
+.accent-violet { --primary: var(--sap-light-primary, #6a3fd6); }
+.dark.accent-violet { --primary: var(--sap-dark-primary, #a98cff); --primary-foreground: var(--sap-dark-primary-foreground, #170a3a); }
+.accent-graphite { --primary: var(--sap-light-primary, #17140f); --primary-foreground: var(--sap-light-primary-foreground, #f6f3ec); }
+.dark.accent-graphite { --primary: var(--sap-dark-primary, #f3eee4); --primary-foreground: var(--sap-dark-primary-foreground, #12110f); }
+
+/* Headings: an editorial serif (the default) or a sans-serif, both from
+   the system. The customiser's heading font wins over either. */
+:root, .headings-serif { --op-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", P052, "URW Palladio L", Georgia, serif; --op-display-weight: 500; --op-display-track: -0.022em; }
+.headings-sans { --op-display: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; --op-display-weight: 700; --op-display-track: -0.04em; }
+
+@theme {
+  --font-sans: var(--sap-font-body, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --font-display: var(--sap-font-heading, var(--op-display));
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply font-sans antialiased; background: var(--background); color: var(--foreground); font-size: calc(1.0625rem * var(--sap-text-scale, 1)); line-height: 1.6; }
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); text-wrap: balance; }
+  a { color: var(--primary); text-underline-offset: 0.18em; }
+  ::selection { background: color-mix(in srgb, var(--primary) 26%, transparent); }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: calc(4px * var(--sap-radius-scale, 1)); }
+  main { outline: none; counter-reset: op-section; }
+}
+
+/* ---------------------------------------------------------------- layout */
+.op-wrap { width: min(100% - 2.5rem, var(--op-width)); margin-inline: auto; }
+@media (min-width: 1280px) { .op-wrap { width: min(100% - 5rem, var(--op-width)); } }
+
+/* Sticky header: brand, the section menu, actions and a call to action. */
+.op-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--background) 90%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+.op-header-inner { display: flex; align-items: center; gap: 1.25rem; height: 4.25rem; }
+.op-brand { display: inline-flex; align-items: center; gap: 0.6rem; min-width: 0; color: var(--foreground); font-family: var(--font-display); font-size: 1.3rem; font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); line-height: 1; text-decoration: none; white-space: nowrap; }
+.op-brand-name { overflow: hidden; text-overflow: ellipsis; }
+.op-brand .sap-logo { height: 1.85rem; width: auto; }
+/* The mark: the hero's sun and ink, in one disc. */
+.op-brand-mark { flex: none; width: 1.2rem; height: 1.2rem; border-radius: 999px; background: linear-gradient(90deg, var(--primary) 50%, var(--foreground) 50%); }
+.op-menu { display: flex; align-items: center; gap: 0.15rem; margin: 0 auto; padding: 0; list-style: none; }
+.op-menu a { position: relative; display: block; padding: 0.5rem 0.8rem; border-radius: 999px; color: color-mix(in srgb, var(--foreground) 72%, transparent); font-size: 0.93rem; font-weight: 550; text-decoration: none; transition: color .2s, background-color .2s; }
+.op-menu a::after { content: ""; position: absolute; inset: auto 0.8rem 0.28rem; height: 2px; border-radius: 2px; background: var(--primary); transform: scaleX(0); transform-origin: left; transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.op-menu a:hover { color: var(--foreground); }
+.op-menu a[aria-current] { color: var(--foreground); }
+.op-menu a[aria-current]::after { transform: scaleX(1); }
+.op-actions { display: flex; flex: none; align-items: center; gap: 0.1rem; }
+.op-icon { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 999px; color: inherit; }
+.op-icon:hover { background: color-mix(in srgb, var(--foreground) 8%, transparent); }
+.op-icon svg { width: 1.1rem; height: 1.1rem; }
+.op-header .btn.op-header-cta { margin-left: 0.5rem; padding: 0.5rem 1rem; font-size: 0.88rem; }
+.nav-toggle { display: none; }
+@media (max-width: 959px) {
+  .op-header-inner { gap: 0.5rem; }
+  .op-actions { margin-left: auto; }
+  .nav-toggle { display: inline-grid; }
+  .op-menu { position: absolute; top: 100%; left: 0; right: 0; flex-direction: column; align-items: stretch; gap: 0; margin: 0; padding: 0.5rem 1.25rem 1.5rem; background: var(--background); border-bottom: 1px solid var(--border); box-shadow: var(--op-shadow); max-height: calc(100dvh - 4.25rem); overflow-y: auto; opacity: 0; visibility: hidden; transform: translateY(-0.5rem); transition: opacity .25s, transform .25s, visibility .25s; }
+  .op-menu.is-open { opacity: 1; visibility: visible; transform: none; }
+  .op-menu li + li { border-top: 1px solid var(--border); }
+  .op-menu a { padding: 0.9rem 0.25rem; border-radius: 0; color: var(--foreground); font-family: var(--font-display); font-size: 1.45rem; font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); }
+  .op-menu a::after { inset: auto auto 0.7rem 0.25rem; width: 1.5rem; }
+}
+@media (max-width: 639px) { .op-header .op-header-cta { display: none; } }
+@media (max-width: 380px) { .op-brand { font-size: 1.15rem; } .op-icon { width: 2.25rem; } }
+
+/* An administrator's note above the sample sections. */
+.op-note { border-bottom: 1px solid var(--border); background: var(--accent); color: var(--accent-foreground); font-size: 0.9rem; }
+.op-note-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; padding-block: 0.7rem; }
+.op-note-inner > svg { flex: none; width: 1.1rem; height: 1.1rem; color: var(--primary); }
+.op-note-inner > p { flex: 1 1 18rem; margin: 0; }
+
+/* ------------------------------------------------------------------ hero */
+.op-hero { position: relative; overflow: hidden; padding-block: calc(clamp(3.5rem, 9vw, 8rem) * var(--op-space)) calc(clamp(3rem, 7vw, 6.5rem) * var(--op-space)); background: radial-gradient(60rem 36rem at 100% 0%, color-mix(in srgb, var(--primary) 11%, transparent), transparent 70%); }
+.op-hero-grid { display: grid; gap: 3rem; align-items: center; }
+@media (min-width: 960px) { .op-hero-grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: clamp(3rem, 6vw, 6rem); } }
+.op-hero-text { min-width: 0; }
+.op-hero-title { margin: 0; font-size: clamp(2.6rem, 1.4rem + 5.6vw, 6.5rem); line-height: 0.98; letter-spacing: calc(var(--op-display-track) - 0.012em); overflow-wrap: break-word; }
+.op-hero-lead { max-width: 36rem; margin: 1.5rem 0 0; color: var(--muted-foreground); font-size: clamp(1.1rem, 1rem + 0.55vw, 1.4rem); line-height: 1.5; text-wrap: pretty; }
+.op-hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 2.25rem 0 0; }
+/* A poster of plain shapes: the sun (accent), the ink half-disc, a ring
+   and a field of dots. Drawn with the theme's colours, so it follows the
+   accent and the dark scheme. */
+.op-hero-art { position: relative; display: none; width: min(100%, 30rem); aspect-ratio: 1; justify-self: end; }
+@media (min-width: 960px) { .op-hero-art { display: block; } }
+.op-hero-art > span { position: absolute; display: block; }
+.op-art-sun { top: 4%; right: 4%; width: 64%; aspect-ratio: 1; border-radius: 999px; background: var(--primary); }
+.op-art-half { bottom: 8%; left: 2%; width: 58%; aspect-ratio: 2; border-radius: 999px 999px 0 0; background: var(--foreground); }
+.op-art-ring { top: 22%; left: 10%; width: 42%; aspect-ratio: 1; border: 2px solid var(--foreground); border-radius: 999px; }
+.op-art-dots { right: 0; bottom: 0; width: 38%; aspect-ratio: 1; color: var(--muted-foreground); background-image: radial-gradient(currentColor 1.6px, transparent 1.8px); background-size: 16px 16px; opacity: 0.55; }
+@media (prefers-reduced-motion: no-preference) {
+  .op-art-sun { animation: op-rise 1.1s cubic-bezier(.2, .8, .2, 1) both; }
+  .op-art-half { animation: op-rise 1.1s .12s cubic-bezier(.2, .8, .2, 1) both; }
+  .op-art-ring { animation: op-rise 1.1s .24s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes op-rise { from { opacity: 0; transform: translateY(1.5rem); } }
+}
+
+/* ---------------------------------------------------------------- figures */
+.op-figures { border-block: 1px solid var(--border); padding-block: calc(2.5rem * var(--op-space)); }
+.op-stats { gap: 2rem 0; }
+.op-stats .sap-stat { padding-inline: 1.5rem; border-left: 1px solid var(--border); }
+@media (max-width: 767px) { .op-stats .sap-stat:nth-child(odd) { border-left: 0; padding-left: 0; } }
+@media (min-width: 768px) { .op-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } .op-stats .sap-stat:first-child { border-left: 0; padding-left: 0; } }
+
+/* --------------------------------------------------------------- sections */
+.op-section { padding-block: calc(clamp(4rem, 9vw, 7.5rem) * var(--op-space)); }
+.op-tinted { background: var(--muted); }
+.op-head { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin-bottom: calc(clamp(2rem, 4vw, 3.5rem) * var(--op-space)); }
+.op-head > * { margin: 0; }
+/* "01 —— Features": the section's number, a rule and its name. */
+.op-kicker { display: inline-flex; align-items: center; gap: 0.75rem; color: var(--primary); font-size: 0.78rem; font-weight: 650; letter-spacing: 0.14em; line-height: 1.2; text-transform: uppercase; counter-increment: op-section; }
+.op-kicker::before { content: counter(op-section, decimal-leading-zero); order: -2; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.op-kicker::after { content: ""; order: -1; width: 2.25rem; height: 1px; background: currentColor; }
+.op-title { margin-top: 1rem; font-size: clamp(2.1rem, 1.3rem + 3.2vw, 3.75rem); line-height: 1.02; }
+.op-intro { max-width: 34rem; margin-top: 1.1rem; color: var(--muted-foreground); font-size: clamp(1.05rem, 1rem + 0.3vw, 1.2rem); line-height: 1.55; text-wrap: pretty; }
+.op-intro a { font-weight: 600; }
+.op-head-center { align-items: center; max-width: 46rem; margin-inline: auto; text-align: center; }
+.op-head-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0 1.5rem; }
+.op-head-row .op-kicker { grid-column: 1 / -1; justify-self: start; }
+.op-more { display: inline-flex; align-items: center; gap: 0.35rem; padding-bottom: 0.4rem; color: var(--foreground); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.op-more:hover { color: var(--primary); }
+.op-more svg { width: 1rem; height: 1rem; transition: transform .2s; }
+.op-more:hover svg { transform: translateX(3px); }
+/* Heading on the left (it stays in view), content on the right. */
+@media (min-width: 960px) {
+  .op-split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(3rem, 6vw, 6rem); align-items: start; }
+  .op-split > .op-head { position: sticky; top: calc(var(--sap-scroll-offset, 5rem) + 1rem); margin-bottom: 0; }
+}
+
+/* Features in the split section: rows, each an icon beside its text. */
+.op-features.sap-lb-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.op-features .sap-feature { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.35rem 1.35rem; padding-block: 1.75rem; border-top: 1px solid var(--border); }
+.op-features .sap-feature:last-child { border-bottom: 1px solid var(--border); }
+.op-features .sap-feature-icon { grid-row: span 2; margin: 0; }
+.op-features .sap-feature-title { font-size: clamp(1.3rem, 1.1rem + 0.7vw, 1.65rem); }
+.op-features .sap-feature-text { max-width: 36rem; }
+
+/* Latest posts. */
+.op-latest { border-top: 1px solid var(--border); }
+
+/* Three quotes, plans or posts sit in a row from tablets up, not two and
+   an orphan. */
+@media (min-width: 768px) {
+  .op-section .sap-lb-grid.sap-grid-3, .op-section .sap-plans.sap-plans-3, .op-latest .sap-posts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .op-section .sap-plans.sap-plans-3 { gap: 1rem; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .op-section .sap-plan, .op-section .sap-quote { padding: 1.25rem; }
+  .op-section .sap-plan-head { flex-direction: column; align-items: flex-start; }
+}
+
+/* ----------------------------------------------------- closing call to action */
+.op-cta { position: relative; overflow: hidden; padding-block: calc(clamp(4.5rem, 11vw, 9rem) * var(--op-space)); background: var(--primary); color: var(--primary-foreground); }
+.op-cta::before, .op-cta::after { content: ""; position: absolute; border: 1px solid color-mix(in srgb, var(--primary-foreground) 24%, transparent); border-radius: 999px; pointer-events: none; }
+.op-cta::before { width: 46rem; aspect-ratio: 1; top: -18rem; right: -14rem; }
+.op-cta::after { width: 26rem; aspect-ratio: 1; bottom: -15rem; right: 12%; }
+.op-cta-inner { position: relative; z-index: 1; }
+.op-cta-title { max-width: 14ch; margin: 0; color: inherit; font-size: clamp(2.6rem, 1.4rem + 5.4vw, 6.25rem); line-height: 0.98; letter-spacing: calc(var(--op-display-track) - 0.012em); }
+.op-cta-lead { max-width: 34rem; margin: 1.5rem 0 0; color: color-mix(in srgb, var(--primary-foreground) 84%, transparent); font-size: clamp(1.1rem, 1rem + 0.5vw, 1.35rem); line-height: 1.5; }
+.op-cta-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 2.5rem 0 0; }
+.op-cta .btn:not([data-variant]) { background: var(--primary-foreground); color: var(--primary); }
+.op-cta .btn:not([data-variant]):hover { background: color-mix(in srgb, var(--primary-foreground) 88%, var(--primary)); }
+.op-cta .btn[data-variant="outline"] { border-color: color-mix(in srgb, var(--primary-foreground) 45%, transparent); background: transparent; color: var(--primary-foreground); }
+.op-cta .btn[data-variant="outline"]:hover { background: color-mix(in srgb, var(--primary-foreground) 12%, transparent); }
+.op-cta a:focus-visible { outline-color: var(--primary-foreground); }
+
+/* ---------------------------------------------------------------- footer */
+.op-footer { padding-block: calc(3.5rem * var(--op-space)) calc(2.25rem * var(--op-space)); border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 0.92rem; }
+.op-cta + .op-footer, main:has(> .op-cta:last-child) + .op-footer { border-top: 0; }
+.op-footer .widget-area { display: grid; gap: calc(2rem * var(--op-space)); grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); padding-bottom: 2.5rem; margin-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
+.op-footer .widget-title { color: var(--foreground); font-size: 0.78rem; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; }
+.op-footer .widget a { color: var(--muted-foreground); }
+.op-footer .widget a:hover { color: var(--foreground); }
+.op-footer-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.75rem 2rem; }
+.op-footer-brand { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.25rem); }
+.op-footer-brand .op-brand-mark { width: 1.4rem; height: 1.4rem; }
+.op-footer-tagline { max-width: 30rem; margin: 0; }
+.op-footer-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+.op-footer-menu { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin: 0; padding: 0; list-style: none; }
+.op-footer-menu a { color: var(--foreground); text-decoration: none; }
+.op-footer-menu a:hover { color: var(--primary); }
+
+/* ------------------------------------------------- landing blocks (shared) */
+/* The theme's look for the landing blocks, in front.html and in layouts
+   built with the page builder. */
+.sap-lb-head .sap-b-heading, .sap-cta-title, .sap-hero-title { font-family: var(--font-display); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); }
+.sap-stat-value { color: var(--foreground); font-family: var(--font-display); font-size: clamp(2.4rem, 1.6rem + 2.8vw, 4rem); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); line-height: 1; }
+.sap-stat-label { font-size: 0.92rem; }
+/* Values on one line even when a label wraps (the value is drawn first). */
+.sap-stat { justify-content: flex-end; }
+.sap-feature-icon { width: 3rem; height: 3rem; border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--primary) 9%, transparent); color: var(--primary); }
+.sap-feature-icon svg { width: 1.3rem; height: 1.3rem; }
+.sap-feature-title { font-family: var(--font-display); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); font-size: 1.3rem; line-height: 1.2; }
+.sap-features-plain .sap-feature { padding-top: 1.25rem; border-top: 1px solid var(--foreground); }
+.op-features.sap-features-plain .sap-feature { border-top-color: var(--border); }
+.sap-features-cards .sap-feature { border-color: var(--border); background: var(--card); box-shadow: none; }
+
+.sap-quote { gap: 1.75rem; padding: clamp(1.5rem, 3vw, 2rem); border: 0; border-radius: calc(var(--radius) * 1.25); background: var(--card); box-shadow: var(--op-shadow); }
+.sap-quote-text { font-family: var(--font-display); font-size: clamp(1.15rem, 1.05rem + 0.4vw, 1.35rem); line-height: 1.45; letter-spacing: -0.01em; }
+.sap-quote-text::before { height: 0.5em; margin-bottom: 0.5rem; font-family: var(--font-display); font-size: 4rem; }
+.sap-quote-initial { background: var(--foreground); color: var(--background); }
+.sap-quote-who strong { color: var(--foreground); font-weight: 650; }
+
+.sap-plan { gap: 1rem; padding: clamp(1.5rem, 3vw, 2rem); border-radius: calc(var(--radius) * 1.25); border-color: var(--border); background: var(--card); }
+.sap-plan-name { font-family: var(--font-display); font-size: 1.45rem; font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); }
+.sap-plan-amount { font-family: var(--font-display); font-size: clamp(2.4rem, 1.8rem + 2vw, 3.25rem); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); }
+/* The highlighted plan is printed in reverse: ink with paper type. */
+.sap-plan.is-highlighted { border-color: var(--foreground); background: var(--foreground); color: var(--background); box-shadow: var(--op-shadow); }
+.sap-plan.is-highlighted :is(.sap-plan-period, .sap-plan-text) { color: color-mix(in srgb, var(--background) 72%, var(--foreground)); }
+.sap-plan.is-highlighted .sap-plan-features { border-top-color: color-mix(in srgb, var(--background) 22%, var(--foreground)); }
+@media (min-width: 1024px) { .sap-plans-3 > .sap-plan.is-highlighted:nth-child(2) { margin-block: -1rem; padding-block: calc(clamp(1.5rem, 3vw, 2rem) + 1rem); } }
+
+.sap-faq { border-top-color: var(--foreground); }
+.sap-faq-item > summary { padding-block: 1.35rem; font-family: var(--font-display); font-size: clamp(1.15rem, 1.05rem + 0.45vw, 1.4rem); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); }
+.sap-faq-chevron { width: 1.6rem; height: 1.6rem; padding: 0.3rem; border: 1px solid var(--border); border-radius: 999px; }
+.sap-faq-item[open] .sap-faq-chevron { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
+.sap-faq-answer { max-width: 40rem; font-size: 1.02rem; }
+
+.sap-b-cta.sap-cta-panel { border: 0; border-radius: calc(var(--radius) * 1.5); background: var(--primary); color: var(--primary-foreground); }
+.sap-cta-panel .sap-cta-lead { color: color-mix(in srgb, var(--primary-foreground) 84%, transparent); }
+.sap-cta-panel .btn:not([data-variant]) { background: var(--primary-foreground); color: var(--primary); }
+.sap-cta-panel .btn[data-variant] { border-color: color-mix(in srgb, var(--primary-foreground) 45%, transparent); color: var(--primary-foreground); }
+
+/* Sections of a built front page take the theme's rhythm. */
+.sap-region-front > .sap-section { --sap-pad: calc(clamp(3rem, 7vw, 6rem) * var(--sap-space-scale, 1)); }
+.sap-region-front .sap-hero-title { font-size: clamp(2.6rem, 1.4rem + 5.2vw, 6rem); line-height: 0.98; }
+
+/* --------------------------------------------------------------- buttons */
+.btn { gap: 0.45rem; height: auto; padding: 0.62rem 1.2rem; border: 1px solid transparent; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); font-size: 0.95rem; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; }
+.btn:hover { background: color-mix(in srgb, var(--primary) 86%, var(--foreground)); }
+.btn svg { width: 1rem; height: 1rem; }
+.btn[data-size="lg"] { padding: 0.88rem 1.6rem; font-size: 1.02rem; }
+.btn[data-size="sm"] { padding: 0.38rem 0.85rem; font-size: 0.85rem; }
+.btn:is([data-variant="outline"], [data-variant="secondary"]) { border-color: color-mix(in srgb, var(--foreground) 22%, transparent); background: transparent; color: var(--foreground); }
+.btn[data-variant="secondary"] { border-color: transparent; background: var(--muted); }
+.btn:is([data-variant="outline"], [data-variant="secondary"], [data-variant="ghost"]):hover { background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+.btn[data-variant="ghost"] { background: transparent; color: var(--foreground); }
+.btn[data-variant="link"] { padding-inline: 0; background: transparent; color: var(--primary); text-decoration: underline; }
+.btn[data-variant="destructive"] { background: var(--destructive); color: #fff; }
+.sap-plan.is-highlighted .btn:not([data-variant]) { background: var(--primary); color: var(--primary-foreground); }
+
+/* ----------------------------------------------- blog pages (shared fallbacks) */
+.sap-fallback-head h1, .sap-fallback .archive-header h1 { font-family: var(--font-display); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); font-size: clamp(2.4rem, 1.5rem + 3.6vw, 4.25rem); line-height: 1.02; }
+.sap-fallback-head .post-categories a { color: var(--primary); text-decoration: none; }
+.sap-post-link { border-radius: calc(var(--radius) * 1.1); background: var(--card); }
+.sap-post-link:hover { border-color: var(--foreground); box-shadow: var(--op-shadow); }
+.sap-post-title { font-family: var(--font-display); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); font-size: 1.4rem; line-height: 1.15; }
+.prose :is(h2, h3) { font-family: var(--font-display); font-weight: var(--op-display-weight); letter-spacing: var(--op-display-track); }
+.prose blockquote { border-left: 2px solid var(--primary); font-family: var(--font-display); font-size: 1.2em; font-style: normal; }
+.op-404 .not-found h1 { font-size: clamp(2rem, 1.5rem + 2vw, 3rem); }
+.op-404 .not-found-code { font-family: var(--font-display); color: var(--primary); opacity: 0.9; }
+.post-tags a { display: inline-block; padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; color: var(--foreground); font-size: 0.85rem; text-decoration: none; }
+.post-tags a:hover { border-color: var(--foreground); }
+
+/* ------------------------------------------------- plugin output (Basecoat) */
+.alert { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; padding: 1rem 1.15rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); font-size: 0.95rem; }
+.alert > svg { width: 1.15rem; height: 1.15rem; margin-top: 0.15rem; color: var(--primary); }
+.alert > :is(h2, h3, strong) { grid-column: 2; margin: 0; font-family: inherit; font-size: 1rem; font-weight: 650; letter-spacing: 0; }
+.alert > section { grid-column: 2; color: var(--muted-foreground); }
+.alert[data-variant="destructive"] > svg, .alert[data-category="error"] > svg { color: var(--destructive); }
+.badge { gap: 0.25rem; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--muted); font-size: 0.75rem; font-weight: 650; }
+.badge[data-variant="primary"], .badge:not([data-variant]) { background: var(--primary); color: var(--primary-foreground); }
+.card { gap: 0.75rem; padding: 1.5rem; border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.25); background: var(--card); color: var(--card-foreground); }
+.kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; padding: 0 0.4em; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: calc(0.4em * var(--sap-radius-scale, 1)); background: var(--background); font: 600 0.8em/1 var(--font-sans); }
+
+/* ------------------------------------------------------ customiser hooks */
+.sap-sticky-off .op-header { position: relative; }
+@media (min-width: 960px) {
+  .sap-brand-center .op-header-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .sap-brand-center .op-brand { grid-column: 2; grid-row: 1; justify-self: center; }
+  .sap-brand-center .op-menu { grid-column: 1; grid-row: 1; justify-self: start; margin-inline: 0; }
+  .sap-brand-center .op-actions { grid-column: 3; grid-row: 1; justify-self: end; }
+}

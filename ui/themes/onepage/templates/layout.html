@@ -1,0 +1,60 @@
+{{/* Onepage: a sticky header whose menu scrolls to the sections of the
+     front page. Without a main menu (Appearance → Menus) it links to the
+     sample sections of front.html and to the blog. Menu links such as
+     #pricing go through .Site.Link, so on other pages they lead back to
+     the front page's section (/#pricing). The blog's pages (/blog, posts,
+     archives, search) use the shared fallbacks inside this layout. */}}
+{{define "layout"}}<!doctype html>
+<html lang="{{.Site.Lang}}" class="accent-{{index .Site.Options "accent"}} headings-{{index .Site.Options "headings"}}{{with .Site.Custom.Class}} {{.}}{{end}}">
+<head>{{template "shared/head" .}}</head>
+<body class="kind-{{.Kind}}">
+{{template "shared/skip-link"}}
+{{template "shared/admin-bar" .}}
+{{if .BlocksHeader}}{{template "shared/blocks-header" .}}{{else}}
+{{template "shared/widget-area" (dict "Page" . "Area" "top")}}
+{{$o := .Site.Options}}
+<header class="op-header" data-sticky>
+  <nav class="op-wrap op-header-inner" aria-label="{{T "Main menu"}}">
+    <a class="op-brand" href="{{link "/"}}" aria-label="{{.Site.Title}} — {{T "Home"}}">
+      {{if .Site.Custom.Logo}}{{template "shared/logo" .}}{{else}}<span class="op-brand-mark" aria-hidden="true"></span>{{end}}{{if not .Site.Custom.LogoOnly}}<span class="op-brand-name">{{.Site.Title}}</span>{{end}}
+    </a>
+    <ul id="primary-menu" class="op-menu">
+      {{with index .Site.Menus "primary"}}{{template "shared/menu" .}}{{else}}
+      <li><a href="{{.Site.Link "#features"}}">{{T "Features"}}</a></li>
+      {{if eq (index $o "show_pricing") "true"}}<li><a href="{{.Site.Link "#pricing"}}">{{T "Pricing"}}</a></li>{{end}}
+      {{if eq (index $o "show_faq") "true"}}<li><a href="{{.Site.Link "#faq"}}">{{T "Questions"}}</a></li>{{end}}
+      <li><a href="{{.Site.Link "#contact"}}">{{T "Contact"}}</a></li>
+      <li><a href="{{.Site.Blog}}"{{if or (eq .Kind "home") (eq .Kind "single") (eq .Kind "archive")}} aria-current="page"{{end}}>{{T "Blog"}}</a></li>
+      {{end}}
+    </ul>
+    <div class="op-actions">
+      {{if not .Site.Custom.HideSearch}}<a class="op-icon" href="{{link "/search"}}" aria-label="{{T "Search"}}">{{icon "search"}}</a>{{end}}
+      {{template "shared/lang-switch" .}}
+      {{template "shared/theme-toggle"}}
+      <a class="btn op-header-cta" href="{{.Site.Link "#contact"}}">{{T "Get in touch"}}</a>
+      {{template "shared/nav-toggle" "primary-menu"}}
+    </div>
+  </nav>
+</header>
+{{end}}
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+{{if .BlocksFooter}}{{template "shared/blocks-footer" .}}{{else}}
+<footer class="op-footer">
+  <div class="op-wrap">
+    {{template "shared/widget-area" (dict "Page" . "Area" "footer")}}
+    <div class="op-footer-top">
+      <a class="op-brand op-footer-brand" href="{{link "/"}}">{{if .Site.Custom.Logo}}{{template "shared/logo" .}}{{else}}<span class="op-brand-mark" aria-hidden="true"></span>{{end}}{{if not .Site.Custom.LogoOnly}}<span class="op-brand-name">{{.Site.Title}}</span>{{end}}</a>
+      {{with .Site.Tagline}}<p class="op-footer-tagline">{{.}}</p>{{end}}
+    </div>
+    <div class="op-footer-bottom">
+      {{with .Site.Menu "footer"}}<ul class="op-footer-menu">{{template "shared/menu" .}}</ul>{{end}}
+      {{template "shared/footer-meta" .}}
+    </div>
+  </div>
+</footer>
+{{end}}
+{{template "shared/assistant" .}}
+</body>
+</html>{{end}}

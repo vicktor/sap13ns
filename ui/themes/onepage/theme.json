@@ -1,0 +1,45 @@
+{
+  "name": "Onepage",
+  "version": "1.0.0",
+  "description": "A one-page site: a sticky header whose menu scrolls to each section, an editorial hero, features, figures, testimonials, pricing, questions and a closing call to action. The blog lives at /blog.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "menus": [
+    {"id": "primary", "label": "Main menu"},
+    {"id": "footer", "label": "Footer menu"}
+  ],
+  "widget_areas": [
+    {"id": "top", "label": "Top bar", "description": "A full-width strip above the header, for announcements."},
+    {"id": "footer", "label": "Footer", "description": "Columns above the footer line."}
+  ],
+  "options": [
+    {"key": "accent", "label": "Accent colour", "type": "select", "default": "vermilion", "choices": [
+      {"value": "vermilion", "label": "Vermilion"}, {"value": "ultramarine", "label": "Ultramarine"},
+      {"value": "emerald", "label": "Emerald"}, {"value": "violet", "label": "Violet"}, {"value": "graphite", "label": "Graphite"}
+    ]},
+    {"key": "headings", "label": "Headings", "type": "select", "default": "serif", "choices": [
+      {"value": "serif", "label": "Editorial serif"}, {"value": "sans", "label": "Sans-serif"}
+    ]},
+    {"key": "hero_title", "label": "Introduction headline", "type": "text", "default": "", "help": "Empty uses the site title."},
+    {"key": "hero_lead", "label": "Introduction text", "type": "textarea", "default": "", "help": "Empty uses the tagline."},
+    {"key": "contact", "label": "Contact link", "type": "text", "default": "mailto:hello@example.com", "help": "Where the closing call to action leads: mailto:you@example.com, a page such as /contact or a full address."},
+    {"key": "show_stats", "label": "Show the figures", "type": "bool", "default": "true"},
+    {"key": "show_testimonials", "label": "Show the testimonials", "type": "bool", "default": "true"},
+    {"key": "show_pricing", "label": "Show the pricing", "type": "bool", "default": "true"},
+    {"key": "show_faq", "label": "Show the questions", "type": "bool", "default": "true"},
+    {"key": "show_posts", "label": "Show the latest posts on the front page", "type": "bool", "default": "true"}
+  ],
+  "tokens": {
+    "light": {"background": "#f6f3ec", "foreground": "#17140f", "card": "#fffdf8", "card-foreground": "#17140f", "muted": "#ece7dc", "muted-foreground": "#6b645a", "border": "#ddd5c6", "primary": "#c43a20", "primary-foreground": "#ffffff", "accent": "#f1e6d6", "accent-foreground": "#17140f"},
+    "dark": {"background": "#12110f", "foreground": "#f3eee4", "card": "#1b1916", "card-foreground": "#f3eee4", "muted": "#24211d", "muted-foreground": "#a39b8e", "border": "#34302a", "primary": "#ff6b4a", "primary-foreground": "#1a0c07", "accent": "#2c2722", "accent-foreground": "#f3eee4"},
+    "options": {
+      "accent": {
+        "ultramarine": {"light": {"primary": "#2f4bd8"}, "dark": {"primary": "#8197ff", "primary-foreground": "#0a1033"}},
+        "emerald": {"light": {"primary": "#0d7a52"}, "dark": {"primary": "#43d39a", "primary-foreground": "#03251a"}},
+        "violet": {"light": {"primary": "#6a3fd6"}, "dark": {"primary": "#a98cff", "primary-foreground": "#170a3a"}},
+        "graphite": {"light": {"primary": "#17140f", "primary-foreground": "#f6f3ec"}, "dark": {"primary": "#f3eee4", "primary-foreground": "#12110f"}}
+      }
+    }
+  },
+  "swatches": ["#f6f3ec", "#fffdf8", "#17140f", "#c43a20"]
+}

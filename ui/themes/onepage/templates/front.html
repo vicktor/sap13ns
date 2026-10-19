@@ -1,0 +1,170 @@
+{{/* The front page of a one-page site: an introduction, then sections the
+     main menu scrolls to (#features, #testimonials, #pricing, #faq,
+     #contact). The texts are samples: the page builder's "Front page"
+     region replaces this template with sections the owner writes (the
+     One-page and Landing presets start from these). The markup reuses the
+     classes of the shared landing blocks (blocks/landing.html), so the
+     theme styles a built front page the same way. */}}
+{{define "content"}}
+{{$o := .Site.Options}}
+{{$pricing := eq (index $o "show_pricing") "true"}}
+{{if .Site.Viewer}}{{if and .Site.Viewer.Admin (not .Site.Custom.Preview)}}
+<aside class="op-note" aria-label="{{T "Administration"}}">
+  <div class="op-wrap op-note-inner">
+    {{icon "info"}}
+    <p>{{T "These sections are the theme's samples. Write your own in the page builder: the One-page preset starts from them."}}</p>
+    <a class="btn" data-variant="outline" data-size="sm" href="/admin/appearance/themes/{{.Site.Theme}}/builder?region=front">{{T "Open the page builder"}}</a>
+  </div>
+</aside>
+{{end}}{{end}}
+
+<section class="op-hero sap-anchor" id="intro">
+  <div class="op-wrap op-hero-grid">
+    <div class="op-hero-text">
+      <h1 class="op-hero-title">{{or (index $o "hero_title") .Site.Title}}</h1>
+      {{with or (index $o "hero_lead") .Site.Tagline}}<p class="op-hero-lead">{{.}}</p>{{end}}
+      <p class="op-hero-actions">
+        {{if $pricing}}<a class="btn" data-size="lg" href="#pricing">{{T "See the plans"}}</a>
+        {{else}}<a class="btn" data-size="lg" href="#contact">{{T "Get in touch"}}</a>{{end}}
+        <a class="btn" data-variant="outline" data-size="lg" href="#features">{{T "What we do"}}</a>
+      </p>
+    </div>
+    <div class="op-hero-art" aria-hidden="true">
+      <span class="op-art-sun"></span><span class="op-art-half"></span><span class="op-art-ring"></span><span class="op-art-dots"></span>
+    </div>
+  </div>
+</section>
+
+{{if eq (index $o "show_stats") "true"}}
+<section class="op-figures" aria-label="{{T "In figures"}}">
+  <div class="op-wrap">
+    <dl class="sap-stats sap-stats-4 op-stats">
+      <div class="sap-stat"><dt class="sap-stat-label">{{T "Happy customers"}}</dt><dd class="sap-stat-value">10k+</dd></div>
+      <div class="sap-stat"><dt class="sap-stat-label">{{T "Average rating"}}</dt><dd class="sap-stat-value">4.9/5</dd></div>
+      <div class="sap-stat"><dt class="sap-stat-label">{{T "Support"}}</dt><dd class="sap-stat-value">24/7</dd></div>
+      <div class="sap-stat"><dt class="sap-stat-label">{{T "Years of experience"}}</dt><dd class="sap-stat-value">12</dd></div>
+    </dl>
+  </div>
+</section>
+{{end}}
+
+<section class="op-section sap-anchor" id="features" aria-labelledby="features-title">
+  <div class="op-wrap op-split">
+    <header class="op-head">
+      <p class="op-kicker">{{T "Features"}}</p>
+      <h2 class="op-title" id="features-title">{{T "Why people choose us"}}</h2>
+      <p class="op-intro">{{T "Three good reasons, in a few words each."}}</p>
+    </header>
+    <ul class="sap-lb-grid sap-grid-3 sap-features sap-features-plain op-features" role="list">
+      <li class="sap-feature"><span class="sap-feature-icon">{{icon "sparkles"}}</span><h3 class="sap-feature-title">{{T "Simple to use"}}</h3><p class="sap-feature-text">{{T "Say in a sentence or two why this matters to the people you write for."}}</p></li>
+      <li class="sap-feature"><span class="sap-feature-icon">{{icon "zap"}}</span><h3 class="sap-feature-title">{{T "Fast results"}}</h3><p class="sap-feature-text">{{T "Replace this text with a benefit your visitors care about."}}</p></li>
+      <li class="sap-feature"><span class="sap-feature-icon">{{icon "shield-check"}}</span><h3 class="sap-feature-title">{{T "Reliable"}}</h3><p class="sap-feature-text">{{T "Each feature has an icon, a title and a short text. Add as many as you need."}}</p></li>
+    </ul>
+  </div>
+</section>
+
+{{if eq (index $o "show_testimonials") "true"}}
+<section class="op-section op-tinted sap-anchor" id="testimonials" aria-labelledby="testimonials-title">
+  <div class="op-wrap">
+    <header class="op-head op-head-row">
+      <p class="op-kicker">{{T "Testimonials"}}</p>
+      <h2 class="op-title" id="testimonials-title">{{T "What our customers say"}}</h2>
+    </header>
+    <ul class="sap-lb-grid sap-grid-3 sap-quotes op-quotes" role="list">
+      <li><figure class="sap-quote">
+        <blockquote class="sap-quote-text"><p>{{T "Working with them was easy from the first day. The results speak for themselves."}}</p></blockquote>
+        <figcaption class="sap-quote-by"><span class="sap-quote-initial" aria-hidden="true">AM</span><span class="sap-quote-who"><strong>Alex Morgan</strong><span>{{T "Founder, Example Studio"}}</span></span></figcaption>
+      </figure></li>
+      <li><figure class="sap-quote">
+        <blockquote class="sap-quote-text"><p>{{T "Clear, quick and friendly. I would recommend them to anyone."}}</p></blockquote>
+        <figcaption class="sap-quote-by"><span class="sap-quote-initial" aria-hidden="true">SR</span><span class="sap-quote-who"><strong>Sam Rivera</strong><span>{{T "Marketing lead"}}</span></span></figcaption>
+      </figure></li>
+      <li><figure class="sap-quote">
+        <blockquote class="sap-quote-text"><p>{{T "Exactly what we needed, and it took a fraction of the time we expected."}}</p></blockquote>
+        <figcaption class="sap-quote-by"><span class="sap-quote-initial" aria-hidden="true">JL</span><span class="sap-quote-who"><strong>Jordan Lee</strong><span>{{T "Product manager"}}</span></span></figcaption>
+      </figure></li>
+    </ul>
+  </div>
+</section>
+{{end}}
+
+{{if $pricing}}
+<section class="op-section sap-anchor" id="pricing" aria-labelledby="pricing-title">
+  <div class="op-wrap">
+    <header class="op-head op-head-center">
+      <p class="op-kicker">{{T "Pricing"}}</p>
+      <h2 class="op-title" id="pricing-title">{{T "Simple pricing"}}</h2>
+      <p class="op-intro">{{T "Pick the plan that suits you. You can change it at any time."}}</p>
+    </header>
+    <ul class="sap-plans sap-plans-3" role="list">
+      <li class="sap-plan">
+        <div class="sap-plan-head"><h3 class="sap-plan-name">{{T "Starter"}}</h3></div>
+        <p class="sap-plan-price"><span class="sap-plan-amount">{{T "Free"}}</span></p>
+        <p class="sap-plan-text">{{T "For trying things out."}}</p>
+        <ul class="sap-plan-features" role="list"><li>{{icon "check"}}<span>{{T "One project"}}</span></li><li>{{icon "check"}}<span>{{T "Basic statistics"}}</span></li><li>{{icon "check"}}<span>{{T "Community support"}}</span></li></ul>
+        <p class="sap-plan-action"><a class="btn sap-plan-btn" data-variant="outline" href="#contact">{{T "Get started"}}</a></p>
+      </li>
+      <li class="sap-plan is-highlighted">
+        <div class="sap-plan-head"><h3 class="sap-plan-name">{{T "Pro"}}</h3><span class="sap-plan-badge">{{T "Most popular"}}</span></div>
+        <p class="sap-plan-price"><span class="sap-plan-amount">19 €</span> <span class="sap-plan-period">{{T "per month"}}</span></p>
+        <p class="sap-plan-text">{{T "For people who need more."}}</p>
+        <ul class="sap-plan-features" role="list"><li>{{icon "check"}}<span>{{T "Unlimited projects"}}</span></li><li>{{icon "check"}}<span>{{T "Detailed statistics"}}</span></li><li>{{icon "check"}}<span>{{T "Priority support"}}</span></li></ul>
+        <p class="sap-plan-action"><a class="btn sap-plan-btn" href="#contact">{{T "Choose Pro"}}</a></p>
+      </li>
+      <li class="sap-plan">
+        <div class="sap-plan-head"><h3 class="sap-plan-name">{{T "Business"}}</h3></div>
+        <p class="sap-plan-price"><span class="sap-plan-amount">49 €</span> <span class="sap-plan-period">{{T "per month"}}</span></p>
+        <p class="sap-plan-text">{{T "For teams and companies."}}</p>
+        <ul class="sap-plan-features" role="list"><li>{{icon "check"}}<span>{{T "Everything in Pro"}}</span></li><li>{{icon "check"}}<span>{{T "Team accounts"}}</span></li><li>{{icon "check"}}<span>{{T "A personal contact"}}</span></li></ul>
+        <p class="sap-plan-action"><a class="btn sap-plan-btn" data-variant="outline" href="#contact">{{T "Contact us"}}</a></p>
+      </li>
+    </ul>
+  </div>
+</section>
+{{end}}
+
+{{if eq (index $o "show_faq") "true"}}
+<section class="op-section sap-anchor" id="faq" aria-labelledby="faq-title">
+  <div class="op-wrap op-split">
+    <header class="op-head">
+      <p class="op-kicker">{{T "Questions"}}</p>
+      <h2 class="op-title" id="faq-title">{{T "Questions and answers"}}</h2>
+      <p class="op-intro">{{T "Anything else?"}} <a href="#contact">{{T "Write to us"}}</a></p>
+    </header>
+    <div class="sap-faq">
+      <details class="sap-faq-item" open><summary><span>{{T "How do I get started?"}}</span>{{icon "chevron-down" "sap-faq-chevron"}}</summary>
+        <div class="sap-faq-answer prose"><p>{{T "Write the answer here, in a few clear sentences."}}</p></div></details>
+      <details class="sap-faq-item"><summary><span>{{T "Can I change my mind later?"}}</span>{{icon "chevron-down" "sap-faq-chevron"}}</summary>
+        <div class="sap-faq-answer prose"><p>{{T "Yes. Say here what people can change, and how."}}</p></div></details>
+      <details class="sap-faq-item"><summary><span>{{T "How can I reach you?"}}</span>{{icon "chevron-down" "sap-faq-chevron"}}</summary>
+        <div class="sap-faq-answer prose"><p>{{T "Tell visitors the best way to contact you and how soon they can expect an answer."}}</p></div></details>
+    </div>
+  </div>
+</section>
+{{end}}
+
+{{if and (eq (index $o "show_posts") "true") .Posts}}
+<section class="op-section op-latest" aria-labelledby="latest-title">
+  <div class="op-wrap">
+    <header class="op-head op-head-row">
+      <p class="op-kicker">{{T "Blog"}}</p>
+      <h2 class="op-title" id="latest-title">{{T "From the blog"}}</h2>
+      <a class="op-more" href="{{.Site.Blog}}">{{T "All posts"}} {{icon "arrow-right"}}</a>
+    </header>
+    {{$n := len .Posts}}{{if gt $n 3}}{{$n = 3}}{{end}}
+    {{template "shared/post-list" (dict "Posts" (slice .Posts 0 $n) "Layout" "grid" "H" 3)}}
+  </div>
+</section>
+{{end}}
+
+<section class="op-cta sap-anchor" id="contact" aria-labelledby="contact-title">
+  <div class="op-wrap op-cta-inner">
+    <h2 class="op-cta-title" id="contact-title">{{T "Ready to start?"}}</h2>
+    <p class="op-cta-lead">{{T "Tell us what you need and we will get back to you within a day."}}</p>
+    <p class="op-cta-actions">
+      {{with index $o "contact"}}<a class="btn" data-size="lg" href="{{.}}">{{T "Write to us"}} {{icon "arrow-right"}}</a>{{end}}
+      <a class="btn" data-variant="outline" data-size="lg" href="#intro">{{T "Back to top"}}</a>
+    </p>
+  </div>
+</section>
+{{end}}

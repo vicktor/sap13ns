@@ -206,6 +206,71 @@ func TestFrontOnlyTheme(t *testing.T) {
 	}
 }
 
+// The built-in one-page theme: the sections its menu scrolls to, options
+// that hide sections with their menu links, the blog in its layout, and a
+// note for administrators that leads to the page builder.
+func TestOnepageTheme(t *testing.T) {
+	e := newPluginEnv(t)
+	ctx := context.Background()
+	at := time.Now().Add(-time.Hour)
+	if _, err := e.st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: "Onepage post",
+		Slug: "onepage-post", Lang: e.s.settings().Language, Content: "Onepage body.", AuthorID: e.adminID, CommentStatus: "open", PublishedAt: &at}); err != nil {
+		t.Fatal(err)
+	}
+	e.s.contentChanged()
+	if rec := e.admin("/admin/appearance/themes/onepage/activate", url.Values{}); rec.Code != http.StatusSeeOther || e.s.settings().FrontPage != FrontTheme {
+		t.Fatalf("activate: %d, front page %q", rec.Code, e.s.settings().FrontPage)
+	}
+	get := func(target string, cookies ...*http.Cookie) string {
+		t.Helper()
+		rec := e.do("GET", target, nil, "", cookies...)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s: %d", target, rec.Code)
+		}
+		return rec.Body.String()
+	}
+	has := func(where, body string, wants ...string) {
+		t.Helper()
+		for _, w := range wants {
+			if !strings.Contains(body, w) {
+				t.Errorf("%s lacks %q", where, w)
+			}
+		}
+	}
+	lacks := func(where, body string, bads ...string) {
+		t.Helper()
+		for _, b := range bads {
+			if strings.Contains(body, b) {
+				t.Errorf("%s has %q", where, b)
+			}
+		}
+	}
+
+	front := get("/")
+	has("/", front, `class="accent-vermilion headings-serif`, `data-sticky`, `id="intro"`, `id="features"`, `id="testimonials"`,
+		`id="pricing"`, `id="faq"`, `id="contact"`, `href="#features">Características</a>`, `href="#pricing">Precios</a>`,
+		`href="#faq">Preguntas</a>`, `href="/blog"`, "onepage.js", "Ver los planes", "Desde el blog", "Onepage post",
+		`href="mailto:hello@example.com"`, `<h1 class="op-hero-title">`, `href="https://sap13ns.site">sap13ns</a>`)
+	lacks("/ (visitor)", front, "op-note", "/builder")
+	has("/ (administrator)", get("/", e.cookie), "op-note", `href="/admin/appearance/themes/onepage/builder?region=front"`)
+
+	// The blog's pages use the shared fallbacks; the menu leads back to the
+	// front page's sections.
+	blog := get("/blog")
+	has("/blog", blog, "sap-fallback", "Onepage post", `href="/#features"`, `href="/#contact"`, "op-footer")
+	lacks("/blog", blog, `id="features"`)
+	has("/blog/onepage-post", get("/blog/onepage-post"), "sap-fallback-entry", "Onepage body.", `href="/#pricing"`)
+
+	form := url.Values{"opt_accent": {"emerald"}, "opt_headings": {"sans"}, "opt_hero_title": {"Hello marker"},
+		"opt_contact": {"/contacto"}, "opt_show_stats": {"true"}, "opt_show_testimonials": {"true"}, "opt_show_faq": {"true"}}
+	if rec := e.admin("/admin/appearance/themes/onepage/options", form); rec.Code != http.StatusSeeOther {
+		t.Fatalf("options: %d", rec.Code)
+	}
+	front = get("/")
+	has("/ (options)", front, `class="accent-emerald headings-sans`, "Hello marker", `href="/contacto"`, `href="#contact">Contacta con nosotros</a>`, `id="faq"`)
+	lacks("/ (options)", front, `id="pricing"`, `href="#pricing"`, "Desde el blog")
+}
+
 // Every icon a block or the feature picker can show is compiled in.
 func TestBuilderIconsEmbedded(t *testing.T) {
 	have := map[string]bool{}

@@ -504,8 +504,12 @@ function init(root) {
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const toast = (category, title) => document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
 
+  // The region to open: ?region=front (a link from a theme's sample front
+  // page), else the last one edited.
   let region = "home";
   try { const r = localStorage.getItem("sap-builder-region"); if (regions.some((x) => x.name === r)) region = r; } catch (_) {}
+  const asked = new URLSearchParams(location.search).get("region");
+  if (regions.some((x) => x.name === asked)) region = asked;
   let selected = null;            // id of the selected section or block
   let errors = [];                // the last refusal's field errors
   const history = new History(clone(state.layout || {}));
