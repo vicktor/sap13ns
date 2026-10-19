@@ -95,13 +95,18 @@ stripe prices create -d product=prod_YYYY -d currency=eur -d unit_amount=33000 \
 ```
 
 The pricing table (the `plans` template function, which the sap13ns theme
-shows on its hosting page) reads the configured prices at start: a plan
-sold by the month and by the year shows its monthly price, then the yearly
-one with the months it saves ("1 month free" when the year costs eleven
-months), and "VAT included" or "+ VAT" from each price's tax behavior
-(nothing when it is unspecified). Its buttons lead to `/register`, never
-to Stripe: a purchase starts from **My sites**, signed in. After changing
-a price in Stripe, restart sap13ns so that it reads it again.
+shows on its hosting page) reads the configured prices at start. It opens
+on the monthly prices, with a Monthly/Yearly switch (`ui/static/plans.js`)
+whose yearly view shows each plan's yearly price and what it saves,
+computed from the two prices: "1 month free" when the year costs eleven
+months, or "Save 9 €" when the saving is not whole months. Without
+JavaScript the switch is hidden and the yearly price is a line under the
+monthly one. Each plan says "VAT included" or "+ VAT" from its price's tax
+behavior (nothing when it is unspecified). Its buttons lead to `/register`
+(with `?plan=…&interval=year` in the yearly view), never to Stripe: a
+purchase starts from **My sites**, signed in, whose upgrade picker starts
+on the plan and interval such a link names. After changing a price in
+Stripe, restart sap13ns so that it reads it again.
 
 Notes:
 
