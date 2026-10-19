@@ -47,6 +47,16 @@ func (f *fakeSSO) CheckSSO(_ context.Context, g *SSOGrant) (string, error) {
 	return g.Role, nil
 }
 
+func (f *fakeSSO) OperatorAllowed(context.Context, int64, bool) (bool, error) {
+	return f.check == nil, nil
+}
+
+func (f *fakeSSO) SupportStatus(context.Context) (*SupportStatus, error) {
+	return &SupportStatus{}, nil
+}
+
+var _ SSOClient = (*fakeSSO)(nil)
+
 // ssoSignIn runs /sso/start and then /sso/callback with the code the
 // portal would have sent.
 func ssoSignIn(t *testing.T, h http.Handler) *httptest.ResponseRecorder {

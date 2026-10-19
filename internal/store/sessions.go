@@ -18,14 +18,16 @@ type Session struct {
 	ExpiresAt  time.Time  `db:"expires_at"`
 	IP         netip.Addr `db:"ip"`
 	UserAgent  string     `db:"user_agent"`
-	AMR        string     `db:"amr"` // how it was authenticated: AMRLocal, AMRSSO or AMRSSOOperator
+	AMR        string     `db:"amr"` // how it was authenticated: AMRLocal, AMRSSO, AMRSSOOperator or AMRSSOEmergency
 }
 
-// Authentication methods of a session (sessions.amr).
+// Authentication methods of a session (sessions.amr). Every one that
+// starts with AMRSSO came through the network portal.
 const (
-	AMRLocal       = ""             // password, passkey or TOTP on this site
-	AMRSSO         = "sso"          // single sign-on through the network portal
-	AMRSSOOperator = "sso-operator" // a network admin opening the site as administrator
+	AMRLocal        = ""              // password, passkey or TOTP on this site
+	AMRSSO          = "sso"           // single sign-on through the network portal
+	AMRSSOOperator  = "sso-operator"  // a network admin opening the site as administrator, with the owner's consent
+	AMRSSOEmergency = "sso-emergency" // a network admin's emergency access, without it
 )
 
 const sessionCols = `token_hash, user_id, csrf_token, mfa_pending, created_at, last_seen_at, expires_at, coalesce(ip, '0.0.0.0'::inet) AS ip, user_agent, amr`
@@ -66,6 +68,17 @@ func (s *Store) DeleteSession(ctx context.Context, hash []byte) error {
 func (s *Store) DeleteUserSessions(ctx context.Context, userID int64, except []byte) error {
 	_, err := s.DB.Exec(ctx, `DELETE FROM sessions WHERE user_id = $1 AND ($2::bytea IS NULL OR token_hash <> $2)`, userID, except)
 	return err
+}
+
+// DeleteNetworkSessions deletes the sessions of the user of a network
+// account (operator: its operator user) that were authenticated with amr,
+// and returns how many there were. The network ends one kind of access
+// with it, a consented operator's or an emergency one, and leaves the
+// other.
+func (s *Store) DeleteNetworkSessions(ctx context.Context, accountID int64, operator bool, amr string) (int64, error) {
+	tag, err := s.DB.Exec(ctx, `DELETE FROM sessions WHERE amr = $3 AND user_id IN
+		(SELECT id FROM users WHERE network_account_id = $1 AND network_operator = $2)`, accountID, operator, amr)
+	return tag.RowsAffected(), err
 }
 
 func (s *Store) ListUserSessions(ctx context.Context, userID int64) ([]Session, error) {

@@ -27,6 +27,7 @@
             <a class="btn" data-size="sm" href="{{.AdminURL}}">{{icon "log-in"}}{{T "Go to admin"}}</a>
             {{end}}
             {{if eq .OwnerID $.User.ID}}<a class="btn" data-variant="outline" data-size="sm" href="/admin/sites/{{.ID}}/domains">{{icon "globe"}}{{T "Domains"}}</a>{{end}}
+            {{if and (ne .Status "deleted") (or (eq .OwnerID $.User.ID) (eq .Role "admin"))}}<a class="btn" data-variant="{{if .SupportOpen}}secondary{{else}}outline{{end}}" data-size="sm" href="/admin/sites/{{.ID}}/support">{{icon "key-round"}}{{if .SupportOpen}}{{T "Support access open"}}{{else}}{{T "Support access"}}{{end}}</a>{{end}}
             {{if and $d.Billing (eq .OwnerID $.User.ID) .Billing}}{{if .Billing.Manageable}}
             <form method="post" action="/admin/sites/{{.ID}}/billing" class="inline-flex">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Manage billing"}}</button></form>
             {{end}}{{end}}

@@ -116,7 +116,7 @@ func TestNetworkAdminAccess(t *testing.T) {
 
 	// Without a second factor an ordinary account is first sent to set one
 	// up (the portal's policy), so it has one here.
-	ordy := e.account("ordy")
+	ordy := e.bareAccount("ordy")
 	ob := e.browser()
 	ocsrf := ob.portalSignIn(ordy)
 	if rec := ob.get(portalURL + "/admin/network/sites"); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
@@ -256,7 +256,8 @@ func TestNetworkAdminAccess(t *testing.T) {
 }
 
 // TestNetworkAdminNeedsSecondFactor: the network admin area asks for a
-// second factor even when the portal's policy does not ask the role for one.
+// second factor even when the portal's policy does not ask the role for
+// one: the portal asks every account for one.
 func TestNetworkAdminNeedsSecondFactor(t *testing.T) {
 	e := newNetEnv(t, func(o *RegistryOptions) {
 		portalSettings(t, o, func(s *store.Settings) { s.TwoFactor = "editors" })
@@ -275,8 +276,8 @@ func TestNetworkAdminNeedsSecondFactor(t *testing.T) {
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
 		t.Fatalf("without a second factor: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
-	if body := b.page("/admin/profile/2fa"); !strings.Contains(body, "Configura la verificación en dos pasos para administrar la red.") {
-		t.Fatal("no message about the network's second factor")
+	if body := b.page("/admin/profile/2fa"); !strings.Contains(body, "Toda cuenta de sap13ns necesita verificación en dos pasos.") {
+		t.Fatal("no message about the portal's second factor")
 	}
 	e.mfa(ann)
 	b.page("/admin/network/sites")
@@ -631,7 +632,8 @@ func TestMySites(t *testing.T) {
 	b := e.browser()
 	csrf := b.portalSignIn(ann)
 
-	// An account that is not staff starts there, without a second factor.
+	// An account that is not staff starts there (with the second factor
+	// every account has: TestPortalRequiresSecondFactor).
 	if rec := b.get(portalURL + "/admin/"); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/sites" {
 		t.Fatalf("/admin/: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
@@ -646,9 +648,9 @@ func TestMySites(t *testing.T) {
 	if rec := b.sso("alpha.sap13ns.site", "/admin/"); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Go to admin: %d", rec.Code)
 	}
-	// The exemption from the second factor covers these pages only.
-	if rec := b.get(portalURL + "/admin/posts"); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
-		t.Fatalf("a subscriber without a second factor opens the posts: %d %s", rec.Code, rec.Header().Get("Location"))
+	// A subscriber of the portal opens My sites, not the rest.
+	if rec := b.get(portalURL + "/admin/posts"); rec.Code != http.StatusForbidden {
+		t.Fatalf("a subscriber opens the posts: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 
 	// Requests: the name must be valid, not reserved, and free.

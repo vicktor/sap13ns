@@ -113,6 +113,8 @@ type Registry struct {
 	opened    atomic.Int64 // sites opened, for tests
 	unloaded  atomic.Int64 // and closed
 
+	access accessCache // operator sessions' checks (portal_support.go)
+
 	mu      sync.Mutex
 	entries map[int64]*entry
 	closed  bool
@@ -405,7 +407,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	if err != nil {
 		return nil, err
 	}
-	if s.Status != StatusActive && s.Status != StatusPending {
+	if s.Status != StatusActive && s.Status != StatusPending && !(s.Status == StatusSuspended && rt.Emergency) {
 		return nil, errNotServed
 	}
 	secret, err := r.net.SiteSecret(s)
@@ -557,7 +559,8 @@ func (r *Registry) Refresh(ctx context.Context) error {
 }
 
 // reconcile applies a host table to the loaded sites. A site no longer
-// routed or suspended is unloaded at once (after its requests in flight).
+// routed, or suspended without a live emergency access, is unloaded at
+// once (after its requests in flight).
 func (r *Registry) reconcile(t *hostTable) {
 	r.mu.Lock()
 	if r.closed {
@@ -571,7 +574,7 @@ func (r *Registry) reconcile(t *hostTable) {
 		}
 		rt := t.sites[id]
 		switch {
-		case rt == nil || rt.Status == StatusSuspended:
+		case rt == nil || rt.Status == StatusSuspended && !rt.Emergency:
 			e.closing = true
 			gone = append(gone, e)
 		case rt.key() != e.key:

@@ -544,7 +544,7 @@ func TestBillingCheckout(t *testing.T) {
 
 	// The second factor first: Checkout and the Customer Portal are the
 	// billing of a site, which its owner administers with one.
-	nob := e.account("nob")
+	nob := e.bareAccount("nob")
 	ns := e.site("nobsite", nob, "personal")
 	nb := e.browser()
 	ncsrf := nb.portalSignIn(nob)

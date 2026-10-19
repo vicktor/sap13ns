@@ -89,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	var h http.Handler = mux
 	h = s.withLang(h)
 	h = s.withRedirects(h) // sees the path with its language prefix
+	h = s.emergencyGate(h) // a suspended site served for an emergency access only
 	h = s.loadSession(h)
 	h = s.cop.Handler(h)
 	h = s.securityHeaders(h)
@@ -277,6 +278,12 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// A network admin's operator session lasts only as long as the
+		// site's support access, or their emergency access (sso.go).
+		if (sess.AMR == store.AMRSSOOperator || sess.AMR == store.AMRSSOEmergency) && !s.operatorAllowed(w, r, u, sess) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if time.Since(sess.LastSeenAt) > 5*time.Minute {
 			s.store.TouchSession(r.Context(), hash)
 		}
@@ -365,8 +372,13 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		if s.mustEnroll2FA(r, u) && !s.enrolExempt(r, u) {
-			s.flash(w, "warning", s.t("Two-factor authentication is required for your role. Set it up to continue."))
+		// The profile is where the second factor is set up.
+		if s.mustEnroll2FA(r, u) && !strings.HasPrefix(r.URL.Path, "/admin/profile") {
+			if s.portal != nil {
+				s.flash(w, "warning", s.t("Every sap13ns account needs two-factor authentication. Set it up to continue."))
+			} else {
+				s.flash(w, "warning", s.t("Two-factor authentication is required for your role. Set it up to continue."))
+			}
 			http.Redirect(w, r, "/admin/profile/2fa", http.StatusSeeOther)
 			return
 		}
@@ -378,31 +390,13 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// enrolExempt reports whether r may go ahead although u still has to set
-// up a second factor: the profile, where it is set up, and on the portal
-// the "My sites" page of an account that is not staff there (and /admin/,
-// which sends such an account to it). That page only lists the account's
-// own sites; opening one with a staff role asks for the second factor
-// again (handleSSOAuthorize).
-func (s *Server) enrolExempt(r *http.Request, u *store.User) bool {
-	if strings.HasPrefix(r.URL.Path, "/admin/profile") {
-		return true
-	}
-	if s.portal == nil || isStaff(u.Role) {
-		return false
-	}
-	switch r.URL.Path {
-	case "/admin/", "/admin/sites", "/admin/sites/request":
-		return true
-	}
-	return false
-}
-
 // mustEnroll2FA reports whether u, signed in by r, has to set up a second
 // factor before using the admin. Two-factor authentication is mandatory
 // for staff; a passkey counts as one, and so does a single sign-on through
 // the network portal, which required the second factor before letting
-// staff in.
+// anyone in. On the portal itself every account needs one, whatever its
+// role and the two-factor policy: whoever signs in there opens the
+// account's sites.
 func (s *Server) mustEnroll2FA(r *http.Request, u *store.User) bool {
 	if hasSecondFactor(u) || !auth.Can(u.Role, auth.CapAdminPanel) {
 		return false
@@ -412,6 +406,9 @@ func (s *Server) mustEnroll2FA(r *http.Request, u *store.User) bool {
 	}
 	if s.cfg.Dev && s.cfg.DevSkip2FA {
 		return false
+	}
+	if s.portal != nil {
+		return true
 	}
 	if s.settings().TwoFactor == "editors" {
 		return u.Role == auth.RoleAdmin || u.Role == auth.RoleEditor

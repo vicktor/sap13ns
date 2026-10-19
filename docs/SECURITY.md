@@ -157,11 +157,13 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
   - the callback must be exactly one of the site's own hosts;
   - the code is stored as a hash, valid for 60 seconds, single-use, and bound to the site and the callback;
   - the verifier never leaves the site's host-only cookie, and a state cookie prevents login CSRF;
-  - staff roles need a second factor on the portal;
+  - every portal account needs a second factor, whatever its role (`SAP13NS_DEV_SKIP_2FA` lifts it in development mode only); a new account sets one up before it sees its sites;
   - a site's user is never matched to a network account by e-mail.
 
   Removing a membership, or disabling an account, ends the linked sessions on every site.
-- **Operators.** Network administrators need a second factor. When one opens a site they are not a member of, they get a separate operator user, and the sign-in is written to the audit logs of both the portal and the site.
+- **Operators.** A network administrator who is not a member of a site opens it only in two cases, as a separate operator user. Every sign-in is written to the audit logs of both the portal and the site.
+  - **Support access** is the consent of the site's owner or one of its administrators, for 24 hours, 7 days or until revoked, granted on the portal (`/admin/sites/<id>/support`). Without it the portal issues no code, and the redemption checks the grant again under the same row locks as the membership. Every request of an operator session checks the grant, cached for at most 30 seconds and never past its end; a revocation also deletes the operators' sessions at once. No grant opens on a suspended site.
+  - **Emergency access**, without that consent, is only for a legal order or a serious security incident. The network administrator gives the reason and a justification of up to 500 characters, and passes a fresh second factor: a portal sign-in less than 10 minutes old, or an authenticator code, never a password. It lasts 4 hours at most and opens the site to them alone. Its sessions have their own authentication method (`sso-emergency`) and end with it. The owner is e-mailed at once with the reason, the justification, who and until when. On a suspended site, the router serves the site to that session only; everything else still gets the 503 page.
 - **Plugins.**
   - On a paid plan, an uploaded plugin is held until a network administrator approves that exact build: its module, its assets and the permissions it pins. A build that asks for more is reviewed again.
   - Personal sites can only install the operator's catalogue.

@@ -105,7 +105,7 @@ The steps follow [DEPLOY.md](DEPLOY.md) for the binary, PostgreSQL and the syste
    ```
 
    `serve` refuses to start on a network that has not been created yet. Running `network init` again is harmless: without `-username` it only reports the portal and its administrators.
-5. **Sign in** to `https://example.com/admin` as `ops`, and set up a second factor: the network admin area needs it.
+5. **Sign in** to `https://example.com/admin` as `ops`, and set up a second factor: every portal account needs one.
 6. **The first sites.** Either let people register on the portal and request a Personal site from **My sites**, or create sites from the command line. The owner must be a network account:
 
    ```sh
@@ -148,18 +148,53 @@ The service refuses to start when a value is invalid: a host name with upper-cas
 **Single sign-on.** Every tenant's sign-in page has **Sign in with your sap13ns account**. The portal and the sites share no cookies, so sign-in is an authorization-code exchange with PKCE:
 1. The site sends the browser to the portal.
 2. The portal signs the account in if needed, then checks:
-   - the site is served;
    - the callback is one of the site's own hosts;
-   - the account is a member;
-   - a staff role has a second factor.
+   - the account is a member (or a network administrator with [support access](#support-access) or an [emergency access](#emergency-access));
+   - the site is served (a suspended site only for an emergency access);
+   - the account has a second factor.
 3. The portal sends back a single-use code that is valid for 60 seconds.
-4. The site redeems the code and opens a session.
+4. The site redeems the code, which checks the access again, and opens a session.
 
 When the account is already signed in to the portal, this takes no clicks. The site's user is created the first time and follows the membership from then on: role, e-mail, name and status. It is never matched to a local user by e-mail. A local user can link their account explicitly from their profile.
 
-Removing a member, or disabling an account, disables the linked users and ends their sessions at once, also on sites that are not loaded. A session that came through the portal does not ask for the site's second factor: the portal requires one for every staff role.
+Removing a member, or disabling an account, disables the linked users and ends their sessions at once, also on sites that are not loaded. A session that came through the portal does not ask for the site's second factor, because the portal has already asked for one.
 
-**Operator access.** A network administrator can open any served site with **Open its administration** on the site's page, even without being a member. This signs them in as a separate *operator* user with the administrator role (`operator-<username>`, shown as "(network operator)"). It is written to both audit logs: `sso.operator` on the portal and `login.operator` on the site. The operator user is disabled when its account stops being a network administrator.
+**Every portal account has a second factor.** An account opens every site it is a member of, so the portal requires an authenticator app or a passkey of every account, whatever its role and whatever the portal's own two-factor setting. A new account is sent to set one up as soon as it first signs in, and sees **My sites** and **Request a site** only after that. `SAP13NS_DEV_SKIP_2FA=true` lifts this in development mode only (`SAP13NS_DEV=true`), as it does on a single site.
+
+### Operator access
+
+A network administrator who is not a member of a site can open its administration in two cases only. Either way they sign in as a separate *operator* user with the administrator role (`operator-<username>`, shown as "(network operator)"). That user is disabled when its account stops being a network administrator.
+
+#### Support access
+
+Support access is the site's consent. Its owner, or one of its administrators, opens it from **My sites → Support access** (`/admin/sites/<id>/support`) for **24 hours**, **7 days** or **until revoked**. A new grant replaces the open one. While it is open, every network administrator can use **Open its administration** on the site's page in the network admin area.
+
+- **Revoking.** The owner or an administrator revokes it at any time, and a network administrator can end it from the site's page. Either way the operators signed in to the site are signed out at once.
+- **Expiry.** A session ends when its grant expires or is revoked. Every request of an operator session checks the grant. The answer is cached for at most 30 seconds, and never past the grant's end. A revocation also deletes the sessions in the database at once, so the cache only delays a revocation the site did not see. The daily maintenance disables operator users that have no grant left, also on sites that are not loaded.
+- **Without it.** The portal refuses to sign the operator in: "The owner of this site has not allowed support access". **Request support access** on the site's page e-mails the owner a link to the grant page, with an optional message. Nothing opens until the owner allows it.
+- **Suspended sites.** Support access cannot be opened while a site is suspended; it can still be revoked.
+- **Records.** Every grant, revocation and sign-in is written to the site's audit log (`support.granted`, `support.revoked`, `login.operator`) and to the portal's (`network.support_granted`, `network.support_revoked`, `sso.operator`). The site's **Users** page shows whether it is open and links to the grant page.
+
+Members are not affected: they sign in with their role whether support access is open or not.
+
+#### Emergency access
+
+Without the owner's consent, a network administrator may open a site only for a **legal order** or a **serious security incident**, such as malware or phishing on the site. They start it from the **Emergency access** card on the site's page in the network admin area. They must give:
+
+- the reason, legal order or security incident;
+- a justification of up to 500 characters;
+- a fresh second factor: a sign-in to the portal less than 10 minutes old (the window of the profile's sensitive actions), or a code from their authenticator app. A password alone does not do.
+
+The access is theirs alone, and it lasts **4 hours** at most. It can be ended earlier from the same card, and its sessions then end at once. When it expires, its sessions end as with an expired grant. The owner is e-mailed at once with the reason, the justification, who opened it and until when, and again if it is ended early. It does not open the site to any other network administrator.
+
+An emergency session has its own authentication method, `sso-emergency`, so the site tells it apart from a consented operator's (`sso-operator`). Its records are:
+
+- the site's audit log: `emergency.started` (with the reason and justification), `login.emergency` and `emergency.ended`;
+- the portal's audit log: `network.emergency_started`, `sso.emergency` and `network.emergency_ended`.
+
+The site's **Users** page shows the open emergency accesses, and **My sites → Support access** lists the past ones.
+
+**On a suspended site.** While an emergency access is live, the router serves the suspended site to its session, and to the single sign-on that opens it, and nothing else. Visitors, members and other sessions still get the 503 page.
 
 **Passkeys.** Network passkeys belong to the portal host. A site's passkeys belong to its default host, the RP ID fixed when the site was created, and they keep working when the primary domain changes (see [Custom domains](#custom-domains)). The network's base domain is never an RP ID.
 
@@ -331,5 +366,6 @@ So a site's exports take at most one finished file and one being written, each n
   - the page and content caches, which fill up again.
 - **Thrashing.** When more sites are busy than `SAP13NS_MAX_LOADED_SITES`, sites keep loading and unloading each other. Raise the limit and the memory limit together.
 - **Members.** Only network administrators manage the members of a site.
+- **Background jobs during an emergency.** A suspended site served for an emergency access runs no cron, scheduled posts or announcements: the network's sweeps only visit active sites.
 - **Plans.** A site's plan changes only through billing, or when it is created from the command line. The plans themselves are edited in the database.
 - **Backups:** see [Backups](#backups).

@@ -36,4 +36,16 @@
   </table>
 </div>
 {{template "pagination" $d.Page}}
+{{with $d.Support}}
+<section class="card mt-6" id="support">
+  <header><h2>{{icon "key-round"}} {{T "Support access"}}</h2><p>{{T "Network administrators who are not members of this site open its administration only while its owner, or one of its administrators, allows it, or with an emergency access for a legal order or a serious security incident."}}</p></header>
+  <section>
+    <p>{{template "support-state" (and .Open .)}}{{if and .Open .GrantedBy}} <span class="muted">· {{T "allowed by @%s" .GrantedBy}}</span>{{end}}</p>
+    {{range .Emergencies}}
+    <div class="alert mt-4" data-variant="destructive" role="status">{{icon "octagon-alert"}}<h2>{{if .By}}{{T "Emergency access by @%s until %s" .By (dateTime .ExpiresAt)}}{{else}}{{T "Emergency access until %s" (dateTime .ExpiresAt)}}{{end}}</h2><section><p>{{if eq .Category "legal"}}{{T "Reason: a legal order."}}{{else}}{{T "Reason: a serious security incident."}}{{end}}</p><p>{{.Justification}}</p></section></div>
+    {{end}}
+  </section>
+  <footer><a class="btn" data-variant="outline" href="{{.ManageURL}}">{{icon "external-link"}}{{T "Manage it on the network portal"}}</a></footer>
+</section>
+{{end}}
 {{end}}

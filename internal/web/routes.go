@@ -89,6 +89,10 @@ func (s *Server) routes() *http.ServeMux {
 		network("POST /admin/network/sites/{id}/members/{account}/delete", s.adminNetMemberRemove)
 		network("POST /admin/network/sites/{id}/domains", s.adminNetDomainAdd)
 		network("POST /admin/network/sites/{id}/domains/{op}", s.adminNetDomainAction)
+		network("POST /admin/network/sites/{id}/support/request", s.adminNetSupportRequest)
+		network("POST /admin/network/sites/{id}/support/end", s.adminNetSupportEnd)
+		network("POST /admin/network/sites/{id}/emergency", s.adminNetEmergencyStart)
+		network("POST /admin/network/sites/{id}/emergency/end", s.adminNetEmergencyEnd)
 		network("POST /admin/network/sites/{id}/{action}", s.adminNetSiteAction)
 		network("GET /admin/network/admins", s.adminNetAdmins)
 		network("POST /admin/network/admins", s.adminNetAdminAdd)
@@ -104,6 +108,11 @@ func (s *Server) routes() *http.ServeMux {
 		admin("GET /admin/sites/{id}/domains", auth.CapAdminPanel, s.adminMyDomains)
 		admin("POST /admin/sites/{id}/domains", auth.CapAdminPanel, s.adminMyDomainAdd)
 		admin("POST /admin/sites/{id}/domains/{op}", auth.CapAdminPanel, s.adminMyDomainAction)
+		// The support access of the sites the account administers
+		// (admin_support.go).
+		admin("GET /admin/sites/{id}/support", auth.CapAdminPanel, s.adminMySupport)
+		admin("POST /admin/sites/{id}/support", auth.CapAdminPanel, s.adminMySupportGrant)
+		admin("POST /admin/sites/{id}/support/revoke", auth.CapAdminPanel, s.adminMySupportRevoke)
 
 		// Billing (billing.go), with a Stripe key only. Stripe calls the
 		// webhook without a session; the signature authenticates it.

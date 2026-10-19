@@ -22,9 +22,10 @@ import (
 //  4. another host of a site redirects to its primary (301, or 308 for
 //     other methods than GET and HEAD), except ACME challenges and the
 //     WebAuthn related origins file;
-//  5. a suspended site only answers a 503 page; a site waiting for
-//     approval, or held for its billing (Network.Held), a 503 page too,
-//     except its sign-in and admin;
+//  5. a suspended site only answers a 503 page, but to the session of a
+//     network admin's emergency access while one is live (and the sign-in
+//     that opens it); a site waiting for approval, or held for its billing
+//     (Network.Held), a 503 page too, except its sign-in and admin;
 //  6. otherwise the site, loaded if needed, serves the request, with at
 //     most MaxInflight requests at once.
 func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -53,9 +54,15 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case host != rt.Primary && !aliasServed(req.URL.Path):
 		r.toPrimary(w, req, rt)
 		return
-	case rt.Status == StatusSuspended:
+	case rt.Status == StatusSuspended && !rt.Emergency:
 		r.statusPage(w, req, web.StatusSuspended, http.StatusServiceUnavailable)
 		return
+	case rt.Status == StatusSuspended:
+		// An emergency access is live: the site serves its session (and
+		// the sign-in that opens it), and the 503 page to everything else.
+		req = req.WithContext(web.EmergencyOnly(req.Context(), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			r.statusPage(w, req, web.StatusSuspended, http.StatusServiceUnavailable)
+		})))
 	case rt.Status == StatusPending && !pendingServed(req.URL.Path):
 		r.statusPage(w, req, web.StatusPending, http.StatusServiceUnavailable)
 		return

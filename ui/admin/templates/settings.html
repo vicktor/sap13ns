@@ -127,12 +127,18 @@
         <label class="check"><input type="checkbox" class="input" role="switch" name="allow_registration" value="1"{{if $s.AllowRegistration}} checked{{end}}> {{T "Anyone can register"}}</label>
         <div class="field"><label for="default_role">{{T "Role for new accounts"}}</label>
           <select class="select w-full" id="default_role" name="default_role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $s.DefaultRole}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+        {{if $d.Portal}}
+        <div class="field"><input type="hidden" name="two_factor" value="{{$s.TwoFactor}}">
+          <p class="text-sm font-medium">{{T "Two-factor authentication"}}</p>
+          <p class="hint">{{T "Every account of the network portal needs a second factor, an authenticator app code or a passkey, because it opens the account's sites."}}</p></div>
+        {{else}}
         <div class="field"><label for="two_factor">{{T "Two-factor authentication is required for"}}</label>
           <select class="select w-full" id="two_factor" name="two_factor">
             <option value="staff"{{if eq $s.TwoFactor "staff"}} selected{{end}}>{{T "Everyone with access to the administration (recommended)"}}</option>
             <option value="editors"{{if eq $s.TwoFactor "editors"}} selected{{end}}>{{T "Administrators and editors"}}</option>
           </select>
           <p class="hint">{{T "An authenticator app code or a passkey."}}</p></div>
+        {{end}}
         <div class="grid-2">
           <div class="field"><label for="session_days">{{T "Session length (days)"}}</label><input class="input" id="session_days" name="session_days" type="number" min="1" max="90" value="{{$s.SessionDays}}"></div>
           <div class="field"><label for="idle_hours">{{T "Log out after inactivity (hours)"}}</label><input class="input" id="idle_hours" name="idle_hours" type="number" min="1" max="2160" value="{{$s.IdleHours}}"></div>

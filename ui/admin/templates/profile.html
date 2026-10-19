@@ -49,7 +49,7 @@
     {{else if $u.Linked}}
     <section class="card" id="network-account">
       <header><h2>{{T "sap13ns account"}}</h2></header>
-      <section class="twofa-summary"><span class="text-success">{{icon "link"}}</span><p>{{if $u.NetworkOperator}}{{T "You opened this site as a network administrator. Your access ends when you stop being one."}}{{else}}{{T "Linked. You log in with your sap13ns account, and the network decides your role on this site."}}{{end}}</p></section>
+      <section class="twofa-summary"><span class="text-success">{{icon "link"}}</span><p>{{if $u.NetworkOperator}}{{T "You opened this site as a network administrator, with its owner's consent or an emergency access. Your access ends with them, or when you stop being a network administrator."}}{{else}}{{T "Linked. You log in with your sap13ns account, and the network decides your role on this site."}}{{end}}</p></section>
     </section>
     {{end}}
     {{if $u.SSOOnly}}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 
+	"sap13ns/internal/auth"
 	"sap13ns/internal/store"
 	"sap13ns/internal/web"
 )
@@ -138,6 +139,9 @@ func (h portalHooks) SiteDetail(ctx context.Context, siteID int64) (*web.NetSite
 		d.Members = append(d.Members, web.NetMember{AccountID: m.AccountID, Username: m.Username, Email: m.Email, Role: m.Role,
 			Owner: m.AccountID == s.OwnerID, LastSSOAt: m.LastSSOAt, CreatedAt: m.CreatedAt})
 	}
+	if err := h.support(ctx, d); err != nil {
+		return nil, err
+	}
 	return d, nil
 }
 
@@ -227,6 +231,13 @@ func (h portalHooks) AccountSites(ctx context.Context, accountID int64) ([]web.N
 		s.Role = sites[i].Role
 		if err := h.withBilling(ctx, &s, &sites[i].Site, plans); err != nil {
 			return nil, err
+		}
+		if s.Role == auth.RoleAdmin || s.OwnerID == accountID {
+			g, err := h.r.net.SupportAccess(ctx, s.ID)
+			if err != nil {
+				return nil, err
+			}
+			s.SupportOpen = g != nil
 		}
 		out = append(out, s)
 	}

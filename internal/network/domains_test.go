@@ -415,6 +415,7 @@ func TestMyDomains(t *testing.T) {
 	csrf := b.portalSignIn(e.owner)
 	form := func(host string) url.Values { return url.Values{"csrf": {csrf}, "host": {host}} }
 
+	e.noMFA(e.owner)
 	if rec := b.get(portalURL + base); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
 		t.Fatalf("without a second factor: %d %s", rec.Code, rec.Header().Get("Location"))
 	}

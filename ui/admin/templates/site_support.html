@@ -1,0 +1,83 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.Site}}{{$open := $d.Support.Open}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/sites">{{icon "arrow-left" "size-3.5"}} {{T "My sites"}}</a></p>
+    <h1>{{T "Support access to %s" $s.Slug}}</h1>
+    <p>{{T "The network's administrators can open this site's administration only while you or another of its administrators allow it."}}</p>
+  </div>
+</div>
+{{if eq $s.Status "suspended"}}
+<div class="alert" data-variant="destructive" role="status">{{icon "ban"}}<h2>{{T "This site is suspended"}}</h2><section><p>{{T "Support access cannot be opened while the site is suspended. You can still revoke it."}}</p></section></div>
+{{end}}
+<div class="split">
+  <div class="stack">
+    <section class="card" id="state">
+      <header><h2>{{icon "key-round"}} {{T "Support access"}}</h2></header>
+      <section>
+        <p>{{template "support-state" $open}}</p>
+        {{with $open}}
+        <p class="hint">{{if .GrantedBy}}{{T "Allowed by @%s on %s." .GrantedBy (dateTime .GrantedAt)}}{{else}}{{T "Allowed on %s." (dateTime .GrantedAt)}}{{end}}</p>
+        {{else}}
+        <p class="hint">{{T "Network administrators who are not members of this site cannot sign in to it."}}</p>
+        {{end}}
+      </section>
+      {{if $open}}
+      <footer>
+        <form method="post" action="/admin/sites/{{$s.ID}}/support/revoke">{{.CSRFField}}<button class="btn" data-variant="destructive" type="submit" data-confirm="{{T "Revoke support access to %s? Network administrators signed in to it are signed out at once." $s.Slug}}">{{icon "lock"}}{{T "Revoke support access"}}</button></form>
+      </footer>
+      {{end}}
+    </section>
+
+    {{if $s.Served}}
+    <section class="card" id="grant">
+      <header><h2>{{if $open}}{{T "Change how long it stays open"}}{{else}}{{T "Allow support access"}}{{end}}</h2><p>{{T "While it is open, a network administrator can sign in to this site as an administrator, through a separate operator user. Every sign-in is written to this site's audit log and to the network's."}}</p></header>
+      <section>
+        <form method="post" action="/admin/sites/{{$s.ID}}/support" class="form">
+          {{.CSRFField}}
+          <fieldset class="fieldset">
+            <legend>{{T "Keep it open"}}</legend>
+            <label class="check"><input type="radio" class="input" name="duration" value="24h" checked> {{T "For 24 hours"}}</label>
+            <label class="check"><input type="radio" class="input" name="duration" value="7d"> {{T "For 7 days"}}</label>
+            <label class="check"><input type="radio" class="input" name="duration" value="revoked"> {{T "Until I revoke it"}}</label>
+          </fieldset>
+          <div><button class="btn" type="submit">{{icon "key-round"}}{{T "Allow support access"}}</button></div>
+        </form>
+      </section>
+    </section>
+    {{end}}
+  </div>
+
+  <div class="stack">
+    <section class="card table-wrap">
+      <header><h2>{{T "History"}}</h2></header>
+      {{if $d.Support.History}}
+      <table class="table">
+        <thead><tr><th>{{T "Allowed"}}</th><th>{{T "Until"}}</th><th>{{T "Status"}}</th></tr></thead>
+        <tbody>
+          {{range $d.Support.History}}
+          <tr>
+            <td class="nowrap">{{dateTime .GrantedAt}}{{with .GrantedBy}}<div class="row-sub muted">@{{.}}</div>{{end}}</td>
+            <td class="nowrap">{{with .ExpiresAt}}{{dateTime .}}{{else}}{{T "Until revoked"}}{{end}}</td>
+            <td class="nowrap">{{if eq .State "open"}}<span class="badge" data-variant="warning">{{T "Open"}}</span>{{else if eq .State "revoked"}}<span class="badge" data-variant="secondary">{{T "Revoked"}}</span><div class="row-sub muted">{{with .RevokedAt}}{{dateTime .}}{{end}}{{with .RevokedBy}} · @{{.}}{{end}}</div>{{else}}<span class="badge" data-variant="outline">{{T "Expired"}}</span>{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{else}}
+      <section><p class="muted">{{T "Support access was never allowed on this site."}}</p></section>
+      {{end}}
+    </section>
+
+    <section class="card table-wrap" id="emergency">
+      <header><h2>{{T "Emergency accesses"}}</h2><p>{{T "Without your consent, a network administrator may open this site only for a legal order or a serious security incident, such as malware or phishing on the site: for four hours at most, for themselves only. You are e-mailed each time, with their justification."}}</p></header>
+      {{if $d.Support.Emergencies}}
+      {{template "emergency-table" $d.Support.Emergencies}}
+      {{else}}
+      <section><p class="muted">{{T "There was never an emergency access to this site."}}</p></section>
+      {{end}}
+    </section>
+  </div>
+</div>
+{{end}}

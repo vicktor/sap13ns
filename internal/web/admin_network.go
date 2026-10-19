@@ -54,6 +54,8 @@ type PortalAdmin interface {
 
 	// The custom domains of tenant sites (admin_domains.go).
 	PortalDomains
+	// Their support access (admin_support.go).
+	PortalSupport
 }
 
 // A NetSite is a tenant site of the network.
@@ -78,6 +80,7 @@ type NetSite struct {
 	PlanName         string      // from SiteDetail and AccountSites
 	PlanPaid         bool        // likewise
 	Billing          *NetBilling // likewise; nil without a subscription
+	SupportOpen      bool        // from AccountSites, on the sites the account administers
 }
 
 // AdminURL opens the site's administration through single sign-on.
@@ -149,6 +152,26 @@ type NetSiteDetail struct {
 	Plan    *NetPlan // nil if the plan is gone
 	Domains []NetDomain
 	Members []NetMember
+	Support NetSupport
+}
+
+// SupportManager reports whether an account grants and revokes the
+// support access of the site: its owner and its administrators.
+func (d *NetSiteDetail) SupportManager(accountID int64) bool {
+	if d.Site.OwnerID == accountID {
+		return true
+	}
+	for _, m := range d.Members {
+		if m.AccountID == accountID {
+			return m.Role == auth.RoleAdmin
+		}
+	}
+	return false
+}
+
+// Member reports whether an account is a member of the site.
+func (d *NetSiteDetail) Member(accountID int64) bool {
+	return slices.ContainsFunc(d.Members, func(m NetMember) bool { return m.AccountID == accountID })
 }
 
 // Errors of PortalAdmin.
@@ -216,6 +239,12 @@ type netSiteData struct {
 	*NetSiteDetail
 	Roles      []string
 	DomainCard domainsView
+	// CanOpen: the network admin can open the site's administration, as a
+	// member or, while support access is open, as an operator; or with
+	// their emergency access, MyEmergency, also on a suspended site.
+	CanOpen       bool
+	MyEmergency   *NetEmergency
+	EmergencyForm *emergencyForm
 }
 
 // loadNetSite reads the site of the request, or answers 404.

@@ -52,8 +52,19 @@ func setup(t *testing.T) *fixture {
 	return &fixture{t: t, ctx: ctx, pool: pool, n: n, portal: store.New(n.DB()), cfg: cfg, dns: dns}
 }
 
-// account creates a network account.
+// account creates a network account with a second factor, which the
+// portal requires of every account.
 func (f *fixture) account(name string) int64 {
+	f.t.Helper()
+	id := f.bareAccount(name)
+	if err := f.portal.SetTOTP(f.ctx, id, []byte("sealed"), true, nil); err != nil {
+		f.t.Fatal(err)
+	}
+	return id
+}
+
+// bareAccount creates a network account without a second factor.
+func (f *fixture) bareAccount(name string) int64 {
 	f.t.Helper()
 	id, err := f.portal.CreateUser(f.ctx, store.NewUser{Username: name, Email: name + "@example.com", Role: "subscriber", PasswordHash: "x"})
 	if err != nil {
@@ -155,7 +166,7 @@ func TestMigrate(t *testing.T) {
 	}
 	var site, net int
 	if err := f.n.db.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM schema_migrations), (SELECT count(*) FROM network_migrations)`).
-		Scan(&site, &net); err != nil || site < 10 || net != 4 {
+		Scan(&site, &net); err != nil || site < 13 || net != 5 {
 		t.Fatalf("migrations: site %d, network %d, %v", site, net, err)
 	}
 }

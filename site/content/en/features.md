@@ -129,7 +129,7 @@ Administrators see a notice in the admin when a new release is out. `sap13ns upd
 
 ### Networks of sites
 
-Multisite is optional. With `SAP13NS_MULTISITE=true`, one process serves a network: a portal where people have one account, and any number of sites. Each site has its own PostgreSQL schema, users, settings, uploads and plugins, and picks its theme from the network's, so one site's content and plugins cannot reach another's. People sign in to every site they belong to through the portal, with a different role on each. Plans with storage and domain limits, Stripe billing, and custom domains verified through DNS and served over TLS are built in.
+Multisite is optional. With `SAP13NS_MULTISITE=true`, one process serves a network: a portal where people have one account, and any number of sites. Each site has its own PostgreSQL schema, users, settings, uploads and plugins, and picks its theme from the network's, so one site's content and plugins cannot reach another's. People sign in to every site they belong to through the portal, with a different role on each, and every account has a second factor. The network's administrators open a site they do not belong to only while its owner allows support access, or with an audited emergency access for a legal order or a serious security incident. Plans with storage and domain limits, Stripe billing, and custom domains verified through DNS and served over TLS are built in.
 
 Per-site backups, turning an existing single-site install into a network site, and theme uploads are not available yet. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explains how a network works.
 

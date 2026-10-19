@@ -117,6 +117,7 @@ func TestPortalProtectsNetworkAdmins(t *testing.T) {
 func TestSSORevokedWhileSigningIn(t *testing.T) {
 	e := newNetEnv(t, nil)
 	a := e.tenant("alpha", "pro")
+	e.allowSupport(a, SupportDay) // the operators' sign-ins
 	sa := e.siteStore(a)
 	_, bb, bcsrf := e.networkAdmin("boss")
 	ed, dora := e.account("edith"), e.account("dora")
@@ -216,7 +217,7 @@ func TestCheckSSOGrant(t *testing.T) {
 	e.networkAdmin("boss")
 	check := func(account int64, operator bool, want string) {
 		t.Helper()
-		role, err := e.n.CheckSSOGrant(e.ctx, a.ID, account, operator)
+		role, err := e.n.CheckSSOGrant(e.ctx, a.ID, account, operator, false)
 		switch {
 		case want == "" && !errors.Is(err, ErrSSODenied):
 			t.Errorf("account %d (operator %v): %q %v, want denied", account, operator, role, err)
@@ -233,6 +234,8 @@ func TestCheckSSOGrant(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(ed, false, "author")
+	check(olga, true, "") // the site does not allow support access
+	e.allowSupport(a, SupportDay)
 	check(olga, true, "admin")
 	check(olga, false, "") // not a member
 	if err := e.n.SetMember(e.ctx, a.ID, olga, "editor", 0); err != nil {

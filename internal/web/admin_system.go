@@ -26,6 +26,7 @@ type settingsData struct {
 	Roles     []string
 	OGLayouts []LangLink // Code/Name pairs for the social image select
 	Error     string
+	Portal    bool // the network portal: every account needs a second factor
 }
 
 var commonZones = []string{"UTC", "Europe/Madrid", "Atlantic/Canary", "Europe/Lisbon", "Europe/London", "Europe/Paris", "Europe/Berlin",
@@ -44,7 +45,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 	}
 	s.renderAdminStatus(w, r, status, "settings", s.t("Settings"), "settings", settingsData{S: st, Pages: pages, Languages: languageOptions(), Extra: s.extraLangsOf(st),
 		OGLayouts: []LangLink{{Code: "classic", Name: s.t("Classic")}, {Code: "bold", Name: s.t("Bold")}, {Code: "minimal", Name: s.t("Minimal")}, {Code: "off", Name: s.t("Off")}},
-		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg})
+		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg, Portal: s.portal != nil})
 }
 
 func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
@@ -281,6 +282,8 @@ func (s *Server) twoFactorDescription() string {
 	switch {
 	case s.cfg.Dev && s.cfg.DevSkip2FA:
 		return s.t("Skipped (development mode)")
+	case s.portal != nil:
+		return s.t("Required for every account (network portal)")
 	case s.settings().TwoFactor == "editors":
 		return s.t("Required for administrators and editors")
 	}

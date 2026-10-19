@@ -25,6 +25,8 @@ type usersData struct {
 	Role  string
 	Query string
 	Roles []string
+	// The support access of a tenant site of a network (admin_support.go).
+	Support *SupportStatus
 }
 
 var assignableRoles = []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor, auth.RoleEditor, auth.RoleAdmin}
@@ -45,7 +47,7 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 	vals := r.URL.Query()
 	vals.Del("page")
 	s.renderAdmin(w, r, "users", s.t("Users"), "users", usersData{Users: users, Total: total, Role: role, Query: q, Roles: assignableRoles,
-		Page: newPagination("/admin/users", vals, page, per, total)})
+		Page: newPagination("/admin/users", vals, page, per, total), Support: s.supportStatus(r)})
 }
 
 type userEditData struct {
@@ -550,6 +552,7 @@ type twofaData struct {
 	Codes    []string
 	Error    string
 	Required bool
+	Portal   bool // the network portal, where every account needs a second factor
 	Passkeys passkeySection
 }
 
@@ -575,7 +578,7 @@ func (s *Server) pendingSecret(r *http.Request, u *store.User) ([]byte, error) {
 func (s *Server) render2FA(w http.ResponseWriter, r *http.Request, status int, d twofaData) {
 	u := currentUser(r)
 	d.Enabled = u.TOTPEnabled
-	d.Required = s.mustEnroll2FA(r, u)
+	d.Required, d.Portal = s.mustEnroll2FA(r, u), s.portal != nil
 	if pks, err := s.passkeySection(r, u); err == nil {
 		d.Passkeys = pks
 	}

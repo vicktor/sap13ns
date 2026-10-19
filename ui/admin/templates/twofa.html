@@ -8,7 +8,8 @@
     <p>{{T "Use an authenticator app such as Aegis, 2FAS, Google Authenticator or 1Password."}}{{if $d.Passkeys.Available}} {{T "A passkey also counts as a second factor."}}{{end}}</p>
   </div>
 </div>
-{{if $d.Required}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Your role requires two-factor authentication."}}</h2><section><p>{{if $d.Passkeys.Available}}{{T "Set up an authenticator app or add a passkey to continue using the administration panel."}}{{else}}{{T "Set it up to continue using the administration panel."}}{{end}}</p></section></div>{{end}}
+{{if and $d.Required $d.Portal}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Every sap13ns account needs two-factor authentication."}}</h2><section><p>{{T "Your account opens every site you are a member of, so a password alone is not enough."}} {{if $d.Passkeys.Available}}{{T "Set up an authenticator app or add a passkey; then you can see your sites and request one."}}{{else}}{{T "Set up an authenticator app; then you can see your sites and request one."}}{{end}}</p></section></div>
+{{else if $d.Required}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Your role requires two-factor authentication."}}</h2><section><p>{{if $d.Passkeys.Available}}{{T "Set up an authenticator app or add a passkey to continue using the administration panel."}}{{else}}{{T "Set it up to continue using the administration panel."}}{{end}}</p></section></div>{{end}}
 {{template "form-error" $d.Error}}
 
 {{if $d.Codes}}

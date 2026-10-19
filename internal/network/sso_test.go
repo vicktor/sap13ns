@@ -122,6 +122,14 @@ func (e *netEnv) mfa(accountID int64) {
 	}
 }
 
+// noMFA takes an account's second factor away.
+func (e *netEnv) noMFA(accountID int64) {
+	e.t.Helper()
+	if err := e.portal.DisableTOTP(e.ctx, accountID); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
 // startSSO opens /sso/start on a site and returns the authorize URL.
 func (b *browser) startSSO(host, next string) string {
 	b.e.t.Helper()
@@ -493,19 +501,20 @@ func TestSSOAuthorizeChecks(t *testing.T) {
 		t.Fatalf("a stranger: %d", rec.Code)
 	}
 
-	// Staff need a second factor on the portal; a subscriber does not.
-	ed, sub := e.account("edith"), e.account("subby")
+	// Every member needs a second factor on the portal, a subscriber too.
+	ed, sub := e.bareAccount("edith"), e.bareAccount("subby")
 	for acct, role := range map[int64]string{ed: "editor", sub: "subscriber"} {
 		if err := e.n.SetMember(e.ctx, a.ID, acct, role, 0); err != nil {
 			t.Fatal(err)
 		}
+		x := e.browser()
+		x.portalSignIn(acct)
+		rec := x.get(x.startSSO("alpha.sap13ns.site", "/admin/"))
+		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
+			t.Fatalf("a member (%s) without a second factor: %d %s", role, rec.Code, rec.Header().Get("Location"))
+		}
 	}
-	x := e.browser()
-	x.portalSignIn(ed)
-	rec := x.get(x.startSSO("alpha.sap13ns.site", "/admin/"))
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
-		t.Fatalf("an editor without a second factor: %d %s", rec.Code, rec.Header().Get("Location"))
-	}
+	e.mfa(sub)
 	y := e.browser()
 	y.portalSignIn(sub)
 	if rec := y.sso("alpha.sap13ns.site", "/admin/"); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile" {
@@ -712,7 +721,7 @@ func TestSSOOperator(t *testing.T) {
 	e := newNetEnv(t, nil)
 	a := e.tenant("alpha", "pro")
 	sa := e.siteStore(a)
-	op, other := e.account("olga"), e.account("otto")
+	op, other := e.bareAccount("olga"), e.account("otto")
 	for _, id := range []int64{op, other} {
 		if err := e.n.AddNetworkAdmin(e.ctx, id, 0); err != nil {
 			t.Fatal(err)
@@ -720,6 +729,11 @@ func TestSSOOperator(t *testing.T) {
 	}
 	b := e.browser()
 	b.portalSignIn(op)
+	// Only while the owner allows support access (TestSupportAccess).
+	if rec := b.get(b.startSSO("alpha.sap13ns.site", "/admin/")); rec.Code != http.StatusForbidden {
+		t.Fatalf("operator without support access: %d %s", rec.Code, rec.Header().Get("Location"))
+	}
+	e.allowSupport(a, 0)
 	// An operator always needs a second factor.
 	if rec := b.get(b.startSSO("alpha.sap13ns.site", "/admin/")); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/profile/2fa" {
 		t.Fatalf("operator without a second factor: %d %s", rec.Code, rec.Header().Get("Location"))
@@ -887,6 +901,7 @@ func TestReconcileAccess(t *testing.T) {
 	if err := e.n.AddNetworkAdmin(e.ctx, op, 0); err != nil {
 		t.Fatal(err)
 	}
+	e.allowSupport(a, SupportWeek)
 	for _, acct := range []int64{ed, op} {
 		b := e.browser()
 		b.portalSignIn(acct)

@@ -37,24 +37,32 @@ func (h siteHooks) SSOAuthorize() (string, int64) { return h.r.cfg.AbsURL("/sso/
 
 func (h siteHooks) RedeemSSO(ctx context.Context, code, verifier, redirectURI string) (*web.SSOGrant, error) {
 	g, err := h.r.net.RedeemSSOCode(ctx, h.id, code, verifier, redirectURI)
-	switch {
-	case errors.Is(err, ErrSSOCode):
+	if errors.Is(err, ErrSSOCode) {
 		return nil, errors.Join(web.ErrSSOInvalid, err)
-	case errors.Is(err, ErrSSODenied):
-		return nil, errors.Join(web.ErrSSODenied, err)
-	case err != nil:
-		return nil, err
 	}
-	return &web.SSOGrant{AccountID: g.AccountID, Operator: g.Operator, Role: g.Role,
+	if err != nil {
+		return nil, ssoErr(err)
+	}
+	return &web.SSOGrant{AccountID: g.AccountID, Operator: g.Operator, Emergency: g.Emergency, Role: g.Role,
 		Username: g.Username, Email: g.Email, DisplayName: g.DisplayName}, nil
 }
 
 func (h siteHooks) CheckSSO(ctx context.Context, g *web.SSOGrant) (string, error) {
-	role, err := h.r.net.CheckSSOGrant(ctx, h.id, g.AccountID, g.Operator)
-	if errors.Is(err, ErrSSODenied) {
-		return "", errors.Join(web.ErrSSODenied, err)
+	role, err := h.r.net.CheckSSOGrant(ctx, h.id, g.AccountID, g.Operator, g.Emergency)
+	return role, ssoErr(err)
+}
+
+// ssoErr maps the refusals of single sign-on to the web's.
+func ssoErr(err error) error {
+	switch {
+	case errors.Is(err, ErrNoSupport):
+		return errors.Join(web.ErrSSONoSupport, err)
+	case errors.Is(err, ErrNoEmergency):
+		return errors.Join(web.ErrSSONoEmergency, err)
+	case errors.Is(err, ErrSSODenied):
+		return errors.Join(web.ErrSSODenied, err)
 	}
-	return role, err
+	return err
 }
 
 // portalHooks are the hooks of the portal: the network's accounts and
@@ -84,17 +92,17 @@ func (h portalHooks) SSOSite(ctx context.Context, siteID int64) (*web.SSOSite, e
 	return out, nil
 }
 
-func (h portalHooks) SSOAccess(ctx context.Context, siteID, accountID int64) (string, bool, error) {
-	role, op, err := h.r.net.SSOAccess(ctx, siteID, accountID)
-	if errors.Is(err, ErrSSODenied) {
-		return "", false, errors.Join(web.ErrSSODenied, err)
+func (h portalHooks) SSOAccess(ctx context.Context, siteID, accountID int64) (web.SiteAccess, error) {
+	a, err := h.r.net.SSOAccess(ctx, siteID, accountID)
+	if err != nil {
+		return web.SiteAccess{}, ssoErr(err)
 	}
-	return role, op, err
+	return web.SiteAccess{Role: a.Role, Operator: a.Operator, Emergency: a.Emergency}, nil
 }
 
 func (h portalHooks) IssueSSOCode(ctx context.Context, c web.SSOCode) (string, error) {
 	return h.r.net.IssueSSOCode(ctx, SSOCode{SiteID: c.SiteID, AccountID: c.AccountID, Challenge: c.Challenge,
-		RedirectURI: c.RedirectURI, Operator: c.Operator})
+		RedirectURI: c.RedirectURI, Operator: c.Operator, Emergency: c.Emergency})
 }
 
 func (h portalHooks) IsNetworkAdmin(ctx context.Context, accountID int64) (bool, error) {

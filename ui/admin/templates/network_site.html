@@ -7,13 +7,16 @@
     <h1>{{$s.Slug}} {{template "site-status" $s.Status}}</h1>
     <p class="mono">{{$s.Host}}</p>
   </div>
-  {{if $s.Served}}
+  {{if or $s.Served $d.CanOpen}}
   <div class="page-actions">
-    <a class="btn" data-variant="outline" href="{{$s.URL}}/" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View site"}}</a>
-    <a class="btn" href="{{$s.AdminURL}}">{{icon "log-in"}}{{T "Open its administration"}}</a>
+    {{if $s.Served}}<a class="btn" data-variant="outline" href="{{$s.URL}}/" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View site"}}</a>{{end}}
+    {{if $d.CanOpen}}<a class="btn" href="{{$s.AdminURL}}">{{icon "log-in"}}{{if $d.MyEmergency}}{{T "Open it with emergency access"}}{{else}}{{T "Open its administration"}}{{end}}</a>{{end}}
   </div>
   {{end}}
 </div>
+{{with $d.MyEmergency}}
+<div class="alert" data-variant="destructive" role="status">{{icon "octagon-alert"}}<h2>{{T "Your emergency access is open until %s" (dateTime .ExpiresAt)}}</h2><section><p>{{T "Only you can use it. End it as soon as you are done."}}</p></section></div>
+{{end}}
 {{if eq $s.Status "suspended"}}
 <div class="alert" data-variant="destructive" role="status">{{icon "ban"}}<h2>{{T "Suspended"}}{{with $s.SuspendedAt}} · {{dateTime .}}{{end}}</h2>{{with $s.SuspendedReason}}<section>{{.}}</section>{{end}}</div>
 {{else if and $s.Billing $s.Billing.Held}}
@@ -88,6 +91,13 @@
       </footer>
       {{end}}
     </section>
+
+    {{with $d.Support.Emergencies}}
+    <section class="card table-wrap" id="emergency-history">
+      <header><h2>{{T "Emergency accesses"}}</h2><p>{{T "The last ones. The site's audit log has each sign-in."}}</p></header>
+      {{template "emergency-table" .}}
+    </section>
+    {{end}}
   </div>
 
   <div class="stack">
@@ -98,6 +108,71 @@
         <form method="post" action="/admin/network/sites/{{$s.ID}}/approve">{{.CSRFField}}<button class="btn w-full" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>
         <form method="post" action="/admin/network/sites/{{$s.ID}}/reject">{{.CSRFField}}<button class="btn w-full" data-variant="outline" type="submit" data-confirm="{{T "Reject %s? The site is deleted." $s.Slug}}">{{icon "x"}}{{T "Reject"}}</button></form>
       </footer>
+    </section>
+    {{end}}
+    {{if ne $s.Status "deleted"}}
+    <section class="card" id="support">
+      <header><h2>{{icon "key-round"}} {{T "Support access"}}</h2><p>{{T "A network administrator who is not a member opens this site's administration only while its owner, or one of its administrators, allows it."}}</p></header>
+      <section>
+        <p>{{template "support-state" $d.Support.Open}}</p>
+        {{with $d.Support.Open}}<p class="hint">{{if .GrantedBy}}{{T "Allowed by @%s on %s." .GrantedBy (dateTime .GrantedAt)}}{{else}}{{T "Allowed on %s." (dateTime .GrantedAt)}}{{end}}</p>{{end}}
+      </section>
+      {{if $d.Support.Open}}
+      <footer>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/support/end">{{.CSRFField}}<button class="btn" data-variant="outline" type="submit" data-confirm="{{T "End support access to %s now? Network administrators signed in to it are signed out at once." $s.Slug}}">{{icon "lock"}}{{T "End support access"}}</button></form>
+      </footer>
+      {{else if $s.Served}}
+      <footer>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/support/request" class="form w-full">
+          {{.CSRFField}}
+          <div class="field"><label for="support-message">{{T "Message to the owner (optional)"}}</label><textarea class="textarea" id="support-message" name="message" rows="2" maxlength="500"></textarea><p class="hint">{{T "The owner gets an e-mail with a link to allow it. Nothing opens until they do."}}</p></div>
+          <div><button class="btn" data-variant="outline" type="submit">{{icon "mail"}}{{T "Request support access"}}</button></div>
+        </form>
+      </footer>
+      {{end}}
+    </section>
+
+    {{$f := $d.EmergencyForm}}
+    <section class="card" id="emergency">
+      <header><h2>{{icon "octagon-alert"}} {{T "Emergency access"}}</h2><p>{{T "Without the owner's consent, only for a legal order or a serious security incident, such as malware or phishing on the site. It lasts four hours at most, opens the site to you only, also while it is suspended, and the owner is e-mailed at once with your justification."}}</p></header>
+      {{with $d.Support.LiveEmergencies}}
+      <section>
+        {{range .}}
+        <p><span class="badge" data-variant="destructive">{{if eq .Category "legal"}}{{T "Legal order"}}{{else}}{{T "Security incident"}}{{end}}</span> {{if .By}}@{{.By}}{{end}} <span class="muted">{{T "until %s" (dateTime .ExpiresAt)}}</span></p>
+        <p class="hint">{{.Justification}}</p>
+        {{end}}
+      </section>
+      <footer>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/emergency/end">{{$.CSRFField}}<button class="btn" data-variant="outline" type="submit" data-confirm="{{T "End every emergency access to %s now? The administrators who use it are signed out at once." $s.Slug}}">{{icon "lock"}}{{T "End emergency access"}}</button></form>
+      </footer>
+      {{end}}
+      {{if not $d.MyEmergency}}
+      <section>
+        {{with $f.Error}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{.}}</h2></div>{{end}}
+        {{if or $f.Reauth $f.TOTP}}
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/emergency" class="form">
+          {{.CSRFField}}
+          <fieldset class="fieldset">
+            <legend>{{T "Reason"}}</legend>
+            <label class="check"><input type="radio" class="input" name="category" value="legal" required{{if eq $f.Category "legal"}} checked{{end}}> {{T "A legal order"}}</label>
+            <label class="check"><input type="radio" class="input" name="category" value="security"{{if eq $f.Category "security"}} checked{{end}}> {{T "A serious security incident"}}</label>
+          </fieldset>
+          <div class="field"><label for="justification">{{T "Justification"}}</label><textarea class="textarea" id="justification" name="justification" rows="3" maxlength="500" required>{{$f.Justification}}</textarea><p class="hint">{{T "Which order or incident, and what you need to do. The owner reads it. 500 characters max."}}</p></div>
+          {{if $f.Reauth}}
+          <p class="hint">{{T "You signed in less than ten minutes ago, so no code is needed."}}</p>
+          {{else}}
+          <div class="field"><label for="emergency-code">{{T "Code from your authenticator app"}}</label><input class="input mono" id="emergency-code" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div>
+          {{end}}
+          <div><button class="btn" data-variant="destructive" type="submit" data-confirm="{{T "Open %s without its owner's consent? The owner is e-mailed at once." $s.Slug}}">{{icon "octagon-alert"}}{{T "Start emergency access"}}</button></div>
+        </form>
+        {{else}}
+        <p class="hint">{{T "It needs a fresh second factor: sign in again, then start it within ten minutes."}}</p>
+        {{end}}
+        {{if not $f.Reauth}}
+        <form method="post" action="/logout" class="mt-2">{{.CSRFField}}<input type="hidden" name="next" value="/admin/network/sites/{{$s.ID}}"><button class="btn" data-variant="{{if $f.TOTP}}link{{else}}outline{{end}}" type="submit">{{icon "log-in"}}{{T "Sign in again"}}</button></form>
+        {{end}}
+      </section>
+      {{end}}
     </section>
     {{end}}
     {{if $s.Served}}

@@ -137,7 +137,23 @@ func (s *Server) renderMyDomains(w http.ResponseWriter, r *http.Request, status 
 func (s *Server) renderNetSite(w http.ResponseWriter, r *http.Request, status int, d *NetSiteDetail, host, msg string, claim *NetDomain) {
 	v := s.domainsView(d, netDomainsBase(d.Site.ID))
 	v.Host, v.Error, v.Claim = host, msg, claim
-	s.renderAdminStatus(w, r, status, "network_site", d.Site.Slug, "net-sites", netSiteData{NetSiteDetail: d, Roles: assignableRoles, DomainCard: v})
+	s.renderNetSiteData(w, r, status, d, v, nil)
+}
+
+// renderNetSiteData renders the site's page of the network admin area,
+// with its domains card and, when ef is set, the emergency access form as
+// it was sent.
+func (s *Server) renderNetSiteData(w http.ResponseWriter, r *http.Request, status int, d *NetSiteDetail, v domainsView, ef *emergencyForm) {
+	u := currentUser(r)
+	mine := d.Support.LiveEmergency(u.ID)
+	if ef == nil {
+		ef = &emergencyForm{}
+	}
+	ef.Reauth, ef.TOTP = recentLogin(r), u.TOTPEnabled
+	s.renderAdminStatus(w, r, status, "network_site", d.Site.Slug, "net-sites", netSiteData{NetSiteDetail: d, Roles: assignableRoles, DomainCard: v,
+		CanOpen: d.Site.Served() && (d.Support.Open != nil || d.Member(u.ID)) ||
+			mine != nil && (d.Site.Served() || d.Site.Status == "suspended"),
+		MyEmergency: mine, EmergencyForm: ef})
 }
 
 func (s *Server) adminMyDomainAdd(w http.ResponseWriter, r *http.Request) {

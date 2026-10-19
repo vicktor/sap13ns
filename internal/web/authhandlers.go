@@ -163,6 +163,12 @@ func (s *Server) establishLogin(w http.ResponseWriter, r *http.Request, u *store
 	if u.Role == auth.RoleSubscriber && next == "/admin/" {
 		next = s.readerHome()
 	}
+	if s.portal != nil && s.mustEnroll2FA(r, u) {
+		// A new account (or one without a second factor) on the portal
+		// can do nothing before it sets one up: straight there, where the
+		// page explains why.
+		next = "/admin/profile/2fa"
+	}
 	return next, nil
 }
 
@@ -268,6 +274,12 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		s.audit(r, sess.UserID, "logout", "", nil)
 	}
 	s.clearSessionCookie(w)
+	// "Sign in again" (a fresh second factor) logs out with where to go
+	// once signed in.
+	if next := r.PostFormValue("next"); next != "" && sess != nil {
+		http.Redirect(w, r, "/login?next="+url.QueryEscape(safeNext(next)), http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 

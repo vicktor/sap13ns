@@ -9,11 +9,13 @@ package web
 //     the top-level redirect from P) and sends the browser to
 //     P /sso/authorize with the state, sha256(verifier) and its callback.
 //  2. P /sso/authorize, a top-level navigation only, signs the account in
-//     first if needed, checks that the site is served, that the callback is
-//     exactly one of the site's hosts, and that the account is a member of
-//     the site (or a network admin: an operator), with a second factor for
-//     staff roles. It stores a code (its hash, for 60 seconds, bound to the
-//     site and the callback) and redirects to the callback with it.
+//     first if needed, checks that the callback is exactly one of the
+//     site's hosts, that the account is a member of the site (or a network
+//     admin, an operator, while the site's owner allows support access, or
+//     with an emergency access of their own), that the site is served (or,
+//     for an emergency access only, suspended), and that the account has a
+//     second factor. It stores a code (its hash, for 60 seconds, bound to
+//     the site and the callback) and redirects to the callback with it.
 //  3. H /sso/callback compares the state with the cookie, redeems the code
 //     once with the verifier, maps the account to its user on the site
 //     (created just in time, never matched by e-mail) and opens a session
@@ -52,19 +54,55 @@ type SSOClient interface {
 	// once, given the verifier whose sha256 the code was issued for. It
 	// returns ErrSSOInvalid for a code that is unknown, used, expired, for
 	// another site or callback, or whose verifier does not match, and
-	// ErrSSODenied when the account may not sign in to the site (any more).
+	// ErrSSODenied when the account may not sign in to the site (any more):
+	// ErrSSONoSupport for an operator once the site's support access is
+	// closed, ErrSSONoEmergency for an emergency access that ended.
 	RedeemSSO(ctx context.Context, code, verifier, redirectURI string) (*SSOGrant, error)
 	// CheckSSO reads the access a redeemed grant gives now and returns its
 	// current role: ErrSSODenied once the account lost its access to the
 	// site, or for an operator grant once it is no longer one (and the
-	// other way round).
+	// other way round), the support access closed or the emergency access
+	// ended.
 	CheckSSO(ctx context.Context, g *SSOGrant) (role string, err error)
+	// OperatorAllowed reports whether an operator session of the account
+	// may go on: while the site allows support access or, for an
+	// emergency session, while the account's emergency access lasts. Every
+	// request of such a session checks it. The answer may be a few
+	// seconds old, but never past the end of the grant or the access.
+	OperatorAllowed(ctx context.Context, accountID int64, emergency bool) (bool, error)
+	// SupportStatus describes the support access of the site, and the
+	// emergency accesses open now, for its Users page.
+	SupportStatus(ctx context.Context) (*SupportStatus, error)
+}
+
+// SupportStatus is the support access of a tenant site: whether the
+// network's admins may open it as operators now, and where its owner
+// grants and revokes it, on the portal; and the emergency accesses that
+// network admins opened without it.
+type SupportStatus struct {
+	Open        bool
+	ExpiresAt   *time.Time // while open: nil until revoked
+	GrantedBy   string     // the username of the account that allowed it
+	GrantedAt   time.Time
+	ManageURL   string
+	Emergencies []EmergencyStatus // live now
+}
+
+// EmergencyStatus is an emergency access to a site, as its administrators
+// see it.
+type EmergencyStatus struct {
+	By            string // the network admin's username
+	Category      string // legal or security
+	Justification string
+	StartedAt     time.Time
+	ExpiresAt     time.Time
 }
 
 // An SSOGrant is a redeemed code: who signs in, and with which role.
 type SSOGrant struct {
 	AccountID   int64
-	Operator    bool   // a network admin who is not a member: their operator user
+	Operator    bool   // a network admin who is not a member, or with an emergency access: their operator user
+	Emergency   bool   // that emergency access (Operator too)
 	Role        string // the membership's role; admin for an operator
 	Username    string // of the account
 	Email       string
@@ -77,10 +115,13 @@ type Portal interface {
 	// SSOSite describes a tenant site for /sso/authorize: ErrNotFound when
 	// it is unknown or not served (being created, deleted).
 	SSOSite(ctx context.Context, siteID int64) (*SSOSite, error)
-	// SSOAccess returns the role an account signs in to a site with: its
-	// membership's, or admin with operator true for a network admin who is
-	// not a member. ErrSSODenied otherwise.
-	SSOAccess(ctx context.Context, siteID, accountID int64) (role string, operator bool, err error)
+	// SSOAccess returns the access an account signs in to a site with: an
+	// emergency access of its own that is live (on a suspended site too);
+	// its membership's role; or admin as an operator for a network admin
+	// who is not a member, while the site allows support access
+	// (ErrSSONoSupport when it does not). ErrSSODenied otherwise. The
+	// site's status is the caller's to check.
+	SSOAccess(ctx context.Context, siteID, accountID int64) (SiteAccess, error)
 	// IssueSSOCode stores a single sign-on code (only its hash) and returns
 	// it.
 	IssueSSOCode(ctx context.Context, c SSOCode) (string, error)
@@ -108,6 +149,13 @@ type SSOSite struct {
 	RedirectURIs []string // the callback on each of its routed hosts
 }
 
+// SiteAccess is the access an account signs in to a site with.
+type SiteAccess struct {
+	Role      string
+	Operator  bool // a network admin who is not a member, or with an emergency access
+	Emergency bool // that emergency access
+}
+
 // SSOCode is a code to issue.
 type SSOCode struct {
 	SiteID      int64
@@ -115,12 +163,15 @@ type SSOCode struct {
 	Challenge   []byte // sha256 of the site's verifier
 	RedirectURI string
 	Operator    bool
+	Emergency   bool
 }
 
 // Errors of the network interfaces.
 var (
 	ErrSSOInvalid       = errors.New("sso: invalid, used or expired code")
 	ErrSSODenied        = errors.New("sso: the account has no access to the site")
+	ErrSSONoSupport     = fmt.Errorf("%w: the site does not allow support access", ErrSSODenied)
+	ErrSSONoEmergency   = fmt.Errorf("%w: the emergency access ended", ErrSSODenied)
 	ErrLastNetworkAdmin = errors.New("network: the network needs at least one admin")
 	ErrOwnsSites        = errors.New("network: the account owns sites")
 )
@@ -150,10 +201,6 @@ func (s *Server) ssoCookieName() string {
 }
 
 func (s *Server) ssoRedirectURI() string { return s.cfg.AbsURL(ssoCallback) }
-
-// isStaff reports whether a role needs a second factor on the portal to
-// sign in to a site: every role that can write.
-func isStaff(role string) bool { return auth.Can(role, auth.CapEditOwnPosts) }
 
 // ------------------------------------------------------------ site side --
 
@@ -263,6 +310,12 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	g, err := s.sso.RedeemSSO(ctx, q.Get("code"), st.Verifier, s.ssoRedirectURI())
 	switch {
+	case errors.Is(err, ErrSSONoSupport):
+		fail(http.StatusForbidden, "no support access", s.t("The owner of this site has not allowed support access."))
+		return
+	case errors.Is(err, ErrSSONoEmergency):
+		fail(http.StatusForbidden, "emergency access ended", s.t("Your emergency access to this site has ended."))
+		return
 	case errors.Is(err, ErrSSODenied):
 		fail(http.StatusForbidden, "denied", s.t("Your sap13ns account does not have access to this site."))
 		return
@@ -290,7 +343,12 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	s.ssoFailures.Reset(ip)
 	amr, method, action := store.AMRSSO, "sso", "login.success"
-	if g.Operator {
+	switch {
+	case g.Emergency:
+		// Without the owner's consent: the session, and the site's audit
+		// log, tell it apart from a consented operator's.
+		amr, method, action = store.AMRSSOEmergency, "sso-emergency", "login.emergency"
+	case g.Operator:
 		amr, method, action = store.AMRSSOOperator, "sso-operator", "login.operator"
 	}
 	if err := s.newSession(w, r, u, false, amr); err != nil {
@@ -299,6 +357,12 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.confirmSSO(ctx, u, g); errors.Is(err, errSSORoleChanged) {
 		fail(http.StatusForbidden, "role changed during the sign-in", s.t("Your role on this site changed while you were signing in. Sign in again."))
+		return
+	} else if errors.Is(err, ErrSSONoSupport) {
+		fail(http.StatusForbidden, "support access closed during the sign-in", s.t("The owner of this site has not allowed support access."))
+		return
+	} else if errors.Is(err, ErrSSONoEmergency) {
+		fail(http.StatusForbidden, "emergency access ended during the sign-in", s.t("Your emergency access to this site has ended."))
 		return
 	} else if errors.Is(err, ErrSSODenied) {
 		fail(http.StatusForbidden, "revoked during the sign-in", s.t("Your sap13ns account does not have access to this site."))
@@ -351,6 +415,47 @@ func (s *Server) confirmSSO(ctx context.Context, u *store.User, g *SSOGrant) err
 		err = errors.Join(err, derr)
 	}
 	return err
+}
+
+// operatorAllowed checks an operator session on each request: the site
+// must still allow support access or, for an emergency session, the
+// account's emergency access must still last. The network answers from a
+// cache of a few seconds that never outlives the grant or the access, so
+// a session ends at most that long after a revocation that did not reach
+// the site, and when the grant or the access expires. Once it is closed,
+// the sessions of that kind of the operator user end, and the user is
+// disabled unless the other kind is still open; the next sign-in through
+// the portal needs a new grant or emergency access. An error refuses the
+// request (it is served signed out) without ending the session.
+func (s *Server) operatorAllowed(w http.ResponseWriter, r *http.Request, u *store.User, sess *store.Session) bool {
+	if s.sso == nil || !u.NetworkOperator || u.NetworkAccountID == nil {
+		return false
+	}
+	ctx := r.Context()
+	account, emergency := *u.NetworkAccountID, sess.AMR == store.AMRSSOEmergency
+	ok, err := s.sso.OperatorAllowed(ctx, account, emergency)
+	if err != nil {
+		s.log.Error("check the operator access", "user", u.ID, "err", err)
+		return false
+	}
+	if ok {
+		return true
+	}
+	if _, err := s.store.DeleteNetworkSessions(ctx, account, true, sess.AMR); err != nil {
+		s.log.Error("end an operator's sessions", "user", u.ID, "err", err)
+	}
+	if other, err := s.sso.OperatorAllowed(ctx, account, !emergency); err == nil && !other {
+		if _, _, err := s.store.SetNetworkAccess(ctx, account, true, "", "disabled"); err != nil && !errors.Is(err, store.ErrNotFound) {
+			s.log.Error("end an operator's access", "user", u.ID, "err", err)
+		}
+	}
+	s.clearSessionCookie(w)
+	action, reason := "support.session_ended", "support access closed"
+	if emergency {
+		action, reason = "emergency.session_ended", "emergency access ended"
+	}
+	s.audit(r, 0, action, u.Username, map[string]string{"network_account": strconv.FormatInt(account, 10), "reason": reason})
+	return false
 }
 
 // lowerRole is the role of a and b that can do less; "" if either is not
@@ -569,13 +674,11 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 		s.ssoError(w, r, http.StatusBadRequest, invalid)
 		return
 	}
-	if site.Status != "active" && site.Status != "pending" {
-		s.audit(r, uid(r), "sso.refused", site.Slug, map[string]string{"reason": "site " + site.Status})
-		s.ssoError(w, r, http.StatusForbidden, s.t("This site is suspended."))
-		return
-	}
+	served := site.Status == "active" || site.Status == "pending"
 	u := currentUser(r)
 	if u == nil {
+		// Signed in first even to a suspended site: a network admin's
+		// emergency access opens it.
 		next := url.QueryEscape(safeNext(r.URL.RequestURI()))
 		if sess := rctx(r).Session; sess != nil && sess.MFAPending {
 			http.Redirect(w, r, "/login/2fa?next="+next, http.StatusSeeOther)
@@ -584,31 +687,49 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?next="+next, http.StatusSeeOther)
 		return
 	}
-	role, operator, err := s.portal.SSOAccess(ctx, siteID, u.ID)
+	acc, err := s.portal.SSOAccess(ctx, siteID, u.ID)
+	if err != nil && !errors.Is(err, ErrSSODenied) {
+		s.serverError(w, r, err)
+		return
+	}
+	if !served && !(err == nil && acc.Emergency) {
+		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "site " + site.Status})
+		s.ssoError(w, r, http.StatusForbidden, s.t("This site is suspended."))
+		return
+	}
+	role, operator := acc.Role, acc.Operator
+	if errors.Is(err, ErrSSONoSupport) {
+		// A network admin who is not a member opens a site only with the
+		// consent of its owner or one of its administrators.
+		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "no support access"})
+		s.ssoError(w, r, http.StatusForbidden, s.t("The owner of this site has not allowed support access. Ask for it from the site's page in the network admin area."))
+		return
+	}
 	if errors.Is(err, ErrSSODenied) {
 		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "no membership"})
 		s.ssoError(w, r, http.StatusForbidden, s.t("Your sap13ns account does not have access to this site."))
 		return
 	}
-	if err != nil {
-		s.serverError(w, r, err)
-		return
-	}
-	// The site trusts the portal's second factor (mustEnroll2FA): staff
-	// and operators must have one here.
-	if (operator || isStaff(role)) && !hasSecondFactor(u) && !(s.cfg.Dev && s.cfg.DevSkip2FA) {
+	// The portal requires a second factor of every account
+	// (mustEnroll2FA), and the site trusts it: a session that came
+	// through the portal is not asked for the site's own.
+	if !hasSecondFactor(u) && !(s.cfg.Dev && s.cfg.DevSkip2FA) {
 		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "no second factor", "role": role})
-		s.flash(w, "warning", s.t("Set up two-factor authentication to sign in to %s with your role, then start again from the site.", site.Slug))
+		s.flash(w, "warning", s.t("Set up two-factor authentication to sign in to %s, then start again from the site.", site.Slug))
 		http.Redirect(w, r, "/admin/profile/2fa", http.StatusSeeOther)
 		return
 	}
-	code, err := s.portal.IssueSSOCode(ctx, SSOCode{SiteID: siteID, AccountID: u.ID, Challenge: challenge, RedirectURI: redirect, Operator: operator})
+	code, err := s.portal.IssueSSOCode(ctx, SSOCode{SiteID: siteID, AccountID: u.ID, Challenge: challenge, RedirectURI: redirect,
+		Operator: operator, Emergency: acc.Emergency})
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
 	action := "sso.authorized"
-	if operator {
+	switch {
+	case acc.Emergency:
+		action = "sso.emergency" // a network admin's emergency access, without the owner's consent
+	case operator:
 		action = "sso.operator" // a network admin opening a site they are not a member of
 	}
 	s.audit(r, u.ID, action, site.Slug, map[string]string{"site": strconv.FormatInt(siteID, 10), "role": role})

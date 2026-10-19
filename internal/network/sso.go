@@ -39,19 +39,20 @@ type SSOCode struct {
 	AccountID   int64
 	Challenge   []byte
 	RedirectURI string
-	Operator    bool // a network admin who is not a member
+	Operator    bool // a network admin who is not a member, or one with an emergency access
+	Emergency   bool // that emergency access (Operator too)
 }
 
 // IssueSSOCode stores a code, only its hash, for SSOCodeTTL, and returns
 // it. Codes do not change routing, so nothing is notified.
 func (n *Network) IssueSSOCode(ctx context.Context, c SSOCode) (string, error) {
-	if len(c.Challenge) != sha256.Size || c.RedirectURI == "" {
+	if len(c.Challenge) != sha256.Size || c.RedirectURI == "" || c.Emergency && !c.Operator {
 		return "", fmt.Errorf("%w: malformed single sign-on code request", ErrInvalid)
 	}
 	code := auth.NewToken(32)
-	_, err := n.db.Exec(ctx, `INSERT INTO sso_codes (code_hash, site_id, account_id, challenge, redirect_uri, operator, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, now() + $7::bigint * interval '1 second')`,
-		auth.HashToken(code), c.SiteID, c.AccountID, c.Challenge, c.RedirectURI, c.Operator, int64(SSOCodeTTL/time.Second))
+	_, err := n.db.Exec(ctx, `INSERT INTO sso_codes (code_hash, site_id, account_id, challenge, redirect_uri, operator, emergency, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, now() + $8::bigint * interval '1 second')`,
+		auth.HashToken(code), c.SiteID, c.AccountID, c.Challenge, c.RedirectURI, c.Operator, c.Emergency, int64(SSOCodeTTL/time.Second))
 	return code, mapErr(err)
 }
 
@@ -59,6 +60,7 @@ func (n *Network) IssueSSOCode(ctx context.Context, c SSOCode) (string, error) {
 type SSOGrant struct {
 	AccountID   int64
 	Operator    bool
+	Emergency   bool
 	Role        string
 	Username    string
 	Email       string
@@ -68,8 +70,10 @@ type SSOGrant struct {
 // RedeemSSOCode uses a code once, for the site and callback it was issued
 // for, checking the verifier, and then the access again: the site served,
 // the account active and still a member (or, for an operator, still a
-// network admin). It all happens in one transaction that holds the rows
-// it read, so a concurrent suspension, disabling or removal waits for it
+// network admin, on a site whose support access is still open, or with
+// its emergency access still live: ErrNoSupport or ErrNoEmergency
+// otherwise). It all happens in one transaction that holds the rows it
+// read, so a concurrent suspension, disabling or removal waits for it
 // and its revocation comes after. A failed check after the code was used
 // still uses it, so a code cannot be tried twice.
 func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifier, redirectURI string) (*SSOGrant, error) {
@@ -84,7 +88,7 @@ func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifie
 	)
 	err = tx.QueryRow(ctx, `UPDATE sso_codes SET used_at = now()
 		WHERE code_hash = $1 AND site_id = $2 AND redirect_uri = $3 AND used_at IS NULL AND expires_at > now()
-		RETURNING account_id, challenge, operator`, auth.HashToken(code), siteID, redirectURI).Scan(&g.AccountID, &challenge, &g.Operator)
+		RETURNING account_id, challenge, operator, emergency`, auth.HashToken(code), siteID, redirectURI).Scan(&g.AccountID, &challenge, &g.Operator, &g.Emergency)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrSSOCode
 	}
@@ -95,7 +99,7 @@ func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifie
 	sum := sha256.Sum256([]byte(verifier))
 	if subtle.ConstantTimeCompare(sum[:], challenge) != 1 {
 		refused = ErrSSOCode
-	} else if err := grantAccess(ctx, tx, siteID, &g, true); errors.Is(err, ErrSSODenied) {
+	} else if err := grantAccess(ctx, tx, siteID, &g, n.now(), true); errors.Is(err, ErrSSODenied) {
 		refused = err
 	} else if err != nil {
 		return nil, err
@@ -119,16 +123,18 @@ func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifie
 // RedeemSSOCode checked it, and returns its current role: ErrSSODenied
 // once the site is no longer served, or the account is disabled, deleted,
 // no longer a member, or no longer a network admin who is not a member
-// when operator (the operator flag must still be the grant's). It reads
+// when operator (the operator flag must still be the grant's), and
+// ErrNoSupport for an operator once the site's support access is closed
+// (ErrNoEmergency for an emergency one once its access ended). It reads
 // in a transaction holding the rows, like the redemption.
-func (n *Network) CheckSSOGrant(ctx context.Context, siteID, accountID int64, operator bool) (string, error) {
+func (n *Network) CheckSSOGrant(ctx context.Context, siteID, accountID int64, operator, emergency bool) (string, error) {
 	tx, err := n.db.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback(ctx)
-	g := SSOGrant{AccountID: accountID, Operator: operator}
-	if err := grantAccess(ctx, tx, siteID, &g, true); err != nil {
+	g := SSOGrant{AccountID: accountID, Operator: operator || emergency, Emergency: emergency}
+	if err := grantAccess(ctx, tx, siteID, &g, n.now(), true); err != nil {
 		return "", err
 	}
 	return g.Role, tx.Commit(ctx)
@@ -141,14 +147,22 @@ type querier interface {
 // grantAccess fills in the account and role of a grant on a site, or
 // returns ErrSSODenied: the site must be a served tenant, the account
 // active, and a member (or, for an operator, a network admin who is not
-// a member). With lock, in a transaction, it holds the rows it read until
-// the transaction ends.
-func grantAccess(ctx context.Context, q querier, siteID int64, g *SSOGrant, lock bool) error {
+// a member, on a site with a live support grant at now: ErrNoSupport
+// otherwise). An emergency grant needs instead the account's own live
+// emergency access to the site at now (ErrNoEmergency otherwise), and it
+// is the only one that reaches a suspended site. With lock, in a
+// transaction, it holds the rows it read until the transaction ends, the
+// support grant or emergency access included: a revocation waits for it,
+// and its sign-out comes after.
+func grantAccess(ctx context.Context, q querier, siteID int64, g *SSOGrant, now time.Time, lock bool) error {
 	share, update := "", ""
 	if lock {
 		// The membership is updated next (last_sso_at): locked for that
 		// already, so two sign-ins at once do not deadlock upgrading.
 		share, update = " FOR SHARE", " FOR NO KEY UPDATE"
+	}
+	if g.Emergency {
+		g.Operator = true
 	}
 	var kind, status string
 	err := q.QueryRow(ctx, `SELECT kind, status FROM sites WHERE id = $1`+share, siteID).Scan(&kind, &status)
@@ -157,7 +171,10 @@ func grantAccess(ctx context.Context, q querier, siteID int64, g *SSOGrant, lock
 		return ErrSSODenied
 	case err != nil:
 		return err
-	case kind != KindTenant || status != StatusActive && status != StatusPending:
+	case kind != KindTenant:
+		return ErrSSODenied
+	case status == StatusSuspended && g.Emergency:
+	case status != StatusActive && status != StatusPending:
 		return ErrSSODenied
 	}
 	err = q.QueryRow(ctx, `SELECT username, email, display_name, status FROM users WHERE id = $1`+share, g.AccountID).
@@ -170,49 +187,90 @@ func grantAccess(ctx context.Context, q querier, siteID int64, g *SSOGrant, lock
 	case status != "active":
 		return ErrSSODenied
 	}
-	var role string
-	err = q.QueryRow(ctx, `SELECT role FROM site_members WHERE site_id = $1 AND account_id = $2`+update, siteID, g.AccountID).Scan(&role)
-	switch {
-	case err == nil && g.Operator:
-		return ErrSSODenied // a member since the code was issued: sign in again
-	case err == nil:
-		g.Role = role
-		return nil
-	case !errors.Is(err, pgx.ErrNoRows):
-		return err
-	case !g.Operator:
-		return ErrSSODenied
-	}
 	var one int
+	if !g.Emergency {
+		var role string
+		err = q.QueryRow(ctx, `SELECT role FROM site_members WHERE site_id = $1 AND account_id = $2`+update, siteID, g.AccountID).Scan(&role)
+		switch {
+		case err == nil && g.Operator:
+			return ErrSSODenied // a member since the code was issued: sign in again
+		case err == nil:
+			g.Role = role
+			return nil
+		case !errors.Is(err, pgx.ErrNoRows):
+			return err
+		case !g.Operator:
+			return ErrSSODenied
+		}
+	}
 	err = q.QueryRow(ctx, `SELECT 1 FROM network_admins WHERE account_id = $1`+share, g.AccountID).Scan(&one)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrSSODenied
 	} else if err != nil {
 		return err
 	}
+	if g.Emergency {
+		err = q.QueryRow(ctx, `SELECT 1 FROM emergency_access e WHERE `+liveEmergency+` AND e.account_id = $3 LIMIT 1`+share, siteID, now, g.AccountID).Scan(&one)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNoEmergency
+		}
+	} else {
+		err = q.QueryRow(ctx, `SELECT 1 FROM support_grants g WHERE `+liveSupport+` LIMIT 1`+share, siteID, now).Scan(&one)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNoSupport
+		}
+	}
+	if err != nil {
+		return err
+	}
 	g.Role = auth.RoleAdmin
 	return nil
 }
 
-// SSOAccess returns the role an account signs in to a tenant site with:
-// its membership's or, for a network admin who is not a member, admin as
-// an operator. ErrSSODenied otherwise.
-func (n *Network) SSOAccess(ctx context.Context, siteID, accountID int64) (role string, operator bool, err error) {
-	m, err := n.Member(ctx, siteID, accountID)
-	if err == nil {
-		return m.Role, false, nil
-	}
-	if !errors.Is(err, store.ErrNotFound) {
-		return "", false, err
-	}
+// Access is the access an account signs in to a tenant site with.
+type Access struct {
+	Role      string
+	Operator  bool // a network admin who is not a member, with the owner's consent
+	Emergency bool // a network admin with an emergency access (Operator too)
+}
+
+// SSOAccess returns the access an account signs in to a tenant site with:
+// a live emergency access of its own first (it opens a suspended site
+// too, and wins over a membership: the network admin asked for it); then
+// its membership's role; then, for a network admin who is not a member,
+// admin as an operator while the site allows support access
+// (ErrNoSupport when it does not). ErrSSODenied otherwise. The site's
+// status is the caller's to check.
+func (n *Network) SSOAccess(ctx context.Context, siteID, accountID int64) (Access, error) {
 	admin, err := n.IsNetworkAdmin(ctx, accountID)
 	if err != nil {
-		return "", false, err
+		return Access{}, err
+	}
+	if admin {
+		switch e, err := n.EmergencyAccess(ctx, siteID, accountID); {
+		case err != nil:
+			return Access{}, err
+		case e != nil:
+			return Access{Role: auth.RoleAdmin, Operator: true, Emergency: true}, nil
+		}
+	}
+	m, err := n.Member(ctx, siteID, accountID)
+	if err == nil {
+		return Access{Role: m.Role}, nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return Access{}, err
 	}
 	if !admin {
-		return "", false, ErrSSODenied
+		return Access{}, ErrSSODenied
 	}
-	return auth.RoleAdmin, true, nil
+	switch g, err := n.SupportAccess(ctx, siteID); {
+	case err != nil:
+		return Access{}, err
+	case g == nil:
+		return Access{}, ErrNoSupport
+	}
+	return Access{Role: auth.RoleAdmin, Operator: true}, nil
 }
 
 // siteStore is a store of a site's schema, whether or not the site is
@@ -382,7 +440,9 @@ func (n *Network) AccountChanged(ctx context.Context, accountID int64, removed b
 
 // ReconcileAccess checks every user of a network account on a site
 // against the network and applies what it finds: a revocation that did
-// not reach the site (an error, a crash) is applied by the next sweep.
+// not reach the site (an error, a crash) is applied by the next sweep, and
+// so is the end of a support grant or an emergency access for the
+// operator users that did not come back after it expired.
 func (n *Network) ReconcileAccess(ctx context.Context, s *Site) error {
 	if s.Kind != KindTenant || !hasSchema(s) {
 		return nil
@@ -392,6 +452,10 @@ func (n *Network) ReconcileAccess(ctx context.Context, s *Site) error {
 		return err
 	}
 	linked, err := st.LinkedUsers(ctx)
+	if err != nil {
+		return err
+	}
+	support, err := n.SupportAccess(ctx, s.ID)
 	if err != nil {
 		return err
 	}
@@ -414,7 +478,16 @@ func (n *Network) ReconcileAccess(ctx context.Context, s *Site) error {
 			errs = append(errs, err)
 			continue
 		}
-		if !active || !admin {
+		live := support != nil
+		if active && admin && !live {
+			e, err := n.EmergencyAccess(ctx, s.ID, u.AccountID)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			live = e != nil
+		}
+		if !active || !admin || !live {
 			errs = append(errs, n.revokeOperator(ctx, s, u.AccountID))
 		}
 	}
