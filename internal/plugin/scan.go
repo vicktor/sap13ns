@@ -695,7 +695,7 @@ var jsRules = []textRule{
 var cssRules = []textRule{
 	{SevMedium, "assets.css-import", "uses @import", regexp.MustCompile(`(?i)@import`)},
 	{SevMedium, "assets.css-external-url", "loads an external URL", regexp.MustCompile(`(?i)url\(\s*["']?\s*(?:https?:)?//`)},
-	{SevHigh, "assets.css-script", "contains script-like CSS (expression(), behavior, -moz-binding or javascript:)", regexp.MustCompile(`(?i)expression\s*\(|behavior\s*:|-moz-binding|javascript:`)},
+	{SevHigh, "assets.css-script", "contains script-like CSS (expression(), behavior, -moz-binding or javascript:)", regexp.MustCompile(`(?i)expression\s*\(|(?:^|[^-\w])behavior\s*:|-moz-binding|javascript:`)},
 }
 
 var svgScriptRe = regexp.MustCompile(`(?i)<script|\son[a-z]{3,20}\s*=|javascript:|<foreignObject`)

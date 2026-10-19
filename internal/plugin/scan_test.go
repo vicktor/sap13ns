@@ -232,6 +232,13 @@ func TestScanNoFalsePositives(t *testing.T) {
 		t.Fatalf("unexpected findings: %s", dumpReport(rep))
 	}
 
+	// scroll-behavior is an ordinary property, unlike IE's behavior.
+	rep = scan(t, writePlugin(t, manifestFor(`"hooks": ["shortcode"], "shortcodes": ["t"], "assets": {"css": ["assets/a.css"]}`), respond(okHTML).bytes(),
+		map[string]string{"assets/a.css": "html { scroll-behavior: smooth }\n.x{overscroll-behavior:contain}"}), ScanOptions{}, "")
+	if rep.Has("assets.css-script") {
+		t.Fatalf("scroll-behavior reported: %s", dumpReport(rep))
+	}
+
 	// A granted host with an uncommon top-level domain, run into the next
 	// string, is still the granted host; a subdomain of it is not.
 	ss := newStringScan(&Manifest{Permissions: []string{"http:bsky.social", "http:*.masto.host", "http:example.co"}}, true)
