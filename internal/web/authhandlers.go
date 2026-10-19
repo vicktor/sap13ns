@@ -161,9 +161,18 @@ func (s *Server) establishLogin(w http.ResponseWriter, r *http.Request, u *store
 	s.store.RecordLoginSuccess(r.Context(), u.ID)
 	s.audit(r, u.ID, "login.success", u.Username, map[string]string{"method": method})
 	if u.Role == auth.RoleSubscriber && next == "/admin/" {
-		next = "/admin/profile"
+		next = s.readerHome()
 	}
 	return next, nil
+}
+
+// readerHome is where the admin of a user who cannot write starts: their
+// sites on the network portal, their profile elsewhere.
+func (s *Server) readerHome() string {
+	if s.portal != nil {
+		return "/admin/sites"
+	}
+	return "/admin/profile"
 }
 
 // hasSecondFactor reports whether a password login must be confirmed with an

@@ -1,0 +1,25 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Plans"}}</h1><p>{{T "What the sites of each plan may use. Plans are changed in the database."}}</p></div>
+</div>
+<div class="card table-wrap">
+  <table class="table">
+    <thead><tr><th>{{T "Plan"}}</th><th>{{T "Price"}}</th><th class="text-right">{{T "Storage"}}</th><th class="max-sm:hidden text-right">{{T "Custom domains"}}</th><th class="max-md:hidden">{{T "Own plugins and themes"}}</th><th class="max-lg:hidden text-right">{{T "Sites per subscription"}}</th><th class="max-lg:hidden">{{T "New sites"}}</th></tr></thead>
+    <tbody>
+      {{range $d.Plans}}
+      <tr>
+        <td><strong>{{.Name}}</strong><div class="row-sub muted mono">{{.Slug}}</div></td>
+        <td>{{if .Paid}}{{T "Paid"}}{{else}}{{T "Free"}}{{end}}{{if .Commercial}} <span class="badge" data-variant="secondary">{{T "Commercial use"}}</span>{{end}}</td>
+        <td class="text-right tabular">{{filesize .StorageBytes}}</td>
+        <td class="max-sm:hidden text-right tabular">{{.CustomDomains}}</td>
+        <td class="max-md:hidden">{{if and .PluginUploads .ThemeUploads}}{{T "Plugins and themes"}}{{else if .PluginUploads}}{{T "Plugins"}}{{else if .ThemeUploads}}{{T "Themes"}}{{else}}<span class="muted">{{T "None"}}</span>{{end}}</td>
+        <td class="max-lg:hidden text-right tabular">{{.SitesPerGrant}}</td>
+        <td class="max-lg:hidden">{{if .HandApproved}}{{T "Approved by hand"}}{{else}}{{T "Open at once"}}{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

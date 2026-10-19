@@ -75,6 +75,24 @@ func (s *Server) routes() *http.ServeMux {
 	}
 	if s.portal != nil {
 		mux.HandleFunc("GET /sso/authorize", s.handleSSOAuthorize)
+
+		// The network admin area (admin_network.go), for network admins
+		// with a second factor, and every account's sites.
+		network := func(pattern string, h http.HandlerFunc) { admin(pattern, auth.CapAdminPanel, s.networkAdmin(h)) }
+		network("GET /admin/network/{$}", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/admin/network/sites", http.StatusSeeOther)
+		})
+		network("GET /admin/network/sites", s.adminNetSites)
+		network("GET /admin/network/sites/{id}", s.adminNetSite)
+		network("POST /admin/network/sites/{id}/members", s.adminNetMemberSet)
+		network("POST /admin/network/sites/{id}/members/{account}/delete", s.adminNetMemberRemove)
+		network("POST /admin/network/sites/{id}/{action}", s.adminNetSiteAction)
+		network("GET /admin/network/admins", s.adminNetAdmins)
+		network("POST /admin/network/admins", s.adminNetAdminAdd)
+		network("POST /admin/network/admins/{account}/delete", s.adminNetAdminRemove)
+		network("GET /admin/network/plans", s.adminNetPlans)
+		admin("GET /admin/sites", auth.CapAdminPanel, s.adminMySites)
+		admin("POST /admin/sites/request", auth.CapAdminPanel, s.adminSiteRequest)
 	}
 
 	// Administration.

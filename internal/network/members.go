@@ -118,6 +118,37 @@ func (n *Network) RemoveMember(ctx context.Context, siteID, accountID int64) err
 	return n.syncSite(ctx, siteID, accountID)
 }
 
+// AccountName is the username of an account, "" for none.
+func (n *Network) AccountName(ctx context.Context, accountID *int64) (string, error) {
+	if accountID == nil {
+		return "", nil
+	}
+	var name string
+	err := n.db.QueryRow(ctx, `SELECT username FROM users WHERE id = $1`, *accountID).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return name, err
+}
+
+// A MemberSite is a site an account is a member of, with its role there.
+type MemberSite struct {
+	Site
+	Role string `db:"role"`
+}
+
+// MemberSites lists the served sites (pending, active or suspended) an
+// account is a member of, by slug.
+func (n *Network) MemberSites(ctx context.Context, accountID int64) ([]MemberSite, error) {
+	rows, err := n.db.Query(ctx, `SELECT `+siteCols+`, m.role FROM sites s JOIN site_members m ON m.site_id = s.id
+		WHERE m.account_id = $1 AND s.kind = 'tenant' AND s.status = ANY($2) ORDER BY s.slug`,
+		accountID, []string{StatusPending, StatusActive, StatusSuspended})
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowToStructByName[MemberSite])
+}
+
 type NetworkAdmin struct {
 	AccountID int64     `db:"account_id"`
 	GrantedBy *int64    `db:"granted_by"`

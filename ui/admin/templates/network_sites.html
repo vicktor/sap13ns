@@ -1,0 +1,38 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Sites"}}</h1><p>{{T "%d sites of the network" $d.Total}}</p></div>
+</div>
+<div class="toolbar">
+  <nav class="filter-tabs" aria-label="{{T "Filter"}}">
+    <a href="/admin/network/sites"{{if not $d.Status}} aria-current="page"{{end}}>{{T "All"}}</a>
+    {{range $d.Statuses}}<a href="/admin/network/sites?status={{.}}"{{if eq . $d.Status}} aria-current="page"{{end}}>{{template "site-status-label" .}}</a>{{end}}
+  </nav>
+  <form method="get" action="/admin/network/sites" class="search-inline" role="search">
+    {{if $d.Status}}<input type="hidden" name="status" value="{{$d.Status}}">{{end}}
+    <label class="sr-only" for="q">{{T "Search"}}</label>
+    <div class="input-icon">{{icon "search"}}<input class="input" type="search" id="q" name="q" value="{{$d.Query}}" maxlength="100" placeholder="{{T "Name, address or owner…"}}"></div>
+  </form>
+</div>
+<div class="card table-wrap">
+  <table class="table">
+    <thead><tr><th>{{T "Site"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Owner"}}</th><th class="max-sm:hidden">{{T "Plan"}}</th><th class="max-lg:hidden text-right">{{T "Storage"}}</th><th class="max-lg:hidden">{{T "Created"}}</th></tr></thead>
+    <tbody>
+      {{range $d.Sites}}
+      <tr>
+        <td><a href="/admin/network/sites/{{.ID}}"><strong>{{.Slug}}</strong></a><div class="row-sub muted mono">{{.Host}}</div></td>
+        <td>{{template "site-status" .Status}}</td>
+        <td class="max-md:hidden">{{if .Owner}}@{{.Owner}}{{else}}—{{end}}</td>
+        <td class="max-sm:hidden">{{.Plan}}</td>
+        <td class="max-lg:hidden text-right tabular">{{filesize .StorageBytes}}</td>
+        <td class="max-lg:hidden muted nowrap">{{shortDate .CreatedAt}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6">{{template "empty" (dict "Icon" "layers" "Title" (T "No results"))}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" $d.Page}}
+{{end}}

@@ -33,7 +33,7 @@ type dashboardData struct {
 func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if !auth.Can(u.Role, auth.CapEditOwnPosts) {
-		http.Redirect(w, r, "/admin/profile", http.StatusSeeOther)
+		http.Redirect(w, r, s.readerHome(), http.StatusSeeOther)
 		return
 	}
 	ctx := r.Context()

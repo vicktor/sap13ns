@@ -343,7 +343,7 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		if s.mustEnroll2FA(r, u) && !strings.HasPrefix(r.URL.Path, "/admin/profile") {
+		if s.mustEnroll2FA(r, u) && !s.enrolExempt(r, u) {
 			s.flash(w, "warning", s.t("Two-factor authentication is required for your role. Set it up to continue."))
 			http.Redirect(w, r, "/admin/profile/2fa", http.StatusSeeOther)
 			return
@@ -354,6 +354,26 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 		}
 		h(w, r)
 	}
+}
+
+// enrolExempt reports whether r may go ahead although u still has to set
+// up a second factor: the profile, where it is set up, and on the portal
+// the "My sites" page of an account that is not staff there (and /admin/,
+// which sends such an account to it). That page only lists the account's
+// own sites; opening one with a staff role asks for the second factor
+// again (handleSSOAuthorize).
+func (s *Server) enrolExempt(r *http.Request, u *store.User) bool {
+	if strings.HasPrefix(r.URL.Path, "/admin/profile") {
+		return true
+	}
+	if s.portal == nil || isStaff(u.Role) {
+		return false
+	}
+	switch r.URL.Path {
+	case "/admin/", "/admin/sites", "/admin/sites/request":
+		return true
+	}
+	return false
 }
 
 // mustEnroll2FA reports whether u, signed in by r, has to set up a second

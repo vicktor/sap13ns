@@ -37,6 +37,19 @@
       </a>
     </header>
     <section class="scrollbar">
+      {{if .Portal}}
+      <div role="group" aria-labelledby="nav-network">
+        <h3 id="nav-network">{{T "Network"}}</h3>
+        <ul>
+          {{template "nav-item" (dict "URL" "/admin/sites" "Icon" "globe" "Label" (T "My sites") "Current" (.Active "my-sites"))}}
+          {{if .NetworkAdmin}}
+          {{template "nav-item" (dict "URL" "/admin/network/sites" "Icon" "layers" "Label" (T "Sites") "Current" (.Active "net-sites") "Badge" .NetPending)}}
+          {{template "nav-item" (dict "URL" "/admin/network/admins" "Icon" "shield-check" "Label" (T "Network administrators") "Current" (.Active "net-admins"))}}
+          {{template "nav-item" (dict "URL" "/admin/network/plans" "Icon" "package" "Label" (T "Plans") "Current" (.Active "net-plans"))}}
+          {{end}}
+        </ul>
+      </div>
+      {{end}}
       {{if .Can "posts.edit_own"}}
       <div role="group" aria-labelledby="nav-content">
         <h3 id="nav-content">{{T "Content"}}</h3>

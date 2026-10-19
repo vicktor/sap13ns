@@ -1,0 +1,37 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Network administrators"}}</h1>
+    <p>{{T "They manage every site of the network and can open any of them as an administrator. They need two-factor authentication."}}</p>
+  </div>
+</div>
+<div class="split">
+  <section class="card table-wrap">
+    <table class="table">
+      <thead><tr><th>{{T "Administrator"}}</th><th class="max-md:hidden">{{T "Granted by"}}</th><th class="max-sm:hidden">{{T "Since"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+      <tbody>
+        {{range $d.Admins}}
+        <tr>
+          <td><strong>@{{.Username}}</strong><div class="row-sub muted">{{.Email}}</div></td>
+          <td class="max-md:hidden">{{if .GrantedBy}}@{{.GrantedBy}}{{else}}<span class="muted">{{T "Command line"}}</span>{{end}}</td>
+          <td class="max-sm:hidden muted nowrap">{{shortDate .CreatedAt}}</td>
+          <td class="text-right nowrap">{{if gt (len $d.Admins) 1}}<form method="post" action="/admin/network/admins/{{.AccountID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Revoke @%s" .Username}}" data-confirm="{{T "Revoke the network administration from @%s? The sites they opened as an operator are closed to them at once." .Username}}">{{icon "trash-2"}}</button></form>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+  <section class="card">
+    <header><h2>{{T "Add a network administrator"}}</h2></header>
+    <section>
+      <form method="post" action="/admin/network/admins" class="form">
+        {{.CSRFField}}
+        <div class="field"><label for="login">{{T "Username or e-mail"}}</label><input class="input" id="login" name="login" required maxlength="254" autocapitalize="none" spellcheck="false" autocomplete="off"></div>
+        <div><button class="btn" type="submit" data-confirm="{{T "Give this account the administration of the whole network?"}}">{{icon "shield-check"}}{{T "Add"}}</button></div>
+      </form>
+    </section>
+  </section>
+</div>
+{{end}}

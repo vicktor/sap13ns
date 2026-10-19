@@ -33,6 +33,10 @@
 {{else}}<span class="badge" data-variant="secondary">{{statusLabel .}}</span>{{end}}
 {{end}}
 
+{{/* The status of a site of the network. */}}
+{{define "site-status-label"}}{{if eq . "pending"}}{{T "Pending approval"}}{{else if eq . "active"}}{{T "Active"}}{{else if eq . "suspended"}}{{T "Suspended"}}{{else if eq . "deleted"}}{{T "Deleted"}}{{else}}{{T "Being created"}}{{end}}{{end}}
+{{define "site-status"}}<span class="badge" data-variant="{{if eq . "active"}}success{{else if eq . "pending"}}warning{{else if eq . "suspended"}}destructive{{else}}secondary{{end}}">{{template "site-status-label" .}}</span>{{end}}
+
 {{define "empty"}}
 <div class="empty-state">
   <div class="empty-icon" aria-hidden="true">{{icon .Icon}}</div>

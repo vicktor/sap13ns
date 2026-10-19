@@ -1,0 +1,134 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.Site}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/network/sites">{{icon "arrow-left" "size-3.5"}} {{T "Sites"}}</a></p>
+    <h1>{{$s.Slug}} {{template "site-status" $s.Status}}</h1>
+    <p class="mono">{{$s.Host}}</p>
+  </div>
+  {{if $s.Served}}
+  <div class="page-actions">
+    <a class="btn" data-variant="outline" href="{{$s.URL}}/" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View site"}}</a>
+    <a class="btn" href="{{$s.AdminURL}}">{{icon "log-in"}}{{T "Open its administration"}}</a>
+  </div>
+  {{end}}
+</div>
+{{if eq $s.Status "suspended"}}
+<div class="alert" data-variant="destructive" role="status">{{icon "ban"}}<h2>{{T "Suspended"}}{{with $s.SuspendedAt}} · {{dateTime .}}{{end}}</h2>{{with $s.SuspendedReason}}<section>{{.}}</section>{{end}}</div>
+{{end}}
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <header><h2>{{T "Site"}}</h2></header>
+      <section>
+        <dl class="meta-list">
+          <div><dt>{{T "Owner"}}</dt><dd>{{if $s.Owner}}@{{$s.Owner}}{{else}}—{{end}}</dd></div>
+          <div><dt>{{T "Plan"}}</dt><dd>{{with $d.Plan}}{{.Name}}{{else}}{{$s.Plan}}{{end}}</dd></div>
+          <div><dt>{{T "Storage"}}</dt><dd>{{filesize $s.StorageBytes}}{{with $d.Plan}} / {{filesize .StorageBytes}}{{end}}{{with $s.StorageCheckedAt}} <span class="muted">· {{T "measured %s" (ago .)}}</span>{{end}}</dd></div>
+          <div><dt>{{T "Created"}}</dt><dd>{{dateTime $s.CreatedAt}}</dd></div>
+          <div><dt>{{T "Approved"}}</dt><dd>{{with $s.ApprovedAt}}{{dateTime .}}{{if $s.ApprovedBy}} · @{{$s.ApprovedBy}}{{end}}{{else}}—{{end}}</dd></div>
+          {{with $s.DeletedAt}}<div><dt>{{T "Deleted"}}</dt><dd>{{dateTime .}}</dd></div>{{end}}
+        </dl>
+      </section>
+    </section>
+
+    <section class="card table-wrap">
+      <header><h2>{{T "Domains"}}</h2></header>
+      <table class="table">
+        <thead><tr><th>{{T "Host"}}</th><th>{{T "Type"}}</th><th class="max-sm:hidden">{{T "Verified"}}</th></tr></thead>
+        <tbody>
+          {{range $d.Domains}}
+          <tr>
+            <td><span class="mono break-all">{{.Host}}</span>{{if .Primary}} <span class="badge" data-variant="secondary">{{T "Primary"}}</span>{{end}}</td>
+            <td>{{if eq .Kind "custom"}}{{T "Custom domain"}}{{else}}{{T "Default"}}{{end}}</td>
+            <td class="max-sm:hidden muted nowrap">{{with .VerifiedAt}}{{shortDate .}}{{else}}{{T "Not verified"}}{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card table-wrap" id="members">
+      <header><h2>{{T "Members"}}</h2><p>{{T "Their role here decides what they can do on the site, which they open with their sap13ns account."}}</p></header>
+      <table class="table">
+        <thead><tr><th>{{T "Member"}}</th><th>{{T "Role"}}</th><th class="max-md:hidden">{{T "Last sign-in"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+        <tbody>
+          {{range $d.Members}}
+          <tr>
+            <td><strong>@{{.Username}}</strong>{{if .Owner}} <span class="badge" data-variant="secondary">{{T "Owner"}}</span>{{end}}<div class="row-sub muted">{{.Email}}</div></td>
+            <td>
+              {{if or .Owner (eq $s.Status "deleted")}}{{roleLabel .Role}}{{else}}
+              <form method="post" action="/admin/network/sites/{{$s.ID}}/members" class="flex flex-wrap items-center gap-2">
+                {{$.CSRFField}}<input type="hidden" name="account" value="{{.AccountID}}">
+                <label class="sr-only" for="role-{{.AccountID}}">{{T "Role of @%s" .Username}}</label>
+                {{$cur := .Role}}<select class="select" id="role-{{.AccountID}}" name="role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $cur}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select>
+                <button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Change"}}</button>
+              </form>
+              {{end}}
+            </td>
+            <td class="max-md:hidden muted nowrap">{{with .LastSSOAt}}{{ago .}}{{else}}—{{end}}</td>
+            <td class="text-right nowrap">{{if not (or .Owner (eq $s.Status "deleted"))}}<form method="post" action="/admin/network/sites/{{$s.ID}}/members/{{.AccountID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Remove @%s" .Username}}" data-confirm="{{T "Remove @%s from this site? Their user there is disabled and signed out at once." .Username}}">{{icon "trash-2"}}</button></form>{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{if ne $s.Status "deleted"}}
+      <footer>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/members" class="form w-full">
+          {{.CSRFField}}
+          <div class="grid-2">
+            <div class="field"><label for="login">{{T "Username or e-mail"}}</label><input class="input" id="login" name="login" required maxlength="254" autocapitalize="none" spellcheck="false" autocomplete="off"></div>
+            <div class="field"><label for="role">{{T "Role"}}</label><select class="select w-full" id="role" name="role">{{range $d.Roles}}<option value="{{.}}"{{if eq . "author"}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+          </div>
+          <div><button class="btn" type="submit">{{icon "user-plus"}}{{T "Add member"}}</button></div>
+        </form>
+      </footer>
+      {{end}}
+    </section>
+  </div>
+
+  <div class="stack">
+    {{if eq $s.Status "pending"}}
+    <section class="card">
+      <header><h2>{{T "Waiting for approval"}}</h2><p>{{T "Its owner is told by e-mail either way."}}</p></header>
+      <footer class="stack-actions">
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/approve">{{.CSRFField}}<button class="btn w-full" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/reject">{{.CSRFField}}<button class="btn w-full" data-variant="outline" type="submit" data-confirm="{{T "Reject %s? The site is deleted." $s.Slug}}">{{icon "x"}}{{T "Reject"}}</button></form>
+      </footer>
+    </section>
+    {{end}}
+    {{if $s.Served}}
+    <section class="card">
+      <header><h2>{{T "Suspend"}}</h2><p>{{T "Visitors and members only see a page saying that the site is suspended."}}</p></header>
+      <section>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/suspend" class="form">
+          {{.CSRFField}}
+          <div class="field"><label for="reason">{{T "Reason"}}</label><textarea class="textarea" id="reason" name="reason" rows="2" maxlength="500"></textarea></div>
+          <div><button class="btn" data-variant="outline" type="submit" data-confirm="{{T "Suspend %s?" $s.Slug}}">{{icon "ban"}}{{T "Suspend the site"}}</button></div>
+        </form>
+      </section>
+    </section>
+    {{else if eq $s.Status "suspended"}}
+    <section class="card">
+      <header><h2>{{T "Resume"}}</h2><p>{{T "The site is served again; a site never approved waits for approval again."}}</p></header>
+      <footer class="stack-actions">
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/resume">{{.CSRFField}}<button class="btn w-full" type="submit">{{icon "play"}}{{T "Resume the site"}}</button></form>
+      </footer>
+    </section>
+    {{end}}
+    {{if ne $s.Status "deleted"}}
+    <section class="card danger-zone">
+      <header><h2>{{T "Delete site"}}</h2><p>{{T "The site stops being served at once. Its data stays until it is purged from the command line."}}</p></header>
+      <section>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/delete" class="form">
+          {{.CSRFField}}
+          <div class="field"><label for="confirm">{{T "Type %s to confirm" $s.Slug}}</label><input class="input mono" id="confirm" name="confirm" required autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+          <div><button class="btn" data-variant="destructive" type="submit">{{icon "trash-2"}}{{T "Delete site"}}</button></div>
+        </form>
+      </section>
+    </section>
+    {{end}}
+  </div>
+</div>
+{{end}}

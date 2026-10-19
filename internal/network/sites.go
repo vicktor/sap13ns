@@ -56,12 +56,17 @@ type Site struct {
 	UpdatedAt        time.Time  `db:"updated_at"`
 	DeletedAt        *time.Time `db:"deleted_at"`
 	PrimaryHost      string     `db:"primary_host"`
+	OwnerUsername    string     `db:"owner_username"` // "" for the network site
 }
 
 const siteCols = `s.id, s.kind, s.slug, s.schema_name, coalesce(s.owner_id, 0) AS owner_id, coalesce(s.plan, '') AS plan,
 	s.subscription_id, s.status, s.approved_by, s.approved_at, s.suspended_reason, s.suspended_at, s.secret, s.rp_id,
 	s.storage_bytes, s.storage_checked_at, s.next_announce_at, s.wants_cron, s.created_at, s.updated_at, s.deleted_at,
-	coalesce((SELECT d.host FROM domains d WHERE d.site_id = s.id AND d.is_primary), '') AS primary_host`
+	coalesce((SELECT d.host FROM domains d WHERE d.site_id = s.id AND d.is_primary), '') AS primary_host,
+	coalesce((SELECT u.username FROM users u WHERE u.id = s.owner_id), '') AS owner_username`
+
+// PlanPersonal is the free plan an account can ask for on the portal.
+const PlanPersonal = "personal"
 
 // Dir is the data directory of a site: uploads, plugins, themes and caches.
 func (n *Network) Dir(siteID int64) string {
@@ -92,6 +97,8 @@ func (n *Network) NetworkSite(ctx context.Context) (*Site, error) {
 
 type SiteQuery struct {
 	Status  string // "" lists every site that is not deleted
+	Kind    string // "" lists both kinds
+	Search  string // part of the slug, of a host, or of the owner's username or e-mail address
 	OwnerID int64
 	Limit   int // default 100, at most 1000
 	Offset  int
@@ -132,13 +139,20 @@ func (n *Network) ListSites(ctx context.Context, q SiteQuery) ([]Site, int, erro
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
-	const where = ` WHERE (($1 = '' AND s.status <> 'deleted') OR s.status = $1) AND ($2 = 0 OR s.owner_id = $2)`
+	const where = ` WHERE (($1 = '' AND s.status <> 'deleted') OR s.status = $1) AND ($2 = 0 OR s.owner_id = $2)
+		AND ($3 = '' OR s.kind = $3)
+		AND ($4 = '' OR s.slug ILIKE $4 OR EXISTS (SELECT 1 FROM domains d WHERE d.site_id = s.id AND d.host ILIKE $4)
+			OR EXISTS (SELECT 1 FROM users u WHERE u.id = s.owner_id AND (u.username ILIKE $4 OR u.email ILIKE $4)))`
+	search := ""
+	if q.Search != "" {
+		search = "%" + store.EscapeLike(q.Search) + "%"
+	}
 	var total int
-	if err := n.db.QueryRow(ctx, `SELECT count(*) FROM sites s`+where, q.Status, q.OwnerID).Scan(&total); err != nil {
+	if err := n.db.QueryRow(ctx, `SELECT count(*) FROM sites s`+where, q.Status, q.OwnerID, q.Kind, search).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := n.db.Query(ctx, `SELECT `+siteCols+` FROM sites s`+where+` ORDER BY s.id LIMIT $3 OFFSET $4`,
-		q.Status, q.OwnerID, limit, max(q.Offset, 0))
+	rows, err := n.db.Query(ctx, `SELECT `+siteCols+` FROM sites s`+where+` ORDER BY s.id LIMIT $5 OFFSET $6`,
+		q.Status, q.OwnerID, q.Kind, search, limit, max(q.Offset, 0))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -210,13 +224,24 @@ type NewSite struct {
 	Slug    string
 	OwnerID int64 // a network account; becomes the site's first admin
 	Plan    string
+	// Requested by the owner on the portal: the account must be active and
+	// have no other site of the plan that is not deleted, and the site
+	// waits for a network admin's approval whatever its plan says.
+	Requested bool
+}
+
+// RequestSite creates the Personal site an account asks for on the
+// portal, pending until a network admin approves it. An account has one
+// at most, not counting deleted (and rejected) ones: ErrState otherwise.
+func (n *Network) RequestSite(ctx context.Context, accountID int64, slug string) (*Site, error) {
+	return n.CreateSite(ctx, NewSite{Slug: slug, OwnerID: accountID, Plan: PlanPersonal, Requested: true})
 }
 
 // CreateSite provisions a site: the row (with its sealed secret and
 // default domain <slug>.<SitesDomain>), the schema site_<id> with every
 // site migration, and its directory. A failure in any step undoes the
 // earlier ones. The site is then active, or pending when its plan is
-// approved by hand.
+// approved by hand or it was requested.
 func (n *Network) CreateSite(ctx context.Context, ns NewSite) (*Site, error) {
 	if err := ValidSlug(ns.Slug); err != nil {
 		return nil, err
@@ -234,6 +259,25 @@ func (n *Network) CreateSite(ctx context.Context, ns NewSite) (*Site, error) {
 
 	var id int64
 	err = n.mutate(ctx, 0, func(tx pgx.Tx) error {
+		if ns.Requested {
+			// Locking the account serialises its requests, so two at once
+			// cannot both see that it has no site yet.
+			var status string
+			if err := tx.QueryRow(ctx, `SELECT status FROM users WHERE id = $1 FOR UPDATE`, ns.OwnerID).Scan(&status); err != nil {
+				return err
+			}
+			if status != "active" {
+				return fmt.Errorf("%w: the account is %s", ErrState, status)
+			}
+			var has bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE owner_id = $1 AND plan = $2 AND status <> 'deleted')`,
+				ns.OwnerID, plan.Slug).Scan(&has); err != nil {
+				return err
+			}
+			if has {
+				return fmt.Errorf("%w: the account already has a %s site", ErrState, plan.Name)
+			}
+		}
 		if err := tx.QueryRow(ctx, `SELECT nextval('sites_id_seq')`).Scan(&id); err != nil {
 			return err
 		}
@@ -258,7 +302,7 @@ func (n *Network) CreateSite(ctx context.Context, ns NewSite) (*Site, error) {
 	}
 
 	status := StatusActive
-	if plan.HandApproved {
+	if plan.HandApproved || ns.Requested {
 		status = StatusPending
 	}
 	dirMade, err := n.provision(ctx, id, status)
@@ -489,6 +533,19 @@ func (n *Network) ResumeSite(ctx context.Context, id int64) error {
 	return n.setStatus(ctx, id, []string{StatusSuspended},
 		`status = CASE WHEN s.approved_at IS NULL AND (SELECT p.hand_approved FROM plans p WHERE p.slug = s.plan)
 			THEN 'pending' ELSE 'active' END, suspended_reason = '', suspended_at = NULL`)
+}
+
+// ApproveSite opens a pending site; by is the network admin who approved
+// it (0 from the CLI).
+func (n *Network) ApproveSite(ctx context.Context, id, by int64) error {
+	return n.setStatus(ctx, id, []string{StatusPending},
+		`status = 'active', approved_by = nullif($3::bigint, 0), approved_at = now()`, by)
+}
+
+// RejectSite refuses a pending site, which is deleted: it is no longer
+// served, and its data stays until PurgeSite.
+func (n *Network) RejectSite(ctx context.Context, id int64) error {
+	return n.setStatus(ctx, id, []string{StatusPending}, `status = 'deleted', deleted_at = now()`)
 }
 
 // DeleteSite stops serving a site. Its data stays until PurgeSite.

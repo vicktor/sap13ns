@@ -346,6 +346,12 @@ type adminPage struct {
 	SiteURL string
 	Update  *updateNotice // newer release, shown to administrators
 	D       any
+
+	// On the network portal: every account has "My sites"; network admins
+	// also have the network admin area, with the sites waiting for them.
+	Portal       bool
+	NetworkAdmin bool
+	NetPending   int
 }
 
 func (p *adminPage) Can(c string) bool {
@@ -370,6 +376,15 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 	if p.User != nil && auth.Can(p.User.Role, auth.CapModerate) {
 		if counts, err := s.store.CountCommentsByStatus(r.Context()); err == nil {
 			p.Pending = counts["pending"]
+		}
+	}
+	if s.portal != nil && p.User != nil {
+		p.Portal = true
+		if ok, err := s.portal.IsNetworkAdmin(r.Context(), p.User.ID); err == nil && ok {
+			p.NetworkAdmin = true
+			if _, n, err := s.portal.Sites(r.Context(), NetSiteQuery{Status: "pending", Limit: 1}); err == nil {
+				p.NetPending = n
+			}
 		}
 	}
 	return p

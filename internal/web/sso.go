@@ -95,6 +95,9 @@ type Portal interface {
 	// to its users on every site, loaded or not; removed revokes them all
 	// before the account is deleted.
 	AccountChanged(ctx context.Context, accountID int64, removed bool) error
+
+	// The network admin area and "My sites" (admin_network.go).
+	PortalAdmin
 }
 
 // SSOSite is a tenant site as /sso/authorize checks it.
