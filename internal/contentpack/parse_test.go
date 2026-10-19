@@ -242,6 +242,7 @@ func TestParseDirLanguagesAndPaths(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "es", "hello.md"), "---\ntype: post\nkey: hello\ntitle: Hola\nslug: hola\n---\n")
 	writeFile(t, filepath.Join(dir, "en", "override.md"), "---\ntype: post\nkey: hello\ntitle: Hallo\nslug: hallo\nlang: de\n---\n")
 	writeFile(t, filepath.Join(dir, "en", "notes.txt"), "ignored")
+	writeFile(t, filepath.Join(dir, "en", "._features.md"), "\x00\x05\x16\x07 macOS metadata, ignored")
 	writeFile(t, filepath.Join(dir, "assets", "x.md"), "---\nignored: because the directory is not a language\n---\n")
 	writeFile(t, filepath.Join(dir, "site.json"), `{"title": "x", "language": "en"}`)
 

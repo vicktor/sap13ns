@@ -104,8 +104,9 @@ var (
 )
 
 // Parse reads every <dir>/<lang>/*.md file, in a deterministic order (language
-// directories and file names sorted). Every problem found is reported, each
-// prefixed with the file and line.
+// directories and file names sorted). Hidden files (".name", such as the
+// "._name" metadata macOS adds to archives) are skipped. Every problem found
+// is reported, each prefixed with the file and line.
 func Parse(dir string) ([]Item, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -123,6 +124,9 @@ func Parse(dir string) ([]Item, error) {
 		}
 		sort.Strings(files)
 		for _, f := range files {
+			if strings.HasPrefix(filepath.Base(f), ".") {
+				continue
+			}
 			it, err := ParseFile(f, e.Name())
 			if err != nil {
 				errs = append(errs, err)
