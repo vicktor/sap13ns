@@ -286,6 +286,15 @@ func (s *Server) contentChanged() {
 	s.assistant().Nudge()
 }
 
+// Restored makes the server pick up a site whose content and settings a
+// backup restore replaced from outside it (the command line): it reloads
+// the settings and drops every cache.
+func (s *Server) Restored(ctx context.Context) error {
+	err := s.ReloadSettings(ctx)
+	s.contentChanged()
+	return err
+}
+
 // prepareSetup creates a one-time token for the web installer when the
 // database has no users yet. The token is only printed to the server log, so
 // a stranger who finds a fresh install cannot claim it.

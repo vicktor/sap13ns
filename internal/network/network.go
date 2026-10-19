@@ -149,6 +149,18 @@ func (n *Network) mutate(ctx context.Context, siteID int64, fn func(pgx.Tx) erro
 	return mapErr(tx.Commit(ctx))
 }
 
+// restoredPrefix starts the notification payload of a site whose content
+// a backup restore replaced.
+const restoredPrefix = "restored:"
+
+// SiteRestored tells the running servers that a restore from the command
+// line replaced the content of a site: a server that has it loaded drops
+// its caches and loads it again.
+func (n *Network) SiteRestored(ctx context.Context, siteID int64) error {
+	_, err := n.db.Exec(ctx, `SELECT pg_notify($1, $2)`, Channel, restoredPrefix+strconv.FormatInt(siteID, 10))
+	return err
+}
+
 // mapErr turns pgx and PostgreSQL errors into the store's: a missing row or
 // a dangling reference is ErrNotFound, a unique violation ErrConflict.
 func mapErr(err error) error {

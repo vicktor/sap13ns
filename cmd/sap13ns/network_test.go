@@ -271,8 +271,7 @@ func TestNetworkCLI(t *testing.T) {
 	c.fails("no site", userCmd, "create", "-site", "nope", "-username", "x", "-email", "x@example.test")
 	c.must("", pluginCmd, "list", "-site", "alpha")
 	c.must("", assistantCmd, "status", "-site", "alpha")
-	c.fails("not available yet", backupCmd, "create", "-site", "alpha")
-	c.fails("not available yet", backupCmd, "create")
+	c.fails("-site SLUG", backupCmd, "create")
 
 	// migrate goes through every site, or one.
 	c.must("", migrate)

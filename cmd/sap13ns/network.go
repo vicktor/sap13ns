@@ -110,7 +110,8 @@ func siteBySlug(ctx context.Context, n *network.Network, slug string) (*network.
 type target struct {
 	cfg   *config.Config // the site's
 	store *store.Store
-	site  *network.Site // nil for a single site
+	site  *network.Site    // nil for a single site
+	net   *network.Network // nil for a single site
 	close func()
 }
 
@@ -158,7 +159,7 @@ func openTarget(ctx context.Context, cfg *config.Config, log *slog.Logger, slug 
 		if err != nil {
 			return nil, err
 		}
-		return &target{cfg: scfg, store: store.New(h), site: s, close: pool.Close}, nil
+		return &target{cfg: scfg, store: store.New(h), site: s, net: n, close: pool.Close}, nil
 	}()
 	if err != nil {
 		pool.Close()

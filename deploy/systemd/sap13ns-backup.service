@@ -1,12 +1,16 @@
-# Daily backup of the database and uploads, started by sap13ns-backup.timer.
+# Daily backup of a single site, started by sap13ns-backup.timer: the
+# database and uploads (pg_dump, for disaster recovery), then the site's own
+# archive (-format site: a .zip that WordPress imports, and that the Backups
+# page lists and restores). A network does not use this unit: it backs up
+# each site by itself every night (docs/MULTISITE.md, Backups).
 #
 #   install -m 0644 sap13ns-backup.service sap13ns-backup.timer /etc/systemd/system/
 #   install -d -o sap13ns -g sap13ns -m 0700 /var/lib/sap13ns/backups
 #   systemctl daemon-reload && systemctl enable --now sap13ns-backup.timer
 #
 # Run one now with `systemctl start sap13ns-backup` and read its output with
-# `journalctl -u sap13ns-backup`. Prune runs only if create succeeded, so a
-# failing backup never removes older archives.
+# `journalctl -u sap13ns-backup`. Each prune runs only if the creates before
+# it succeeded, so a failing backup never removes older archives.
 #
 # The env file must be readable by the sap13ns user (for example
 # root:sap13ns 0640). If it sets SAP13NS_BACKUP_PASSPHRASE, keep a copy of
@@ -24,6 +28,8 @@ Group=sap13ns
 UMask=0077
 ExecStart=/usr/local/bin/sap13ns backup create -env /etc/sap13ns/sap13ns.env
 ExecStart=/usr/local/bin/sap13ns backup prune -env /etc/sap13ns/sap13ns.env
+ExecStart=/usr/local/bin/sap13ns backup create -format site -env /etc/sap13ns/sap13ns.env
+ExecStart=/usr/local/bin/sap13ns backup prune -format site -env /etc/sap13ns/sap13ns.env
 # oneshot units have no start timeout by default; never hang forever.
 TimeoutStartSec=4h
 SyslogIdentifier=sap13ns-backup
@@ -35,7 +41,8 @@ IOSchedulingClass=best-effort
 IOSchedulingPriority=7
 
 # Optional: pass the passphrase as a systemd credential instead of keeping it
-# in the env file (needs CLI support for -passphrase-file).
+# in the env file. The server needs it too to encrypt what the Backups page
+# makes: then give sap13ns.service the same credential.
 #LoadCredential=backup-passphrase:/etc/sap13ns/backup-passphrase
 #Environment=SAP13NS_BACKUP_PASSPHRASE_FILE=%d/backup-passphrase
 
@@ -44,8 +51,8 @@ NoNewPrivileges=yes
 CapabilityBoundingSet=
 AmbientCapabilities=
 ProtectSystem=strict
-# Archives are written here; the directory must exist (see above). Creating
-# a backup only reads the uploads, which ProtectSystem=strict leaves
+# Archives are written here (the site's own in backups/site); the directory
+# must exist (see above). Creating a backup only reads the uploads, which ProtectSystem=strict leaves
 # readable, so they are read-only here ("-": fine if they live elsewhere). A
 # restore run from a unit would need ReadWritePaths for the uploads' parent.
 ReadWritePaths=/var/lib/sap13ns/backups

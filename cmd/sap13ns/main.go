@@ -131,6 +131,13 @@ Commands:
   backup create|list|verify|restore|prune
                                  Encrypted backups of the database and uploads
                                  (see docs/DEPLOY.md)
+  backup create|list|prune -format site [-wp-base URL]
+  backup verify|restore [-replace] ARCHIVE.zip
+                                 The site's own backup: a .zip that WordPress
+                                 imports, restored into a running site (see
+                                 docs/MOVING-TO-WORDPRESS.md)
+  backup decrypt [-o OUT] ARCHIVE.enc
+                                 Write the plaintext of an encrypted backup
   export -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media] [-pending-comments]
                                  Export the content as a WordPress file (WXR),
                                  or a .zip with the uploads and Markdown copies
@@ -156,6 +163,9 @@ Networks (SAP13NS_MULTISITE=true):
   migrate [-site S]              Migrate the network, then every site (or one)
   user, plugin list|install, theme, assistant, export -site S
                                  Work on one site; -site network is the portal
+  backup create|list|prune|restore -site S
+                                 The site's own backups (the whole network:
+                                 pg_dump and the data directory)
 `)
 }
 

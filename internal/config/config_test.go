@@ -93,6 +93,8 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 			LogFormat:      "json",
 			SMTP:           SMTP{Port: 587},
 			DBMaxConns:     16,
+			SiteBackups: SiteBackups{Root: filepath.Join(dir, "backups"), Dir: filepath.Join(dir, "backups", "site"),
+				KeepDaily: 7, KeepWeekly: 4},
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("Load() =\n%#v\nwant\n%#v", got, want)
@@ -119,6 +121,8 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 			LogFormat:      "text",
 			SMTP:           SMTP{Host: "smtp.example.com", Port: 465, Username: "mailer", Password: "secret", From: "site@example.com"},
 			DBMaxConns:     8,
+			SiteBackups: SiteBackups{Root: filepath.Join(dir, "backups"), Dir: filepath.Join(dir, "backups", "site"),
+				KeepDaily: 7, KeepWeekly: 4},
 		}
 	}
 	t.Run("every variable", func(t *testing.T) {
@@ -154,6 +158,9 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 				"STRIPE_SECRET_KEY":     "sk_test_0123456789",
 				"STRIPE_WEBHOOK_SECRET": "whsec_0123456789",
 				"STRIPE_PRICE_PRO":      "price_0123456789",
+				"SITE_BACKUPS":          "nonsense",
+				"SITE_BACKUP_TIME":      "late",
+				"SITE_BACKUP_BUDGET":    "1s",
 			})
 			got, err := Load(true)
 			if err != nil {
@@ -187,6 +194,10 @@ func TestLoadMultisite(t *testing.T) {
 		c.DomainTarget != "sap13ns.site" || c.DomainAddresses != nil || c.TLSCert != "" || c.HTTPListen != "" {
 		t.Fatalf("defaults: %+v", c)
 	}
+	if b := c.SiteBackups; b.Root != filepath.Join(c.DataDir, "backups") || b.Dir != "" || !b.Nightly || b.At != 3*time.Hour+30*time.Minute ||
+		b.Concurrency != 2 || b.Budget != 3*time.Hour || b.KeepDaily != 7 || b.KeepWeekly != 4 {
+		t.Fatalf("site backups: %+v", b)
+	}
 
 	setEnv(t, map[string]string{
 		"SITES_DOMAIN":                  "Sites.Example.COM",
@@ -214,6 +225,14 @@ func TestLoadMultisite(t *testing.T) {
 		"STRIPE_API_VERSION":            "2026-09-30.endive",
 		"STRIPE_PRICE_BUSINESS_YEARLY":  "",
 		"STRIPE_PRICE_IGNORED_IF_EMPTY": "",
+		"BACKUP_DIR":                    "/srv/backups",
+		"BACKUP_PASSPHRASE":             "correct horse battery staple",
+		"SITE_BACKUPS":                  "false",
+		"SITE_BACKUP_TIME":              "22:05",
+		"SITE_BACKUP_CONCURRENCY":       "4",
+		"SITE_BACKUP_BUDGET":            "90m",
+		"SITE_BACKUP_KEEP_DAILY":        "3",
+		"SITE_BACKUP_KEEP_WEEKLY":       "0",
 	})
 	c, err = Load(false)
 	if err != nil {
@@ -245,6 +264,25 @@ func TestLoadMultisite(t *testing.T) {
 	}
 	if s := c.Stripe.String(); strings.Contains(s, "rk_live") || strings.Contains(s, "whsec") {
 		t.Fatalf("Stripe.String() leaks a secret: %s", s)
+	}
+	wantB := SiteBackups{Root: "/srv/backups", Passphrase: "correct horse battery staple", At: 22*time.Hour + 5*time.Minute,
+		Concurrency: 4, Budget: 90 * time.Minute, KeepDaily: 3}
+	if !reflect.DeepEqual(c.SiteBackups, wantB) {
+		t.Fatalf("SiteBackups = %#v\nwant %#v", c.SiteBackups, wantB)
+	}
+	if s := c.SiteBackups.String(); strings.Contains(s, "horse") {
+		t.Fatalf("SiteBackups.String() leaks the passphrase: %s", s)
+	}
+	if p, err := c.SiteBackups.ReadPassphrase(); err != nil || p != "correct horse battery staple" {
+		t.Fatalf("ReadPassphrase() = %q, %v", p, err)
+	}
+	file := filepath.Join(t.TempDir(), "pass")
+	if err := os.WriteFile(file, []byte("from a file, not the variable\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c.SiteBackups.PassphraseFile = file
+	if p, err := c.SiteBackups.ReadPassphrase(); err != nil || p != "from a file, not the variable" {
+		t.Fatalf("ReadPassphrase() = %q, %v", p, err)
 	}
 }
 
@@ -291,6 +329,11 @@ func TestLoadMultisiteErrors(t *testing.T) {
 		{"bad tax flag", map[string]string{"STRIPE_AUTOMATIC_TAX": "maybe"}, true, "SAP13NS_STRIPE_AUTOMATIC_TAX"},
 		{"trial too long", map[string]string{"STRIPE_TRIAL_DAYS": "1000"}, true, "SAP13NS_STRIPE_TRIAL_DAYS"},
 		{"negative grace", map[string]string{"BILLING_GRACE_DAYS": "-1"}, true, "SAP13NS_BILLING_GRACE_DAYS"},
+		{"backups flag", map[string]string{"SITE_BACKUPS": "nightly"}, false, "SAP13NS_SITE_BACKUPS"},
+		{"backup time", map[string]string{"SITE_BACKUP_TIME": "3am"}, false, "SAP13NS_SITE_BACKUP_TIME"},
+		{"backup concurrency", map[string]string{"SITE_BACKUP_CONCURRENCY": "0"}, false, "SAP13NS_SITE_BACKUP_CONCURRENCY"},
+		{"backup budget", map[string]string{"SITE_BACKUP_BUDGET": "1m"}, false, "SAP13NS_SITE_BACKUP_BUDGET"},
+		{"backup retention", map[string]string{"SITE_BACKUP_KEEP_DAILY": "-1"}, false, "SAP13NS_SITE_BACKUP_KEEP_DAILY"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			multisiteEnv(t)
@@ -352,6 +395,9 @@ func TestForSite(t *testing.T) {
 	}
 	if c.Stripe.Enabled() || c.Stripe.Prices != nil {
 		t.Fatal("a site config must not carry the billing settings")
+	}
+	if c.SiteBackups.Dir != filepath.Join(base.DataDir, "backups", "sites", "7") || base.SiteBackups.Dir != "" {
+		t.Fatalf("site backups: %+v", c.SiteBackups)
 	}
 	if !c.Multisite || c.DatabaseURL != base.DatabaseURL || c.SitesDomain != base.SitesDomain {
 		t.Fatalf("shared settings not copied: %+v", c)
@@ -436,6 +482,9 @@ func TestForNetwork(t *testing.T) {
 	if c.BaseURL.String() != "https://sap13ns.site" || c.DataDir != dir || c.UploadsDir != filepath.Join(dir, "uploads") ||
 		string(c.SecretKey) != string(secret) || c.PasskeyRPID != "" || c.HSTSNoSubdomains || !c.Stripe.Enabled() {
 		t.Fatalf("portal config: %+v", c)
+	}
+	if c.SiteBackups.Dir != filepath.Join(base.DataDir, "backups", "sites", "1") {
+		t.Fatalf("portal backups: %+v", c.SiteBackups)
 	}
 	bv, cv := reflect.ValueOf(base).Elem(), reflect.ValueOf(c).Elem()
 	for i := range bv.NumField() {

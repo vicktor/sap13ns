@@ -40,11 +40,14 @@ import (
 	"path/filepath"
 	"runtime/metrics"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/tetratelabs/wazero"
 
 	"sap13ns/internal/config"
@@ -663,13 +666,22 @@ func (r *Registry) listenOnce() error {
 		return err
 	}
 	for {
-		if _, err := conn.WaitForNotification(r.ctx); err != nil {
+		n, err := conn.WaitForNotification(r.ctx)
+		if err != nil {
 			return err
 		}
+		restored := map[int64]bool{}
+		note := func(n *pgconn.Notification) {
+			if id, err := strconv.ParseInt(strings.TrimPrefix(n.Payload, restoredPrefix), 10, 64); err == nil &&
+				strings.HasPrefix(n.Payload, restoredPrefix) {
+				restored[id] = true
+			}
+		}
+		note(n)
 		// A burst of changes (a CLI run, a provisioning) reloads once.
 		for {
 			wctx, cancel := context.WithTimeout(r.ctx, 50*time.Millisecond)
-			_, err := conn.WaitForNotification(wctx)
+			n, err := conn.WaitForNotification(wctx)
 			cancel()
 			if err != nil {
 				if r.ctx.Err() != nil {
@@ -680,9 +692,31 @@ func (r *Registry) listenOnce() error {
 				}
 				break
 			}
+			note(n)
 		}
 		if err := r.Refresh(r.ctx); err != nil {
 			r.log.Error("network host table", "err", err)
 		}
+		for id := range restored {
+			r.Restored(r.ctx, id)
+		}
+	}
+}
+
+// Restored makes a loaded site pick up content that a restore replaced
+// from outside its server: its caches are dropped at once, and it is
+// loaded again once idle (plugins, designs, everything it keeps in
+// memory). A site that is not loaded has nothing to drop.
+func (r *Registry) Restored(ctx context.Context, id int64) {
+	err := r.visit(ctx, id, false, func(e *entry) {
+		if err := e.app.Server().Restored(ctx); err != nil {
+			r.log.Error("reload a restored site", "site", id, "err", err)
+		}
+		r.mu.Lock()
+		e.stale = true
+		r.mu.Unlock()
+	})
+	if err != nil && !errors.Is(err, errNotServed) && ctx.Err() == nil {
+		r.log.Error("reload a restored site", "site", id, "err", err)
 	}
 }

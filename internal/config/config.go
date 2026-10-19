@@ -59,6 +59,7 @@ type Config struct {
 	LogFormat    string // "json" | "text"
 	SMTP         SMTP
 	DBMaxConns   int32
+	SiteBackups  SiteBackups
 
 	// Multisite settings. They are read only when SAP13NS_MULTISITE is
 	// true, so a single-site install gets the zero values whatever else
@@ -117,6 +118,106 @@ type StripePrices struct {
 }
 
 func (s Stripe) Enabled() bool { return s.SecretKey != "" }
+
+// SiteBackups are the settings of the per-site backups (internal/sitebackup,
+// docs/MULTISITE.md "Backups"). The database backups of `sap13ns backup
+// create` read their own variables in the CLI.
+type SiteBackups struct {
+	// Root is SAP13NS_BACKUP_DIR, by default <data dir>/backups.
+	Root string
+	// Dir holds the site's archives: <Root>/site on a single site,
+	// <Root>/sites/<id> on a site of a network (ForSite, ForNetwork), ""
+	// for the network itself.
+	Dir string
+	// PassphraseFile and Passphrase (SAP13NS_BACKUP_PASSPHRASE_FILE, else
+	// SAP13NS_BACKUP_PASSPHRASE) encrypt the archives, as they do the
+	// database backups. ReadPassphrase reads them.
+	PassphraseFile string
+	Passphrase     string
+	// Retention, applied after every backup: the newest of each of the
+	// last KeepDaily days and KeepWeekly weeks.
+	KeepDaily  int // SAP13NS_SITE_BACKUP_KEEP_DAILY, default 7
+	KeepWeekly int // SAP13NS_SITE_BACKUP_KEEP_WEEKLY, default 4
+	// Network only: the nightly backup of every site (SAP13NS_SITE_BACKUPS,
+	// on by default). It starts at At after local midnight
+	// (SAP13NS_SITE_BACKUP_TIME, "03:30"), backs up Concurrency sites at
+	// once (SAP13NS_SITE_BACKUP_CONCURRENCY, 2) and stops after Budget
+	// (SAP13NS_SITE_BACKUP_BUDGET, 3h); the next night begins with the
+	// sites it did not reach.
+	Nightly     bool
+	At          time.Duration
+	Concurrency int
+	Budget      time.Duration
+}
+
+// String keeps the passphrase out of logs.
+func (b SiteBackups) String() string {
+	return fmt.Sprintf("site backups(%s, encrypted %v)", b.Dir, b.PassphraseFile != "" || b.Passphrase != "")
+}
+
+// ReadPassphrase returns the passphrase of the archives, "" for none.
+func (b SiteBackups) ReadPassphrase() (string, error) {
+	if b.PassphraseFile != "" {
+		p, err := os.ReadFile(b.PassphraseFile)
+		if err != nil {
+			return "", fmt.Errorf("backup passphrase file: %w", err)
+		}
+		return strings.TrimRight(string(p), "\r\n"), nil
+	}
+	return b.Passphrase, nil
+}
+
+// SiteBackupDir is the directory of the backups of a site of a network.
+func (b SiteBackups) SiteBackupDir(id int64) string {
+	return filepath.Join(b.Root, "sites", strconv.FormatInt(id, 10))
+}
+
+func loadSiteBackups(dataDir string, multisite bool) (SiteBackups, error) {
+	root, err := filepath.Abs(env("BACKUP_DIR", filepath.Join(dataDir, "backups")))
+	if err != nil {
+		return SiteBackups{}, err
+	}
+	b := SiteBackups{Root: root, PassphraseFile: env("BACKUP_PASSPHRASE_FILE", ""), Passphrase: env("BACKUP_PASSPHRASE", "")}
+	if !multisite {
+		b.Dir = filepath.Join(root, "site")
+	}
+	for _, k := range []struct {
+		key string
+		def string
+		to  *int
+		max int
+	}{
+		{"SITE_BACKUP_KEEP_DAILY", "7", &b.KeepDaily, 366},
+		{"SITE_BACKUP_KEEP_WEEKLY", "4", &b.KeepWeekly, 520},
+	} {
+		n, err := strconv.Atoi(env(k.key, k.def))
+		if err != nil || n < 0 || n > k.max {
+			return SiteBackups{}, fmt.Errorf("SAP13NS_%s must be between 0 and %d", k.key, k.max)
+		}
+		*k.to = n
+	}
+	if !multisite {
+		return b, nil
+	}
+	if b.Nightly, err = envStrictBool("SITE_BACKUPS", true); err != nil {
+		return SiteBackups{}, err
+	}
+	at := env("SITE_BACKUP_TIME", "03:30")
+	t, err := time.Parse("15:04", at)
+	if err != nil {
+		return SiteBackups{}, fmt.Errorf("SAP13NS_SITE_BACKUP_TIME must be a time of day such as 03:30, got %q", at)
+	}
+	b.At = time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute
+	b.Concurrency, err = strconv.Atoi(env("SITE_BACKUP_CONCURRENCY", "2"))
+	if err != nil || b.Concurrency < 1 || b.Concurrency > 16 {
+		return SiteBackups{}, errors.New("SAP13NS_SITE_BACKUP_CONCURRENCY must be between 1 and 16")
+	}
+	b.Budget, err = time.ParseDuration(env("SITE_BACKUP_BUDGET", "3h"))
+	if err != nil || b.Budget < 10*time.Minute || b.Budget > 23*time.Hour {
+		return SiteBackups{}, errors.New("SAP13NS_SITE_BACKUP_BUDGET must be a duration between 10m and 23h, such as 3h")
+	}
+	return b, nil
+}
 
 // String keeps the API key and the webhook secrets out of logs.
 func (s Stripe) String() string {
@@ -290,6 +391,9 @@ func Load(requireSecret bool) (*Config, error) {
 		Username: env("SMTP_USERNAME", ""),
 		Password: env("SMTP_PASSWORD", ""),
 		From:     env("SMTP_FROM", ""),
+	}
+	if c.SiteBackups, err = loadSiteBackups(c.DataDir, c.Multisite); err != nil {
+		return nil, err
 	}
 	if c.Multisite {
 		if err := c.loadMultisite(); err != nil {
@@ -541,6 +645,7 @@ func ForSite(base *Config, p SiteParams) (*Config, error) {
 	c.PluginsDir = filepath.Join(c.DataDir, "plugins")
 	c.ThemesDir = filepath.Join(c.DataDir, "themes")
 	c.NetworkThemesDir = base.ThemesDir
+	c.SiteBackups.Dir = base.SiteBackups.SiteBackupDir(p.ID)
 	c.HSTSNoSubdomains = p.Custom
 	c.PasskeyRPID = rpID
 	c.PasskeyOrigins = []string{c.BaseURL.String()}
@@ -581,6 +686,7 @@ func ForNetwork(base *Config, id int64, secret []byte) (*Config, error) {
 	c.PluginsDir = filepath.Join(c.DataDir, "plugins")
 	c.ThemesDir = filepath.Join(c.DataDir, "themes")
 	c.NetworkThemesDir = base.ThemesDir
+	c.SiteBackups.Dir = base.SiteBackups.SiteBackupDir(id)
 	c.HSTSNoSubdomains, c.PasskeyRPID, c.PasskeyOrigins = false, "", nil
 	return &c, nil
 }
