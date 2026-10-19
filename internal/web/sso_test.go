@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"sap13ns/internal/auth"
 	"sap13ns/internal/config"
 	"sap13ns/internal/store"
 	"sap13ns/internal/testutil"
@@ -131,8 +133,9 @@ func TestSSORevokedAfterRedemption(t *testing.T) {
 }
 
 // A role lowered between the redemption and the sync is not undone by the
-// sync: the sign-in is refused and the user gets the current role, with no
-// session, so they sign in again with it.
+// sync: the sign-in is refused, fails closed (the user is disabled, with
+// the lower role and no session) and the next sign-in gets the current
+// role.
 func TestSSORoleLoweredAfterRedemption(t *testing.T) {
 	st := testutil.Store(t)
 	ctx := context.Background()
@@ -156,7 +159,7 @@ func TestSSORoleLoweredAfterRedemption(t *testing.T) {
 	if rec := ssoSignIn(t, h); rec.Code != http.StatusForbidden {
 		t.Fatalf("sign-in with a lowered role: %d", rec.Code)
 	}
-	if u, err = st.UserByID(ctx, u.ID); err != nil || u.Role != "author" || u.Status != "active" {
+	if u, err = st.UserByID(ctx, u.ID); err != nil || u.Role != "author" || u.Status != "disabled" {
 		t.Fatalf("the user after the refused sign-in: %+v %v", u, err)
 	}
 	if list, err := st.ListUserSessions(ctx, u.ID); err != nil || len(list) != 0 {
@@ -172,7 +175,73 @@ func TestSSORoleLoweredAfterRedemption(t *testing.T) {
 	if rec := ssoSignIn(t, h); rec.Code != http.StatusSeeOther {
 		t.Fatalf("sign-in with the current role: %d", rec.Code)
 	}
-	if u, err = st.UserByID(ctx, u.ID); err != nil || u.Role != "author" {
+	if u, err = st.UserByID(ctx, u.ID); err != nil || u.Role != "author" || u.Status != "active" {
 		t.Fatalf("the user: %+v %v", u, err)
+	}
+}
+
+func TestLowerRole(t *testing.T) {
+	for _, c := range [][3]string{{"admin", "author", "author"}, {"subscriber", "editor", "subscriber"},
+		{"contributor", "contributor", "contributor"}, {"owner", "admin", ""}, {"admin", "", ""}} {
+		if got := lowerRole(c[0], c[1]); got != c[2] {
+			t.Errorf("lowerRole(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
+		}
+	}
+}
+
+// passwordLogin posts the login form and reports whether it signed in.
+func passwordLogin(t *testing.T, h http.Handler, login, password string) bool {
+	t.Helper()
+	req := httptest.NewRequest("POST", "https://blog.sap13ns.site/login", strings.NewReader(url.Values{"login": {login}, "password": {password}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = "192.0.2.20:4000"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec.Code == http.StatusSeeOther
+}
+
+// A linked local user keeps their password. A role change caught by the
+// second check disables them, so they cannot sign in with the password
+// either until they sign in through the portal again.
+func TestSSORoleChangeDisablesLinkedPassword(t *testing.T) {
+	st := testutil.Store(t)
+	ctx := context.Background()
+	hash, err := auth.HashPassword("a long local password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := st.CreateUser(ctx, store.NewUser{Username: "lena", Email: "lena@example.com", Role: "editor", PasswordHash: hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.LinkNetworkAccount(ctx, id, 44); err != nil {
+		t.Fatal(err)
+	}
+	sso := &fakeSSO{grant: SSOGrant{AccountID: 44, Role: "editor", Username: "lena", Email: "lena@example.com"}, role: "contributor"}
+	s := networkServer(t, st, func(_ *config.Config, d *Deps) { d.Network = sso })
+	h := s.Handler()
+	if !passwordLogin(t, h, "lena", "a long local password") {
+		t.Fatal("the linked user cannot sign in with their password")
+	}
+	if rec := ssoSignIn(t, h); rec.Code != http.StatusForbidden {
+		t.Fatalf("sign-in with a changed role: %d", rec.Code)
+	}
+	u, err := st.UserByID(ctx, id)
+	if err != nil || u.Status != "disabled" || u.Role != "contributor" {
+		t.Fatalf("the linked user after the refused sign-in: %+v %v", u, err)
+	}
+	if list, err := st.ListUserSessions(ctx, id); err != nil || len(list) != 0 {
+		t.Fatalf("%d sessions left (%v)", len(list), err)
+	}
+	if passwordLogin(t, h, "lena", "a long local password") {
+		t.Fatal("the linked user signed in with their password after the refused sign-in")
+	}
+	// Through the portal, with the current role, they are back.
+	sso.grant.Role = "contributor"
+	if rec := ssoSignIn(t, h); rec.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in with the current role: %d", rec.Code)
+	}
+	if u, err = st.UserByID(ctx, id); err != nil || u.Status != "active" || u.Role != "contributor" {
+		t.Fatalf("the linked user: %+v %v", u, err)
 	}
 }

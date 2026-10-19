@@ -320,31 +320,44 @@ var (
 )
 
 // confirmSSO checks a grant again once its user is synced and signed in.
-// A change of the access (a membership removed or its role lowered, an
+// A change of the access (a membership removed or its role changed, an
 // account disabled, an operator no longer a network admin) that the
 // network applied between the redemption and the sync was undone by the
-// sync, so the sign-in is refused here (ErrSSODenied), the user gets the
-// access the network gives now (its current role, or disabled) and all
-// its sessions are closed: they sign in again. A change after this check
-// comes after the sync and applies itself. When the check fails, it fails
-// closed: the user is disabled until their next sign-in.
+// sync, so the sign-in is refused here (ErrSSODenied). It fails closed on
+// any mismatch or error: the user is disabled, with the lower of the two
+// roles, and all its sessions are closed. It never re-enables the user:
+// what the check read may already be stale, and a revocation running now
+// must not be undone again (a linked local user would keep their password
+// sign-in). The next sign-in through the portal restores the user with
+// the access the network gives then, re-checked under its locks. A change
+// after this check comes after the sync and applies itself.
 func (s *Server) confirmSSO(ctx context.Context, u *store.User, g *SSOGrant) error {
 	role, err := s.sso.CheckSSO(ctx, g)
 	if err == nil && role == g.Role {
 		return nil
 	}
-	access, status := "", "disabled"
+	keep := "" // the role the user has: a revocation keeps it too
 	if err == nil {
-		access, status = role, "active"
+		keep = lowerRole(g.Role, role)
 		err = fmt.Errorf("%w (%s to %s)", errSSORoleChanged, g.Role, role)
 	}
-	if _, _, rerr := s.store.SetNetworkAccess(ctx, g.AccountID, g.Operator, access, status); rerr != nil && !errors.Is(rerr, store.ErrNotFound) {
+	if _, _, rerr := s.store.SetNetworkAccess(ctx, g.AccountID, g.Operator, keep, "disabled"); rerr != nil && !errors.Is(rerr, store.ErrNotFound) {
 		err = errors.Join(err, rerr)
 	}
 	if derr := s.store.DeleteUserSessions(ctx, u.ID, nil); derr != nil {
 		err = errors.Join(err, derr)
 	}
 	return err
+}
+
+// lowerRole is the role of a and b that can do less; "" if either is not
+// a role.
+func lowerRole(a, b string) string {
+	i, j := slices.Index(assignableRoles, a), slices.Index(assignableRoles, b)
+	if i < 0 || j < 0 {
+		return ""
+	}
+	return assignableRoles[min(i, j)]
 }
 
 // ssoUser returns the user an account signs in as, created on its first
