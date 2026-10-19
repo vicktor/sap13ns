@@ -137,7 +137,8 @@ Networks (SAP13NS_MULTISITE=true):
   site create -slug S -owner EMAIL [-plan P] [-title T] [-lang L]
   site list [-status S] [-json]
   site suspend -slug S -reason R | resume -slug S | delete -slug S -yes
-  site domain add -slug S HOST | verify HOST | primary HOST | remove HOST
+  site purge -slug S -yes        Remove a deleted site for good
+  site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST
                                  Manage the sites; running servers follow
   migrate [-site S]              Migrate the network, then every site (or one)
   user, plugin list|install, assistant -site S

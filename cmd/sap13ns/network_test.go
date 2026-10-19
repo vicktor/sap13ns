@@ -288,6 +288,25 @@ func TestNetworkCLI(t *testing.T) {
 		t.Fatalf("a deleted site is listed:\n%s", got)
 	}
 	c.fails("is deleted", userCmd, "create", "-site", "beta", "-username", "x", "-email", "x@example.test")
+
+	// Purging needs -yes and a deleted site; then nothing of it is left.
+	beta, err := n.SiteBySlug(ctx, "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.fails("only a deleted site", siteCmd, "purge", "-slug", "alpha", "-yes")
+	c.fails("-yes", siteCmd, "purge", "-slug", "beta")
+	if got := c.must("", siteCmd, "purge", "-slug", "beta", "-yes"); !strings.Contains(got, "purged") {
+		t.Fatalf("purge: %q", got)
+	}
+	var schemas int
+	if err := n.DB().QueryRow(ctx, `SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname = $1`, beta.Schema).Scan(&schemas); err != nil || schemas != 0 {
+		t.Fatalf("the schema of a purged site: %d %v", schemas, err)
+	}
+	if _, err := os.Stat(n.Dir(beta.ID)); !os.IsNotExist(err) {
+		t.Fatalf("the directory of a purged site: %v", err)
+	}
+	c.fails("no site", siteCmd, "purge", "-slug", "beta", "-yes")
 }
 
 // TestSingleSiteFlags: on a single site, -site and the network commands

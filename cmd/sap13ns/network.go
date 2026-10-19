@@ -344,7 +344,7 @@ func createUser(ctx context.Context, st *store.Store, username, email, name, rol
 
 const siteUsage = `usage: sap13ns site create -slug S -owner EMAIL [-plan P] [-title T] [-lang L]
        sap13ns site list [-status S] [-json]
-       sap13ns site suspend -slug S -reason R | resume -slug S | delete -slug S -yes
+       sap13ns site suspend -slug S -reason R | resume -slug S | delete -slug S -yes | purge -slug S -yes
        sap13ns site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST`
 
 // siteCmd implements "sap13ns site …". Running servers pick the changes
@@ -367,7 +367,7 @@ func siteCmd(args []string) error {
 	var asJSON, yes, force bool
 	cfg, log, fs, err := setup("site "+sub, args, true, func(f *flag.FlagSet) {
 		switch sub {
-		case "create", "suspend", "resume", "delete", "domain add":
+		case "create", "suspend", "resume", "delete", "purge", "domain add":
 			f.StringVar(&slug, "slug", "", "the site's name (its subdomain)")
 		}
 		switch sub {
@@ -381,7 +381,7 @@ func siteCmd(args []string) error {
 			f.BoolVar(&asJSON, "json", false, "print JSON")
 		case "suspend":
 			f.StringVar(&reason, "reason", "", "why, shown to the owner")
-		case "delete":
+		case "delete", "purge":
 			f.BoolVar(&yes, "yes", false, "confirm")
 		case "domain verify":
 			f.BoolVar(&force, "force", false, "record the domain as verified without the DNS check")
@@ -445,6 +445,21 @@ func siteCmd(args []string) error {
 			return err
 		}
 		fmt.Fprintf(out, "site %s (#%d) is %s\n", s.Slug, s.ID, s.Status)
+		return nil
+	case "purge":
+		// A deleted site's schema, directory and row go for good; its
+		// domains are free for other sites from then on.
+		s, err := site()
+		if err != nil {
+			return err
+		}
+		if !yes {
+			return fmt.Errorf("purging %s removes its database schema, its files, its members and its domains for good. Add -yes to go on", s.Slug)
+		}
+		if err := n.PurgeSite(ctx, s.ID); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "site %s (#%d) purged\n", s.Slug, s.ID)
 		return nil
 	case "domain add":
 		s, err := site()
