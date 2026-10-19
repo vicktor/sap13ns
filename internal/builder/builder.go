@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	pipeline "sap13ns/internal/content"
 )
 
 // Version of the layout JSON format.
@@ -54,7 +56,10 @@ type Section struct {
 	ID string `json:"id"`
 	// Anchor is the section's id on the page (#pricing), for menu links
 	// and buttons that scroll to it: a slug, unique on the page.
-	Anchor  string            `json:"anchor,omitempty"`
+	Anchor string `json:"anchor,omitempty"`
+	// Class is the owner's CSS classes for the section (ValidClasses), for
+	// the theme's Custom CSS to target.
+	Class   string            `json:"class,omitempty"`
 	Layout  string            `json:"layout"` // a Presets key
 	Style   map[string]string `json:"style,omitempty"`
 	Columns [][]Block         `json:"columns"`
@@ -242,7 +247,35 @@ func ImageIDs(data []byte) []int64 {
 var (
 	idRe     = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 	anchorRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
+	classRe  = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 )
+
+// MaxClasses is how many CSS classes a section or a block may have.
+const MaxClasses = 5
+
+// ValidClasses normalises a CSS class field: up to MaxClasses names of 1 to
+// 40 lower-case letters, digits and hyphens starting with a letter,
+// separated by spaces. Repeated names are dropped. ok is false when v
+// cannot be used.
+func ValidClasses(v string) (classes string, ok bool) {
+	var out []string
+	seen := map[string]bool{}
+	for _, c := range strings.Fields(v) {
+		if !classRe.MatchString(c) {
+			return "", false
+		}
+		if !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	if len(out) > MaxClasses {
+		return "", false
+	}
+	return strings.Join(out, " "), true
+}
+
+const classMessage = "use up to 5 class names of lower-case letters, digits and hyphens, each starting with a letter"
 
 // ValidAnchor reports whether a can be a section's anchor: 1 to 40
 // lower-case letters, digits and hyphens starting with a letter, neither an
@@ -385,6 +418,12 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 				style = nil
 			}
 			s.Style = style
+			if cl, ok := ValidClasses(s.Class); !ok {
+				add(sp+".class", classMessage)
+				s.Class = ""
+			} else {
+				s.Class = cl
+			}
 			for ci := range s.Columns {
 				col := s.Columns[ci]
 				if len(col) > MaxBlocks {
@@ -426,6 +465,14 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 			secs = append(secs, s)
 		}
 		r.Sections = secs
+		for si := range r.Sections {
+			// The licence credit stays visible: its section takes no
+			// classes that custom CSS could hide it with.
+			if s := &r.Sections[si]; s.Class != "" && sectionHas(s, MetaType) {
+				add(fmt.Sprintf("%s.sections[%d].class", path, si), "the section with the footer credits cannot have a CSS class")
+				s.Class = ""
+			}
+		}
 		if (name == "single" || name == "page") && !hasContent {
 			if strict {
 				add(path, "add the Post content block: without it the %s would not show its text", map[string]string{"single": "post", "page": "page"}[name])
@@ -479,12 +526,19 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 }
 
 func (r *Region) has(typ string) bool {
-	for _, s := range r.Sections {
-		for _, col := range s.Columns {
-			for _, b := range col {
-				if b.Type == typ {
-					return true
-				}
+	for i := range r.Sections {
+		if sectionHas(&r.Sections[i], typ) {
+			return true
+		}
+	}
+	return false
+}
+
+func sectionHas(s *Section, typ string) bool {
+	for _, col := range s.Columns {
+		for _, b := range col {
+			if b.Type == typ {
+				return true
 			}
 		}
 	}
@@ -642,7 +696,7 @@ func imageOK(c Context, id int64) bool {
 
 // cleanValue normalises one value and returns a message when it is refused.
 func cleanValue(f *Field, v string, c Context) (string, string) {
-	if f.Type != "markdown" && f.Type != "textarea" {
+	if f.Type != "markdown" && f.Type != "textarea" && f.Type != "html" {
 		v = strings.TrimSpace(v)
 	} else {
 		v = strings.TrimSpace(strings.ReplaceAll(v, "\r\n", "\n"))
@@ -661,6 +715,19 @@ func cleanValue(f *Field, v string, c Context) (string, string) {
 		if f.Max > 0 && utf8.RuneCountInString(v) > f.Max {
 			return "", fmt.Sprintf("at most %d characters", f.Max)
 		}
+	case "html":
+		// Sanitised on save (and again on render): what is stored is what
+		// a page can show.
+		if f.Max > 0 && utf8.RuneCountInString(v) > f.Max {
+			return "", fmt.Sprintf("at most %d characters", f.Max)
+		}
+		v = pipeline.SanitizeHTMLBlock(v)
+	case "class":
+		cl, ok := ValidClasses(v)
+		if !ok {
+			return "", classMessage
+		}
+		v = cl
 	case "select", "icon":
 		ok := false
 		for _, ch := range f.Choices {

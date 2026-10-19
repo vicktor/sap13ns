@@ -164,6 +164,11 @@
   .sap-region-footer .sap-b-text { font-size: 0.92rem; line-height: 1.6; }
   .sap-region-header .sap-b-text { font-size: 0.9rem; line-height: 1.45; }
 
+  /* HTML: the owner's markup. Images and tables never overflow the column. */
+  .sap-b-html { min-width: 0; }
+  .sap-b-html img { max-width: 100%; height: auto; }
+  .sap-b-html table { display: block; max-width: 100%; overflow-x: auto; }
+
   /* Image. */
   .sap-b-image { width: 100%; }
   .sap-b-image img { display: block; width: 100%; height: auto; border-radius: var(--radius); }
@@ -342,8 +347,8 @@
 
 /* Text blocks start and end flush with their column, whatever the theme's
    prose margins. */
-.sap-b-text > :first-child { margin-top: 0; }
-.sap-b-text > :last-child { margin-bottom: 0; }
+.sap-b-text > :first-child, .sap-b-html > :first-child { margin-top: 0; }
+.sap-b-text > :last-child, .sap-b-html > :last-child { margin-bottom: 0; }
 
 /* Phones: tighter actions, so the site title keeps its room. With a logo
    the logo stands alone (the link's aria-label still names the site), as a

@@ -1,0 +1,5 @@
+{{/* blocks/html: the owner's own markup, sanitised when saved and again
+     here (content.RenderHTMLBlock). No scripts, inline styles or forms: the
+     looks come from the theme's Custom CSS, through .S.class. Data:
+     *BlockView. */}}
+{{define "blocks/html"}}{{with .HTML}}<div class="sap-b sap-b-html{{if $.On "prose"}} prose{{end}}{{with $.S.class}} {{.}}{{end}}">{{.}}</div>{{end}}{{end}}

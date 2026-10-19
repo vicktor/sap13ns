@@ -5,7 +5,7 @@ package builder
 // only take their listed values, links must be safe and media must exist.
 type Field struct {
 	Key     string   `json:"key"`
-	Type    string   `json:"type"` // text | textarea | markdown | select | icon | bool | int | url | email | image | menu | area
+	Type    string   `json:"type"` // text | textarea | markdown | html | class | select | icon | bool | int | url | email | image | menu | area
 	Label   string   `json:"label"`
 	Help    string   `json:"help,omitempty"`
 	Choices []Choice `json:"choices,omitempty"` // select and icon: the values allowed
@@ -120,6 +120,12 @@ var Icons = choices(
 	"briefcase", "Briefcase", "coffee", "Coffee",
 )
 
+// MaxHTML is the size of an HTML block, in characters, per language.
+const MaxHTML = 50000
+
+// classHelp explains the CSS class fields of sections and HTML blocks.
+const classHelp = "Optional. Up to 5 class names separated by spaces (lower-case letters, digits and hyphens, starting with a letter), for your Custom CSS."
+
 // MaxItems bounds the items of any block.
 const MaxItems = 30
 
@@ -199,6 +205,14 @@ var Types = []Type{
 			{Key: "text", Type: "markdown", Label: "Text", Max: 20000, I18n: true, Help: "Markdown: **bold**, _italic_, [links](https://…), lists and headings."},
 			{Key: "align", Type: "select", Label: "Alignment", Default: "left", Choices: alignLC},
 			{Key: "size", Type: "select", Label: "Text size", Default: "normal", Choices: choices("small", "Small", "normal", "Normal", "large", "Large")},
+		}},
+	{Type: "html", Label: "HTML", Icon: "code", Where: everwhere,
+		Help: "Your own markup: sections, text, links, images, lists, tables. Scripts, <style> and style=\"\" are removed; the looks go in Custom CSS.",
+		Fields: []Field{
+			{Key: "html", Type: "html", Label: "HTML", Max: MaxHTML, I18n: true,
+				Help: "Allowed: structural and text elements, links, images, lists, tables, figure, details, and class, id, aria-* and data-* attributes. Scripts, <style>, style=\"\" attributes, event handlers (onclick…), iframes and forms are removed when saved: the site's security policy would block them. Give elements a class and style them in Custom CSS."},
+			{Key: "class", Type: "class", Label: "CSS class", Help: classHelp},
+			onOff("prose", "Use the theme's text styles", "true"),
 		}},
 	{Type: "image", Label: "Image", Icon: "image-plus", Where: everwhere,
 		Fields: []Field{
