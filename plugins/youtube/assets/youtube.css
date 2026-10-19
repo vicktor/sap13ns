@@ -1,0 +1,87 @@
+/* YouTube gallery. In a post the gallery is a Basecoat .card, which every
+   theme styles in light and dark mode; in a widget the host's section is the
+   frame. Everything else uses the theme's tokens (--primary, --ring,
+   --border, --muted-foreground, --radius). The thumbnails and the
+   placeholder of a video are dark in both modes, like a player.
+   Without the script every video is a link to YouTube; youtube.js adds
+   .is-enhanced with a play button, .is-playing once a player loads, and the
+   carousel's buttons. */
+
+.ytg { container-type: inline-size; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.prose .ytg { margin-block: 2rem; }
+.ytg-player, .ytg-ui { display: none !important; }
+
+/* The head: an optional heading and the carousel's buttons. */
+.ytg-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 2.25rem; }
+.ytg .ytg-head h2.ytg-heading { margin: 0; font-size: 1.125rem; font-weight: 650; line-height: 1.3; letter-spacing: -0.01em; }
+.ytg-controls { display: flex; gap: 0.5rem; margin-inline-start: auto; }
+
+/* The list, undoing the .prose styles of a post body. */
+.ytg ul.ytg-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: 1.25rem 1rem; margin: 0; padding: 0; list-style: none; }
+.ytg ul.ytg-list > li.ytg-item { position: relative; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; margin: 0; padding: 0; }
+.ytg ul.ytg-list > li.ytg-item::marker { content: none; }
+
+.ytg a.ytg-link { display: flex; flex-direction: column; gap: 0.5rem; color: inherit; text-decoration: none; border-radius: calc(var(--radius) - 2px); }
+.ytg-thumb { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: calc(var(--radius) - 2px); background: radial-gradient(circle at 30% 25%, color-mix(in oklch, var(--primary) 40%, transparent), transparent 65%), oklch(0.22 0.01 265); }
+.ytg .ytg-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; object-fit: cover; transition: transform 0.3s ease; }
+.ytg-badge { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 3rem; height: 3rem; margin: -1.5rem 0 0 -1.5rem; border-radius: 999px; background: oklch(0 0 0 / 0.6); color: oklch(0.98 0 0); box-shadow: 0 6px 20px -6px oklch(0 0 0 / 0.6); transition: background-color 0.2s ease, transform 0.2s ease; }
+.ytg-badge svg { width: 1.15rem; height: 1.15rem; margin-left: 0.15rem; fill: currentColor; }
+.ytg-duration { position: absolute; right: 0.4rem; bottom: 0.4rem; padding: 0.05rem 0.35rem; border-radius: 0.3rem; background: oklch(0 0 0 / 0.78); color: oklch(0.98 0 0); font-size: 0.75rem; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.ytg-duration.ytg-live { background: oklch(0.55 0.22 27); text-transform: uppercase; letter-spacing: 0.04em; }
+.ytg-body { display: block; min-width: 0; }
+.ytg-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.9375rem; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.ytg-meta { color: var(--muted-foreground); font-size: 0.8125rem; line-height: 1.4; }
+
+.ytg a.ytg-link:hover .ytg-title, .ytg-item.is-enhanced:hover .ytg-title { color: var(--primary); }
+.ytg a.ytg-link:hover .ytg-badge, .ytg-item.is-enhanced:hover .ytg-badge, .ytg-play:focus-visible .ytg-badge { background: var(--primary); color: var(--primary-foreground); transform: scale(1.06); }
+.ytg a.ytg-link:hover img, .ytg-item.is-enhanced:hover img { transform: scale(1.03); }
+.ytg a.ytg-link:focus-visible { outline: none; }
+.ytg a.ytg-link:focus-visible .ytg-thumb, .ytg-play:focus-visible .ytg-thumb { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* Enhanced by youtube.js: the thumbnail is a play button over the whole
+   item, and the player replaces it in place. */
+.ytg-media { position: relative; display: block; aspect-ratio: 16 / 9; }
+.ytg-play { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+.ytg-play::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.ytg-play:focus-visible { outline: none; }
+.ytg-item.is-enhanced .ytg-media { position: static; }
+.ytg-item.is-enhanced .ytg-media .ytg-thumb { height: 100%; }
+.ytg-item.is-playing .ytg-media { position: relative; }
+.ytg-media iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: calc(var(--radius) - 2px); background: oklch(0 0 0); }
+
+/* The note and the link to YouTube. */
+.ytg footer.ytg-footer { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.35rem 1rem; margin: 0; padding: 0; border: 0; color: var(--muted-foreground); font-size: 0.8125rem; line-height: 1.5; }
+.ytg p.ytg-notice { flex: 1 1 18rem; margin: 0; color: inherit; font-size: inherit; text-align: start; }
+.ytg p.ytg-notice a { color: inherit; text-decoration: underline; text-underline-offset: 0.2em; }
+.ytg a.ytg-more { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--primary); font-weight: 600; text-decoration: none; border-radius: 0.25rem; }
+.ytg a.ytg-more:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.ytg a.ytg-more:focus-visible, .ytg p.ytg-notice a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.ytg a.ytg-more svg { width: 1rem; height: 1rem; fill: currentColor; }
+.ytg-empty { flex-direction: row; }
+
+/* The carousel: a row that scrolls and snaps; youtube.js adds the buttons,
+   which scroll smoothly unless the visitor asks for reduced motion. Without
+   the script it still scrolls with touch, a trackpad or the keyboard
+   (tabbing to a video brings it into view). */
+.ytg-carousel ul.ytg-list { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: calc((100% - 2rem) / 3); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: 5px; padding: 5px 5px 0.85rem; margin-inline: -5px; scrollbar-width: thin; }
+.ytg-carousel ul.ytg-list > li.ytg-item { scroll-snap-align: start; }
+@container (max-width: 40rem) { .ytg-carousel ul.ytg-list { grid-auto-columns: calc((100% - 1rem) / 2); } }
+@container (max-width: 26rem) { .ytg-carousel ul.ytg-list { grid-auto-columns: 82%; } }
+
+.ytg-nav { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--background); color: var(--foreground); cursor: pointer; transition: background-color 0.15s ease, opacity 0.15s ease; }
+.ytg-nav svg { width: 1.1rem; height: 1.1rem; }
+.ytg-nav:hover { background: var(--muted); }
+.ytg-nav:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.ytg-nav[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.ytg-nav[aria-disabled="true"]:hover { background: var(--background); }
+.ytg-controls[hidden] { display: none; }
+
+/* In a widget the host's .widget-html may style its content as rich text
+   (muted, smaller, underlined links): undo that. */
+.widget-html:has(> .ytg) { margin-inline: 0; color: inherit; font-size: inherit; line-height: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ytg .ytg-thumb img, .ytg-badge, .ytg-nav { transition: none; }
+  .ytg a.ytg-link:hover img, .ytg-item.is-enhanced:hover img { transform: none; }
+  .ytg a.ytg-link:hover .ytg-badge, .ytg-item.is-enhanced:hover .ytg-badge, .ytg-play:focus-visible .ytg-badge { transform: none; }
+}

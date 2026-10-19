@@ -1,0 +1,38 @@
+{
+  "abi": 1,
+  "id": "youtube",
+  "name": "YouTube gallery",
+  "version": "1.0.0",
+  "description": "Shows the latest videos of a YouTube channel or playlist as a grid or a carousel, in posts with [youtube_videos] and as a widget. The list comes from YouTube's public feed (or the Data API with a key) and is refreshed every hour. Thumbnails load from YouTube's image server; the player loads from youtube-nocookie.com only when the visitor presses play. Without JavaScript every video links to YouTube.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["shortcode", "widget", "event"],
+  "shortcodes": ["youtube_videos"],
+  "widgets": [
+    {"id": "videos", "title": "YouTube videos", "description": "The latest videos of a channel or a playlist, as a carousel or a grid.", "config": [
+      {"key": "channel", "label": "Channel", "type": "text", "default": "", "help": "A channel id (UC…), its URL (youtube.com/channel/UC…) or, with an API key, its handle (@name). Empty uses the plugin settings."},
+      {"key": "playlist", "label": "Playlist", "type": "text", "default": "", "help": "A playlist id (PL…) or URL. Used instead of the channel when set."},
+      {"key": "count", "label": "Number of videos", "type": "number", "default": "", "help": "1 to 24 (the feed has the latest 15). Empty uses the plugin settings."},
+      {"key": "layout", "label": "Layout", "type": "select", "default": "carousel", "choices": ["carousel", "grid"]}
+    ]}
+  ],
+  "events": ["cron.hourly", "post.published", "post.updated"],
+  "permissions": ["kv", "http:www.youtube.com", "http:www.googleapis.com", "assets:js"],
+  "assets": {"css": ["assets/youtube.css"], "js": ["assets/youtube.js"]},
+  "csp": {"frame-src": ["https://www.youtube-nocookie.com"], "img-src": ["https://i.ytimg.com"]},
+  "settings": [
+    {"key": "channel", "label": "Channel", "type": "text", "default": "", "help": "The default channel: its id (UC…), its URL (youtube.com/channel/UC…) or, with an API key, its handle (@name). Find the id on the channel's page: “…more” → “Share channel” → “Copy channel ID”, or for your own channel in YouTube → Settings → Advanced settings."},
+    {"key": "playlist", "label": "Playlist", "type": "text", "default": "", "help": "A default playlist id (PL…) or URL, used instead of the channel when set."},
+    {"key": "count", "label": "Number of videos", "type": "number", "default": "6", "help": "1 to 24. The feed has the latest 15 videos; an API key gives up to 24."},
+    {"key": "layout", "label": "Layout", "type": "select", "default": "grid", "choices": ["grid", "carousel"], "help": "For [youtube_videos] without layout=. The widget has its own setting."},
+    {"key": "api_key", "label": "YouTube Data API key", "type": "secret", "help": "Optional. Gives up to 24 videos with durations and live badges, and lets you use handles (@name). Create a key restricted to the YouTube Data API v3 in the Google Cloud console. Each refresh costs 2 to 3 units of the 10,000 free daily units."},
+    {"key": "thumbnails", "label": "Show thumbnails", "type": "bool", "default": "true", "help": "Loads each video's thumbnail from i.ytimg.com, so YouTube sees every visitor of the page. Off shows a neutral placeholder and nothing is loaded from YouTube until a video is played."},
+    {"key": "show_notice", "label": "Show the privacy note", "type": "bool", "default": "true", "help": "A short note under each gallery that says what is loaded from YouTube and when."},
+    {"key": "notice", "label": "Privacy note", "type": "text", "default": "", "help": "Empty uses a built-in note in the page's language (English or Spanish) that matches the thumbnails setting."},
+    {"key": "notice_es", "label": "Privacy note in Spanish", "type": "text", "default": ""},
+    {"key": "notice_en", "label": "Privacy note in English", "type": "text", "default": ""},
+    {"key": "privacy_url", "label": "Privacy policy link", "type": "text", "default": "", "help": "https://…, http://… or a site path such as /privacy. Adds a “Privacy policy” link after the note."},
+    {"key": "privacy_url_es", "label": "Privacy policy link for Spanish pages", "type": "text", "default": ""},
+    {"key": "privacy_url_en", "label": "Privacy policy link for English pages", "type": "text", "default": ""}
+  ]
+}
