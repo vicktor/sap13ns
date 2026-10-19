@@ -249,6 +249,14 @@ enabled.
   deleted when the account is disconnected; for each post published, its ID,
   the time and the state; the queue (at most 100 posts); a short-lived lock
   token.
+- **Cookie consent.** Since 1.1.0 the `privacy` of `plugin.json` declares
+  the feed's images as a resource in the `media` category ("External media
+  and marketing"), with Meta as the provider. They appear in the site's
+  cookie list (Settings → Privacy and cookies, and the "Cookies" link at the
+  bottom of every page). Because they load with the page and set no
+  cookies, they are listed but not blocked, and they alone never show the
+  consent banner. Older sap13ns versions do not know the `privacy` field
+  and refuse the manifest: use 1.0.0 there.
 
 ## Build and install
 

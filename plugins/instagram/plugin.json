@@ -2,7 +2,7 @@
   "abi": 1,
   "id": "instagram",
   "name": "Instagram",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Publishes new articles that have a JPEG featured image to your Instagram professional account, with a caption in the post's language, and shows your latest Instagram posts as a carousel or a grid with [instagram_feed] and as a widget. You connect the account once on this page; the 60-day token renews itself.",
   "author": "sap13ns",
   "license": "MIT",
@@ -18,6 +18,12 @@
   "permissions": ["kv", "posts:read", "oauth:instagram", "http:www.instagram.com", "http:api.instagram.com", "http:graph.instagram.com", "assets:js"],
   "assets": {"css": ["assets/instagram.css"], "js": ["assets/instagram.js"]},
   "csp": {"img-src": ["https://*.cdninstagram.com", "https://*.fbcdn.net"]},
+  "privacy": [
+    {"type": "resource", "name": "Instagram images", "category": "media", "provider": "Meta Platforms Ireland Limited",
+      "purpose": {"en": "The Instagram feed's images load from Instagram's servers with the page: Meta receives your IP address. They set no cookies, and nothing else loads from Meta.",
+        "es": "Las imágenes del feed de Instagram se cargan desde los servidores de Instagram con la página: Meta recibe tu dirección IP. No crean cookies, y no se carga nada más de Meta."},
+      "policy": "https://privacycenter.instagram.com/policy"}
+  ],
   "oauth": [
     {
       "id": "instagram",
