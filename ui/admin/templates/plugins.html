@@ -2,7 +2,8 @@
 {{define "content"}}
 {{$d := .D}}
 <div class="page-header">
-  <div><h1>{{T "Plugins"}}</h1><p>{{T "Plugins run in an isolated WebAssembly sandbox: no files, no network and no database unless you grant it."}}</p></div>
+  <div><h1>{{T "Plugins"}}</h1><p>{{T "Plugins run in an isolated WebAssembly sandbox: no files, no network and no database unless you grant it."}}</p>
+    {{if .Can "settings.manage"}}<p>{{T "The site assistant is built in, not a plugin:"}} <a href="/admin/settings/assistant">{{T "Site assistant"}}</a>.</p>{{end}}</div>
   <div class="page-actions">
     <form method="post" action="/admin/plugins/reload">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Rescan"}}</button></form>
   </div>

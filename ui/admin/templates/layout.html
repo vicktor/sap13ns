@@ -86,6 +86,7 @@
         <h3 id="nav-admin">{{T "Administration"}}</h3>
         <ul>
           {{if .Can "plugins.manage"}}{{template "nav-item" (dict "URL" "/admin/plugins" "Icon" "puzzle" "Label" (T "Plugins") "Current" (.Active "plugins"))}}{{end}}
+          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings/assistant" "Icon" "message-circle" "Label" (T "Site assistant") "Current" (.Active "assistant"))}}{{end}}
           {{if .Can "users.manage"}}{{template "nav-item" (dict "URL" "/admin/users" "Icon" "users" "Label" (T "Users") "Current" (.Active "users"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings" "Icon" "settings" "Label" (T "Settings") "Current" (.Active "settings"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/tools/redirects" "Icon" "arrow-right-left" "Label" (T "Redirects") "Current" (.Active "redirects"))}}

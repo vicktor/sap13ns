@@ -189,7 +189,10 @@
         <input type="hidden" name="status" value="{{if eq $p.Status "pending"}}pending{{else}}draft{{end}}">
         <p class="hint">{{T "An editor will review your work before it is published."}}</p>
         {{end}}
-        <label class="check" title="{{T "The site assistant and MCP will never use or cite it."}}"><input type="checkbox" class="input" role="switch" name="assistant_exclude" value="1"{{if $p.AssistantExclude}} checked{{end}}> {{T "Hide from the site assistant"}}</label>
+        <div class="field">
+          <label class="check"><input type="checkbox" class="input" role="switch" name="assistant_exclude" value="1" aria-describedby="assistant_exclude_hint"{{if $p.AssistantExclude}} checked{{end}}> {{T "Hide from the site assistant"}}</label>
+          <p class="hint" id="assistant_exclude_hint">{{T "The site assistant and MCP will never use or cite it."}}</p>
+        </div>
       </section>
       <footer class="publish-actions">
         {{if $d.CanPublish}}

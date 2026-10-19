@@ -1446,6 +1446,7 @@
   "The site %s was resumed.": "Se ha reanudado el sitio %s.",
   "The site %s was suspended.": "Se ha suspendido el sitio %s.",
   "The site assistant and MCP will never use or cite it.": "El asistente del sitio y MCP nunca la usarán ni la citarán.",
+  "The site assistant is built in, not a plugin:": "El asistente del sitio viene integrado, no es un plugin:",
   "The site is now on your subscription.": "El sitio está ahora en tu suscripción.",
   "The site is served again; a site never approved waits for approval again.": "El sitio vuelve a servirse; un sitio que nunca se aprobó vuelve a esperar la aprobación.",
   "The site is served on its primary domain; its other verified domains redirect there.": "El sitio se sirve en su dominio principal; sus otros dominios verificados redirigen allí.",

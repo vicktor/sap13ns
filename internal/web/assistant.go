@@ -475,7 +475,7 @@ func (s *Server) renderAssistantSettings(w http.ResponseWriter, r *http.Request,
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "assistant_settings", s.t("Site assistant"), "settings", d)
+	s.renderAdminStatus(w, r, status, "assistant_settings", s.t("Site assistant"), "assistant", d)
 }
 
 // lines splits a textarea into at most n trimmed, non-empty lines.
