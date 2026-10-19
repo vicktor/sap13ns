@@ -13,8 +13,6 @@ import (
 
 	"sap13ns/internal/assistant"
 	"sap13ns/internal/auth"
-	"sap13ns/internal/db"
-	"sap13ns/internal/store"
 )
 
 // assistantCmd implements "sap13ns assistant reindex|status".
@@ -24,7 +22,9 @@ func assistantCmd(args []string) error {
 	}
 	sub, args := args[0], args[1:]
 	var full, changed bool
+	var site string
 	cfg, log, _, err := setup("assistant "+sub, args, true, func(f *flag.FlagSet) {
+		f.StringVar(&site, "site", "", "network: the site")
 		if sub == "reindex" {
 			f.BoolVar(&full, "full", false, "embed every passage again instead of reusing unchanged embeddings")
 			f.BoolVar(&changed, "changed", false, "only index new and changed posts (what the server does every 10 minutes)")
@@ -35,15 +35,12 @@ func assistantCmd(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	pool, err := db.Open(ctx, cfg.DatabaseURL, 4)
+	t, err := openTarget(ctx, cfg, log, site, 4)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	if err := db.Migrate(ctx, pool, log); err != nil {
-		return err
-	}
-	e := assistant.New(store.New(pool), auth.NewKeys(cfg.SecretKey), log)
+	defer t.close()
+	e := assistant.New(t.store, auth.NewKeys(t.cfg.SecretKey), log)
 
 	switch sub {
 	case "reindex":

@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"sap13ns/internal/config"
 	"sap13ns/internal/db"
 	"sap13ns/internal/store"
 )
@@ -94,6 +95,35 @@ type SiteQuery struct {
 	OwnerID int64
 	Limit   int // default 100, at most 1000
 	Offset  int
+}
+
+// ServedSites lists the tenants whose schemas are in use (pending, active
+// and suspended), oldest first: what `migrate` and the sweeps go through.
+func (n *Network) ServedSites(ctx context.Context) ([]Site, error) {
+	rows, err := n.db.Query(ctx, `SELECT `+siteCols+` FROM sites s WHERE s.kind = 'tenant' AND s.status = ANY($1) ORDER BY s.id`,
+		[]string{StatusPending, StatusActive, StatusSuspended})
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowToStructByName[Site])
+}
+
+// SiteConfig is the configuration a site runs with, from the network's:
+// config.ForNetwork for the portal, config.ForSite on its primary host for
+// a tenant.
+func (n *Network) SiteConfig(ctx context.Context, base *config.Config, s *Site) (*config.Config, error) {
+	secret, err := n.SiteSecret(s)
+	if err != nil {
+		return nil, err
+	}
+	if s.Kind == KindNetwork {
+		return config.ForNetwork(base, s.ID, secret)
+	}
+	d, err := n.Domain(ctx, s.PrimaryHost)
+	if err != nil {
+		return nil, fmt.Errorf("network: primary host of site %d: %w", s.ID, err)
+	}
+	return config.ForSite(base, config.SiteParams{ID: s.ID, Host: d.Host, Custom: d.Kind == DomainCustom, Secret: secret, RPID: s.RPID})
 }
 
 // ListSites returns a page of sites, oldest first, and the total.

@@ -8,10 +8,13 @@
 //	sap13ns plugin new|pack|check create, package and scan plugins (plugin.go)
 //	sap13ns plugin list|install   list and install the plugins of a site
 //	sap13ns assistant reindex     rebuild the site assistant's search index
+//	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
+//	sap13ns site ...              create, list and manage the sites of a network
 //	sap13ns version               print the version
 //
 // Configuration comes from SAP13NS_* environment variables, optionally loaded
-// from a file with -env /etc/sap13ns/sap13ns.env.
+// from a file with -env /etc/sap13ns/sap13ns.env. On a network, the commands
+// that work on one site take -site SLUG (network.go).
 package main
 
 import (
@@ -74,6 +77,10 @@ func main() {
 		err = assistantCmd(args)
 	case "update":
 		err = updateCmd(args)
+	case "network":
+		err = networkCmd(args)
+	case "site":
+		err = siteCmd(args)
 	case "version", "-v", "--version":
 		fmt.Printf("sap13ns %s (%s %s/%s)\n", web.Version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -120,6 +127,20 @@ Commands:
                                  Install the latest signed release over this
                                  binary (see docs/RELEASES.md)
   version                        Print the version
+
+Networks (SAP13NS_MULTISITE=true):
+  network init [-username U -email E [-name N]]
+                                 Create the network schema and the portal site
+                                 on the SAP13NS_BASE_URL host, and a network
+                                 administrator (password as for user create)
+  site create -slug S -owner EMAIL [-plan P] [-title T] [-lang L]
+  site list [-status S] [-json]
+  site suspend -slug S -reason R | resume -slug S | delete -slug S -yes
+  site domain add -slug S HOST | verify HOST | primary HOST | remove HOST
+                                 Manage the sites; running servers follow
+  migrate [-site S]              Migrate the network, then every site (or one)
+  user, plugin list|install, assistant -site S
+                                 Work on one site; -site network is the portal
 `)
 }
 
@@ -153,11 +174,25 @@ func setup(name string, args []string, requireSecret bool, extra func(*flag.Flag
 }
 
 func migrate(args []string) error {
-	cfg, log, _, err := setup("migrate", args, false, nil)
+	var site string
+	cfg, log, _, err := setup("migrate", args, false, func(f *flag.FlagSet) {
+		f.StringVar(&site, "site", "", "network: migrate the network schema and this site only")
+	})
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
+	if cfg.Multisite {
+		pool, n, err := openNetwork(ctx, cfg, log, 4)
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+		return migrateSites(ctx, pool, n, log, site)
+	}
+	if site != "" {
+		return errNotNetwork
+	}
 	pool, err := db.Open(ctx, cfg.DatabaseURL, cfg.DBMaxConns)
 	if err != nil {
 		return err
@@ -176,6 +211,9 @@ func serve(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if cfg.Multisite {
+		return serveNetwork(ctx, cfg, log)
+	}
 
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return err
@@ -297,9 +335,10 @@ func userCmd(args []string) error {
 		return errors.New("usage: sap13ns user create|reset-password [flags]")
 	}
 	sub, args := args[0], args[1:]
-	var username, email, role, name string
+	var username, email, role, name, site string
 	cfg, log, _, err := setup("user "+sub, args, false, func(f *flag.FlagSet) {
 		f.StringVar(&username, "username", "", "username")
+		f.StringVar(&site, "site", "", "network: the site (network for the portal's accounts)")
 		if sub == "create" {
 			f.StringVar(&email, "email", "", "e-mail address")
 			f.StringVar(&role, "role", auth.RoleAdmin, "role: admin, editor, author, contributor or subscriber")
@@ -310,15 +349,12 @@ func userCmd(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	pool, err := db.Open(ctx, cfg.DatabaseURL, 2)
+	t, err := openTarget(ctx, cfg, log, site, 2)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	if err := db.Migrate(ctx, pool, log); err != nil {
-		return err
-	}
-	st := store.New(pool)
+	defer t.close()
+	st := t.store
 	username = strings.ToLower(strings.TrimSpace(username))
 	if username == "" {
 		return errors.New("-username is required")
@@ -326,31 +362,13 @@ func userCmd(args []string) error {
 
 	switch sub {
 	case "create":
-		if !auth.ValidRole(role) {
-			return fmt.Errorf("invalid role %q", role)
-		}
-		if email == "" {
-			return errors.New("-email is required")
-		}
-		pw, generated, err := readPassword()
+		id, pw, generated, err := createUser(ctx, st, username, email, name, role)
 		if err != nil {
 			return err
 		}
-		if err := auth.CheckPasswordPolicy(pw, username, email); err != nil {
-			return err
-		}
-		hash, err := auth.HashPassword(pw)
-		if err != nil {
-			return err
-		}
-		id, err := st.CreateUser(ctx, store.NewUser{Username: username, Email: strings.ToLower(email), DisplayName: name, Role: role, PasswordHash: hash})
-		if err != nil {
-			return err
-		}
-		st.Audit(ctx, id, "user.created_cli", username, netipZero, map[string]string{"role": role})
-		fmt.Printf("created user %s (#%d, %s)\n", username, id, role)
+		fmt.Fprintf(out, "created user %s (#%d, %s)\n", username, id, role)
 		if generated {
-			fmt.Printf("password: %s\n", pw)
+			fmt.Fprintf(out, "password: %s\n", pw)
 		}
 	case "reset-password":
 		u, err := st.UserByUsername(ctx, username)

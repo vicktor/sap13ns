@@ -27,6 +27,9 @@ var langCodeRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
 
 func validLang(code string) bool { _, ok := languageNames[code]; return ok }
 
+// ValidLanguage reports whether code is a language a site can be set to.
+func ValidLanguage(code string) bool { return validLang(code) }
+
 func langName(code string) string {
 	if n, ok := languageNames[code]; ok {
 		return n

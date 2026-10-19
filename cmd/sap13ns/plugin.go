@@ -20,10 +20,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"sap13ns/internal/db"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/pluginskel"
-	"sap13ns/internal/store"
 )
 
 const pluginUsage = `usage:
@@ -237,7 +235,9 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 		args = append(args[1:], args[0]) // the zip may come before the flags
 	}
 	var allowDowngrade bool
+	var siteSlug string
 	cfg, log, fs, err := setup("plugin "+sub, args, false, func(f *flag.FlagSet) {
+		f.StringVar(&siteSlug, "site", "", "network: the site")
 		if sub == "install" {
 			f.BoolVar(&allowDowngrade, "allow-downgrade", false, "install a version older than the installed one")
 		}
@@ -246,25 +246,24 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 		return err
 	}
 	if sub == "install" && fs.NArg() != 1 {
-		return errors.New("usage: sap13ns plugin install [-env FILE] [-allow-downgrade] <file.zip>")
+		return errors.New("usage: sap13ns plugin install [-env FILE] [-site S] [-allow-downgrade] <file.zip>")
 	}
-	pool, err := db.Open(ctx, cfg.DatabaseURL, 4)
+	t, err := openTarget(ctx, cfg, log, siteSlug, 4)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	if err := db.Migrate(ctx, pool, log); err != nil {
-		return err
-	}
-	st := store.New(pool)
+	defer t.close()
+	st := t.store
 	settings, err := st.LoadSettings(ctx)
 	if err != nil {
 		return err
 	}
 	site := func() plugin.SiteInfo {
-		return plugin.SiteInfo{URL: cfg.BaseURL.String(), Title: settings.SiteTitle, Language: settings.Language, Timezone: settings.Timezone}
+		return plugin.SiteInfo{URL: t.cfg.BaseURL.String(), Title: settings.SiteTitle, Language: settings.Language, Timezone: settings.Timezone}
 	}
-	host, err := plugin.NewHost(ctx, cfg.PluginsDir, filepath.Join(cfg.DataDir, "cache", "wasm"), st, log, site, nil)
+	// The compilation cache and the blocklist are the install's (a
+	// network's are shared by its sites), the plugins the site's.
+	host, err := plugin.NewHost(ctx, t.cfg.PluginsDir, filepath.Join(cfg.DataDir, "cache", "wasm"), st, log, site, nil)
 	if err != nil {
 		return err
 	}

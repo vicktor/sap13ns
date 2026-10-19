@@ -16,6 +16,7 @@ import (
 	"text/tabwriter"
 
 	"sap13ns/internal/backup"
+	"sap13ns/internal/config"
 	"sap13ns/internal/web"
 )
 
@@ -25,7 +26,7 @@ func backupCmd(args []string) error {
 		return errors.New("usage: sap13ns backup create|list|verify|restore|prune [flags]")
 	}
 	sub, args := args[0], args[1:]
-	var dir, passFile, pgDump, pgRestore string
+	var dir, passFile, pgDump, pgRestore, site string
 	var skipDB, skipUploads, force, yes bool
 	var daily, weekly, monthly int
 	cfg, log, fs, err := setup("backup "+sub, args, false, func(f *flag.FlagSet) {
@@ -40,8 +41,12 @@ func backupCmd(args []string) error {
 		f.IntVar(&daily, "keep-daily", envInt("SAP13NS_BACKUP_KEEP_DAILY", 7), "prune: daily archives to keep")
 		f.IntVar(&weekly, "keep-weekly", envInt("SAP13NS_BACKUP_KEEP_WEEKLY", 4), "prune: weekly archives to keep")
 		f.IntVar(&monthly, "keep-monthly", envInt("SAP13NS_BACKUP_KEEP_MONTHLY", 12), "prune: monthly archives to keep")
+		f.StringVar(&site, "site", "", "network: the site (not available yet)")
 	})
 	if err != nil {
+		return err
+	}
+	if err := backupScope(cfg, site, sub); err != nil {
 		return err
 	}
 	dir = cmp.Or(dir, os.Getenv("SAP13NS_BACKUP_DIR"), filepath.Join(cfg.DataDir, "backups"))
@@ -124,6 +129,23 @@ func backupCmd(args []string) error {
 // backupPassphrase reads the passphrase from a flag-named file, then
 // SAP13NS_BACKUP_PASSPHRASE_FILE, then SAP13NS_BACKUP_PASSPHRASE. It is
 // never taken from a flag value, which other users could read with ps.
+// backupScope refuses what backups cannot do on a network yet. An archive
+// holds one database and one uploads directory: on a network that would
+// be every schema with the network's directory only, and a restore would
+// replace every site. Per-site archives (pg_dump --schema=site_N with the
+// site's directory) come later; archives that exist can still be listed,
+// verified and pruned.
+func backupScope(cfg *config.Config, site, sub string) error {
+	switch {
+	case !cfg.Multisite && site != "":
+		return errNotNetwork
+	case cfg.Multisite && (sub == "create" || sub == "restore"):
+		return errors.New("backups of a network or of one of its sites are not available yet: " +
+			"back up the database with pg_dump and the data directory while the server is stopped")
+	}
+	return nil
+}
+
 func backupPassphrase(file string) (string, error) {
 	file = cmp.Or(file, os.Getenv("SAP13NS_BACKUP_PASSPHRASE_FILE"))
 	if file != "" {
