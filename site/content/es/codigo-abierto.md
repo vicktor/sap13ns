@@ -31,7 +31,7 @@ Ese es todo el precio del software. Es como otras personas descubren el proyecto
 
 Si modificas sap13ns y dejas que otras personas usen tu versión modificada a través de una red (por ejemplo, ofreciéndolo como servicio alojado o para los sitios públicos de tus clientes), tienes que poner a su disposición el código fuente de tus cambios, con la misma licencia. Usar sap13ns sin modificar, o modificarlo solo para ti, no te obliga a nada de esto.
 
-En nuestra opinión, los temas y plugins que solo usan los contratos documentados son obras independientes, y eliges tú su licencia. Los temas incluidos y los plugins de ejemplo indican su propia licencia en sus manifiestos.
+En nuestra opinión, los temas y plugins que solo usan los contratos documentados son obras independientes, y eliges tú su licencia. El SDK de plugins, el esqueleto de plugin y los plugins oficiales tienen licencia MIT, así que puedes partir de ellos para un plugin con cualquier licencia, también cerrada. Los temas incluidos indican su propia licencia en sus manifiestos.
 
 ### Cita y enlaza
 
@@ -41,7 +41,7 @@ Si escribes sobre un sitio hecho con sap13ns o construyes un producto encima, ag
 
 | Pregunta | Respuesta |
 |---|---|
-| Licencia | CPAL-1.0 |
+| Licencia | CPAL-1.0 (SDK de plugins, esqueleto y plugins oficiales: MIT) |
 | Uso comercial | Permitido y gratuito |
 | Modificaciones | Permitidas |
 | Atribución | «Powered by sap13ns» visible, con enlace a sap13ns.site |

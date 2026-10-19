@@ -4,6 +4,7 @@ This is the full contract between sap13ns and its plugins: the package format, t
 
 - **Writing your first plugin?** Start with the skeleton: `sap13ns plugin new my-id` creates a working project, and its README walks through building, testing and packaging it. This document is the reference behind it.
 - **Running a site?** Read [Installing and approving](#installing-and-approving) and [Security model](#security-model).
+- **Licence.** The Go SDK (`pluginsdk/`), the skeleton and the official plugins are MIT-licensed, unlike the CPAL-1.0 core, so your plugin can use any licence.
 
 ## Contents
 

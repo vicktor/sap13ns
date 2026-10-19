@@ -31,7 +31,7 @@ This is the whole price of the software. It is how other people find the project
 
 If you modify sap13ns and let other people use your modified version over a network (for example, by running it as a hosted service or for your clients' public sites), you must make the source code of your modifications available to them, under the same licence. Using an unmodified sap13ns, or modifying it only for yourself, creates no such obligation.
 
-In our view, themes and plugins that only use the documented contracts are separate works, and you choose their licence. The built-in themes and the example plugins state their own licence in their manifests.
+In our view, themes and plugins that only use the documented contracts are separate works, and you choose their licence. The plugin SDK, the plugin skeleton and the official plugins are under the MIT licence, so you can start from them for a plugin under any licence, including a closed one. The built-in themes state their own licence in their manifests.
 
 ### Credit and link back
 
@@ -41,7 +41,7 @@ If you write about a site built with sap13ns, or build a product on top of it, a
 
 | Question | Answer |
 |---|---|
-| Licence | CPAL-1.0 |
+| Licence | CPAL-1.0 (plugin SDK, skeleton and official plugins: MIT) |
 | Commercial use | Allowed, free of charge |
 | Modifications | Allowed |
 | Attribution | Visible "Powered by sap13ns" linking to sap13ns.site |

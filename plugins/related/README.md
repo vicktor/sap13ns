@@ -39,7 +39,7 @@ missed if it is not among the 20 newest posts of any queried term.
 | `posts:read` | low | Lists published posts with a given tag or category (`QueryPosts`). The host only ever returns published, public content. |
 
 `assets/related.css` needs no permission. `sap13ns plugin pack` reports the
-package as **CLEAN**, with only the `package.no-license` info finding.
+package as **CLEAN**, with no findings.
 
 ## Settings
 

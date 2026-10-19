@@ -60,9 +60,8 @@ a package that asks for another source stops until it is approved again.
 `assets/embeds.css` needs no permission.
 
 `sap13ns plugin pack` reports the package as **CLEAN** with three
-`perm.high-risk` medium findings (one per permission above) and the
-`package.no-license` info finding. Enabling the plugin asks for the
-high-risk confirmation.
+`perm.high-risk` medium findings (one per permission above). Enabling the
+plugin asks for the high-risk confirmation.
 
 ## Settings
 

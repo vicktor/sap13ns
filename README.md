@@ -286,4 +286,6 @@ Still missing on a network of sites:
 
 sap13ns is released under the [Common Public Attribution License 1.0](LICENSE) (CPAL-1.0), an OSI-approved licence. You may use, modify and redistribute it, including over a network. Keep the **"Powered by sap13ns"** attribution linking to [sap13ns.site](https://sap13ns.site), which appears by default in the site footer and on the sign-in pages.
 
+The plugin SDK (`pluginsdk/`), the plugin skeleton (`plugins/skeleton/`, which `sap13ns plugin new` copies) and the official plugins in `plugins/` are released under the **MIT licence** instead; each folder carries its own `LICENSE`. A plugin built on them can use any licence, including a proprietary one.
+
 Copyright © 2026 BAUBER.XYZ SL.
