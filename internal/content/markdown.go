@@ -207,6 +207,12 @@ func PluginPolicy() *bluemonday.Policy {
 		p := bluemonday.UGCPolicy()
 		p.AllowAttrs("class").Matching(safeClass).Globally()
 		p.AllowAttrs("data-variant", "data-size", "data-category", "data-icon").Matching(regexp.MustCompile(`^[a-z0-9-]{1,40}$`)).Globally()
+		// The service of a click-to-load placeholder, for the cookie
+		// consent (static/consent.js): a service id of plugin.json "privacy".
+		p.AllowAttrs("data-consent").Matching(regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)).OnElements("figure", "section", "div")
+		// The placeholder's own privacy notice, which gets the consent's
+		// controls.
+		p.AllowAttrs("data-consent-note").Matching(regexp.MustCompile(`^$`)).OnElements("figcaption", "p", "div", "span")
 		p.AllowAttrs("role").Matching(regexp.MustCompile(`^(alert|status|note|group|list|listitem|progressbar|img|separator|region|navigation)$`)).Globally()
 		p.AllowAttrs("aria-label").Matching(regexp.MustCompile(`^[^<>"]{1,200}$`)).Globally()
 		p.AllowAttrs("aria-hidden").Matching(regexp.MustCompile(`^(true|false)$`)).Globally()

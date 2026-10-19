@@ -70,6 +70,22 @@ func TestPluginPolicy(t *testing.T) {
 	}
 }
 
+// Click-to-load placeholders name their service for the cookie consent.
+func TestPluginConsentAttributes(t *testing.T) {
+	got := string(SanitizePluginHTML(`<figure data-consent="youtube"><figcaption data-consent-note>Note</figcaption></figure>`+
+		`<section data-consent="Bad Id"><p data-consent-note="x">n</p></section><a data-consent="youtube" href="/">a</a>`, nil))
+	for _, want := range []string{`<figure data-consent="youtube">`, `<figcaption data-consent-note`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	for _, bad := range []string{"Bad Id", `data-consent-note="x"`, `<a data-consent`} {
+		if strings.Contains(got, bad) {
+			t.Errorf("unexpected %s in %s", bad, got)
+		}
+	}
+}
+
 func TestPluginFormPlaceholder(t *testing.T) {
 	got := string(SanitizePluginHTML(`<div data-form="contact.main"></div><div data-form="bad form"></div>`, nil))
 	if !strings.Contains(got, `<div data-form="contact.main"></div>`) || strings.Contains(got, "bad form") {
