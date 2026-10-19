@@ -22,7 +22,7 @@
     <section class="tile tile-ink side-author" aria-labelledby="author-title">
       <p class="tile-label">{{icon "pen-line"}}<span>{{T "Written by"}}</span></p>
       <div class="author-row">
-        <span class="avatar" aria-hidden="true">{{.Author.Initials}}</span>
+        {{template "shared/avatar" (dict "A" .Author.Avatar "Size" 52 "Class" "avatar")}}
         <div>
           <h2 id="author-title" class="author-name">{{if .Author.URL}}<a href="{{.Author.URL}}" rel="author">{{.Author.Name}}</a>{{else}}{{.Author.Name}}{{end}}</h2>
           {{if eq .Type "post"}}<p class="author-sub">{{T "%d min read" .ReadingMinutes}}{{if .CommentCount}} · {{plural .CommentCount "%d comment" "%d comments"}}{{end}}</p>{{end}}

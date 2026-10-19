@@ -296,6 +296,7 @@ A theme can be a landing page or a one-page site rather than a blog. `templates/
 | `shared/footer-meta` | PageData | the footer line with the **"Powered by sap13ns"** credit |
 | `shared/post-meta`, `shared/categories`, `shared/tags` | PostView | date, author and reading time; term links |
 | `shared/image` | `dict "Image" "Sizes" "Eager" "Class"` | a responsive `<img>` with `srcset` |
+| `shared/avatar` | `dict "A" "Size" "Class"` | a person's photo, or their initials without one (below) |
 | `shared/featured-image` | PostView | the post's image with its caption |
 | `shared/content` | PostView | the rendered body, in `.prose` |
 | `shared/share` | PostView | share links, without third-party scripts |
@@ -356,7 +357,15 @@ Every page template gets a **PageData** (`.`).
 | `.Asset "<file>"` | the hashed URL of a file in the theme's `static/` |
 | `.Static "<file>"` | the hashed URL of a core static file |
 
-**A post** (`.Post`, each of `.Posts`) has `.Title`, `.URL`, `.Summary`, `.Content` (safe HTML), `.Published`, `.HasDate`, `.Updated`, `.Author` (`.Name`, `.URL`), `.Categories`, `.Tags`, `.Image`, `.ReadingMinutes`, `.CommentCount` and `.CommentsOpen`. An image (`.Image`) has `.URL`, `.Srcset`, `.Width`, `.Height`, `.Alt`, `.Caption`, and the `.Thumb`, `.Medium` and `.Large` variants.
+**A post** (`.Post`, each of `.Posts`) has `.Title`, `.URL`, `.Summary`, `.Content` (safe HTML), `.Published`, `.HasDate`, `.Updated`, `.Author` (`.Name`, `.URL`, `.Initials`, `.Avatar`), `.Categories`, `.Tags`, `.Image`, `.ReadingMinutes`, `.CommentCount` and `.CommentsOpen`. An image (`.Image`) has `.URL`, `.Srcset`, `.Width`, `.Height`, `.Alt`, `.Caption`, and the `.Thumb`, `.Medium` and `.Large` variants.
+
+**An avatar** (`.Author.Avatar`, a comment's `.Avatar`, `.Site.Viewer.Avatar`) is the person's photo: the one they uploaded, else a copy of their Gravatar when the site uses Gravatar (Settings → Discussion). It has `.URL` (64 px), `.URL2x` (128 px), `.Large` (256 px), `.Srcset` and `.Initials`. The URLs are empty when there is no photo; show the initials then. Every URL is on the site itself, so a page never makes the visitor's browser contact Gravatar. `shared/avatar` does both:
+
+```html
+{{template "shared/avatar" (dict "A" .Author.Avatar "Size" 40 "Class" "byline-avatar")}}
+```
+
+`Size` is the size in CSS pixels (40 by default). It goes into `width`, `height` and `sizes`, and the image loads lazily. `Class` is your class for the initials. The photo carries it too, with `sap-avatar`, which crops it to fill the box and draws a thin ring that shows in light and dark mode. Without `Class`, `sap-avatar-initials` is a 40 px circle. The name goes next to the avatar, so the image has `alt=""` and the initials are `aria-hidden`.
 
 **Functions** available in every template:
 

@@ -9,7 +9,7 @@
         <h1>{{.Title}}</h1>
         {{with .Summary}}<p class="article-dek">{{.}}</p>{{end}}
         <div class="byline">
-          {{with .Author.Initials}}{{if $.Post.Author.Name}}<span class="byline-avatar" aria-hidden="true">{{.}}</span>{{end}}{{end}}
+          {{if .Author.Name}}{{template "shared/avatar" (dict "A" .Author.Avatar "Size" 38 "Class" "byline-avatar")}}{{end}}
           {{template "shared/post-meta" .}}
         </div>
       </header>

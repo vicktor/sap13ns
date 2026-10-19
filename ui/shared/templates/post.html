@@ -23,6 +23,13 @@
 {{with .Image}}<img src="{{.Medium}}" srcset="{{.Srcset}}" sizes="{{or $.Sizes "(min-width: 1024px) 50vw, 100vw"}}" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}}{{if $.Eager}} fetchpriority="high"{{else}} loading="lazy"{{end}} decoding="async"{{with $.Class}} class="{{.}}"{{end}}>{{end}}
 {{end}}
 
+{{/* shared/avatar: a person's photo, or their initials when they have
+     none. The name goes next to it, so the photo is decorative (alt="").
+     Data: dict "A" AvatarView (.Author.Avatar, a comment's .Avatar, .Site.Viewer.Avatar),
+     "Size" its size in CSS pixels (40), "Class" the theme's class for
+     both (sap-avatar-initials). */}}
+{{define "shared/avatar"}}{{with .A}}{{if .URL}}<img class="sap-avatar {{or $.Class "sap-avatar-initials"}}" src="{{.URL}}" srcset="{{.Srcset}}" sizes="{{or $.Size 40}}px" width="{{or $.Size 40}}" height="{{or $.Size 40}}" alt="" loading="lazy" decoding="async">{{else}}<span class="{{or $.Class "sap-avatar-initials"}}" aria-hidden="true">{{.Initials}}</span>{{end}}{{end}}{{end}}
+
 {{/* shared/featured-image: <figure> with caption for the single view. Data: *PostView. */}}
 {{define "shared/featured-image"}}
 {{with .Image}}<figure class="featured-image">

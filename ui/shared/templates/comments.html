@@ -19,7 +19,7 @@
 <li class="comment{{if $c.IsAuthor}} comment-by-author{{end}}" id="comment-{{$c.ID}}">
   <article>
     <header class="comment-header">
-      <span class="comment-avatar" aria-hidden="true">{{$c.Initials}}</span>
+      {{template "shared/avatar" (dict "A" $c.Avatar "Size" 40 "Class" "comment-avatar")}}
       <div>
         <strong class="comment-author">{{if $c.URL}}<a href="{{$c.URL}}" rel="nofollow ugc noopener" target="_blank">{{$c.Author}}</a>{{else}}{{$c.Author}}{{end}}</strong>
         {{if $c.IsAuthor}}<span class="comment-badge">{{T "Author"}}</span>{{end}}
@@ -41,7 +41,7 @@
 <li class="comment{{if .IsAuthor}} comment-by-author{{end}}" id="comment-{{.ID}}">
   <article>
     <header class="comment-header">
-      <span class="comment-avatar" aria-hidden="true">{{.Initials}}</span>
+      {{template "shared/avatar" (dict "A" .Avatar "Size" 40 "Class" "comment-avatar")}}
       <div>
         <strong class="comment-author">{{if .URL}}<a href="{{.URL}}" rel="nofollow ugc noopener" target="_blank">{{.Author}}</a>{{else}}{{.Author}}{{end}}</strong>
         {{if .IsAuthor}}<span class="comment-badge">{{T "Author"}}</span>{{end}}

@@ -17,7 +17,7 @@
       <h2 class="rail-title">{{T "Details"}}</h2>
       {{if .Author.Name}}
       <div class="rail-author">
-        <span class="avatar" aria-hidden="true">{{.Author.Initials}}</span>
+        {{template "shared/avatar" (dict "A" .Author.Avatar "Size" 36 "Class" "avatar")}}
         <div>
           {{if .Author.URL}}<a href="{{.Author.URL}}" rel="author">{{.Author.Name}}</a>{{else}}<span>{{.Author.Name}}</span>{{end}}
           <small>{{T "Author"}}</small>

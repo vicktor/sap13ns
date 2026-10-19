@@ -6,7 +6,7 @@
     <h1>{{.Title}}</h1>
     {{with .Summary}}<p class="nm-dek">{{.}}</p>{{end}}
     <div class="nm-byline">
-      {{if .Author.Name}}<span class="nm-avatar" aria-hidden="true">{{.Author.Initials}}</span>{{end}}
+      {{if .Author.Name}}{{template "shared/avatar" (dict "A" .Author.Avatar "Size" 38 "Class" "nm-avatar")}}{{end}}
       {{template "shared/post-meta" .}}
     </div>
   </header>

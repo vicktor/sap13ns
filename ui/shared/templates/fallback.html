@@ -24,7 +24,7 @@
   <header class="sap-fallback-head">
     {{if eq .Type "post"}}{{template "shared/categories" .}}{{end}}
     <h1>{{.Title}}</h1>
-    {{if eq .Type "post"}}{{template "shared/post-meta" .}}{{else if $.IsFront}}{{with .Summary}}<p class="sap-fallback-lead">{{.}}</p>{{end}}{{end}}
+    {{if eq .Type "post"}}<div class="sap-fallback-byline">{{if .Author.Name}}{{template "shared/avatar" (dict "A" .Author.Avatar "Size" 32)}}{{end}}{{template "shared/post-meta" .}}</div>{{else if $.IsFront}}{{with .Summary}}<p class="sap-fallback-lead">{{.}}</p>{{end}}{{end}}
   </header>
   {{template "shared/featured-image" .}}
   {{template "shared/content" .}}

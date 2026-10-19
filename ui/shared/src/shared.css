@@ -135,6 +135,11 @@
   .comment-header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; }
   .comment-avatar { display: grid; place-items: center; flex: none; width: 2.4rem; height: 2.4rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--primary) 16%, var(--background)); color: var(--primary); font-weight: 700; font-size: 0.8rem; }
   .comment-author a { color: inherit; }
+
+  /* shared/avatar: a photo takes the box of the theme's initials class.
+     The thin ring keeps a white or black photo visible on both schemes. */
+  .sap-avatar-initials { display: inline-grid; place-items: center; flex: none; width: 2.5rem; height: 2.5rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: color-mix(in oklch, var(--primary) 16%, var(--background)); color: var(--primary); font-weight: 700; font-size: 0.8rem; }
+  img.sap-avatar { flex: none; padding: 0; object-fit: cover; border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent); background: var(--muted, var(--background)); }
   .comment-badge { padding: 0.05rem 0.45rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); font-size: 0.7rem; font-weight: 600; }
   .comment-date { color: var(--muted-foreground); font-size: 0.8rem; text-decoration: none; }
   .comment-body { margin: 0.6rem 0 0 3.15rem; line-height: 1.65; }
@@ -350,6 +355,8 @@
   .sap-fallback-entry { width: min(100% - 2.5rem, var(--sap-measure, 44rem)); }
   .sap-fallback-after { padding-top: 0; }
   .sap-fallback-head { display: flex; flex-direction: column; gap: 0.75rem; }
+  .sap-fallback-byline { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .sap-fallback-byline .sap-avatar-initials { width: 2rem; height: 2rem; font-size: 0.7rem; }
   .sap-fallback-head h1, .sap-fallback .archive-header h1 { margin: 0; font-family: var(--sap-font-heading, inherit); font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance; }
   .sap-fallback-head .post-categories { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
   .sap-fallback-lead { max-width: 40rem; margin: 0; color: var(--muted-foreground); font-size: clamp(1.08rem, 2vw, 1.3rem); line-height: 1.5; }

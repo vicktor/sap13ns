@@ -5,7 +5,7 @@
     {{with .Categories}}<p class="eyebrow">{{range $i, $c := .}}{{if $i}} · {{end}}<a href="{{$c.URL}}">{{$c.Name}}</a>{{end}}</p>{{end}}
     <h1>{{.Title}}</h1>
     {{with .Summary}}<p class="article-dek">{{.}}</p>{{end}}
-    {{template "shared/post-meta" .}}
+    <div class="article-byline">{{if .Author.Name}}{{template "shared/avatar" (dict "A" .Author.Avatar "Size" 32 "Class" "article-avatar")}}{{end}}{{template "shared/post-meta" .}}</div>
   </header>
   {{if .Image}}<div class="wrap wide">{{template "shared/featured-image" .}}</div>{{end}}
   <div class="wrap measure">

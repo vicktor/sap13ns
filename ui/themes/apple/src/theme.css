@@ -164,6 +164,8 @@
 .post-tags a { display: inline-block; padding: 0.35rem 0.85rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--surface); color: var(--foreground); font-size: 0.85rem; }
 .post-tags a:hover { background: color-mix(in srgb, var(--primary) 14%, var(--surface)); }
 .post-meta { justify-content: center; }
+.article-byline { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; }
+.article-avatar { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--surface); color: var(--foreground); font-size: 0.7rem; font-weight: 650; }
 .is-page .article-head { margin-bottom: 2.5rem; }
 
 .post-nav a { border: 0; background: var(--surface); border-radius: calc(1.25rem * var(--sap-radius-scale, 1)); padding: 1.25rem 1.5rem; }

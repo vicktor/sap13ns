@@ -7,7 +7,7 @@
       <h1>{{.Title}}</h1>
       {{with .Summary}}<p class="page-lead">{{.}}</p>{{end}}
       <div class="article-byline">
-        <span class="byline-avatar" aria-hidden="true">{{.Author.Initials}}</span>
+        {{if .Author.Name}}{{template "shared/avatar" (dict "A" .Author.Avatar "Size" 38 "Class" "byline-avatar")}}{{end}}
         {{template "shared/post-meta" .}}
       </div>
     </div>
