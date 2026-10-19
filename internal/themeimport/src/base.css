@@ -1,0 +1,21 @@
+/* The shared base of every theme converted from WordPress
+   (internal/themeimport): Basecoat's tokens, the components plugins may
+   emit and the styles of the shared templates (comments, search form,
+   pagination, admin bar, language and dark-mode switches). Built by
+   npm run build into ../base.css, which the importer embeds, so that a
+   conversion never needs Node.
+
+   No preflight: a WordPress theme is drawn on the browser's defaults and
+   its own global styles, which a reset would undo. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "../../../ui/shared/templates";
+
+@import "basecoat-css/base/base.css";
+@import "basecoat-css/components/alert.css";
+@import "basecoat-css/components/badge.css";
+@import "basecoat-css/components/button.css";
+@import "basecoat-css/components/card.css";
+@import "basecoat-css/components/kbd.css";
+@import "../../../ui/shared/src/shared.css";

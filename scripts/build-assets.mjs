@@ -39,7 +39,11 @@ function copyBasecoatJS() {
 
 // 3. Tailwind CSS: admin panel and one stylesheet per theme.
 function cssTargets() {
-  const targets = [{ name: "admin", input: "ui/admin/src/admin.css", output: "ui/static/admin.css" }];
+  const targets = [
+    { name: "admin", input: "ui/admin/src/admin.css", output: "ui/static/admin.css" },
+    // The base of the themes converted from WordPress (internal/themeimport).
+    { name: "themeimport", input: "internal/themeimport/src/base.css", output: "internal/themeimport/base.css" },
+  ];
   const themesDir = join(root, "ui/themes");
   for (const t of readdirSync(themesDir, { withFileTypes: true })) {
     const input = `ui/themes/${t.name}/src/theme.css`;
