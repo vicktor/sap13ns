@@ -1,9 +1,11 @@
 {{/* The site switcher of a site of a network (switcher.go): the header of
    the sidebar, a menu of the account's sites, each opened through single
-   sign-on, and the portal's pages. Its data is a *switcherView. */}}
+   sign-on, and the portal's pages. Its data is a *switcherView. On a phone
+   the trigger must not close the sidebar it sits in, as Basecoat's sidebar
+   does for any other button. */}}
 {{define "site-switcher"}}
 <div id="site-switcher" class="dropdown-menu site-switcher">
-  <button type="button" id="site-switcher-trigger" class="brand site-switcher-trigger" aria-haspopup="menu" aria-controls="site-switcher-menu" aria-expanded="false" title="{{T "Switch site"}}">
+  <button type="button" id="site-switcher-trigger" class="brand site-switcher-trigger" aria-haspopup="menu" aria-controls="site-switcher-menu" aria-expanded="false" title="{{T "Switch site"}}" data-keep-mobile-sidebar-open>
     <span class="brand-mark" aria-hidden="true">{{initials .Title}}</span>
     <span class="brand-text"><strong>{{.Title}}</strong><small>{{.Host}}</small></span>
     <span class="sr-only">{{T "Switch site"}}</span>

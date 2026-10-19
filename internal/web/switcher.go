@@ -184,7 +184,7 @@ func (s *Server) siteSwitcher(r *http.Request) *switcherView {
 	if s.portal == nil {
 		portal = sites.PortalURL
 	}
-	v := &switcherView{Title: s.settings().SiteTitle, Host: s.cfg.BaseURL.Host, Sites: sites.Sites, More: sites.More,
+	v := &switcherView{Title: s.settings().SiteTitle, Host: s.cfg.BaseURL.Hostname(), Sites: sites.Sites, More: sites.More,
 		MySitesURL: portal + "/admin/sites"}
 	if sites.NetworkAdmin {
 		v.NetworkURL = portal + "/admin/network/sites"
