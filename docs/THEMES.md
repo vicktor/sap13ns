@@ -104,7 +104,7 @@ An administrator can install a theme from a `.zip` file, without access to the s
 
 **Static files.** By extension and by content: `.css`, `.woff2`, `.woff`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.gif` and `.ico`. Each file's content is sniffed with the media library's checks (`internal/media`) and must match its extension, so an HTML page cannot pass as a `.png`.
 
-- **No scripts, pages or WebAssembly** (`.js`, `.mjs`, `.html`, `.xml`, `.wasm`, `.php` …). The site's own `site.js` runs the toggles and menus.
+- **No scripts, pages or WebAssembly** (`.js`, `.mjs`, `.html`, `.xml`, `.wasm`, `.php` …). The site's own scripts run the toggles and menus (see [Scripts](#scripts)).
 - **No SVG.** An SVG opened at its own URL is a document that can run scripts, and the CSP of the site's origin would be its only defence. Use PNG, WebP or AVIF, an `{{icon}}`, or a `data:image/…` URL in the stylesheet, which the CSP allows for images and which never runs when CSS draws it.
 - **Stylesheets** pass the customiser's CSS checker, with three relaxations for compiled stylesheets: `url()` may be relative to the stylesheet (`fonts/x.woff2`) or a fragment, `data:image/…` URLs are allowed, and rules may name `.footer-meta`. Everything else holds: no `@import`, no URLs with a scheme or a host, no `image()`, `image-set()`, `expression()`, `behavior` or `-moz-binding`, balanced and terminated, UTF-8 without NUL bytes.
 
@@ -268,7 +268,7 @@ A theme can be a landing page or a one-page site rather than a blog. `templates/
 ```
 
 - **`.Site.Link "#pricing"`** is `#pricing` on the front page and `/#pricing` (or `/en/#pricing`) on every other page, so the menu still works from a post. Menu items whose link is `#name` (**Appearance → Menus**), and the links of builder headers and footers, go through it on their own.
-- **`onepage.js`** is loaded by `shared/head` on the front page and on any page whose menu or layout has anchors (`.OnePage`). It gives the links in `header`, `nav` and `footer` that point to the section in view `aria-current="true"`. Style `a[aria-current]` to show it.
+- **`onepage.js`** runs on the front page and on any page whose menu or layout has anchors (`.OnePage`: `shared/head` then marks the site bundle's script with `data-sap-onepage`). It gives the links in `header`, `nav` and `footer` that point to the section in view `aria-current="true"`. Style `a[aria-current]` to show it.
 - **A sticky header** (a `header` or a `[data-sticky]` element with `position: sticky` or `fixed`) is measured into `--sap-scroll-offset`, which `.sap-anchor` uses as its `scroll-margin-top`, so a section never lands under it.
 - **Scrolling is smooth** only under `prefers-reduced-motion: no-preference`. The links are ordinary links, so the page works without JavaScript.
 
@@ -287,7 +287,7 @@ A theme can be a landing page or a one-page site rather than a blog. `templates/
 
 | Template | Data | Renders |
 |---|---|---|
-| `shared/head` | PageData | everything inside `<head>`: title, description, canonical and `hreflang` links, Open Graph, feeds, JSON-LD, the scheme script, `theme.css`, the customiser's stylesheet, plugin assets and `site.js` |
+| `shared/head` | PageData | everything inside `<head>`: title, description, canonical and `hreflang` links, Open Graph, feeds, JSON-LD, the scheme script, `theme.css`, the customiser's stylesheet, plugin assets and the site's scripts (`site.min.js`) |
 | `shared/skip-link` | none | the "Skip to content" link to `#main` |
 | `shared/admin-bar` | PageData | the floating toolbar for signed-in editors |
 | `shared/menu` | `[]MenuLink` | `<li>` items of a menu |
@@ -477,7 +477,7 @@ The colour tokens are `background`, `foreground`, `card`, `card-foreground`, `mu
 
 Every theme must work in both modes.
 
-- **Before the first paint**, the core's `theme-init.js` adds the `dark` class to `<html>` from the visitor's saved choice, or else from `prefers-color-scheme`. `?scheme=dark|light` forces one mode for one view.
+- **Before the first paint**, the core's `theme-init.js` (a blocking script of its own, not part of the bundle) adds the `dark` class to `<html>` from the visitor's saved choice, or else from `prefers-color-scheme`. `?scheme=dark|light` forces one mode for one view.
 - **The toggle** (`shared/theme-toggle`) switches the class and remembers the choice. With no saved choice, the page follows the system setting as it changes.
 - **Define light values on `:root` and dark values on `.dark`.** Use Tailwind's `dark:` variant for anything else. `shared/head` already sets `<meta name="color-scheme" content="light dark">`.
 - **Check contrast in both modes.** Body text, muted text, links, buttons and focus rings must stay readable on every surface.
@@ -517,7 +517,7 @@ Post content can hold two things a theme should check in both modes and at phone
 
 ## Cookie consent
 
-When the site's cookie consent is on (Settings → Privacy and cookies), `shared/footer-meta` adds a "Cookies" link to the footer line and renders the banner and the cookie settings dialog, and `shared/head` links `consent.css` before `theme.css` and loads `consent.js`. A theme needs no markup of its own: every theme that renders `shared/footer-meta` (all of them must) gets it, uploaded and imported ones included. The script moves the banner and the dialog out of the footer to the top and the end of `<body>`, so no stacking context or overflow of the theme's footer reaches them.
+When the site's cookie consent is on (Settings → Privacy and cookies), `shared/footer-meta` adds a "Cookies" link to the footer line and renders the banner and the cookie settings dialog, and `shared/head` links `consent.css` before `theme.css`; `consent.js`, in the site bundle (see [Scripts](#scripts)), runs because the dialog is on the page. A theme needs no markup of its own: every theme that renders `shared/footer-meta` (all of them must) gets it, uploaded and imported ones included. The script moves the banner and the dialog out of the footer to the top and the end of `<body>`, so no stacking context or overflow of the theme's footer reaches them.
 
 **Looks.** `consent.css` takes its colours from the Basecoat tokens every built-in theme defines in `:root` and `.dark` (`--popover`, `--popover-foreground`, `--muted`, `--muted-foreground`, `--border`, `--primary`, `--primary-foreground`, `--ring`, `--radius`), and falls back to the system colours (`Canvas`, `CanvasText`, `LinkText`) for a theme that defines none, so it works in light and dark without changes. To restyle it, set its custom properties on `.sap-consent-banner, .sap-consent-dialog, .sap-consent-note` (in `.dark` too, if they differ):
 
@@ -557,9 +557,22 @@ media-src 'self' https:; font-src 'self'; connect-src 'self'; frame-src 'none'; 
 
 - **No inline scripts.** No `<script>` blocks with code, and no `onclick` or other event attributes. (`<script type="application/ld+json">` from `shared/head` is data, not code.)
 - **No inline styles.** No `<style>` elements and no `style=""` attributes. Every look is a class in `theme.css`.
-- **No JavaScript of its own.** The core's `site.js` handles the colour toggle, the small-screen menu (it toggles `.is-open` on the element a `shared/nav-toggle` controls, and `nav-open` on `<html>`; Escape, a click outside, following a menu link or growing to the width where the toggle is hidden close it), the language switch and comment replies.
+- **No JavaScript of its own.** The core's `site.js` (in `site.min.js`, see [Scripts](#scripts)) handles the colour toggle, the small-screen menu (it toggles `.is-open` on the element a `shared/nav-toggle` controls, and `nav-open` on `<html>`; Escape, a click outside, following a menu link or growing to the width where the toggle is hidden close it), the language switch and comment replies.
 - **No external fonts or stylesheets.** Fonts and styles are same-origin. Images and media may be external (`https:`).
-- **No frames,** except the video players of the core: a page that shows one also allows `https://www.youtube-nocookie.com` and `https://player.vimeo.com` in `frame-src`, and loads `video.js` (`shared/head` does it). Plugins can add their own sources.
+- **No frames,** except the video players of the core: a page that shows one also allows `https://www.youtube-nocookie.com` and `https://player.vimeo.com` in `frame-src`, and its `video.js` (in `site.min.js`) makes the players. Plugins can add their own sources.
+
+### Scripts
+
+A theme writes no JavaScript and loads none: `shared/head` and `shared/assistant` bring the core's, the same in every theme (built in, uploaded or converted from WordPress). A public page makes two script requests, plus one per plugin script:
+
+| File | Loaded | Does |
+|---|---|---|
+| `theme-init.js` | in `<head>`, blocking (it is tiny) | puts the `dark` class on `<html>` before the first paint |
+| `site.min.js` | in `<head>`, `defer` | the bundle of `site.js` (toggles, menus, language switch, comment replies, copy link), `consent.js` (only with the cookie consent's dialog; it sets `window.sapConsent` before the plugins' scripts run), `onepage.js` (only with `data-sap-onepage`), `video.js` (only on a page with a player) and `assistant.js` (only with the assistant's widget) |
+| plugin scripts | after it, `defer` | each enabled plugin's `assets.js`, as they are (docs/PLUGINS.md) |
+
+- **The bundle** is built by `npm run build` (esbuild, `scripts/js-bundles.mjs`) and committed, so production never runs Node.js. Each source keeps its own scope and starts by looking for its elements, so a page runs only the parts it uses.
+- **Editing a script** in `ui/static/`: run `npm run watch`, which rebuilds the bundle on every save (or `npm run build` once), and reload; with `SAP13NS_DEV=true` the server reads the new bundle from disk. `npm test` fails while a committed bundle is older than its sources.
 
 ## Accessibility
 

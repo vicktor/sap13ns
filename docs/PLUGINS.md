@@ -493,6 +493,7 @@ Values are trimmed and control characters are removed (newlines are kept in `tex
 
 - **Declaring assets.** `"assets": {"css": [...], "js": [...]}` links files from `assets/` on every public page while the plugin is enabled.
   - CSS is always allowed. JavaScript needs `assets:js` (high risk).
+  - Scripts are linked as they are, each with `defer`, after the core's own bundle (`site.min.js`), so the core has set up the page and `window.sapConsent` when they run. They are never joined into the core's bundle.
   - The admin panel never loads plugin assets.
 - **Serving.** Assets are served from the site at `/plugin-assets/<id>/<hash>/assets/…`. The hash changes with the content, so responses are `Cache-Control: public, max-age=31536000, immutable`, with `nosniff`, `Cross-Origin-Resource-Policy: same-origin` and a sandboxing CSP.
 - **The CSP still applies.** The site's CSP stays in force: `script-src 'self'`, no inline scripts or styles, no inline event handlers, and `connect-src 'self'`.
@@ -552,7 +553,7 @@ The declarations of enabled plugins appear in the cookie list on every public pa
 
 The controls go at the end of the `data-consent-note` element; without one, a short note goes right after the placeholder. Once the visitor plays it, add the class `is-playing` to the placeholder and the controls go away.
 
-**From JavaScript.** When the consent is on, `consent.js` loads before the plugins' scripts and exposes `window.sapConsent`:
+**From JavaScript.** When the consent is on, `consent.js` (part of the site bundle, `site.min.js`, which runs before the plugins' scripts) exposes `window.sapConsent`:
 
 - `sapConsent.allowed(id)`: whether a category (`"analytics"`) or a declared service (`"youtube"`) may load now. A service is allowed when its category is accepted or the visitor ticked "Always allow" for it. `necessary` is always allowed, and anything not declared is not.
 - `sapConsent.decided`: whether the visitor has made a choice.

@@ -219,7 +219,7 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
 
 ## Quick start
 
-Requirements: Go 1.27+, Node.js (only to build the CSS), PostgreSQL 16+ (18 recommended).
+Requirements: Go 1.27+, Node.js (only to build the CSS and the JavaScript bundles), PostgreSQL 16+ (18 recommended).
 
 ```sh
 # Build the front-end assets and the binary, with the official plugins inside
