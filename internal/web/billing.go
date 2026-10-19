@@ -166,39 +166,39 @@ func (s *Server) adminSiteUpgrade(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	plan, interval, ok := strings.Cut(r.FormValue("offer"), ":")
 	if !ok || interval != "month" && interval != "year" || plan == "" || len(plan) > 32 {
-		s.redirect(w, r, back, "error", s.t("Invalid request."))
+		s.redirect(w, r, back, "error", s.tu(r, "Invalid request."))
 		return
 	}
 	if !s.checkout.Allow(strconv.FormatInt(u.ID, 10)) {
-		s.redirect(w, r, back, "error", s.t("Too many attempts. Try again later."))
+		s.redirect(w, r, back, "error", s.tu(r, "Too many attempts. Try again later."))
 		return
 	}
 	res, err := s.billing.StartCheckout(r.Context(), CheckoutRequest{AccountID: u.ID, SiteID: id, Plan: plan, Yearly: interval == "year",
-		Email: u.Email, Locale: s.lang()})
+		Email: u.Email, Locale: s.uiLang(r)})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case errors.Is(err, ErrNetworkInvalid):
-		s.redirect(w, r, back, "error", s.t("That plan cannot be bought."))
+		s.redirect(w, r, back, "error", s.tu(r, "That plan cannot be bought."))
 		return
 	case errors.Is(err, ErrNetworkState):
-		s.redirect(w, r, back, "error", s.t("This site cannot subscribe now: it is not open, or it has a subscription already."))
+		s.redirect(w, r, back, "error", s.tu(r, "This site cannot subscribe now: it is not open, or it has a subscription already."))
 		return
 	case err != nil:
 		s.log.Error("start a checkout", "site", id, "err", err)
-		s.redirect(w, r, back, "error", s.t("The payment page could not be opened. Try again later."))
+		s.redirect(w, r, back, "error", s.tu(r, "The payment page could not be opened. Try again later."))
 		return
 	}
 	details := map[string]string{"site": strconv.FormatInt(id, 10), "plan": plan, "interval": interval}
 	if res.Attached {
 		s.audit(r, u.ID, "network.subscription_attached", strconv.FormatInt(id, 10), details)
-		s.redirect(w, r, back, "success", s.t("The site is now on your subscription."))
+		s.redirect(w, r, back, "success", s.tu(r, "The site is now on your subscription."))
 		return
 	}
 	s.audit(r, u.ID, "network.checkout_started", strconv.FormatInt(id, 10), details)
@@ -211,24 +211,24 @@ func (s *Server) adminSiteBilling(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if !s.checkout.Allow(strconv.FormatInt(u.ID, 10)) {
-		s.redirect(w, r, back, "error", s.t("Too many attempts. Try again later."))
+		s.redirect(w, r, back, "error", s.tu(r, "Too many attempts. Try again later."))
 		return
 	}
 	target, err := s.billing.BillingPortal(r.Context(), u.ID, id)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case errors.Is(err, ErrNetworkState):
-		s.redirect(w, r, back, "error", s.t("This site has no billing yet."))
+		s.redirect(w, r, back, "error", s.tu(r, "This site has no billing yet."))
 		return
 	case err != nil:
 		s.log.Error("open the billing portal", "site", id, "err", err)
-		s.redirect(w, r, back, "error", s.t("The billing page could not be opened. Try again later."))
+		s.redirect(w, r, back, "error", s.tu(r, "The billing page could not be opened. Try again later."))
 		return
 	}
 	s.audit(r, u.ID, "network.billing_portal", strconv.FormatInt(id, 10), map[string]string{"site": strconv.FormatInt(id, 10)})
@@ -274,7 +274,7 @@ func (s *Server) adminNetBilling(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "network_billing", s.t("Billing events"), "net-billing", map[string]any{"Events": events, "Total": total,
+	s.renderAdmin(w, r, "network_billing", s.tu(r, "Billing events"), "net-billing", map[string]any{"Events": events, "Total": total,
 		"Page": newPagination("/admin/network/billing", r.URL.Query(), page, per, total)})
 }
 
@@ -282,17 +282,17 @@ func (s *Server) adminNetBillingRetry(w http.ResponseWriter, r *http.Request) {
 	const back = "/admin/network/billing"
 	id := r.PathValue("event")
 	if !strings.HasPrefix(id, "evt_") || len(id) > 255 {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	switch err := s.billing.RetryBillingEvent(r.Context(), id); {
 	case errors.Is(err, store.ErrNotFound):
-		s.redirect(w, r, back, "error", s.t("Not found."))
+		s.redirect(w, r, back, "error", s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
 		return
 	}
 	s.audit(r, uid(r), "network.billing_event_retried", id, nil)
-	s.redirect(w, r, back, "success", s.t("The event %s will be processed again.", id))
+	s.redirect(w, r, back, "success", s.tu(r, "The event %s will be processed again.", id))
 }

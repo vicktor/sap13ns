@@ -107,13 +107,13 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	d.S, d.Chart = sum, s.statsChart(sum)
-	s.renderAdmin(w, r, "analytics", s.t("Analytics"), "analytics", d)
+	d.S, d.Chart = sum, s.statsChart(r, sum)
+	s.renderAdmin(w, r, "analytics", s.tu(r, "Analytics"), "analytics", d)
 }
 
 // statsChart lays out the daily views as SVG bars. Geometry is computed here
 // because the CSP forbids style attributes; colours come from CSS classes.
-func (s *Server) statsChart(sum *analytics.Summary) statsChart {
+func (s *Server) statsChart(r *http.Request, sum *analytics.Summary) statsChart {
 	c := statsChart{W: 720, H: 180}
 	n := len(sum.Series)
 	if n == 0 {
@@ -125,7 +125,7 @@ func (s *Server) statsChart(sum *analytics.Summary) statsChart {
 	for i, day := range sum.Series {
 		h := float64(day.Views) / float64(peak) * float64(c.H)
 		c.Bars = append(c.Bars, statsBar{X: float64(i)*step + gap/2, Y: float64(c.H) - h, W: step - gap, H: h,
-			Label: s.t("%s: %d views, %d visitors", day.Day.Format("2006-01-02"), day.Views, day.Visitors)})
+			Label: s.tu(r, "%s: %d views, %d visitors", day.Day.Format("2006-01-02"), day.Views, day.Visitors)})
 	}
 	for _, f := range []float64{0, 0.5, 1} {
 		c.Ticks = append(c.Ticks, statsTick{Y: float64(c.H) * (1 - f), Label: fmt.Sprint(int64(float64(peak) * f))})

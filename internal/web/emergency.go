@@ -86,10 +86,10 @@ func (s *Server) emergencyReauth(r *http.Request, u *store.User, code string) (i
 	}
 	code = strings.ReplaceAll(strings.TrimSpace(code), " ", "")
 	if code == "" || !u.TOTPEnabled {
-		return http.StatusUnauthorized, s.t("Confirm it is you: enter a code from your authenticator app, or sign in again.")
+		return http.StatusUnauthorized, s.tu(r, "Confirm it is you: enter a code from your authenticator app, or sign in again.")
 	}
 	if !s.mfaUser.Allow(u.Username) {
-		return http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again.")
+		return http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again.")
 	}
 	if len(code) == 6 {
 		if secret, err := s.keys.Decrypt(u.TOTPSecret, []byte(u.Username)); err == nil {
@@ -102,7 +102,7 @@ func (s *Server) emergencyReauth(r *http.Request, u *store.User, code string) (i
 		}
 	}
 	s.audit(r, u.ID, "2fa.failed", u.Username, map[string]string{"for": "emergency access"})
-	return http.StatusUnauthorized, s.t("The code is not valid.")
+	return http.StatusUnauthorized, s.tu(r, "The code is not valid.")
 }
 
 // emergencyReason is the reason of an emergency access, for the owner.
@@ -131,19 +131,19 @@ func (s *Server) adminNetEmergencyStart(w http.ResponseWriter, r *http.Request) 
 	u := currentUser(r)
 	switch {
 	case site.Status == "deleted":
-		fail(http.StatusConflict, s.siteStateError(site.Status))
+		fail(http.StatusConflict, s.siteStateError(r, site.Status))
 		return
 	case d.Support.LiveEmergency(u.ID) != nil:
-		s.redirect(w, r, netSitePath(site.ID, "emergency"), "info", s.t("Your emergency access to %s is already open.", site.Slug))
+		s.redirect(w, r, netSitePath(site.ID, "emergency"), "info", s.tu(r, "Your emergency access to %s is already open.", site.Slug))
 		return
 	case !slices.Contains(emergencyCategories, ef.Category):
-		fail(http.StatusUnprocessableEntity, s.t("Choose the reason: a legal order or a serious security incident."))
+		fail(http.StatusUnprocessableEntity, s.tu(r, "Choose the reason: a legal order or a serious security incident."))
 		return
 	case ef.Justification == "":
-		fail(http.StatusUnprocessableEntity, s.t("Explain why you need the access."))
+		fail(http.StatusUnprocessableEntity, s.tu(r, "Explain why you need the access."))
 		return
 	case utf8.RuneCountInString(ef.Justification) > emergencyJustificationMax:
-		fail(http.StatusUnprocessableEntity, s.t("The justification is too long (500 characters max)."))
+		fail(http.StatusUnprocessableEntity, s.tu(r, "The justification is too long (500 characters max)."))
 		return
 	}
 	if status, msg := s.emergencyReauth(r, u, r.PostFormValue("code")); msg != "" {
@@ -153,16 +153,16 @@ func (s *Server) adminNetEmergencyStart(w http.ResponseWriter, r *http.Request) 
 	e, err := s.portal.StartEmergency(r.Context(), site.ID, u.ID, ef.Category, ef.Justification, clientIP(r))
 	switch {
 	case errors.Is(err, ErrEmergencyOpen):
-		s.redirect(w, r, netSitePath(site.ID, "emergency"), "info", s.t("Your emergency access to %s is already open.", site.Slug))
+		s.redirect(w, r, netSitePath(site.ID, "emergency"), "info", s.tu(r, "Your emergency access to %s is already open.", site.Slug))
 		return
 	case errors.Is(err, ErrNetworkState):
-		fail(http.StatusConflict, s.siteStateError("deleted"))
+		fail(http.StatusConflict, s.siteStateError(r, "deleted"))
 		return
 	case errors.Is(err, ErrNetworkInvalid):
-		fail(http.StatusUnprocessableEntity, s.t("Explain why you need the access."))
+		fail(http.StatusUnprocessableEntity, s.tu(r, "Explain why you need the access."))
 		return
 	case errors.Is(err, ErrSupportDenied), errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -180,10 +180,10 @@ func (s *Server) adminNetEmergencyStart(w http.ResponseWriter, r *http.Request) 
 		"category": e.Category, "justification": e.Justification, "until": e.ExpiresAt.UTC().Format(time.RFC3339),
 		"owner_notified": strconv.FormatBool(notified)})
 	if !notified {
-		s.redirect(w, r, netSitePath(site.ID, "emergency"), "warning", s.t("Your emergency access to %s is open until %s, but its owner could not be e-mailed. Contact the owner by other means and tell them why you opened their site.", site.Slug, until))
+		s.redirect(w, r, netSitePath(site.ID, "emergency"), "warning", s.tu(r, "Your emergency access to %s is open until %s, but its owner could not be e-mailed. Contact the owner by other means and tell them why you opened their site.", site.Slug, s.uiDateTime(r, e.ExpiresAt)))
 		return
 	}
-	s.redirect(w, r, netSitePath(site.ID, "emergency"), "success", s.t("Your emergency access to %s is open until %s. Its owner was told by e-mail.", site.Slug, until))
+	s.redirect(w, r, netSitePath(site.ID, "emergency"), "success", s.tu(r, "Your emergency access to %s is open until %s. Its owner was told by e-mail.", site.Slug, s.uiDateTime(r, e.ExpiresAt)))
 }
 
 func (s *Server) adminNetEmergencyEnd(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +196,7 @@ func (s *Server) adminNetEmergencyEnd(w http.ResponseWriter, r *http.Request) {
 	n, err := s.portal.EndEmergency(r.Context(), site.ID, u.ID, clientIP(r))
 	switch {
 	case errors.Is(err, ErrSupportDenied), errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -204,12 +204,12 @@ func (s *Server) adminNetEmergencyEnd(w http.ResponseWriter, r *http.Request) {
 	}
 	back := netSitePath(site.ID, "emergency")
 	if n == 0 {
-		s.redirect(w, r, back, "info", s.t("No emergency access to %s was open.", site.Slug))
+		s.redirect(w, r, back, "info", s.tu(r, "No emergency access to %s was open.", site.Slug))
 		return
 	}
 	s.audit(r, u.ID, "network.emergency_ended", site.Slug, map[string]string{"site": strconv.FormatInt(site.ID, 10), "count": strconv.Itoa(n)})
 	s.mailOwner(r.Context(), &site, s.t("Emergency access to %s ended", site.Slug),
 		s.t("The emergency access to your site %s was ended by %s before it expired. The administrators who used it were signed out.",
 			cmp.Or(site.Host, site.Slug), cmp.Or(u.DisplayName, u.Username)))
-	s.redirect(w, r, back, "success", s.t("The emergency access to %s ended. The network administrators signed in with it were signed out.", site.Slug))
+	s.redirect(w, r, back, "success", s.tu(r, "The emergency access to %s ended. The network administrators signed in with it were signed out.", site.Slug))
 }

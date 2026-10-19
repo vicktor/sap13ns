@@ -16,8 +16,8 @@ import (
 // goScanner finds translation calls in Go source with go/ast. It does not type
 // check: translators are recognised by shape.
 //
-//   - x.t(key, ...), x.tr(r, key, ...) and x.T(lang, key, ...) are the server
-//     and catalog methods;
+//   - x.t(key, ...), x.tr(r, key, ...), x.tu(r, key, ...) and x.T(lang, key, ...)
+//     are the server and catalog methods;
 //   - a variable or parameter whose type is func(string, ...any) string is a
 //     translator taking the key first;
 //   - a function or method that passes one of its parameters as the key of a
@@ -31,7 +31,7 @@ type goScanner struct {
 	pkgs   map[string]*goPkg // by import path
 	order  []string
 	// wrappers maps a function or method name to the position of its key
-	// parameter; methods "t", "tr" and "T" are the built-in translators.
+	// parameter; methods "t", "tr", "tu" and "T" are the built-in translators.
 	wrappers map[string]int
 	depth    int // recursion guard of exprType
 }
@@ -56,7 +56,7 @@ type goFile struct {
 
 func newGoScanner(e *Extractor, root string) *goScanner {
 	return &goScanner{e: e, root: root, module: modulePath(root), fset: token.NewFileSet(), pkgs: map[string]*goPkg{},
-		wrappers: map[string]int{"t": 0, "tr": 1, "T": 1}}
+		wrappers: map[string]int{"t": 0, "tr": 1, "tu": 1, "T": 1}}
 }
 
 func modulePath(root string) string {
@@ -291,7 +291,9 @@ func (g *goScanner) keyArg(gf *goFile, call *ast.CallExpr) (ast.Expr, bool) {
 	return call.Args[idx], true
 }
 
-func builtinMethod(name string) bool { return name == "t" || name == "tr" || name == "T" }
+func builtinMethod(name string) bool {
+	return name == "t" || name == "tr" || name == "tu" || name == "T"
+}
 
 func (g *goScanner) call(pkg *goPkg, gf *goFile, call *ast.CallExpr, stack []ast.Node, extract bool) {
 	arg, ok := g.keyArg(gf, call)

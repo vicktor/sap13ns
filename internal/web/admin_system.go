@@ -61,8 +61,8 @@ func (s *Server) renderSettingsPage(w http.ResponseWriter, r *http.Request, stat
 	if !slices.Contains(zones, st.Timezone) {
 		zones = append([]string{st.Timezone}, zones...)
 	}
-	s.renderAdminStatus(w, r, status, "settings", s.t("Settings"), "settings", settingsData{S: st, Pages: pages, Languages: languageOptions(), Extra: s.extraLangsOf(st),
-		OGLayouts: []LangLink{{Code: "classic", Name: s.t("Classic")}, {Code: "bold", Name: s.t("Bold")}, {Code: "minimal", Name: s.t("Minimal")}, {Code: "off", Name: s.t("Off")}},
+	s.renderAdminStatus(w, r, status, "settings", s.tu(r, "Settings"), "settings", settingsData{S: st, Pages: pages, Languages: languageOptions(), Extra: s.extraLangsOf(st),
+		OGLayouts: []LangLink{{Code: "classic", Name: s.tu(r, "Classic")}, {Code: "bold", Name: s.tu(r, "Bold")}, {Code: "minimal", Name: s.tu(r, "Minimal")}, {Code: "off", Name: s.tu(r, "Off")}},
 		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg, Portal: s.portal != nil,
 		SignInURL: s.SignInURL(), Recovery: s.signInRecovery(), Tenant: s.sso != nil, Moved: moved})
 }
@@ -150,7 +150,7 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	// not on this page: an uninstalled one must not block it.
 	if bad := sitecheck.Settings(st, sitecheck.Site{PublicPage: func(id int64) bool { return s.publicPage(r, id) },
 		SignIn: s.signInCheck(r.Context())}); len(bad) > 0 {
-		s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.settingsError(bad[0], st))
+		s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.settingsError(r, bad[0], st))
 		return
 	}
 	old := s.signInBase()
@@ -167,44 +167,44 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 		s.renderSettingsPage(w, r, http.StatusOK, s.settings(), "", &signInMove{URL: s.SignInURL(), Old: old})
 		return
 	}
-	s.redirect(w, r, "/admin/settings", "success", s.t("Settings saved."))
+	s.redirect(w, r, "/admin/settings", "success", s.tu(r, "Settings saved."))
 }
 
 // settingsError explains why the setting field (sitecheck.Settings) was
 // refused.
-func (s *Server) settingsError(field string, st store.Settings) string {
+func (s *Server) settingsError(r *http.Request, field string, st store.Settings) string {
 	switch field {
 	case "site_title":
-		return s.t("The site title is required (120 characters max).")
+		return s.tu(r, "The site title is required (120 characters max).")
 	case "tagline", "footer_text", "site_text":
-		return s.t("The text is too long.")
+		return s.tu(r, "The text is too long.")
 	case "timezone":
-		return s.t("Unknown time zone.")
+		return s.tu(r, "Unknown time zone.")
 	case "posts_per_page":
-		return s.t("Posts per page must be between 1 and 100.")
+		return s.tu(r, "Posts per page must be between 1 and 100.")
 	case "front_page":
 		if st.FrontPage == "page" {
-			return s.t("Choose a published page for the front page.")
+			return s.tu(r, "Choose a published page for the front page.")
 		}
 	case "comments_close_days":
-		return s.t("Invalid number of days.")
+		return s.tu(r, "Invalid number of days.")
 	case "feed_items":
-		return s.t("Feed items must be between 1 and 100.")
+		return s.tu(r, "Feed items must be between 1 and 100.")
 	case "websub_hub":
-		return s.t("The WebSub hub must be an https:// address.")
+		return s.tu(r, "The WebSub hub must be an https:// address.")
 	case "og_accent":
-		return s.t("Use a colour like #3f068b.")
+		return s.tu(r, "Use a colour like #3f068b.")
 	case "session_days":
-		return s.t("Session length must be between 1 and 90 days.")
+		return s.tu(r, "Session length must be between 1 and 90 days.")
 	case "idle_hours":
-		return s.t("Idle timeout must be between 1 and 2160 hours.")
+		return s.tu(r, "Idle timeout must be between 1 and 2160 hours.")
 	case "login_path":
 		if !sitecheck.LoginPath.MatchString(st.LoginPath) {
-			return s.t("The sign-in address must be one or two words of lowercase letters, numbers and dashes, of 3 to 41 characters each, such as /entrar.")
+			return s.tu(r, "The sign-in address must be one or two words of lowercase letters, numbers and dashes, of 3 to 41 characters each, such as /entrar.")
 		}
-		return s.t("%s is taken: the site uses it for one of its own addresses, a page or a redirect. Choose another sign-in address.", st.LoginPath)
+		return s.tu(r, "%s is taken: the site uses it for one of its own addresses, a page or a redirect. Choose another sign-in address.", st.LoginPath)
 	}
-	return s.t("Invalid request.")
+	return s.tu(r, "Invalid request.")
 }
 
 func validZone(z string) bool { return sitecheck.ValidZone(z) }
@@ -240,7 +240,7 @@ func (s *Server) adminAudit(w http.ResponseWriter, r *http.Request) {
 	}
 	vals := r.URL.Query()
 	vals.Del("page")
-	s.renderAdmin(w, r, "audit", s.t("Audit log"), "audit", auditData{Entries: entries, Total: total, Action: action,
+	s.renderAdmin(w, r, "audit", s.tu(r, "Audit log"), "audit", auditData{Entries: entries, Total: total, Action: action,
 		Page: newPagination("/admin/audit", vals, page, per, total)})
 }
 
@@ -301,58 +301,58 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 	}
 	https := s.cfg.BaseURL.Scheme == "https"
 	d := systemData{Groups: []sysGroup{
-		{s.t("Application"), []sysRow{
-			{Label: s.t("Version"), Value: Version},
+		{s.tu(r, "Application"), []sysRow{
+			{Label: s.tu(r, "Version"), Value: Version},
 			{Label: "Go", Value: runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH},
-			{Label: s.t("Uptime"), Value: time.Since(startedAt).Round(time.Second).String()},
-			{Label: s.t("Memory in use"), Value: filesize(int64(mem.HeapAlloc))},
+			{Label: s.tu(r, "Uptime"), Value: time.Since(startedAt).Round(time.Second).String()},
+			{Label: s.tu(r, "Memory in use"), Value: filesize(int64(mem.HeapAlloc))},
 			{Label: "Goroutines", Value: fmt.Sprint(runtime.NumGoroutine())},
-			{Label: s.t("Development mode"), Value: fmt.Sprint(s.cfg.Dev), OK: flag(!s.cfg.Dev)},
+			{Label: s.tu(r, "Development mode"), Value: fmt.Sprint(s.cfg.Dev), OK: flag(!s.cfg.Dev)},
 		}},
-		{s.t("Security"), []sysRow{
-			{Label: s.t("Public URL"), Value: s.cfg.BaseURL.String(), OK: flag(https)},
-			{Label: s.t("Secure cookies"), Value: fmt.Sprint(s.cfg.CookieSecure), OK: flag(s.cfg.CookieSecure)},
+		{s.tu(r, "Security"), []sysRow{
+			{Label: s.tu(r, "Public URL"), Value: s.cfg.BaseURL.String(), OK: flag(https)},
+			{Label: s.tu(r, "Secure cookies"), Value: fmt.Sprint(s.cfg.CookieSecure), OK: flag(s.cfg.CookieSecure)},
 			{Label: "HSTS", Value: fmt.Sprint(s.cfg.HSTS), OK: flag(s.cfg.HSTS || !https)},
-			{Label: s.t("Two-factor authentication"), Value: s.twoFactorDescription(), OK: flag(!(s.cfg.Dev && s.cfg.DevSkip2FA))},
-			{Label: s.t("E-mail delivery"), Value: s.mailDescription(), OK: flag(s.mailer.Enabled())},
-			{Label: s.t("Trusted proxies"), Value: fmt.Sprint(s.cfg.TrustedProxies)},
+			{Label: s.tu(r, "Two-factor authentication"), Value: s.twoFactorDescription(r), OK: flag(!(s.cfg.Dev && s.cfg.DevSkip2FA))},
+			{Label: s.tu(r, "E-mail delivery"), Value: s.mailDescription(r), OK: flag(s.mailer.Enabled())},
+			{Label: s.tu(r, "Trusted proxies"), Value: fmt.Sprint(s.cfg.TrustedProxies)},
 		}},
-		{s.t("Database"), []sysRow{
+		{s.tu(r, "Database"), []sysRow{
 			{Label: "PostgreSQL", Value: pgVersion},
-			{Label: s.t("Database size"), Value: dbSize},
-			{Label: s.t("Connections"), Value: conns},
+			{Label: s.tu(r, "Database size"), Value: dbSize},
+			{Label: s.tu(r, "Connections"), Value: conns},
 		}},
-		{s.t("Caches"), []sysRow{
-			{Label: s.t("Rendered pages"), Value: fmt.Sprintf("%d · %s", pagesN, filesize(int64(pagesB)))},
-			{Label: s.t("Rendered posts"), Value: fmt.Sprintf("%d · %s", bodiesN, filesize(int64(bodiesB)))},
+		{s.tu(r, "Caches"), []sysRow{
+			{Label: s.tu(r, "Rendered pages"), Value: fmt.Sprintf("%d · %s", pagesN, filesize(int64(pagesB)))},
+			{Label: s.tu(r, "Rendered posts"), Value: fmt.Sprintf("%d · %s", bodiesN, filesize(int64(bodiesB)))},
 		}},
-		{s.t("Storage"), []sysRow{
-			{Label: s.t("Uploads"), Value: s.cfg.UploadsDir},
-			{Label: s.t("Plugins"), Value: s.t("%s (%d enabled)", s.cfg.PluginsDir, enabled)},
-			{Label: s.t("Extra themes"), Value: s.cfg.ThemesDir},
-			{Label: s.t("Maximum upload"), Value: filesize(s.cfg.MaxUploadBytes)},
+		{s.tu(r, "Storage"), []sysRow{
+			{Label: s.tu(r, "Uploads"), Value: s.cfg.UploadsDir},
+			{Label: s.tu(r, "Plugins"), Value: s.tu(r, "%s (%d enabled)", s.cfg.PluginsDir, enabled)},
+			{Label: s.tu(r, "Extra themes"), Value: s.cfg.ThemesDir},
+			{Label: s.tu(r, "Maximum upload"), Value: filesize(s.cfg.MaxUploadBytes)},
 		}},
 	}}
-	d.Updates, d.Checks = s.updateRows(), s.updates != nil && !s.updates.Disabled
+	d.Updates, d.Checks = s.updateRows(r), s.updates != nil && !s.updates.Disabled
 	d.SingleSite, d.Guide = s.network == nil, multisiteGuide
-	s.renderAdmin(w, r, "system", s.t("System"), "system", d)
+	s.renderAdmin(w, r, "system", s.tu(r, "System"), "system", d)
 }
 
-func (s *Server) twoFactorDescription() string {
+func (s *Server) twoFactorDescription(r *http.Request) string {
 	switch {
 	case s.cfg.Dev && s.cfg.DevSkip2FA:
-		return s.t("Skipped (development mode)")
+		return s.tu(r, "Skipped (development mode)")
 	case s.portal != nil:
-		return s.t("Required for every account (network portal)")
+		return s.tu(r, "Required for every account (network portal)")
 	case s.settings().TwoFactor == "editors":
-		return s.t("Required for administrators and editors")
+		return s.tu(r, "Required for administrators and editors")
 	}
-	return s.t("Required for all staff")
+	return s.tu(r, "Required for all staff")
 }
 
-func (s *Server) mailDescription() string {
+func (s *Server) mailDescription(r *http.Request) string {
 	if !s.mailer.Enabled() {
-		return s.t("Not configured")
+		return s.tu(r, "Not configured")
 	}
 	return fmt.Sprintf("%s:%d", s.cfg.SMTP.Host, s.cfg.SMTP.Port)
 }

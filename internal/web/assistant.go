@@ -518,9 +518,9 @@ func (s *Server) renderAssistantSettings(w http.ResponseWriter, r *http.Request,
 	d := assistantSettingsData{S: st, Langs: s.extraLangs(), Texts: map[string]assistantTextForm{}, HasKey: len(st.EmbedKeyEnc) > 0,
 		AIOn: aiSt.Enabled, State: chatState(saved.Enabled, aiSt.Enabled),
 		AIProvider: aiSt.Provider, MCPURL: s.cfg.AbsURL("/mcp"), NewToken: token, Error: msg, Notice: notice,
-		Providers: []LangLink{{Code: "same", Name: s.t("The AI provider (Settings › AI provider)")},
-			{Code: ai.ProviderOpenAI, Name: s.t("OpenAI or compatible (LM Studio, Ollama, llama.cpp…)")},
-			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}, {Code: "none", Name: s.t("None: full-text search only")}}}
+		Providers: []LangLink{{Code: "same", Name: s.tu(r, "The AI provider (Settings › AI provider)")},
+			{Code: ai.ProviderOpenAI, Name: s.tu(r, "OpenAI or compatible (LM Studio, Ollama, llama.cpp…)")},
+			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}, {Code: "none", Name: s.tu(r, "None: full-text search only")}}}
 	for _, p := range []string{ai.ProviderOpenAI, ai.ProviderGemini} {
 		d.Models = append(d.Models, ai.EmbedModels(p)...)
 	}
@@ -544,7 +544,7 @@ func (s *Server) renderAssistantSettings(w http.ResponseWriter, r *http.Request,
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "assistant_settings", s.t("Site assistant"), "assistant", d)
+	s.renderAdminStatus(w, r, status, "assistant_settings", s.tu(r, "Site assistant"), "assistant", d)
 }
 
 // lines splits a textarea into at most n trimmed, non-empty lines.
@@ -592,25 +592,25 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 	if bad := sitecheck.Assistant(st); len(bad) > 0 {
 		switch bad[0] {
 		case "embed_provider":
-			fail(s.t("Choose a provider."))
+			fail(s.tu(r, "Choose a provider."))
 		case "bubble_position", "bubble_offset":
-			fail(s.t("Choose where the chat button goes."))
+			fail(s.tu(r, "Choose where the chat button goes."))
 		case "per_ip_hour", "daily_requests", "monthly_requests", "embed_dimensions":
-			fail(s.t("Invalid number."))
+			fail(s.tu(r, "Invalid number."))
 		case "embed_base_url":
 			if tooLong(st.EmbedBaseURL, 300) {
-				fail(s.t("The text is too long."))
+				fail(s.tu(r, "The text is too long."))
 			} else {
-				fail(s.t("The address must start with https:// (or http://localhost with local models allowed)."))
+				fail(s.tu(r, "The address must start with https:// (or http://localhost with local models allowed)."))
 			}
 		default:
-			fail(s.t("The text is too long."))
+			fail(s.tu(r, "The text is too long."))
 		}
 		return
 	}
 	if key := strings.TrimSpace(r.FormValue("embed_api_key")); key != "" {
 		if len(key) > 500 {
-			fail(s.t("The text is too long."))
+			fail(s.tu(r, "The text is too long."))
 			return
 		}
 		enc, err := s.keys.Encrypt([]byte(key), []byte(assistant.EmbedKeyAD))
@@ -641,10 +641,10 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 	if token != "" {
 		// The token is shown once, on this response, never in a cookie.
 		w.Header().Set("Cache-Control", "no-store")
-		s.renderAssistantSettings(w, r, http.StatusOK, st, "", s.t("Settings saved. Copy the new token now: it will not be shown again."), token)
+		s.renderAssistantSettings(w, r, http.StatusOK, st, "", s.tu(r, "Settings saved. Copy the new token now: it will not be shown again."), token)
 		return
 	}
-	s.redirect(w, r, "/admin/settings/assistant", "success", s.t("Settings saved."))
+	s.redirect(w, r, "/admin/settings/assistant", "success", s.tu(r, "Settings saved."))
 }
 
 // adminAssistantRebuild reindexes every post in the background. Unchanged
@@ -659,5 +659,5 @@ func (s *Server) adminAssistantRebuild(w http.ResponseWriter, r *http.Request) {
 			s.log.Error("assistant rebuild", "err", err)
 		}
 	})
-	s.redirect(w, r, "/admin/settings/assistant", "success", s.t("The index is being rebuilt in the background. Reload this page to follow it."))
+	s.redirect(w, r, "/admin/settings/assistant", "success", s.tu(r, "The index is being rebuilt in the background. Reload this page to follow it."))
 }

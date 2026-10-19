@@ -199,16 +199,16 @@ func (s *Server) avatarUpload(w http.ResponseWriter, r *http.Request, t *avatarT
 	ctx := r.Context()
 	u := t.user
 	if !s.uploadUser.Allow(fmt.Sprint(uid(r))) {
-		t.fail(http.StatusTooManyRequests, s.t("Too many uploads. Try again later."))
+		t.fail(http.StatusTooManyRequests, s.tu(r, "Too many uploads. Try again later."))
 		return
 	}
 	f, fh, err := r.FormFile("photo")
 	if err != nil {
-		t.fail(http.StatusUnprocessableEntity, s.t("Choose a photo to upload."))
+		t.fail(http.StatusUnprocessableEntity, s.tu(r, "Choose a photo to upload."))
 		return
 	}
 	defer f.Close()
-	tooLarge := s.t("The photo is too large (%s max).", filesize(media.AvatarMaxBytes))
+	tooLarge := s.tu(r, "The photo is too large (%s max).", filesize(media.AvatarMaxBytes))
 	if fh.Size > media.AvatarMaxBytes {
 		t.fail(http.StatusRequestEntityTooLarge, tooLarge)
 		return
@@ -219,10 +219,10 @@ func (s *Server) avatarUpload(w http.ResponseWriter, r *http.Request, t *avatarT
 		t.fail(http.StatusRequestEntityTooLarge, tooLarge)
 		return
 	case errors.Is(err, media.ErrUnsupported):
-		t.fail(http.StatusUnprocessableEntity, s.t("Choose a JPEG, PNG, WebP or GIF image."))
+		t.fail(http.StatusUnprocessableEntity, s.tu(r, "Choose a JPEG, PNG, WebP or GIF image."))
 		return
 	case errors.Is(err, media.ErrBadImage):
-		t.fail(http.StatusUnprocessableEntity, s.t("The image could not be read, or it is larger than %d megapixels.", media.AvatarMaxPixels/1_000_000))
+		t.fail(http.StatusUnprocessableEntity, s.tu(r, "The image could not be read, or it is larger than %d megapixels.", media.AvatarMaxPixels/1_000_000))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -230,7 +230,7 @@ func (s *Server) avatarUpload(w http.ResponseWriter, r *http.Request, t *avatarT
 	}
 	key, err := s.media.SaveAvatar(ctx, a, "u"+strconv.FormatInt(u.ID, 10))
 	if errors.Is(err, media.ErrQuota) {
-		t.fail(http.StatusRequestEntityTooLarge, s.storageFull())
+		t.fail(http.StatusRequestEntityTooLarge, s.storageFull(r))
 		return
 	} else if err != nil {
 		s.serverError(w, r, err)
@@ -250,7 +250,7 @@ func (s *Server) avatarUpload(w http.ResponseWriter, r *http.Request, t *avatarT
 	}
 	s.audit(r, uid(r), "user.photo_uploaded", u.Username, nil)
 	s.contentChanged()
-	t.ok("success", s.t("Photo saved."))
+	t.ok("success", s.tu(r, "Photo saved."))
 }
 
 func (s *Server) avatarDelete(w http.ResponseWriter, r *http.Request, t *avatarTarget) {
@@ -268,14 +268,14 @@ func (s *Server) avatarDelete(w http.ResponseWriter, r *http.Request, t *avatarT
 	s.audit(r, uid(r), "user.photo_removed", t.user.Username, nil)
 	s.contentChanged()
 	s.gravatarSoon(t.user.ID)
-	t.ok("success", s.t("Photo removed."))
+	t.ok("success", s.tu(r, "Photo removed."))
 }
 
 // gravatarRefresh looks the user's Gravatar up now, on the button of the
 // profile: an action of its own, never a page waiting.
 func (s *Server) gravatarRefresh(w http.ResponseWriter, r *http.Request, t *avatarTarget) {
 	if !s.settings().GravatarUsers {
-		t.ok("error", s.t("Gravatar is switched off for this site (Settings → Discussion)."))
+		t.ok("error", s.tu(r, "Gravatar is switched off for this site (Settings → Discussion)."))
 		return
 	}
 	if t.user.Avatar != "" {
@@ -283,7 +283,7 @@ func (s *Server) gravatarRefresh(w http.ResponseWriter, r *http.Request, t *avat
 		return
 	}
 	if !s.grav.refreshes.Allow(fmt.Sprint(uid(r))) {
-		t.fail(http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		t.fail(http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -292,11 +292,11 @@ func (s *Server) gravatarRefresh(w http.ResponseWriter, r *http.Request, t *avat
 	switch {
 	case err != nil:
 		s.log.Warn("gravatar lookup", "user", t.user.Username, "err", err)
-		t.ok("warning", s.t("Gravatar could not be reached. Try again later."))
+		t.ok("warning", s.tu(r, "Gravatar could not be reached. Try again later."))
 	case found:
-		t.ok("success", s.t("The Gravatar of this e-mail address is shown."))
+		t.ok("success", s.tu(r, "The Gravatar of this e-mail address is shown."))
 	default:
-		t.ok("info", s.t("Gravatar has no image for this e-mail address."))
+		t.ok("info", s.tu(r, "Gravatar has no image for this e-mail address."))
 	}
 }
 

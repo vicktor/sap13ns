@@ -495,7 +495,7 @@ func (s *Server) adminError(w http.ResponseWriter, r *http.Request, status int, 
 func (s *Server) serverError(w http.ResponseWriter, r *http.Request, err error) {
 	s.log.Error("internal error", "path", r.URL.Path, "err", err)
 	if strings.HasPrefix(r.URL.Path, "/admin") && currentUser(r) != nil {
-		s.adminError(w, r, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+		s.adminError(w, r, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 		return
 	}
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

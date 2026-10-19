@@ -375,28 +375,28 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 			if isAvatarUpload(r) && r.ContentLength > avatarBodyLimit {
 				// Refused before the form is read: a clear 413 rather than
 				// a form whose token could not be read.
-				s.adminError(w, r, http.StatusRequestEntityTooLarge, s.t("The photo is too large (%s max).", filesize(media.AvatarMaxBytes)))
+				s.adminError(w, r, http.StatusRequestEntityTooLarge, s.tu(r, "The photo is too large (%s max).", filesize(media.AvatarMaxBytes)))
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, s.maxBody(r))
 			if !validCSRF(r) {
 				s.log.Warn("invalid CSRF token", "path", r.URL.Path, "user", u.Username, "ip", clientIP(r))
-				s.adminError(w, r, http.StatusForbidden, s.t("Your session form expired. Go back, reload the page and try again."))
+				s.adminError(w, r, http.StatusForbidden, s.tu(r, "Your session form expired. Go back, reload the page and try again."))
 				return
 			}
 		}
 		// The profile is where the second factor is set up.
 		if s.mustEnroll2FA(r, u) && !strings.HasPrefix(r.URL.Path, "/admin/profile") {
 			if s.portal != nil {
-				s.flash(w, "warning", s.t("Every sap13ns account needs two-factor authentication. Set it up to continue."))
+				s.flash(w, "warning", s.tu(r, "Every sap13ns account needs two-factor authentication. Set it up to continue."))
 			} else {
-				s.flash(w, "warning", s.t("Two-factor authentication is required for your role. Set it up to continue."))
+				s.flash(w, "warning", s.tu(r, "Two-factor authentication is required for your role. Set it up to continue."))
 			}
 			http.Redirect(w, r, "/admin/profile/2fa", http.StatusSeeOther)
 			return
 		}
 		if !auth.Can(u.Role, c) {
-			s.adminError(w, r, http.StatusForbidden, s.t("You do not have permission to access this page."))
+			s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 			return
 		}
 		h(w, r)

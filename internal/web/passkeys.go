@@ -193,14 +193,14 @@ func (s *Server) passkeyReauth(r *http.Request, u *store.User, password string) 
 		return 0, ""
 	}
 	if password == "" {
-		return http.StatusUnauthorized, s.t("Enter your current password to continue.")
+		return http.StatusUnauthorized, s.tu(r, "Enter your current password to continue.")
 	}
 	if !s.loginUser.Allow("pw:" + u.Username) {
-		return http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again.")
+		return http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again.")
 	}
 	if len(password) > auth.MaxPasswordLen || !auth.VerifyPassword(u.PasswordHash, password) {
 		s.audit(r, u.ID, "passkey.reauth_failed", u.Username, nil)
-		return http.StatusUnauthorized, s.t("The current password is not correct.")
+		return http.StatusUnauthorized, s.tu(r, "The current password is not correct.")
 	}
 	s.loginUser.Reset("pw:" + u.Username)
 	return 0, ""
@@ -287,7 +287,7 @@ func (s *Server) passkeySection(r *http.Request, u *store.User) (passkeySection,
 			v.CloneWarning = sum.Authenticator.CloneWarning
 		}
 		if v.Name == "" {
-			v.Name = s.t("Passkey")
+			v.Name = s.tu(r, "Passkey")
 		}
 		sec.List = append(sec.List, v)
 	}
@@ -300,17 +300,17 @@ func (s *Server) adminPasskeyRename(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	name := cleanPasskeyName(r.FormValue("name"))
 	if name == "" {
-		s.redirect(w, r, "/admin/profile#passkeys", "error", s.t("Enter a name for the passkey."))
+		s.redirect(w, r, "/admin/profile#passkeys", "error", s.tu(r, "Enter a name for the passkey."))
 		return
 	}
 	err := s.store.RenamePasskey(r.Context(), u.ID, id, name)
 	if errors.Is(err, store.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if err != nil {
@@ -318,14 +318,14 @@ func (s *Server) adminPasskeyRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, u.ID, "passkey.renamed", u.Username, map[string]string{"id": strconv.FormatInt(id, 10), "name": name})
-	s.redirect(w, r, "/admin/profile#passkeys", "success", s.t("Saved."))
+	s.redirect(w, r, "/admin/profile#passkeys", "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminPasskeyDelete(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	// Removing the only second factor is like disabling two-factor
@@ -339,7 +339,7 @@ func (s *Server) adminPasskeyDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	k, err := s.store.DeletePasskey(r.Context(), u.ID, id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if err != nil {
@@ -349,10 +349,10 @@ func (s *Server) adminPasskeyDelete(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, u.ID, "passkey.deleted", u.Username, map[string]string{"id": strconv.FormatInt(id, 10), "name": k.Name})
 	u.PasskeyCount--
 	if s.mustEnroll2FA(r, u) {
-		s.redirect(w, r, "/admin/profile/2fa", "warning", s.t("Passkey deleted. Your role requires two-factor authentication: set up an authenticator app or add a new passkey."))
+		s.redirect(w, r, "/admin/profile/2fa", "warning", s.tu(r, "Passkey deleted. Your role requires two-factor authentication: set up an authenticator app or add a new passkey."))
 		return
 	}
-	s.redirect(w, r, "/admin/profile#passkeys", "success", s.t("Passkey deleted."))
+	s.redirect(w, r, "/admin/profile#passkeys", "success", s.tu(r, "Passkey deleted."))
 }
 
 // cleanPasskeyName normalises a user-supplied label.
@@ -407,9 +407,9 @@ func formatAAGUID(b []byte) string {
 	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
 }
 
-func (s *Server) defaultPasskeyName(aaguid []byte) string {
+func (s *Server) defaultPasskeyName(r *http.Request, aaguid []byte) string {
 	if name, ok := knownAuthenticators[formatAAGUID(aaguid)]; ok {
 		return name
 	}
-	return s.t("Passkey")
+	return s.tu(r, "Passkey")
 }

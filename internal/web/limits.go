@@ -101,16 +101,16 @@ func (s *Server) adminPluginCatalogInstall(w http.ResponseWriter, r *http.Reques
 	}
 	id := r.PathValue("id")
 	if !catalogIDRe.MatchString(id) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	pkg, err := s.limits.CatalogPackage(r.Context(), id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	} else if err != nil {
 		s.log.Error("pack a catalogue plugin", "plugin", id, "err", err)
-		s.redirect(w, r, "/admin/plugins", "error", s.t("The network's catalogue is not available. Try again later."))
+		s.redirect(w, r, "/admin/plugins", "error", s.tu(r, "The network's catalogue is not available. Try again later."))
 		return
 	}
 	// The catalogue's build needs no review, and clears a review an
@@ -119,14 +119,14 @@ func (s *Server) adminPluginCatalogInstall(w http.ResponseWriter, r *http.Reques
 		Source: "catalog", AllowDowngrade: true, Reviewed: true})
 	switch {
 	case errors.Is(err, media.ErrQuota):
-		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull())
+		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull(r))
 		return
 	case errors.Is(err, plugin.ErrRefused):
-		s.redirect(w, r, "/admin/plugins", "error", s.t("The scanner found critical problems; this plugin cannot be enabled."))
+		s.redirect(w, r, "/admin/plugins", "error", s.tu(r, "The scanner found critical problems; this plugin cannot be enabled."))
 		return
 	case err != nil:
 		s.log.Error("install a catalogue plugin", "plugin", id, "err", err)
-		s.redirect(w, r, "/admin/plugins", "error", s.t("The plugin could not be installed: %s", err.Error()))
+		s.redirect(w, r, "/admin/plugins", "error", s.tu(r, "The plugin could not be installed: %s", err.Error()))
 		return
 	}
 	if res.ID != id {
@@ -135,7 +135,7 @@ func (s *Server) adminPluginCatalogInstall(w http.ResponseWriter, r *http.Reques
 	s.pluginsChanged()
 	s.audit(r, uid(r), "plugin.installed", res.ID, map[string]string{"version": res.Version, "sha256": res.Report.WasmSHA256,
 		"source": "catalog", "previous": res.Previous})
-	s.redirect(w, r, "/admin/plugins/"+res.ID, "success", s.t("Plugin installed. It is disabled: review the scan report and the permissions, then switch it on."))
+	s.redirect(w, r, "/admin/plugins/"+res.ID, "success", s.tu(r, "Plugin installed. It is disabled: review the scan report and the permissions, then switch it on."))
 }
 
 // ---------------------------------------------------------- the portal --
@@ -183,7 +183,7 @@ func (s *Server) adminNetPlugins(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "network_plugins", s.t("Plugin reviews"), "net-plugins", map[string]any{"Reviews": reviews, "Official": official})
+	s.renderAdmin(w, r, "network_plugins", s.tu(r, "Plugin reviews"), "net-plugins", map[string]any{"Reviews": reviews, "Official": official})
 }
 
 var pinRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -193,15 +193,15 @@ func (s *Server) adminNetPluginReview(w http.ResponseWriter, r *http.Request) {
 	siteID, err := strconv.ParseInt(r.FormValue("site"), 10, 64)
 	pluginID, pin, verdict := r.FormValue("plugin"), r.FormValue("pin"), r.FormValue("verdict")
 	if err != nil || siteID < 1 || !catalogIDRe.MatchString(pluginID) || !pinRe.MatchString(pin) || verdict != "approve" && verdict != "reject" {
-		s.redirect(w, r, back, "error", s.t("Invalid request."))
+		s.redirect(w, r, back, "error", s.tu(r, "Invalid request."))
 		return
 	}
 	switch err := s.reviews.ReviewPlugin(r.Context(), siteID, pluginID, pin, verdict == "approve", uid(r)); {
 	case errors.Is(err, store.ErrNotFound):
-		s.redirect(w, r, back, "error", s.t("Not found."))
+		s.redirect(w, r, back, "error", s.tu(r, "Not found."))
 		return
 	case errors.Is(err, ErrNetworkState):
-		s.redirect(w, r, back, "error", s.t("The site no longer has this build of %s.", pluginID))
+		s.redirect(w, r, back, "error", s.tu(r, "The site no longer has this build of %s.", pluginID))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -210,9 +210,9 @@ func (s *Server) adminNetPluginReview(w http.ResponseWriter, r *http.Request) {
 	details := map[string]string{"site": strconv.FormatInt(siteID, 10), "pin": pin}
 	if verdict == "approve" {
 		s.audit(r, uid(r), "network.plugin_approved", pluginID, details)
-		s.redirect(w, r, back, "success", s.t("%s was approved: the site's administrators can switch it on.", pluginID))
+		s.redirect(w, r, back, "success", s.tu(r, "%s was approved: the site's administrators can switch it on.", pluginID))
 		return
 	}
 	s.audit(r, uid(r), "network.plugin_rejected", pluginID, details)
-	s.redirect(w, r, back, "success", s.t("%s was rejected: it cannot run on the site.", pluginID))
+	s.redirect(w, r, back, "success", s.tu(r, "%s was rejected: it cannot run on the site.", pluginID))
 }

@@ -164,7 +164,7 @@ func (s *Server) adminPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.passkeys().begin.Allow("reg:" + strconv.FormatInt(u.ID, 10)) {
-		passkeyFail(w, http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		passkeyFail(w, http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	if status, msg := s.passkeyReauth(r, u, req.Password); msg != "" {
@@ -174,18 +174,18 @@ func (s *Server) adminPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 	wa, err := s.webAuthn()
 	if err != nil {
 		s.log.Error("webauthn config", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Passkeys are not available on this site address."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Passkeys are not available on this site address."))
 		return
 	}
 	ctx := r.Context()
 	pu, err := s.loadPasskeyUser(ctx, u)
 	if err != nil {
 		s.log.Error("load passkeys", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 		return
 	}
 	if len(pu.creds) >= passkeysPerUser {
-		passkeyFail(w, http.StatusConflict, s.t("You have reached the maximum number of passkeys. Delete one first."))
+		passkeyFail(w, http.StatusConflict, s.tu(r, "You have reached the maximum number of passkeys. Delete one first."))
 		return
 	}
 	creation, session, err := wa.BeginRegistration(pu,
@@ -195,7 +195,7 @@ func (s *Server) adminPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		s.log.Error("begin passkey registration", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 		return
 	}
 	s.startCeremony(w, "reg", passkeyCeremony{Kind: ceremonyRegister, UserID: u.ID, SessionHash: rctx(r).Session.TokenHash, Session: session})
@@ -215,20 +215,20 @@ func (s *Server) adminPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.takeCeremony(w, r, "reg")
 	session, _ := c.Session.(*webauthn.SessionData)
 	if !ok || session == nil || c.Kind != ceremonyRegister || c.UserID != u.ID || !bytes.Equal(c.SessionHash, rctx(r).Session.TokenHash) {
-		passkeyFail(w, http.StatusBadRequest, s.t("The request expired. Try again."))
+		passkeyFail(w, http.StatusBadRequest, s.tu(r, "The request expired. Try again."))
 		return
 	}
 	wa, err := s.webAuthn()
 	if err != nil {
 		s.log.Error("webauthn config", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Passkeys are not available on this site address."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Passkeys are not available on this site address."))
 		return
 	}
 	ctx := r.Context()
 	pu, err := s.loadPasskeyUser(ctx, u)
 	if err != nil {
 		s.log.Error("load passkeys", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 		return
 	}
 	parsed, err := protocol.ParseCredentialCreationResponseBytes(req.Credential)
@@ -241,27 +241,27 @@ func (s *Server) adminPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.audit(r, u.ID, "passkey.register_failed", u.Username, map[string]string{"reason": s.webauthnDetail(err)})
-		passkeyFail(w, http.StatusBadRequest, s.t("The passkey could not be verified. Try again."))
+		passkeyFail(w, http.StatusBadRequest, s.tu(r, "The passkey could not be verified. Try again."))
 		return
 	}
 	data, err := json.Marshal(cred)
 	if err != nil {
 		s.log.Error("encode passkey", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 		return
 	}
 	name := cleanPasskeyName(req.Name)
 	if name == "" {
-		name = s.defaultPasskeyName(cred.Authenticator.AAGUID)
+		name = s.defaultPasskeyName(r, cred.Authenticator.AAGUID)
 	}
 	firstFactor := !u.TOTPEnabled && u.PasskeyCount == 0
 	if _, err := s.store.AddPasskey(ctx, u.ID, cred.ID, name, data); err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			passkeyFail(w, http.StatusConflict, s.t("This passkey is already registered."))
+			passkeyFail(w, http.StatusConflict, s.tu(r, "This passkey is already registered."))
 			return
 		}
 		s.log.Error("store passkey", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 		return
 	}
 	if firstFactor {
@@ -275,7 +275,7 @@ func (s *Server) adminPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	if req.Next != "" {
 		next = safeNext(req.Next)
 	}
-	s.flash(w, "success", s.t("Passkey “%s” added.", name))
+	s.flash(w, "success", s.tu(r, "Passkey “%s” added.", name))
 	writeJSON(w, http.StatusOK, passkeyReply{Redirect: next})
 }
 
@@ -297,13 +297,13 @@ func (s *Server) loginPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.passkeys().begin.Allow("ip:" + ipKey(clientIP(r))) {
-		passkeyFail(w, http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		passkeyFail(w, http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	wa, err := s.webAuthn()
 	if err != nil {
 		s.log.Error("webauthn config", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Passkeys are not available on this site address."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Passkeys are not available on this site address."))
 		return
 	}
 	var (
@@ -314,29 +314,29 @@ func (s *Server) loginPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 	if req.Mode == ceremonySecondFactor {
 		u, ok := s.pendingMFA(r)
 		if !ok || u.PasskeyCount == 0 {
-			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.t("Your session expired. Log in again."), Redirect: s.auth().Login})
+			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.tu(r, "Your session expired. Log in again."), Redirect: s.auth().Login})
 			return
 		}
 		if !validCSRF(r) {
-			passkeyFail(w, http.StatusForbidden, s.t("Your session form expired. Go back, reload the page and try again."))
+			passkeyFail(w, http.StatusForbidden, s.tu(r, "Your session form expired. Go back, reload the page and try again."))
 			return
 		}
 		pu, err := s.loadPasskeyUser(r.Context(), u)
 		if err != nil {
 			s.log.Error("load passkeys", "err", err)
-			passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+			passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 			return
 		}
 		if assertion, session, err = wa.BeginLogin(pu, webauthn.WithUserVerification(protocol.VerificationRequired)); err != nil {
 			s.log.Error("begin passkey login", "err", err)
-			passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+			passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 			return
 		}
 		c = passkeyCeremony{Kind: ceremonySecondFactor, UserID: u.ID, SessionHash: rctx(r).Session.TokenHash}
 	} else {
 		if assertion, session, err = wa.BeginDiscoverableLogin(webauthn.WithUserVerification(protocol.VerificationRequired)); err != nil {
 			s.log.Error("begin passkey login", "err", err)
-			passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+			passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 			return
 		}
 		c = passkeyCeremony{Kind: ceremonyLogin}
@@ -359,25 +359,25 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	session, _ := c.Session.(*webauthn.SessionData)
 	if !s.loginIP.Allow(ip) {
 		s.audit(r, 0, "login.throttled", "", map[string]string{"method": "passkey"})
-		passkeyFail(w, http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		passkeyFail(w, http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	if !ok || session == nil {
-		passkeyFail(w, http.StatusBadRequest, s.t("The request expired. Try again."))
+		passkeyFail(w, http.StatusBadRequest, s.tu(r, "The request expired. Try again."))
 		return
 	}
 	secondFactor := c.Kind == ceremonySecondFactor
 	if secondFactor {
 		sess := rctx(r).Session
 		if sess == nil || !sess.MFAPending || sess.UserID != c.UserID || !bytes.Equal(sess.TokenHash, c.SessionHash) {
-			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.t("Your session expired. Log in again."), Redirect: s.auth().Login})
+			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.tu(r, "Your session expired. Log in again."), Redirect: s.auth().Login})
 			return
 		}
 	}
 	parsed, err := protocol.ParseCredentialRequestResponseBytes(req.Credential)
 	if err != nil {
 		s.audit(r, 0, "login.failed", "", map[string]string{"method": "passkey", "reason": s.webauthnDetail(err)})
-		passkeyFail(w, http.StatusBadRequest, s.t("The passkey could not be verified. Try again."))
+		passkeyFail(w, http.StatusBadRequest, s.tu(r, "The passkey could not be verified. Try again."))
 		return
 	}
 	ctx := r.Context()
@@ -385,7 +385,7 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, store.ErrNotFound) || (err == nil && secondFactor && key.UserID != c.UserID) {
 		s.audit(r, 0, "login.failed", "", map[string]string{"method": "passkey", "reason": "unknown passkey"})
 		writeJSON(w, http.StatusUnauthorized, passkeyReply{Unknown: true,
-			Error: s.t("This passkey is not registered on this site. Sign in with your password and add it in your profile.")})
+			Error: s.tu(r, "This passkey is not registered on this site. Sign in with your password and add it in your profile.")})
 		return
 	}
 	if err != nil {
@@ -404,23 +404,23 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	if throttled {
 		s.audit(r, u.ID, "login.throttled", u.Username, map[string]string{"method": "passkey"})
-		passkeyFail(w, http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		passkeyFail(w, http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	if u.LockedUntil != nil && u.LockedUntil.After(time.Now()) {
 		s.audit(r, u.ID, "login.locked", u.Username, map[string]string{"method": "passkey"})
-		passkeyFail(w, http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		passkeyFail(w, http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	if u.Status != "active" {
 		s.audit(r, u.ID, "login.failed", u.Username, map[string]string{"method": "passkey", "reason": "disabled"})
-		passkeyFail(w, http.StatusUnauthorized, s.t("This account cannot sign in."))
+		passkeyFail(w, http.StatusUnauthorized, s.tu(r, "This account cannot sign in."))
 		return
 	}
 	wa, err := s.webAuthn()
 	if err != nil {
 		s.log.Error("webauthn config", "err", err)
-		passkeyFail(w, http.StatusInternalServerError, s.t("Passkeys are not available on this site address."))
+		passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Passkeys are not available on this site address."))
 		return
 	}
 	pu, err := s.loadPasskeyUser(ctx, u)
@@ -451,7 +451,7 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 		}
 		s.store.RecordLoginFailure(ctx, u.ID, 10, 15*time.Minute)
 		s.audit(r, u.ID, "login.failed", u.Username, map[string]string{"method": "passkey", "reason": s.webauthnDetail(err)})
-		passkeyFail(w, http.StatusUnauthorized, s.t("The passkey could not be verified. Try again."))
+		passkeyFail(w, http.StatusUnauthorized, s.tu(r, "The passkey could not be verified. Try again."))
 		return
 	}
 	// A counter that does not increase hints at a cloned authenticator. Many
@@ -486,5 +486,5 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) serverErrorJSON(w http.ResponseWriter, r *http.Request, err error) {
 	s.log.Error("internal error", "path", r.URL.Path, "err", err)
-	passkeyFail(w, http.StatusInternalServerError, s.t("Something went wrong. The error has been logged."))
+	passkeyFail(w, http.StatusInternalServerError, s.tu(r, "Something went wrong. The error has been logged."))
 }

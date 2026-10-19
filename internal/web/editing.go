@@ -112,7 +112,7 @@ func (s *Server) apiUnlock(w http.ResponseWriter, r *http.Request) {
 func (s *Server) adminPostTakeover(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.editablePostByID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if holder, err := s.store.LockHolderOf(r.Context(), p.ID); err == nil && holder.UserID != uid(r) {
@@ -158,7 +158,7 @@ func (s *Server) editConflict(r *http.Request, p *store.Post) (string, bool) {
 	}
 	name, err := s.store.LastEditor(r.Context(), p.ID)
 	if err != nil || name == "" {
-		name = s.t("someone else")
+		name = s.tu(r, "someone else")
 	}
 	return name, true
 }

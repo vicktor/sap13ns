@@ -250,7 +250,7 @@ func TestImportRedirectRulesOffByDefault(t *testing.T) {
 		t.Errorf("rules imported without the option: %+v", rules)
 	}
 	page = e.get("/admin/tools/import", e.admin).Body.String()
-	if !strings.Contains(page, html.EscapeString(e.s.redirectResult(wpimport.SkipDisabled, false))) || !strings.Contains(page, "/old") {
+	if !strings.Contains(page, html.EscapeString(e.s.redirectResult(nil, wpimport.SkipDisabled, false))) || !strings.Contains(page, "/old") {
 		t.Errorf("the report does not list the rule as not imported")
 	}
 	entries, _, _ := e.st.ListAudit(context.Background(), "import.started", 1, 0)

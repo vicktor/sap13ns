@@ -60,7 +60,7 @@ type importRedirect struct {
 	Result      string
 }
 
-func (s *Server) importStatus() importStatus {
+func (s *Server) importStatus(req *http.Request) importStatus {
 	j := &s.imports
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -69,52 +69,52 @@ func (s *Server) importStatus() importStatus {
 		st.Summary, st.Warnings, st.Dropped, st.DryRun = rep.Summary(), rep.Warnings, rep.WarningsDropped, rep.DryRun
 		st.RedirectsDropped = rep.RedirectsDropped
 		for _, r := range rep.Redirects {
-			st.Redirects = append(st.Redirects, importRedirect{RedirectResult: r, OriginLabel: s.redirectOrigin(r.Origin),
-				Result: s.redirectResult(r.Reason, rep.DryRun)})
+			st.Redirects = append(st.Redirects, importRedirect{RedirectResult: r, OriginLabel: s.redirectOrigin(req, r.Origin),
+				Result: s.redirectResult(req, r.Reason, rep.DryRun)})
 		}
 	}
 	return st
 }
 
-func (s *Server) redirectOrigin(origin string) string {
+func (s *Server) redirectOrigin(r *http.Request, origin string) string {
 	switch origin {
 	case wpimport.RedirectRule:
-		return s.t("Rule of the export")
+		return s.tu(r, "Rule of the export")
 	case wpimport.RedirectFile:
-		return s.t("Old address of a file")
+		return s.tu(r, "Old address of a file")
 	}
-	return s.t("Old address of a post or page")
+	return s.tu(r, "Old address of a post or page")
 }
 
-func (s *Server) redirectResult(reason string, dryRun bool) string {
+func (s *Server) redirectResult(r *http.Request, reason string, dryRun bool) string {
 	switch reason {
 	case "":
 		if dryRun {
-			return s.t("Would be imported")
+			return s.tu(r, "Would be imported")
 		}
-		return s.t("Imported")
+		return s.tu(r, "Imported")
 	case wpimport.SkipDisabled:
-		return s.t("Not imported: the option was off")
+		return s.tu(r, "Not imported: the option was off")
 	case wpimport.SkipSource:
-		return s.t("Skipped: the source is not a path of this site")
+		return s.tu(r, "Skipped: the source is not a path of this site")
 	case wpimport.SkipStatus:
-		return s.t("Skipped: unknown redirect type")
+		return s.tu(r, "Skipped: unknown redirect type")
 	case wpimport.SkipTarget:
-		return s.t("Skipped: no usable target")
+		return s.tu(r, "Skipped: no usable target")
 	case wpimport.SkipOffSite:
-		return s.t("Skipped: the target is on another site")
+		return s.tu(r, "Skipped: the target is on another site")
 	case wpimport.SkipDuplicate:
-		return s.t("Skipped: an earlier redirect of the import has this source")
+		return s.tu(r, "Skipped: an earlier redirect of the import has this source")
 	case wpimport.SkipReserved:
-		return s.t("Skipped: the site serves this address itself")
+		return s.tu(r, "Skipped: the site serves this address itself")
 	case wpimport.SkipContent:
-		return s.t("Skipped: a post or page has this address")
+		return s.tu(r, "Skipped: a post or page has this address")
 	case wpimport.SkipExists:
-		return s.t("Skipped: the site already has a redirect for this address")
+		return s.tu(r, "Skipped: the site already has a redirect for this address")
 	case wpimport.SkipInvalid:
-		return s.t("Skipped: the rule is not valid")
+		return s.tu(r, "Skipped: the rule is not valid")
 	}
-	return s.t("Failed: see the warnings")
+	return s.tu(r, "Failed: see the warnings")
 }
 
 type importData struct {
@@ -134,8 +134,8 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, status int
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "import", s.t("Import from WordPress"), "import",
-		importData{Status: s.importStatus(), Authors: authors, Langs: s.adminLangs(), Error: msg})
+	s.renderAdminStatus(w, r, status, "import", s.tu(r, "Import from WordPress"), "import",
+		importData{Status: s.importStatus(r), Authors: authors, Langs: s.adminLangs(), Error: msg})
 }
 
 func (s *Server) authorChoices(r *http.Request) ([]store.User, error) {
@@ -156,15 +156,15 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, wxrMaxBytes+1<<20)
 	file, hdr, err := r.FormFile("wxr")
 	if err != nil {
-		s.renderImport(w, r, http.StatusBadRequest, s.t("Choose the export file (.xml) from Tools → Export in WordPress."))
+		s.renderImport(w, r, http.StatusBadRequest, s.tu(r, "Choose the export file (.xml) from Tools → Export in WordPress."))
 		return
 	}
 	defer file.Close()
 	exp, err := wpimport.Parse(wpimport.LimitReader(file, wxrMaxBytes))
 	if err != nil {
-		msg := s.t("This is not a valid WordPress export file.")
+		msg := s.tu(r, "This is not a valid WordPress export file.")
 		if errors.Is(err, wpimport.ErrTooLarge) {
-			msg = s.t("The file is too large (%s max).", filesize(wxrMaxBytes))
+			msg = s.tu(r, "The file is too large (%s max).", filesize(wxrMaxBytes))
 		}
 		s.log.Warn("wxr parse", "err", err)
 		s.renderImport(w, r, http.StatusUnprocessableEntity, msg)
@@ -175,7 +175,7 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 		authorID = *id
 	}
 	if au, err := s.store.UserByID(r.Context(), authorID); err != nil || !auth.Can(au.Role, auth.CapEditOwnPosts) {
-		s.renderImport(w, r, http.StatusUnprocessableEntity, s.t("Choose an author for the imported content."))
+		s.renderImport(w, r, http.StatusUnprocessableEntity, s.tu(r, "Choose an author for the imported content."))
 		return
 	}
 	lang := r.FormValue("lang")
@@ -194,7 +194,7 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 	j.mu.Lock()
 	if j.running {
 		j.mu.Unlock()
-		s.renderImport(w, r, http.StatusConflict, s.t("An import is already running."))
+		s.renderImport(w, r, http.StatusConflict, s.tu(r, "An import is already running."))
 		return
 	}
 	u := currentUser(r)
@@ -220,7 +220,7 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 		}
 		s.log.Info("wordpress import finished", "dry_run", opts.DryRun, "err", err)
 	})
-	s.redirect(w, r, "/admin/tools/import", "success", s.t("Import started."))
+	s.redirect(w, r, "/admin/tools/import", "success", s.tu(r, "Import started."))
 }
 
 // wpSink stores imported content through the store.

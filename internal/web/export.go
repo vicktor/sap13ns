@@ -113,7 +113,7 @@ func (s *Server) renderExport(w http.ResponseWriter, r *http.Request, status int
 			d.Ready = append(d.Ready, exportLink{URL: s.exportURL(e.Name, e.Created), Created: e.Created, Expires: e.Expires, Size: e.Size})
 		}
 	}
-	s.renderAdminStatus(w, r, status, "export", s.t("Export"), "export", d)
+	s.renderAdminStatus(w, r, status, "export", s.tu(r, "Export"), "export", d)
 }
 
 // exportURL is the one-time download link of a finished export.
@@ -189,11 +189,11 @@ func (s *Server) exportOptions(r *http.Request, form exportForm) (opts export.Op
 	}
 	switch {
 	case len(opts.Types) == 0:
-		return opts, s.t("Choose posts, pages or both.")
+		return opts, s.tu(r, "Choose posts, pages or both.")
 	case len(opts.Statuses) == 0:
-		return opts, s.t("Choose at least one status.")
+		return opts, s.tu(r, "Choose at least one status.")
 	case form.Format != "xml" && form.Format != "zip":
-		return opts, s.t("Choose the format of the export.")
+		return opts, s.tu(r, "Choose the format of the export.")
 	}
 	day := func(v string) (time.Time, bool) {
 		if v == "" {
@@ -205,14 +205,14 @@ func (s *Server) exportOptions(r *http.Request, form exportForm) (opts export.Op
 	from, ok1 := day(form.From)
 	to, ok2 := day(form.To)
 	if !ok1 || !ok2 || (!from.IsZero() && !to.IsZero() && to.Before(from)) {
-		return opts, s.t("Check the dates: the end cannot come before the start.")
+		return opts, s.tu(r, "Check the dates: the end cannot come before the start.")
 	}
 	if !to.IsZero() {
 		to = to.AddDate(0, 0, 1) // the whole last day
 	}
 	if form.AuthorID > 0 {
 		if _, err := s.store.UserByID(r.Context(), form.AuthorID); err != nil {
-			return opts, s.t("Choose an author from the list.")
+			return opts, s.tu(r, "Choose an author from the list.")
 		}
 	}
 	st := s.settings()
@@ -277,9 +277,9 @@ func (s *Server) streamExport(w http.ResponseWriter, r *http.Request, form expor
 		h := w.Header()
 		h.Del("Content-Disposition")
 		h.Del("X-Accel-Buffering")
-		msg := s.t("The export failed. The error has been logged.")
+		msg := s.tu(r, "The export failed. The error has been logged.")
 		if errors.Is(err, export.ErrTooLarge) {
-			msg = s.t("The export is larger than the export limit. Leave out the media library, or export part of the content.")
+			msg = s.tu(r, "The export is larger than the export limit. Leave out the media library, or export part of the content.")
 		}
 		s.renderExport(w, r, http.StatusInternalServerError, form, msg)
 		return
@@ -293,7 +293,7 @@ func (s *Server) startExportJob(w http.ResponseWriter, r *http.Request, form exp
 	dir := s.exportDir()
 	if pathInside(dir, s.cfg.UploadsDir) {
 		// SAP13NS_UPLOADS_DIR is the data directory: the file would be public.
-		s.renderExport(w, r, http.StatusConflict, form, s.t("Large exports need an export directory outside the uploads directory. Ask the server administrator."))
+		s.renderExport(w, r, http.StatusConflict, form, s.tu(r, "Large exports need an export directory outside the uploads directory. Ask the server administrator."))
 		return
 	}
 	u := currentUser(r)
@@ -304,13 +304,13 @@ func (s *Server) startExportJob(w http.ResponseWriter, r *http.Request, form exp
 		return j.running
 	}
 	running := func() {
-		s.renderExport(w, r, http.StatusConflict, form, s.t("An export is already running. Try again when it has finished."))
+		s.renderExport(w, r, http.StatusConflict, form, s.tu(r, "An export is already running. Try again when it has finished."))
 	}
 	if busy() {
 		running()
 		return
 	}
-	if msg, err := s.exportFits(r.Context(), dir, opts); err != nil {
+	if msg, err := s.exportFits(r.Context(), r, dir, opts); err != nil {
 		s.serverError(w, r, err)
 		return
 	} else if msg != "" {
@@ -341,9 +341,9 @@ func (s *Server) startExportJob(w http.ResponseWriter, r *http.Request, form exp
 		j.mu.Lock()
 		j.running, j.finished, j.report = false, time.Now(), rep
 		if err != nil {
-			j.err = s.t("The export failed. The error has been logged.")
+			j.err = s.tu(r, "The export failed. The error has been logged.")
 			if errors.Is(err, export.ErrTooLarge) {
-				j.err = s.t("The export is larger than the export limit. Leave out the media library, or export part of the content.")
+				j.err = s.tu(r, "The export is larger than the export limit. Leave out the media library, or export part of the content.")
 			}
 		}
 		j.mu.Unlock()
@@ -353,20 +353,20 @@ func (s *Server) startExportJob(w http.ResponseWriter, r *http.Request, form exp
 			s.log.Info("export ready", "files", rep.Files, "posts", rep.Posts, "pages", rep.Pages)
 		}
 	})
-	s.redirect(w, r, "/admin/tools/export", "success", s.t("The export is being prepared. This page shows the download link when it is ready."))
+	s.redirect(w, r, "/admin/tools/export", "success", s.tu(r, "The export is being prepared. This page shows the download link when it is ready."))
 }
 
 // exportFits checks that a background export of opts may start: its
 // estimate within the export limit and the storage of the site's plan,
 // and the disk of dir with twice the estimate free, counting the export
 // it replaces. msg explains a refusal.
-func (s *Server) exportFits(ctx context.Context, dir string, opts export.Options) (msg string, err error) {
+func (s *Server) exportFits(ctx context.Context, r *http.Request, dir string, opts export.Options) (msg string, err error) {
 	est, err := export.Estimate(ctx, s.store, opts)
 	if err != nil {
 		return "", err
 	}
 	if est > cmp.Or(opts.MaxBytes, export.DefaultMaxBytes) {
-		return s.t("The export is larger than the export limit. Leave out the media library, or export part of the content."), nil
+		return s.tu(r, "The export is larger than the export limit. Leave out the media library, or export part of the content."), nil
 	}
 	if s.limits != nil {
 		quota, err := s.limits.StorageQuota(ctx)
@@ -374,7 +374,7 @@ func (s *Server) exportFits(ctx context.Context, dir string, opts export.Options
 			return "", err
 		}
 		if est > quota {
-			return s.t("This export would take about %s, more than the storage of the site's plan (%s). Leave out the media library.",
+			return s.tu(r, "This export would take about %s, more than the storage of the site's plan (%s). Leave out the media library.",
 				filesize(est), filesize(quota)), nil
 		}
 	}
@@ -401,7 +401,7 @@ func (s *Server) exportFits(ctx context.Context, dir string, opts export.Options
 	}
 	if free < 2*est {
 		s.log.Warn("export refused: not enough free disk space", "dir", dir, "estimate", est, "free", free)
-		return s.t("The server does not have enough free disk space for this export, which would take about %s. Try again later, or leave out the media library.",
+		return s.tu(r, "The server does not have enough free disk space for this export, which would take about %s. Try again later, or leave out the media library.",
 			filesize(est)), nil
 	}
 	return "", nil
@@ -443,12 +443,12 @@ func (s *Server) adminExportDownload(w http.ResponseWriter, r *http.Request) {
 	userID, created, ok := export.ParseName(name)
 	u := currentUser(r)
 	if !ok || userID != u.ID {
-		s.adminError(w, r, http.StatusNotFound, s.t("This export does not exist."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "This export does not exist."))
 		return
 	}
 	dir := s.exportDir()
 	gone := func() {
-		s.adminError(w, r, http.StatusGone, s.t("This download link has expired or has already been used. Start a new export."))
+		s.adminError(w, r, http.StatusGone, s.tu(r, "This download link has expired or has already been used. Start a new export."))
 	}
 	if time.Since(created) >= export.TTL {
 		os.Remove(filepath.Join(dir, name))
@@ -456,7 +456,7 @@ func (s *Server) adminExportDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, ok := s.keys.Verify(exportPurpose, name, r.URL.Query().Get("t"), export.TTL); !ok {
-		s.adminError(w, r, http.StatusForbidden, s.t("This download link is not valid."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "This download link is not valid."))
 		return
 	}
 	claim := filepath.Join(dir, name+export.ClaimSuffix)

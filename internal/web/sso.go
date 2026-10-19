@@ -287,18 +287,18 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	fail := func(status int, reason, msg string) {
 		s.ssoFailures.Allow(ip)
 		s.audit(r, uid(r), "sso.failed", "", map[string]string{"reason": reason})
-		s.renderAuth(w, r, status, "login", s.t("Log in"), &authForm{Error: msg, Next: "/admin/"})
+		s.renderAuth(w, r, status, "login", s.tu(r, "Log in"), &authForm{Error: msg, Next: "/admin/"})
 	}
 	if s.ssoFailures.Blocked(ip) {
 		s.audit(r, 0, "sso.throttled", "", nil)
-		s.renderAuth(w, r, http.StatusTooManyRequests, "login", s.t("Log in"), &authForm{Error: s.t("Too many attempts. Wait a few minutes and try again."), Next: "/admin/"})
+		s.renderAuth(w, r, http.StatusTooManyRequests, "login", s.tu(r, "Log in"), &authForm{Error: s.tu(r, "Too many attempts. Wait a few minutes and try again."), Next: "/admin/"})
 		return
 	}
 	q := r.URL.Query()
-	again := s.t("The sign-in with your sap13ns account could not be completed. Try again.")
+	again := s.tu(r, "The sign-in with your sap13ns account could not be completed. Try again.")
 	switch {
 	case !ok:
-		fail(http.StatusBadRequest, "no state", s.t("The sign-in expired or was started in another browser. Try again."))
+		fail(http.StatusBadRequest, "no state", s.tu(r, "The sign-in expired or was started in another browser. Try again."))
 		return
 	case subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(st.State)) != 1:
 		fail(http.StatusBadRequest, "state mismatch", again)
@@ -311,13 +311,13 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	g, err := s.sso.RedeemSSO(ctx, q.Get("code"), st.Verifier, s.ssoRedirectURI())
 	switch {
 	case errors.Is(err, ErrSSONoSupport):
-		fail(http.StatusForbidden, "no support access", s.t("The owner of this site has not allowed support access."))
+		fail(http.StatusForbidden, "no support access", s.tu(r, "The owner of this site has not allowed support access."))
 		return
 	case errors.Is(err, ErrSSONoEmergency):
-		fail(http.StatusForbidden, "emergency access ended", s.t("Your emergency access to this site has ended."))
+		fail(http.StatusForbidden, "emergency access ended", s.tu(r, "Your emergency access to this site has ended."))
 		return
 	case errors.Is(err, ErrSSODenied):
-		fail(http.StatusForbidden, "denied", s.t("Your sap13ns account does not have access to this site."))
+		fail(http.StatusForbidden, "denied", s.tu(r, "Your sap13ns account does not have access to this site."))
 		return
 	case errors.Is(err, ErrSSOInvalid):
 		fail(http.StatusBadRequest, "invalid code", again)
@@ -333,8 +333,8 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	u, err := s.ssoUser(ctx, g)
 	if errors.Is(err, errSSOEmailTaken) {
 		s.audit(r, 0, "sso.failed", g.Username, map[string]string{"reason": "e-mail address of a local user", "network_account": strconv.FormatInt(g.AccountID, 10)})
-		s.renderAuth(w, r, http.StatusConflict, "login", s.t("Log in"), &authForm{Next: st.Next,
-			Error: s.t("A user of this site already has the e-mail address of your sap13ns account. Log in as that user, then link your sap13ns account from your profile.")})
+		s.renderAuth(w, r, http.StatusConflict, "login", s.tu(r, "Log in"), &authForm{Next: st.Next,
+			Error: s.tu(r, "A user of this site already has the e-mail address of your sap13ns account. Log in as that user, then link your sap13ns account from your profile.")})
 		return
 	}
 	if err != nil {
@@ -356,16 +356,16 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.confirmSSO(ctx, u, g); errors.Is(err, errSSORoleChanged) {
-		fail(http.StatusForbidden, "role changed during the sign-in", s.t("Your role on this site changed while you were signing in. Sign in again."))
+		fail(http.StatusForbidden, "role changed during the sign-in", s.tu(r, "Your role on this site changed while you were signing in. Sign in again."))
 		return
 	} else if errors.Is(err, ErrSSONoSupport) {
-		fail(http.StatusForbidden, "support access closed during the sign-in", s.t("The owner of this site has not allowed support access."))
+		fail(http.StatusForbidden, "support access closed during the sign-in", s.tu(r, "The owner of this site has not allowed support access."))
 		return
 	} else if errors.Is(err, ErrSSONoEmergency) {
-		fail(http.StatusForbidden, "emergency access ended during the sign-in", s.t("Your emergency access to this site has ended."))
+		fail(http.StatusForbidden, "emergency access ended during the sign-in", s.tu(r, "Your emergency access to this site has ended."))
 		return
 	} else if errors.Is(err, ErrSSODenied) {
-		fail(http.StatusForbidden, "revoked during the sign-in", s.t("Your sap13ns account does not have access to this site."))
+		fail(http.StatusForbidden, "revoked during the sign-in", s.tu(r, "Your sap13ns account does not have access to this site."))
 		return
 	} else if err != nil {
 		s.serverError(w, r, err)
@@ -572,7 +572,7 @@ func ssoUsername(base string, i int) string {
 func (s *Server) adminNetworkLink(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u.Linked() {
-		s.redirect(w, r, "/admin/profile", "info", s.t("Your user is already linked to a sap13ns account."))
+		s.redirect(w, r, "/admin/profile", "info", s.tu(r, "Your user is already linked to a sap13ns account."))
 		return
 	}
 	s.startSSO(w, r, "/admin/profile", u.ID)
@@ -586,25 +586,25 @@ func (s *Server) finishSSOLink(w http.ResponseWriter, r *http.Request, st *ssoSt
 	refuse := func(reason, msg string) {
 		s.audit(r, uid(r), "sso.link_refused", g.Username, map[string]string{"reason": reason, "network_account": strconv.FormatInt(g.AccountID, 10)})
 		if u == nil {
-			s.renderAuth(w, r, http.StatusForbidden, "login", s.t("Log in"), &authForm{Error: msg, Next: "/admin/profile"})
+			s.renderAuth(w, r, http.StatusForbidden, "login", s.tu(r, "Log in"), &authForm{Error: msg, Next: "/admin/profile"})
 			return
 		}
 		s.redirect(w, r, "/admin/profile", "error", msg)
 	}
 	switch {
 	case u == nil || u.ID != st.Link:
-		refuse("signed out", s.t("Log in to this site again, then link your sap13ns account."))
+		refuse("signed out", s.tu(r, "Log in to this site again, then link your sap13ns account."))
 		return
 	case u.Linked():
-		refuse("already linked", s.t("Your user is already linked to a sap13ns account."))
+		refuse("already linked", s.tu(r, "Your user is already linked to a sap13ns account."))
 		return
 	case g.Operator:
-		refuse("operator", s.t("Only a member of this site can link their sap13ns account."))
+		refuse("operator", s.tu(r, "Only a member of this site can link their sap13ns account."))
 		return
 	}
 	err := s.store.LinkNetworkAccount(ctx, u.ID, g.AccountID)
 	if errors.Is(err, store.ErrConflict) {
-		refuse("account linked to another user", s.t("Your sap13ns account is already linked to another user of this site."))
+		refuse("account linked to another user", s.tu(r, "Your sap13ns account is already linked to another user of this site."))
 		return
 	}
 	if err != nil {
@@ -628,13 +628,13 @@ func (s *Server) finishSSOLink(w http.ResponseWriter, r *http.Request, st *ssoSt
 	}
 	if err := s.confirmSSO(ctx, u, g); errors.Is(err, ErrSSODenied) {
 		s.audit(r, u.ID, "sso.failed", g.Username, map[string]string{"reason": "revoked during the sign-in", "network_account": strconv.FormatInt(g.AccountID, 10)})
-		s.renderAuth(w, r, http.StatusForbidden, "login", s.t("Log in"), &authForm{Error: s.t("Your sap13ns account does not have access to this site."), Next: "/admin/profile"})
+		s.renderAuth(w, r, http.StatusForbidden, "login", s.tu(r, "Log in"), &authForm{Error: s.tu(r, "Your sap13ns account does not have access to this site."), Next: "/admin/profile"})
 		return
 	} else if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	s.redirect(w, r, "/admin/profile", "success", s.t("Your sap13ns account is linked. You can now log in with it."))
+	s.redirect(w, r, "/admin/profile", "success", s.tu(r, "Your sap13ns account is linked. You can now log in with it."))
 }
 
 // ---------------------------------------------------------- portal side --
@@ -650,18 +650,18 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 	// which could read or replay the redirect. Browsers send Sec-Fetch-*
 	// to every HTTPS origin; a portal on plain HTTP (development) gets none.
 	if m := r.Header.Get("Sec-Fetch-Mode"); m != "navigate" && (m != "" || s.cfg.CookieSecure) {
-		s.ssoError(w, r, http.StatusForbidden, s.t("This sign-in link must be opened in the browser."))
+		s.ssoError(w, r, http.StatusForbidden, s.tu(r, "This sign-in link must be opened in the browser."))
 		return
 	}
 	if d := r.Header.Get("Sec-Fetch-Dest"); d != "" && d != "document" {
-		s.ssoError(w, r, http.StatusForbidden, s.t("This sign-in link must be opened in the browser."))
+		s.ssoError(w, r, http.StatusForbidden, s.tu(r, "This sign-in link must be opened in the browser."))
 		return
 	}
 	q := r.URL.Query()
 	siteID, err := strconv.ParseInt(q.Get("site"), 10, 64)
 	challenge, cerr := base64.RawURLEncoding.DecodeString(q.Get("code_challenge"))
 	redirect := q.Get("redirect_uri")
-	invalid := s.t("This sign-in link is not valid. Start again from the site.")
+	invalid := s.tu(r, "This sign-in link is not valid. Start again from the site.")
 	if err != nil || siteID < 1 || !ssoStateRe.MatchString(q.Get("state")) || cerr != nil || len(challenge) != sha256.Size ||
 		(q.Get("code_challenge_method") != "" && q.Get("code_challenge_method") != "S256") || redirect == "" {
 		s.ssoError(w, r, http.StatusBadRequest, invalid)
@@ -670,7 +670,7 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	site, err := s.portal.SSOSite(ctx, siteID)
 	if errors.Is(err, store.ErrNotFound) {
-		s.ssoError(w, r, http.StatusNotFound, s.t("This site does not exist."))
+		s.ssoError(w, r, http.StatusNotFound, s.tu(r, "This site does not exist."))
 		return
 	}
 	if err != nil {
@@ -707,7 +707,7 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 	if !served && !(err == nil && acc.Emergency) {
 		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "site " + site.Status})
-		s.ssoError(w, r, http.StatusForbidden, s.t("This site is suspended."))
+		s.ssoError(w, r, http.StatusForbidden, s.tu(r, "This site is suspended."))
 		return
 	}
 	role, operator := acc.Role, acc.Operator
@@ -715,12 +715,12 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 		// A network admin who is not a member opens a site only with the
 		// consent of its owner or one of its administrators.
 		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "no support access"})
-		s.ssoError(w, r, http.StatusForbidden, s.t("The owner of this site has not allowed support access. Ask for it from the site's page in the network admin area."))
+		s.ssoError(w, r, http.StatusForbidden, s.tu(r, "The owner of this site has not allowed support access. Ask for it from the site's page in the network admin area."))
 		return
 	}
 	if errors.Is(err, ErrSSODenied) {
 		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "no membership"})
-		s.ssoError(w, r, http.StatusForbidden, s.t("Your sap13ns account does not have access to this site."))
+		s.ssoError(w, r, http.StatusForbidden, s.tu(r, "Your sap13ns account does not have access to this site."))
 		return
 	}
 	// The portal requires a second factor of every account
@@ -728,7 +728,7 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 	// through the portal is not asked for the site's own.
 	if !hasSecondFactor(u) && !(s.cfg.Dev && s.cfg.DevSkip2FA) {
 		s.audit(r, u.ID, "sso.refused", site.Slug, map[string]string{"reason": "no second factor", "role": role})
-		s.flash(w, "warning", s.t("Set up two-factor authentication to sign in to %s, then start again from the site.", site.Slug))
+		s.flash(w, "warning", s.tu(r, "Set up two-factor authentication to sign in to %s, then start again from the site.", site.Slug))
 		http.Redirect(w, r, "/admin/profile/2fa", http.StatusSeeOther)
 		return
 	}
@@ -750,7 +750,7 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ssoError(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	s.renderAuth(w, r, status, "sso_error", s.t("Single sign-on"), &authForm{Error: msg})
+	s.renderAuth(w, r, status, "sso_error", s.tu(r, "Single sign-on"), &authForm{Error: msg})
 }
 
 // accountChanged applies a change of a portal account to its users on the

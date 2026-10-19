@@ -37,13 +37,13 @@ func (s *Server) adminThemes(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "themes", s.t("Themes"), "themes", d)
+	s.renderAdmin(w, r, "themes", s.tu(r, "Themes"), "themes", d)
 }
 
 func (s *Server) adminThemeActivate(w http.ResponseWriter, r *http.Request) {
 	th, ok := s.themes.Get(r.PathValue("slug"))
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	st := s.settings()
@@ -60,9 +60,9 @@ func (s *Server) adminThemeActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "theme.activated", th.Slug, nil)
-	msg := s.t("“%s” is now the active theme.", th.Name)
+	msg := s.tu(r, "“%s” is now the active theme.", th.Name)
 	if front {
-		msg += " " + s.t("Its front page now shows at / and the posts at /blog; Settings → Reading changes that.")
+		msg += " " + s.tu(r, "Its front page now shows at / and the posts at /blog; Settings → Reading changes that.")
 	}
 	s.redirect(w, r, "/admin/appearance/themes", "success", msg)
 }
@@ -88,7 +88,7 @@ type themeOptionsData struct {
 func (s *Server) loadTheme(w http.ResponseWriter, r *http.Request) (*theme.Theme, bool) {
 	th, ok := s.themes.Get(r.PathValue("slug"))
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 	}
 	return th, ok
 }
@@ -118,7 +118,7 @@ func (s *Server) adminThemeOptionsSave(w http.ResponseWriter, r *http.Request) {
 			v = strconv.FormatBool(v == "true")
 		}
 		if tooLong(v, 2000) {
-			s.redirect(w, r, r.URL.Path, "error", s.t("“%s” is too long.", s.themeText(s.uiLang(r), th, o.Label)))
+			s.redirect(w, r, r.URL.Path, "error", s.tu(r, "“%s” is too long.", s.themeText(s.uiLang(r), th, o.Label)))
 			return
 		}
 		opts[o.Key] = v
@@ -129,7 +129,7 @@ func (s *Server) adminThemeOptionsSave(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), "theme.options_saved", th.Slug, nil)
 	s.contentChanged()
-	s.redirect(w, r, r.URL.Path, "success", s.t("Saved."))
+	s.redirect(w, r, r.URL.Path, "success", s.tu(r, "Saved."))
 }
 
 // ----------------------------------------------------------------- menus --
@@ -193,7 +193,7 @@ func (s *Server) adminMenus(w http.ResponseWriter, r *http.Request) {
 			extra = append(extra, l)
 		}
 	}
-	s.renderAdmin(w, r, "menus", s.t("Menus"), "menus", menusData{Theme: th, Menus: menus, Pages: pages, Categories: cats,
+	s.renderAdmin(w, r, "menus", s.tu(r, "Menus"), "menus", menusData{Theme: th, Menus: menus, Pages: pages, Categories: cats,
 		Lang: scope, Langs: extra})
 }
 
@@ -205,7 +205,7 @@ func (s *Server) adminMenuAdd(w http.ResponseWriter, r *http.Request) {
 	loc, scope := r.FormValue("location"), s.menuScope(r)
 	back := menusPath(scope)
 	if !th.HasMenu(loc) && loc != "primary" && loc != "footer" {
-		s.redirect(w, r, back, "error", s.t("Unknown menu location."))
+		s.redirect(w, r, back, "error", s.tu(r, "Unknown menu location."))
 		return
 	}
 	content := scope
@@ -232,7 +232,7 @@ func (s *Server) adminMenuAdd(w http.ResponseWriter, r *http.Request) {
 	default:
 		label, link := trimmed(r, "label"), trimmed(r, "url")
 		if !sitecheck.MenuItem(label, link) {
-			s.redirect(w, r, back, "error", s.t("Enter a label and a valid link (/path or https://…)."))
+			s.redirect(w, r, back, "error", s.tu(r, "Enter a label and a valid link (/path or https://…)."))
 			return
 		}
 		items = append(items, item{label, link})
@@ -245,18 +245,18 @@ func (s *Server) adminMenuAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), "menu.items_added", store.MenuKey(loc, scope), map[string]string{"count": strconv.Itoa(len(items))})
 	s.contentChanged()
-	s.redirect(w, r, back+"#menu-"+loc, "success", s.t("%d items updated.", len(items)))
+	s.redirect(w, r, back+"#menu-"+loc, "success", s.tu(r, "%d items updated.", len(items)))
 }
 
 func (s *Server) adminMenuUpdate(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	label, link := trimmed(r, "label"), trimmed(r, "url")
 	if !sitecheck.MenuItem(label, link) {
-		s.redirect(w, r, menusPath(s.menuScope(r)), "error", s.t("Enter a label and a valid link (/path or https://…)."))
+		s.redirect(w, r, menusPath(s.menuScope(r)), "error", s.tu(r, "Enter a label and a valid link (/path or https://…)."))
 		return
 	}
 	if err := s.store.UpdateMenuItem(r.Context(), id, label, link); err != nil {
@@ -264,13 +264,13 @@ func (s *Server) adminMenuUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.contentChanged()
-	s.redirect(w, r, menusPath(s.menuScope(r)), "success", s.t("Saved."))
+	s.redirect(w, r, menusPath(s.menuScope(r)), "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminMenuAction(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	var err error
@@ -282,7 +282,7 @@ func (s *Server) adminMenuAction(w http.ResponseWriter, r *http.Request) {
 	case "delete":
 		err = s.store.DeleteMenuItem(r.Context(), id)
 	default:
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
 	}
 	if err != nil {
@@ -310,10 +310,10 @@ type widgetsData struct {
 	Fields map[string][]plugin.SettingDecl // config fields of plugin widget kinds
 }
 
-func (s *Server) widgetKinds() []widgetKind {
+func (s *Server) widgetKinds(r *http.Request) []widgetKind {
 	labels := map[string]string{
-		"recent_posts": s.t("Recent posts"), "categories": s.t("Categories"), "tags": s.t("Tags"),
-		"archives": s.t("Archives"), "search": s.t("Search"), "feeds": s.t("Subscribe (feeds)"), "text": s.t("Text"),
+		"recent_posts": s.tu(r, "Recent posts"), "categories": s.tu(r, "Categories"), "tags": s.tu(r, "Tags"),
+		"archives": s.tu(r, "Archives"), "search": s.tu(r, "Search"), "feeds": s.tu(r, "Subscribe (feeds)"), "text": s.tu(r, "Text"),
 	}
 	var out []widgetKind
 	for _, k := range builtinWidgets {
@@ -333,16 +333,16 @@ func (s *Server) adminWidgets(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	kinds := s.widgetKinds()
+	kinds := s.widgetKinds(r)
 	labels := map[string]string{}
 	for _, k := range kinds {
 		labels[k.Kind] = k.Label
 	}
-	s.renderAdmin(w, r, "widgets", s.t("Widgets"), "widgets", widgetsData{Theme: s.themes.Active(s.settings().ActiveTheme), Widgets: widgets, Kinds: kinds, Labels: labels, Langs: s.adminLangs(), Fields: s.pluginWidgetFields(kinds)})
+	s.renderAdmin(w, r, "widgets", s.tu(r, "Widgets"), "widgets", widgetsData{Theme: s.themes.Active(s.settings().ActiveTheme), Widgets: widgets, Kinds: kinds, Labels: labels, Langs: s.adminLangs(), Fields: s.pluginWidgetFields(kinds)})
 }
 
-func (s *Server) validWidgetKind(kind string) bool {
-	for _, k := range s.widgetKinds() {
+func (s *Server) validWidgetKind(r *http.Request, kind string) bool {
+	for _, k := range s.widgetKinds(r) {
 		if k.Kind == kind {
 			return true
 		}
@@ -366,8 +366,8 @@ func (s *Server) widgetLang(r *http.Request) string {
 func (s *Server) adminWidgetAdd(w http.ResponseWriter, r *http.Request) {
 	th := s.themes.Active(s.settings().ActiveTheme)
 	area, kind := r.FormValue("area"), r.FormValue("kind")
-	if !th.HasWidgetArea(area) || !s.validWidgetKind(kind) {
-		s.redirect(w, r, "/admin/appearance/widgets", "error", s.t("Invalid request."))
+	if !th.HasWidgetArea(area) || !s.validWidgetKind(r, kind) {
+		s.redirect(w, r, "/admin/appearance/widgets", "error", s.tu(r, "Invalid request."))
 		return
 	}
 	title := trimmed(r, "title")
@@ -385,13 +385,13 @@ func (s *Server) adminWidgetAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), "widget.added", area+"/"+kind, nil)
 	s.contentChanged()
-	s.redirect(w, r, "/admin/appearance/widgets#area-"+area, "success", s.t("Widget added."))
+	s.redirect(w, r, "/admin/appearance/widgets#area-"+area, "success", s.tu(r, "Widget added."))
 }
 
 func (s *Server) adminWidgetUpdate(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	title := trimmed(r, "title")
@@ -409,13 +409,13 @@ func (s *Server) adminWidgetUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.contentChanged()
-	s.redirect(w, r, fmt.Sprintf("/admin/appearance/widgets#widget-%d", id), "success", s.t("Saved."))
+	s.redirect(w, r, fmt.Sprintf("/admin/appearance/widgets#widget-%d", id), "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminWidgetAction(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	var err error
@@ -427,7 +427,7 @@ func (s *Server) adminWidgetAction(w http.ResponseWriter, r *http.Request) {
 	case "delete":
 		err = s.store.DeleteWidget(r.Context(), id)
 	default:
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
 	}
 	if err != nil {

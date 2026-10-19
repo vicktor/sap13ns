@@ -196,7 +196,7 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, status in
 	for _, a := range list {
 		d.List = append(d.List, backupRow{Archive: a, URL: s.backupURL(r, a.Name)})
 	}
-	s.renderAdminStatus(w, r, status, "backups", s.t("Backups"), "backups", d)
+	s.renderAdminStatus(w, r, status, "backups", s.tu(r, "Backups"), "backups", d)
 }
 
 // backupBinding ties a download link to the session that asked for it.
@@ -230,12 +230,12 @@ func (s *Server) startBackupJob(r *http.Request, restore bool) bool {
 }
 
 // restorePaceError explains when the next restore may start.
-func (s *Server) restorePaceError(dir string) string {
+func (s *Server) restorePaceError(r *http.Request, dir string) string {
 	wait, err := sitebackup.RestoreWait(dir, restorePace, time.Now())
 	if err != nil {
 		s.log.Warn("restore pace", "err", err)
 	}
-	return s.t("Restores of this site are spaced out: one every %d minutes, at most %d an hour. Try again in %d minutes.",
+	return s.tu(r, "Restores of this site are spaced out: one every %d minutes, at most %d an hour. Try again in %d minutes.",
 		int(restorePace.Cooldown.Minutes()), restorePace.PerHour, int(wait.Minutes())+1)
 }
 
@@ -247,37 +247,37 @@ func (s *Server) finishBackupJob(res *backupResult) {
 }
 
 // backupError explains a failed backup or restore to the administrator.
-func (s *Server) backupError(err error) string {
+func (s *Server) backupError(r *http.Request, err error) string {
 	switch {
 	case errors.Is(err, sitebackup.ErrBusy):
-		return s.t("A backup or restore of this site is already running. Try again when it has finished.")
+		return s.tu(r, "A backup or restore of this site is already running. Try again when it has finished.")
 	case errors.Is(err, sitebackup.ErrLowDisk):
-		return s.t("The server does not have enough free disk space for a backup of this site. The server administrator has been told in the log.")
+		return s.tu(r, "The server does not have enough free disk space for a backup of this site. The server administrator has been told in the log.")
 	case errors.Is(err, sitebackup.ErrTooLarge):
-		return s.t("The backup would be larger than the storage of the site's plan. Remove media you no longer need, or move to a larger plan.")
+		return s.tu(r, "The backup would be larger than the storage of the site's plan. Remove media you no longer need, or move to a larger plan.")
 	case errors.Is(err, sitebackup.ErrNotSiteBackup):
-		return s.t("This file is not a backup of a sap13ns site.")
+		return s.tu(r, "This file is not a backup of a sap13ns site.")
 	case strings.Contains(err.Error(), "passphrase"):
-		return s.t("The backup could not be decrypted with the server's passphrase.")
+		return s.tu(r, "The backup could not be decrypted with the server's passphrase.")
 	}
-	return s.t("It failed. The error has been logged.")
+	return s.tu(r, "It failed. The error has been logged.")
 }
 
 func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 	wpBase, err := sitebackup.CheckWPBase(r.FormValue("wp_base"))
 	if err != nil {
 		s.renderBackups(w, r, http.StatusUnprocessableEntity,
-			s.t("Enter the address of the WordPress site like https://new.example, or leave it empty."), r.FormValue("wp_base"))
+			s.tu(r, "Enter the address of the WordPress site like https://new.example, or leave it empty."), r.FormValue("wp_base"))
 		return
 	}
 	if !s.backupNow.Allow("now") {
-		s.renderBackups(w, r, http.StatusTooManyRequests, s.t("Too many backups in a short time. Try again in an hour."), wpBase)
+		s.renderBackups(w, r, http.StatusTooManyRequests, s.tu(r, "Too many backups in a short time. Try again in an hour."), wpBase)
 		return
 	}
 	o, err := s.backupOptions()
 	if err != nil {
 		s.log.Error("backup passphrase", "err", err)
-		s.renderBackups(w, r, http.StatusInternalServerError, s.t("The backup passphrase of the server cannot be read. Ask the server administrator."), wpBase)
+		s.renderBackups(w, r, http.StatusInternalServerError, s.tu(r, "The backup passphrase of the server cannot be read. Ask the server administrator."), wpBase)
 		return
 	}
 	o.WPBase = wpBase
@@ -288,7 +288,7 @@ func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	o.MaxBytes = maxBackup
 	if !s.startBackupJob(r, false) {
-		s.renderBackups(w, r, http.StatusConflict, s.t("A backup or restore of this site is already running. Try again when it has finished."), wpBase)
+		s.renderBackups(w, r, http.StatusConflict, s.tu(r, "A backup or restore of this site is already running. Try again when it has finished."), wpBase)
 		return
 	}
 	u := currentUser(r)
@@ -304,7 +304,7 @@ func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 		a, _, err := sitebackup.Create(ctx, s.store, o)
 		if err != nil {
 			s.log.Error("site backup", "err", err)
-			res.Error = s.backupError(err)
+			res.Error = s.backupError(r, err)
 		} else {
 			res.Archive = a.Name
 			details["archive"] = a.Name
@@ -321,7 +321,7 @@ func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 		res.Finished = time.Now()
 		s.finishBackupJob(res)
 	})
-	s.redirect(w, r, "/admin/tools/backups", "success", s.t("The backup is being made. This page shows it when it is ready."))
+	s.redirect(w, r, "/admin/tools/backups", "success", s.tu(r, "The backup is being made. This page shows it when it is ready."))
 }
 
 // adminBackupDownload sends a backup, decrypted when it is encrypted. The
@@ -329,7 +329,7 @@ func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) adminBackupDownload(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if _, ok := s.keys.Verify(backupPurpose, backupBinding(r, name), r.URL.Query().Get("t"), backupLinkTTL); !ok {
-		s.adminError(w, r, http.StatusForbidden, s.t("This download link is not valid. Open the backups page again."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "This download link is not valid. Open the backups page again."))
 		return
 	}
 	o, err := s.backupOptions()
@@ -339,7 +339,7 @@ func (s *Server) adminBackupDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	a, err := sitebackup.Find(o.Dir, name)
 	if errors.Is(err, sitebackup.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("This backup does not exist any more."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "This backup does not exist any more."))
 		return
 	}
 	if err != nil {
@@ -349,7 +349,7 @@ func (s *Server) adminBackupDownload(w http.ResponseWriter, r *http.Request) {
 	in, err := sitebackup.Plain(a.Path, o.Passphrase)
 	if err != nil {
 		s.log.Error("open a site backup", "name", name, "err", err)
-		s.adminError(w, r, http.StatusInternalServerError, s.backupError(err))
+		s.adminError(w, r, http.StatusInternalServerError, s.backupError(r, err))
 		return
 	}
 	defer in.Close()
@@ -376,20 +376,20 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 	o, err := s.backupOptions()
 	if err != nil {
 		s.log.Error("backup passphrase", "err", err)
-		s.renderBackups(w, r, http.StatusInternalServerError, s.t("The backup passphrase of the server cannot be read. Ask the server administrator."), "")
+		s.renderBackups(w, r, http.StatusInternalServerError, s.tu(r, "The backup passphrase of the server cannot be read. Ask the server administrator."), "")
 		return
 	}
 	if s.backupHooks != nil && s.backupHooks.BackupIdentity().Portal {
-		s.renderBackups(w, r, http.StatusForbidden, s.t("The portal holds the network's accounts: it is restored from a backup of the database, by the server administrator."), "")
+		s.renderBackups(w, r, http.StatusForbidden, s.tu(r, "The portal holds the network's accounts: it is restored from a backup of the database, by the server administrator."), "")
 		return
 	}
 	a, err := sitebackup.Find(o.Dir, r.FormValue("name"))
 	if err != nil {
-		s.renderBackups(w, r, http.StatusUnprocessableEntity, s.t("Choose a backup from the list."), "")
+		s.renderBackups(w, r, http.StatusUnprocessableEntity, s.tu(r, "Choose a backup from the list."), "")
 		return
 	}
 	if strings.TrimSpace(r.FormValue("confirm")) != o.Site.Label {
-		s.renderBackups(w, r, http.StatusUnprocessableEntity, s.t("Type the name of the site, %s, to confirm the restore.", o.Site.Label), "")
+		s.renderBackups(w, r, http.StatusUnprocessableEntity, s.tu(r, "Type the name of the site, %s, to confirm the restore.", o.Site.Label), "")
 		return
 	}
 	if msg := s.restoreReauth(r, u); msg != "" {
@@ -403,7 +403,7 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	} else if wait > 0 {
-		s.renderBackups(w, r, http.StatusTooManyRequests, s.restorePaceError(o.Dir), "")
+		s.renderBackups(w, r, http.StatusTooManyRequests, s.restorePaceError(r, o.Dir), "")
 		return
 	}
 	_, maxBackup, keep, err := s.backupLimits(r.Context())
@@ -413,7 +413,7 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	o.MaxBytes = maxBackup
 	if !s.startBackupJob(r, true) {
-		s.renderBackups(w, r, http.StatusConflict, s.t("A backup or restore of this site is already running. Try again when it has finished."), "")
+		s.renderBackups(w, r, http.StatusConflict, s.tu(r, "A backup or restore of this site is already running. Try again when it has finished."), "")
 		return
 	}
 	ip := clientIP(r)
@@ -428,9 +428,9 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		details := map[string]string{}
 		if err != nil {
 			s.log.Error("site restore", "archive", a.Name, "err", err)
-			res.Error = s.backupError(err)
+			res.Error = s.backupError(r, err)
 			if errors.Is(err, sitebackup.ErrTooSoon) {
-				res.Error = s.restorePaceError(o.Dir)
+				res.Error = s.restorePaceError(r, o.Dir)
 			}
 			details["error"] = err.Error()
 		} else {
@@ -461,7 +461,7 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		res.Finished = time.Now()
 		s.finishBackupJob(res)
 	})
-	s.redirect(w, r, "/admin/tools/backups", "success", s.t("The restore has started. This page shows its result when it has finished."))
+	s.redirect(w, r, "/admin/tools/backups", "success", s.tu(r, "The restore has started. This page shows its result when it has finished."))
 }
 
 // pluginRules checks the plugin settings and widgets of a restore.
@@ -480,17 +480,17 @@ func (s *Server) restoreReauth(r *http.Request, u *store.User) string {
 		if recentLogin(r) {
 			return ""
 		}
-		return s.t("Sign out and in again, then restore within %d minutes.", int(passkeyReauthWindow.Minutes()))
+		return s.tu(r, "Sign out and in again, then restore within %d minutes.", int(passkeyReauthWindow.Minutes()))
 	}
 	password := r.FormValue("current_password")
 	if password == "" {
-		return s.t("Enter your current password to continue.")
+		return s.tu(r, "Enter your current password to continue.")
 	}
 	if !s.loginUser.Allow("pw:" + u.Username) {
-		return s.t("Too many attempts. Wait a few minutes and try again.")
+		return s.tu(r, "Too many attempts. Wait a few minutes and try again.")
 	}
 	if len(password) > auth.MaxPasswordLen || !auth.VerifyPassword(u.PasswordHash, password) {
-		return s.t("The current password is not correct.")
+		return s.tu(r, "The current password is not correct.")
 	}
 	s.loginUser.Reset("pw:" + u.Username)
 	return ""

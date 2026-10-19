@@ -105,7 +105,7 @@ func (s *Server) ownSite(w http.ResponseWriter, r *http.Request) (*NetSiteDetail
 		return nil, false
 	}
 	if d.Site.OwnerID != uid(r) || d.Site.Status == "deleted" {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	return d, true
@@ -128,7 +128,7 @@ func (s *Server) adminMyDomains(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderMyDomains(w http.ResponseWriter, r *http.Request, status int, d *NetSiteDetail, host, msg string, claim *NetDomain) {
 	v := s.domainsView(d, myDomainsBase(d.Site.ID))
 	v.Host, v.Error, v.Claim = host, msg, claim
-	s.renderAdminStatus(w, r, status, "site_domains", s.t("Domains of %s", d.Site.Slug), "my-sites",
+	s.renderAdminStatus(w, r, status, "site_domains", s.tu(r, "Domains of %s", d.Site.Slug), "my-sites",
 		siteDomainsData{Site: d.Site, Plan: d.Plan, Domains: v})
 }
 
@@ -203,38 +203,38 @@ func (s *Server) domainAdd(w http.ResponseWriter, r *http.Request, d *NetSiteDet
 		s.renderMyDomains(w, r, status, d, truncateRunes(host, 253), msg, claim)
 	}
 	if !s.domainChecks.Allow(strconv.FormatInt(uid(r), 10)) {
-		fail(http.StatusTooManyRequests, s.t("Too many attempts. Try again later."), nil)
+		fail(http.StatusTooManyRequests, s.tu(r, "Too many attempts. Try again later."), nil)
 		return
 	}
 	nd, err := s.portal.AddDomain(r.Context(), d.Site.ID, host)
 	switch {
 	case errors.Is(err, ErrNetworkInvalid):
-		fail(http.StatusUnprocessableEntity, s.t("Enter a domain name you control, such as www.example.com. The network's own hosts cannot be added."), nil)
+		fail(http.StatusUnprocessableEntity, s.tu(r, "Enter a domain name you control, such as www.example.com. The network's own hosts cannot be added."), nil)
 		return
 	case errors.Is(err, ErrNetworkLimit):
-		fail(http.StatusForbidden, s.t("The plan of this site allows no more custom domains."), nil)
+		fail(http.StatusForbidden, s.tu(r, "The plan of this site allows no more custom domains."), nil)
 		return
 	case errors.Is(err, ErrDomainClaimed):
-		fail(http.StatusConflict, s.t("Another site added this domain and has not verified it. If it is yours, create the TXT record below and add it again: proving that you control it moves it to this site."), nd)
+		fail(http.StatusConflict, s.tu(r, "Another site added this domain and has not verified it. If it is yours, create the TXT record below and add it again: proving that you control it moves it to this site."), nd)
 		return
 	case errors.Is(err, store.ErrConflict):
-		fail(http.StatusConflict, s.t("A site of the network already uses this domain."), nil)
+		fail(http.StatusConflict, s.tu(r, "A site of the network already uses this domain."), nil)
 		return
 	case errors.Is(err, ErrNetworkState):
-		fail(http.StatusConflict, s.siteStateError(d.Site.Status), nil)
+		fail(http.StatusConflict, s.siteStateError(r, d.Site.Status), nil)
 		return
 	case errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
 		return
 	}
 	details := s.domainDetails(d, nd.Host)
-	msg := s.t("%s was added. Create its DNS records, then verify it.", nd.Host)
+	msg := s.tu(r, "%s was added. Create its DNS records, then verify it.", nd.Host)
 	if nd.TakenFrom {
 		details["taken_over"] = "true"
-		msg = s.t("%s was added: its TXT record proves that you control it, so it moved from the site that had claimed it. Verify it to have it served.", nd.Host)
+		msg = s.tu(r, "%s was added: its TXT record proves that you control it, so it moved from the site that had claimed it. Verify it to have it served.", nd.Host)
 	}
 	s.audit(r, uid(r), "network.domain_added", nd.Host, details)
 	s.redirect(w, r, back, "success", msg)
@@ -248,7 +248,7 @@ func (s *Server) domainAction(w http.ResponseWriter, r *http.Request, d *NetSite
 		known = known || x.Host == host
 	}
 	if !known {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	ctx, details := r.Context(), s.domainDetails(d, host)
@@ -256,7 +256,7 @@ func (s *Server) domainAction(w http.ResponseWriter, r *http.Request, d *NetSite
 	switch r.PathValue("op") {
 	case "check":
 		if !s.domainChecks.Allow(strconv.FormatInt(uid(r), 10)) {
-			s.redirect(w, r, back, "error", s.t("Too many attempts. Try again later."))
+			s.redirect(w, r, back, "error", s.tu(r, "Too many attempts. Try again later."))
 			return
 		}
 		var nd *NetDomain
@@ -266,30 +266,30 @@ func (s *Server) domainAction(w http.ResponseWriter, r *http.Request, d *NetSite
 		}
 	case "primary":
 		if err = s.portal.SetPrimaryDomain(ctx, d.Site.ID, host); errors.Is(err, ErrNetworkState) {
-			s.redirect(w, r, back, "error", s.t("Only a verified domain can be the primary one."))
+			s.redirect(w, r, back, "error", s.tu(r, "Only a verified domain can be the primary one."))
 			return
 		}
 		if err == nil {
 			s.audit(r, uid(r), "network.domain_primary", host, details)
-			s.redirect(w, r, back, "success", s.t("%s is now the primary domain of %s.", host, d.Site.Slug))
+			s.redirect(w, r, back, "success", s.tu(r, "%s is now the primary domain of %s.", host, d.Site.Slug))
 			return
 		}
 	case "remove":
 		if err = s.portal.RemoveDomain(ctx, d.Site.ID, host); errors.Is(err, ErrNetworkState) {
-			s.redirect(w, r, back, "error", s.t("The default domain and the primary domain cannot be removed."))
+			s.redirect(w, r, back, "error", s.tu(r, "The default domain and the primary domain cannot be removed."))
 			return
 		}
 		if err == nil {
 			s.audit(r, uid(r), "network.domain_removed", host, details)
-			s.redirect(w, r, back, "success", s.t("%s was removed from %s.", host, d.Site.Slug))
+			s.redirect(w, r, back, "success", s.tu(r, "%s was removed from %s.", host, d.Site.Slug))
 			return
 		}
 	default:
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if errors.Is(err, store.ErrNotFound) {
-		s.redirect(w, r, back, "error", s.t("This domain changed meanwhile. Check the list again."))
+		s.redirect(w, r, back, "error", s.tu(r, "This domain changed meanwhile. Check the list again."))
 		return
 	}
 	s.serverError(w, r, err)
@@ -301,7 +301,7 @@ func (s *Server) checkOutcome(w http.ResponseWriter, r *http.Request, d *NetSite
 	if nd.CheckError != "" {
 		details["problem"] = nd.CheckError
 		s.audit(r, uid(r), "network.domain_check_failed", nd.Host, details)
-		s.redirect(w, r, back, "error", s.checkMessage(nd))
+		s.redirect(w, r, back, "error", s.checkMessage(r, nd))
 		return
 	}
 	was := false
@@ -310,20 +310,20 @@ func (s *Server) checkOutcome(w http.ResponseWriter, r *http.Request, d *NetSite
 	}
 	if !was {
 		s.audit(r, uid(r), "network.domain_verified", nd.Host, details)
-		s.redirect(w, r, back, "success", s.t("%s is verified: the network serves it now.", nd.Host))
+		s.redirect(w, r, back, "success", s.tu(r, "%s is verified: the network serves it now.", nd.Host))
 		return
 	}
-	s.redirect(w, r, back, "success", s.t("%s still points to the network.", nd.Host))
+	s.redirect(w, r, back, "success", s.tu(r, "%s still points to the network.", nd.Host))
 }
 
-func (s *Server) checkMessage(d *NetDomain) string {
+func (s *Server) checkMessage(r *http.Request, d *NetDomain) string {
 	switch d.CheckError {
 	case checkTXT:
-		return s.t("%s is not verified yet: the TXT record %s was not found, or has another value. DNS changes can take a while to spread.", d.Host, d.TXTName)
+		return s.tu(r, "%s is not verified yet: the TXT record %s was not found, or has another value. DNS changes can take a while to spread.", d.Host, d.TXTName)
 	case checkAddress:
-		return s.t("%s is not verified yet: it does not point to the network.", d.Host)
+		return s.tu(r, "%s is not verified yet: it does not point to the network.", d.Host)
 	}
-	return s.t("The DNS lookup of %s failed. Try again in a few minutes.", d.Host)
+	return s.tu(r, "The DNS lookup of %s failed. Try again in a few minutes.", d.Host)
 }
 
 // DomainNotice tells the owner of a site that one of its custom domains

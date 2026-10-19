@@ -353,7 +353,7 @@ func TestAvatarStorage(t *testing.T) {
 	e.s.limits, e.s.media.Quota = l, l
 
 	rec := e.uploadPhoto("/admin/profile/avatar", e.admin, e.csrf, "me.jpg", photoJPEG(t, 300, 300))
-	if rec.Code != http.StatusRequestEntityTooLarge || !strings.Contains(rec.Body.String(), html.EscapeString(e.s.storageFull())) {
+	if rec.Code != http.StatusRequestEntityTooLarge || !strings.Contains(rec.Body.String(), html.EscapeString(e.s.storageFull(nil))) {
 		t.Fatalf("over the plan: %d", rec.Code)
 	}
 	if l.used != 0 || e.avatarDirFiles() != 0 || e.user("admin").Avatar != "" {

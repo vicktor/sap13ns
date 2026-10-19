@@ -110,7 +110,7 @@ func (s *Server) customRoutes(mux *http.ServeMux, admin func(string, auth.Cap, h
 	admin("GET /admin/appearance/customize", auth.CapAppearance, func(w http.ResponseWriter, r *http.Request) {
 		th := s.themes.Active(s.settings().ActiveTheme)
 		if th == nil {
-			s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+			s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 			return
 		}
 		http.Redirect(w, r, "/admin/appearance/themes/"+th.Slug+"/customize", http.StatusSeeOther)
@@ -492,14 +492,14 @@ type colorRow struct {
 	DefLight, DefDark string // the theme's values for the current options
 }
 
-func (s *Server) colorLabels() map[string]string {
+func (s *Server) colorLabels(r *http.Request) map[string]string {
 	return map[string]string{
-		"background": s.t("Background"), "foreground": s.t("Text"),
-		"card": s.t("Cards"), "card-foreground": s.t("Text on cards"),
-		"muted": s.t("Muted surfaces"), "muted-foreground": s.t("Secondary text"),
-		"border":  s.t("Borders"),
-		"primary": s.t("Primary"), "primary-foreground": s.t("Text on primary"),
-		"accent": s.t("Accent"), "accent-foreground": s.t("Text on accent"),
+		"background": s.tu(r, "Background"), "foreground": s.tu(r, "Text"),
+		"card": s.tu(r, "Cards"), "card-foreground": s.tu(r, "Text on cards"),
+		"muted": s.tu(r, "Muted surfaces"), "muted-foreground": s.tu(r, "Secondary text"),
+		"border":  s.tu(r, "Borders"),
+		"primary": s.tu(r, "Primary"), "primary-foreground": s.tu(r, "Text on primary"),
+		"accent": s.tu(r, "Accent"), "accent-foreground": s.tu(r, "Text on accent"),
 	}
 }
 
@@ -564,14 +564,14 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 	st := s.customizerState(th, d, pub, stored)
 	b, _ := json.Marshal(st)
 	data.State = string(b)
-	labels := s.colorLabels()
+	labels := s.colorLabels(r)
 	for _, k := range customize.ColorTokens {
 		data.Colors = append(data.Colors, colorRow{Key: k, Label: labels[k], Light: d.Light[k], Dark: d.Dark[k],
 			DefLight: st.Light[k], DefDark: st.Dark[k]})
 	}
 	// The live preview is an iframe of this site.
 	w.Header().Set("Content-Security-Policy", setCSPDirective(w.Header().Get("Content-Security-Policy"), "frame-src", "'self'"))
-	s.renderAdmin(w, r, "customize", s.t("Customise %s", th.Name), "customize", data)
+	s.renderAdmin(w, r, "customize", s.tu(r, "Customise %s", th.Name), "customize", data)
 }
 
 func (s *Server) customizerState(th *theme.Theme, d, pub *customize.Design, stored map[string]string) customizerState {
@@ -623,16 +623,16 @@ func (s *Server) parseDesign(r *http.Request, th *theme.Theme, ms *mediaSet) (*c
 
 // designFail answers a design that parseDesign refused: 422 with the
 // field errors, 500 when its media could not be checked, 400 otherwise.
-func (s *Server) designFail(w http.ResponseWriter, th *theme.Theme, ms *mediaSet, err error) {
+func (s *Server) designFail(w http.ResponseWriter, r *http.Request, th *theme.Theme, ms *mediaSet, err error) {
 	var errs customize.Errors
 	switch {
 	case ms.err != nil:
 		s.log.Error("check theme design media", "theme", th.Slug, "err", err)
-		writeJSON(w, http.StatusInternalServerError, draftResult{Message: s.t("Something went wrong. The error has been logged."), Warnings: []customize.Warning{}})
+		writeJSON(w, http.StatusInternalServerError, draftResult{Message: s.tu(r, "Something went wrong. The error has been logged."), Warnings: []customize.Warning{}})
 	case errors.As(err, &errs):
-		writeJSON(w, http.StatusUnprocessableEntity, draftResult{Errors: errs, Message: s.t("Some values were not accepted."), Warnings: []customize.Warning{}})
+		writeJSON(w, http.StatusUnprocessableEntity, draftResult{Errors: errs, Message: s.tu(r, "Some values were not accepted."), Warnings: []customize.Warning{}})
 	default:
-		writeJSON(w, http.StatusBadRequest, draftResult{Message: s.t("The request could not be read.")})
+		writeJSON(w, http.StatusBadRequest, draftResult{Message: s.tu(r, "The request could not be read.")})
 	}
 }
 
@@ -655,7 +655,7 @@ func (s *Server) parseDesignFile(r *http.Request, th *theme.Theme, ms *mediaSet)
 		}
 		f, _, err := r.FormFile("file")
 		if err != nil {
-			return nil, nil, customize.Errors{{Message: s.t("Choose a JSON file to import.")}}
+			return nil, nil, customize.Errors{{Message: s.tu(r, "Choose a JSON file to import.")}}
 		}
 		defer f.Close()
 		b, err := io.ReadAll(io.LimitReader(f, customize.MaxJSON+builder.MaxJSON+1))
@@ -687,18 +687,18 @@ func (s *Server) parseDesignFile(r *http.Request, th *theme.Theme, ms *mediaSet)
 func (s *Server) adminCustomizeDraft(w http.ResponseWriter, r *http.Request) {
 	th, ok := s.themes.Get(r.PathValue("slug"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, draftResult{Message: s.t("Not found.")})
+		writeJSON(w, http.StatusNotFound, draftResult{Message: s.tu(r, "Not found.")})
 		return
 	}
 	ms := s.mediaSet(r.Context())
 	d, err := s.parseDesign(r, th, ms)
 	if err != nil {
-		s.designFail(w, th, ms, err)
+		s.designFail(w, r, th, ms, err)
 		return
 	}
 	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomDesign, d.JSON(), uid(r)); err != nil {
 		s.log.Error("save theme draft", "theme", th.Slug, "err", err)
-		writeJSON(w, http.StatusInternalServerError, draftResult{Message: s.t("Something went wrong. The error has been logged.")})
+		writeJSON(w, http.StatusInternalServerError, draftResult{Message: s.tu(r, "Something went wrong. The error has been logged.")})
 		return
 	}
 	stored, _ := s.store.ThemeOptions(r.Context(), th.Slug)
@@ -713,13 +713,13 @@ func (s *Server) adminCustomizeDraft(w http.ResponseWriter, r *http.Request) {
 func (s *Server) adminCustomizeDerive(w http.ResponseWriter, r *http.Request) {
 	th, ok := s.themes.Get(r.PathValue("slug"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, draftResult{Message: s.t("Not found.")})
+		writeJSON(w, http.StatusNotFound, draftResult{Message: s.tu(r, "Not found.")})
 		return
 	}
 	ms := s.mediaSet(r.Context())
 	d, err := s.parseDesign(r, th, ms)
 	if err != nil {
-		s.designFail(w, th, ms, err)
+		s.designFail(w, r, th, ms, err)
 		return
 	}
 	stored, _ := s.store.ThemeOptions(r.Context(), th.Slug)
@@ -766,7 +766,7 @@ func (s *Server) adminCustomizePublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if row.Draft == nil {
-		s.customizeDone(w, r, th, "info", s.t("There are no unpublished changes."))
+		s.customizeDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
 		return
 	}
 	// Theme options live in the theme's stored options, which the options
@@ -793,7 +793,7 @@ func (s *Server) adminCustomizePublish(w http.ResponseWriter, r *http.Request) {
 	s.custom.invalidate()
 	s.contentChanged()
 	s.audit(r, uid(r), "theme.design_published", th.Slug, nil)
-	s.customizeDone(w, r, th, "success", s.t("Published. Visitors now see the new design."))
+	s.customizeDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new design."))
 }
 
 func (s *Server) adminCustomizeDiscard(w http.ResponseWriter, r *http.Request) {
@@ -806,7 +806,7 @@ func (s *Server) adminCustomizeDiscard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "theme.design_discarded", th.Slug, nil)
-	s.customizeDone(w, r, th, "success", s.t("Draft discarded."))
+	s.customizeDone(w, r, th, "success", s.tu(r, "Draft discarded."))
 }
 
 // adminCustomizeReset starts a draft with nothing customised and the
@@ -822,7 +822,7 @@ func (s *Server) adminCustomizeReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "theme.design_reset", th.Slug, nil)
-	s.customizeDone(w, r, th, "success", s.t("The draft now uses the theme's defaults. Publish to apply them."))
+	s.customizeDone(w, r, th, "success", s.tu(r, "The draft now uses the theme's defaults. Publish to apply them."))
 }
 
 // designExport is the file format of exports (layouts join it in the
@@ -892,9 +892,9 @@ func (s *Server) adminCustomizeImport(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var errs customize.Errors
-		msg := s.t("The file could not be read.")
+		msg := s.tu(r, "The file could not be read.")
 		if errors.As(err, &errs) {
-			msg = s.t("The file was not imported: %s", s.errorSummary(errorStrings(errs)))
+			msg = s.tu(r, "The file was not imported: %s", s.errorSummary(r, errorStrings(errs)))
 		}
 		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, msg)
 		return
@@ -907,15 +907,15 @@ func (s *Server) adminCustomizeImport(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var errs builder.Errors
-		msg := s.t("The file could not be read.")
+		msg := s.tu(r, "The file could not be read.")
 		if errors.As(err, &errs) {
-			msg = s.t("The file was not imported: %s", s.errorSummary(errorStrings(errs)))
+			msg = s.tu(r, "The file was not imported: %s", s.errorSummary(r, errorStrings(errs)))
 		}
 		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, msg)
 		return
 	}
 	if d == nil && l == nil {
-		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, s.t("The file has neither a design nor layouts."))
+		s.customizeFail(w, r, th, http.StatusUnprocessableEntity, s.tu(r, "The file has neither a design nor layouts."))
 		return
 	}
 	if d != nil {
@@ -931,7 +931,7 @@ func (s *Server) adminCustomizeImport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.audit(r, uid(r), "theme.design_imported", th.Slug, nil)
-	s.customizeDone(w, r, th, "success", s.t("Imported into the draft. Check the preview, then publish."))
+	s.customizeDone(w, r, th, "success", s.tu(r, "Imported into the draft. Check the preview, then publish."))
 }
 
 func (s *Server) adminCustomizeRestore(w http.ResponseWriter, r *http.Request) {
@@ -941,12 +941,12 @@ func (s *Server) adminCustomizeRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	rev, err := s.store.CustomRevision(r.Context(), th.Slug, store.CustomDesign, id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	} else if err != nil {
 		s.serverError(w, r, err)
@@ -962,15 +962,15 @@ func (s *Server) adminCustomizeRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "theme.design_restored", th.Slug, map[string]string{"revision": strconv.FormatInt(id, 10)})
-	s.customizeDone(w, r, th, "success", s.t("Version restored into the draft. Publish to apply it."))
+	s.customizeDone(w, r, th, "success", s.tu(r, "Version restored into the draft. Publish to apply it."))
 }
 
 // errorSummary joins at most five problems for a flash message, which
 // travels in a cookie.
-func (s *Server) errorSummary(msgs []string) string {
+func (s *Server) errorSummary(r *http.Request, msgs []string) string {
 	const max = 5
 	if len(msgs) > max {
-		msgs = append(msgs[:max:max], s.t("and %d more", len(msgs)-max))
+		msgs = append(msgs[:max:max], s.tu(r, "and %d more", len(msgs)-max))
 	}
 	return strings.Join(msgs, "; ")
 }

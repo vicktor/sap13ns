@@ -163,28 +163,28 @@ func (s *Server) aiCharge(r *http.Request, u *store.User, task string, m *ai.Met
 }
 
 // aiErrorMessage turns provider errors into something an editor can act on.
-func (s *Server) aiErrorMessage(err error) string {
+func (s *Server) aiErrorMessage(r *http.Request, err error) string {
 	switch {
 	case errors.Is(err, errBudget):
-		return s.t("You have used this month's AI allowance. An administrator can raise it in Settings → AI provider.")
+		return s.tu(r, "You have used this month's AI allowance. An administrator can raise it in Settings → AI provider.")
 	case errors.Is(err, media.ErrQuota):
-		return s.storageFull()
+		return s.storageFull(r)
 	case errors.Is(err, ai.ErrAuth):
-		return s.t("The AI provider rejected the API key. Check Settings → AI provider.")
+		return s.tu(r, "The AI provider rejected the API key. Check Settings → AI provider.")
 	case errors.Is(err, ai.ErrRateLimited):
-		return s.t("The AI provider is busy (rate limit). Try again in a minute.")
+		return s.tu(r, "The AI provider is busy (rate limit). Try again in a minute.")
 	case errors.Is(err, ai.ErrUnsupported):
-		return s.t("This provider or model cannot do that. Choose another model in Settings → AI provider.")
+		return s.tu(r, "This provider or model cannot do that. Choose another model in Settings → AI provider.")
 	case errors.Is(err, ai.ErrRefused):
-		return s.t("The model declined this request.")
+		return s.tu(r, "The model declined this request.")
 	case errors.Is(err, ai.ErrThinking):
-		return s.t("The model used its whole budget thinking. Turn on “Answer without thinking” in Settings → AI provider, or choose a larger model.")
+		return s.tu(r, "The model used its whole budget thinking. Turn on “Answer without thinking” in Settings → AI provider, or choose a larger model.")
 	case errors.Is(err, ai.ErrTruncated):
-		return s.t("The answer was cut short. Try with a shorter text.")
+		return s.tu(r, "The answer was cut short. Try with a shorter text.")
 	case errors.Is(err, context.DeadlineExceeded):
-		return s.t("The AI provider took too long to answer.")
+		return s.tu(r, "The AI provider took too long to answer.")
 	}
-	return s.t("The AI request failed: %s", truncateErr(err))
+	return s.tu(r, "The AI request failed: %s", truncateErr(err))
 }
 
 func truncateErr(err error) string {
@@ -215,7 +215,7 @@ type aiReq struct {
 func (s *Server) decodeAIReq(w http.ResponseWriter, r *http.Request) (*aiReq, bool) {
 	var req aiReq
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": s.t("Invalid request.")})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": s.tu(r, "Invalid request.")})
 		return nil, false
 	}
 	if !validLang(req.Lang) {
@@ -243,11 +243,11 @@ func (s *Server) apiAI(w http.ResponseWriter, r *http.Request) {
 	}
 	p, st, err := s.aiProvider(r.Context())
 	if err != nil || p == nil || !aiAllowed(st, u) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The writing assistant is not available.")})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.tu(r, "The writing assistant is not available.")})
 		return
 	}
 	if err := s.aiBudget(r.Context(), st, u, 0); err != nil {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": s.aiErrorMessage(err)})
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": s.aiErrorMessage(r, err)})
 		return
 	}
 	m := ai.Meter(p)
@@ -262,7 +262,7 @@ func (s *Server) apiAI(w http.ResponseWriter, r *http.Request) {
 		out, err = ai.SEO(ctx, m, req.article(), req.Lang)
 	case "write":
 		if !slices.Contains([]string{ai.ModeDraft, ai.ModeImprove, ai.ModeContinue, ai.ModeShorten, ai.ModeOutline}, req.Mode) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": s.t("Invalid request.")})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": s.tu(r, "Invalid request.")})
 			return
 		}
 		var text string
@@ -275,7 +275,7 @@ func (s *Server) apiAI(w http.ResponseWriter, r *http.Request) {
 	s.aiCharge(r, u, task, m, "#"+strconv.FormatInt(req.PostID, 10))
 	if err != nil {
 		s.log.Warn("ai task", "task", task, "err", err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": s.aiErrorMessage(err)})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": s.aiErrorMessage(r, err)})
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -305,7 +305,7 @@ func utf16Offset(s string, byteOff int) int {
 
 // ------------------------------------------------------------------- jobs --
 
-func (s *Server) startAIJob(u *store.User, kind string, run func(ctx context.Context) (any, error)) *aiJob {
+func (s *Server) startAIJob(r *http.Request, u *store.User, kind string, run func(ctx context.Context) (any, error)) *aiJob {
 	j := &aiJob{ID: auth.NewToken(12), UserID: u.ID, Kind: kind, Started: time.Now()}
 	s.ai.mu.Lock()
 	if s.ai.jobs == nil {
@@ -325,7 +325,7 @@ func (s *Server) startAIJob(u *store.User, kind string, run func(ctx context.Con
 		s.ai.mu.Lock()
 		j.Done, j.Result, j.finished = true, res, time.Now()
 		if err != nil {
-			j.Error = s.aiErrorMessage(err)
+			j.Error = s.aiErrorMessage(r, err)
 		}
 		s.ai.mu.Unlock()
 	})
@@ -357,18 +357,18 @@ func (s *Server) apiAIImage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	p, st, err := s.aiProvider(r.Context())
 	if err != nil || p == nil || !aiAllowed(st, u) || !auth.Can(u.Role, auth.CapUploadMedia) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The writing assistant is not available.")})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.tu(r, "The writing assistant is not available.")})
 		return
 	}
 	s.ai.mu.Lock()
 	noImages := s.ai.noImages
 	s.ai.mu.Unlock()
 	if noImages { // fail fast instead of writing a prompt first
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": s.aiErrorMessage(ai.ErrUnsupported)})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": s.aiErrorMessage(r, ai.ErrUnsupported)})
 		return
 	}
 	if err := s.aiBudget(r.Context(), st, u, 1); err != nil {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": s.aiErrorMessage(err)})
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": s.aiErrorMessage(r, err)})
 		return
 	}
 	aspect := ai.Aspect16x9
@@ -387,7 +387,7 @@ func (s *Server) apiAIImage(w http.ResponseWriter, r *http.Request) {
 		art.Content = req.Text // illustrate the selected passage
 	}
 	rq := r.Clone(context.WithoutCancel(r.Context()))
-	j := s.startAIJob(u, "image", func(ctx context.Context) (any, error) {
+	j := s.startAIJob(r, u, "image", func(ctx context.Context) (any, error) {
 		m := ai.Meter(p)
 		defer s.aiCharge(rq, u, "image", m, "#"+strconv.FormatInt(req.PostID, 10))
 		prompt, err := ai.ImagePrompt(ctx, m, art, style)
@@ -447,20 +447,20 @@ func (s *Server) apiAITranslate(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	p, st, err := s.aiProvider(r.Context())
 	if err != nil || p == nil || !aiAllowed(st, u) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The writing assistant is not available.")})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.tu(r, "The writing assistant is not available.")})
 		return
 	}
 	src, err := s.store.PostByID(r.Context(), req.PostID)
 	if err != nil || !canEditPost(u, src) || !s.isExtraLangOrMain(req.To) || req.To == src.Lang {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": s.t("Invalid request.")})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": s.tu(r, "Invalid request.")})
 		return
 	}
 	if err := s.aiBudget(r.Context(), st, u, 0); err != nil {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": s.aiErrorMessage(err)})
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": s.aiErrorMessage(r, err)})
 		return
 	}
 	rq := r.Clone(context.WithoutCancel(r.Context()))
-	j := s.startAIJob(u, "translate", func(ctx context.Context) (any, error) {
+	j := s.startAIJob(r, u, "translate", func(ctx context.Context) (any, error) {
 		m := ai.Meter(p)
 		defer s.aiCharge(rq, u, "translate", m, "#"+strconv.FormatInt(src.ID, 10)+" → "+req.To)
 		out, err := ai.Translate(ctx, m, ai.Article{Title: src.Title, Excerpt: src.Excerpt, Content: src.Content, Lang: src.Lang}, src.Lang, req.To)
@@ -542,13 +542,13 @@ func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status
 		return
 	}
 	d := aiSettingsData{S: st, Chat: chat, HasKey: len(st.APIKeyEnc) > 0, Roles: aiRoles, Usage: usage, Error: msg, Notice: notice,
-		Providers: []LangLink{{Code: ai.ProviderAnthropic, Name: "Claude (Anthropic)"}, {Code: ai.ProviderOpenAI, Name: s.t("OpenAI or compatible (Ollama, llama.cpp, OpenRouter…)")},
+		Providers: []LangLink{{Code: ai.ProviderAnthropic, Name: "Claude (Anthropic)"}, {Code: ai.ProviderOpenAI, Name: s.tu(r, "OpenAI or compatible (Ollama, llama.cpp, OpenRouter…)")},
 			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}},
 		TextModels: map[string][]ai.Model{}, ImgModels: map[string][]ai.Model{}}
 	for _, p := range ai.Providers {
 		d.TextModels[p], d.ImgModels[p] = ai.Models(p)
 	}
-	s.renderAdminStatus(w, r, status, "ai_settings", s.t("AI provider"), "settings", d)
+	s.renderAdminStatus(w, r, status, "ai_settings", s.tu(r, "AI provider"), "settings", d)
 }
 
 func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
@@ -572,21 +572,21 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	if bad := sitecheck.AI(st); len(bad) > 0 {
 		switch bad[0] {
 		case "provider":
-			fail(s.t("Choose a provider."))
+			fail(s.tu(r, "Choose a provider."))
 		case "min_role":
-			fail(s.t("Invalid request."))
+			fail(s.tu(r, "Invalid request."))
 		case "monthly_requests", "monthly_images":
-			fail(s.t("Invalid number."))
+			fail(s.tu(r, "Invalid number."))
 		case "base_url":
-			fail(s.t("The address must start with https:// (or http://localhost with local models allowed)."))
+			fail(s.tu(r, "The address must start with https:// (or http://localhost with local models allowed)."))
 		default:
-			fail(s.t("The text is too long."))
+			fail(s.tu(r, "The text is too long."))
 		}
 		return
 	}
 	if key := strings.TrimSpace(r.FormValue("api_key")); key != "" {
 		if len(key) > 500 {
-			fail(s.t("The text is too long."))
+			fail(s.tu(r, "The text is too long."))
 			return
 		}
 		enc, err := s.keys.Encrypt([]byte(key), []byte("ai-api-key"))
@@ -610,7 +610,7 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("test") == "1" {
 		p, _, err := s.aiProvider(r.Context())
 		if err == nil && p == nil {
-			err = errors.New(s.t("Turn the AI provider on to test it."))
+			err = errors.New(s.tu(r, "Turn the AI provider on to test it."))
 		}
 		if err == nil {
 			ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
@@ -618,11 +618,11 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 			_, err = p.Text(ctx, ai.TextRequest{Messages: []ai.Message{{Role: ai.RoleUser, Content: "Reply with the single word: ok"}}, MaxTokens: 16})
 		}
 		if err != nil {
-			s.renderAISettings(w, r, http.StatusOK, st, s.aiErrorMessage(err), "")
+			s.renderAISettings(w, r, http.StatusOK, st, s.aiErrorMessage(r, err), "")
 			return
 		}
-		s.renderAISettings(w, r, http.StatusOK, st, "", s.t("Connection works."))
+		s.renderAISettings(w, r, http.StatusOK, st, "", s.tu(r, "Connection works."))
 		return
 	}
-	s.redirect(w, r, "/admin/settings/ai", "success", s.t("Settings saved."))
+	s.redirect(w, r, "/admin/settings/ai", "success", s.tu(r, "Settings saved."))
 }

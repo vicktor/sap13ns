@@ -68,7 +68,7 @@ func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
 	d := pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Uploads: true,
 		Inert: s.plugins.Inert()}
 	if s.limits == nil {
-		d.Official = s.officialOffers(nil)
+		d.Official = s.officialOffers(r, nil)
 		return d, nil
 	}
 	pol, err := s.limits.PluginPolicy(r.Context())
@@ -76,7 +76,7 @@ func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
 		return d, err
 	}
 	d.Tenant, d.Uploads, d.Plan = true, pol.Uploads, pol.Plan
-	d.Official = s.officialOffers(pol.Hidden)
+	d.Official = s.officialOffers(r, pol.Hidden)
 	if d.Catalog, err = s.limits.PluginCatalog(r.Context()); err != nil {
 		s.log.Error("the network's plugin catalogue", "err", err) // the page works without it
 	}
@@ -104,7 +104,7 @@ func (s *Server) adminPlugins(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "plugins", s.t("Plugins"), "plugins", d)
+	s.renderAdmin(w, r, "plugins", s.tu(r, "Plugins"), "plugins", d)
 }
 
 // pluginsInert refuses what would load or start a plugin on a suspended
@@ -114,7 +114,7 @@ func (s *Server) pluginsInert(w http.ResponseWriter, r *http.Request) bool {
 	if !s.plugins.Inert() {
 		return false
 	}
-	s.redirect(w, r, "/admin/plugins", "error", s.t("Plugins do not run on this site while it is suspended."))
+	s.redirect(w, r, "/admin/plugins", "error", s.tu(r, "Plugins do not run on this site while it is suspended."))
 	return true
 }
 
@@ -128,7 +128,7 @@ func (s *Server) adminPluginsReload(w http.ResponseWriter, r *http.Request) {
 	}
 	s.pluginsChanged()
 	s.audit(r, uid(r), "plugins.reloaded", "", nil)
-	s.redirect(w, r, "/admin/plugins", "success", s.t("Plugin directory scanned again."))
+	s.redirect(w, r, "/admin/plugins", "success", s.tu(r, "Plugin directory scanned again."))
 }
 
 func (s *Server) pluginsChanged() {
@@ -139,7 +139,7 @@ func (s *Server) pluginsChanged() {
 func (s *Server) loadPlugin(w http.ResponseWriter, r *http.Request) (*plugin.Plugin, bool) {
 	p := s.plugins.Get(r.PathValue("id"))
 	if p == nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	return p, true
@@ -175,26 +175,26 @@ func quickEnable(p *plugin.Plugin) bool {
 	return !needsConfirmation(p, currentReport(p))
 }
 
-func (s *Server) permHelp(perm string) string {
+func (s *Server) permHelp(r *http.Request, perm string) string {
 	switch {
 	case perm == plugin.PermKV:
-		return s.t("Store its own small key-value data.")
+		return s.tu(r, "Store its own small key-value data.")
 	case perm == plugin.PermPostsRead:
-		return s.t("Read published posts (never drafts or private data).")
+		return s.tu(r, "Read published posts (never drafts or private data).")
 	case perm == "http:*":
-		return s.t("Make HTTPS requests to any public address.")
+		return s.tu(r, "Make HTTPS requests to any public address.")
 	case strings.HasPrefix(perm, plugin.PermHTTP):
-		return s.t("Make HTTPS requests to this host only.")
+		return s.tu(r, "Make HTTPS requests to this host only.")
 	case perm == plugin.PermMail:
-		return s.t("Send e-mail to the site administrator or to addresses you save in its settings.")
+		return s.tu(r, "Send e-mail to the site administrator or to addresses you save in its settings.")
 	case perm == plugin.PermCommentsPII:
-		return s.t("Receive the e-mail address, IP address and browser of people who comment.")
+		return s.tu(r, "Receive the e-mail address, IP address and browser of people who comment.")
 	case perm == plugin.PermAssetsJS:
-		return s.t("Run its own JavaScript on every public page.")
+		return s.tu(r, "Run its own JavaScript on every public page.")
 	case strings.HasPrefix(perm, plugin.PermCSP+"frame-src:"):
-		return s.t("Embed frames from %s in your pages.", strings.TrimPrefix(perm, plugin.PermCSP+"frame-src:"))
+		return s.tu(r, "Embed frames from %s in your pages.", strings.TrimPrefix(perm, plugin.PermCSP+"frame-src:"))
 	case strings.HasPrefix(perm, plugin.PermCSP+"img-src:"):
-		return s.t("Load images from %s.", strings.TrimPrefix(perm, plugin.PermCSP+"img-src:"))
+		return s.tu(r, "Load images from %s.", strings.TrimPrefix(perm, plugin.PermCSP+"img-src:"))
 	}
 	return ""
 }
@@ -210,7 +210,7 @@ func (s *Server) adminPlugin(w http.ResponseWriter, r *http.Request) {
 	}
 	var perms []pluginPerm
 	for _, perm := range p.EffectivePermissions() {
-		perms = append(perms, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Granted: slices.Contains(granted, perm), Help: s.permHelp(perm)})
+		perms = append(perms, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Granted: slices.Contains(granted, perm), Help: s.permHelp(r, perm)})
 	}
 	values := p.SettingValues()
 	loc := s.state.Load().Loc
@@ -257,39 +257,39 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !pol.Uploads {
-			s.adminError(w, r, http.StatusForbidden, s.t("On the %s plan, plugins come from the network's catalogue. Uploading your own needs a paid plan.", pol.Plan))
+			s.adminError(w, r, http.StatusForbidden, s.tu(r, "On the %s plan, plugins come from the network's catalogue. Uploading your own needs a paid plan.", pol.Plan))
 			return
 		}
 	}
 	file, hdr, err := r.FormFile("package")
 	if err != nil {
-		fail(s.t("Choose a plugin package (.zip) to upload."))
+		fail(s.tu(r, "Choose a plugin package (.zip) to upload."))
 		return
 	}
 	defer file.Close()
 	if !strings.EqualFold(filepath.Ext(hdr.Filename), ".zip") || hdr.Size <= 0 {
-		fail(s.t("A plugin package is a .zip file."))
+		fail(s.tu(r, "A plugin package is a .zip file."))
 		return
 	}
 	if hdr.Size > plugin.MaxPackageBytes {
-		fail(s.t("The package is larger than %d MB.", plugin.MaxPackageBytes>>20))
+		fail(s.tu(r, "The package is larger than %d MB.", plugin.MaxPackageBytes>>20))
 		return
 	}
 	res, err := s.plugins.Install(r.Context(), file, hdr.Size, plugin.InstallOptions{UserID: uid(r), Source: "upload",
 		AllowDowngrade: r.FormValue("allow_downgrade") == "1", ReviewRequired: s.limits != nil})
 	switch {
 	case errors.Is(err, media.ErrQuota):
-		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull())
+		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull(r))
 		return
 	case errors.Is(err, plugin.ErrRefused):
 		s.pluginRefused(w, r, res, map[string]string{"file": truncateStr(hdr.Filename, 120)})
 		return
 	case errors.Is(err, plugin.ErrDowngrade):
-		fail(s.t("Version %s is older than the installed %s. Tick “Allow an older version” to install it anyway.", res.Version, res.Previous))
+		fail(s.tu(r, "Version %s is older than the installed %s. Tick “Allow an older version” to install it anyway.", res.Version, res.Previous))
 		return
 	case err != nil:
 		s.log.Error("install plugin", "err", err)
-		fail(s.t("The plugin could not be installed: %s", err.Error()))
+		fail(s.tu(r, "The plugin could not be installed: %s", err.Error()))
 		return
 	}
 	held := false
@@ -297,7 +297,7 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 		if held, err = s.tenantReview(r.Context(), res); err != nil {
 			s.log.Error("request a plugin review", "plugin", res.ID, "err", err)
 			s.pluginsChanged()
-			fail(s.t("The plugin was installed, but its review could not be requested. Upload it again."))
+			fail(s.tu(r, "The plugin was installed, but its review could not be requested. Upload it again."))
 			return
 		}
 	}
@@ -323,7 +323,7 @@ func (s *Server) pluginRefused(w http.ResponseWriter, r *http.Request, res *plug
 		return
 	}
 	d.Refused = res.Report
-	s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "plugins", s.t("Plugins"), "plugins", d)
+	s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "plugins", s.tu(r, "Plugins"), "plugins", d)
 }
 
 // pluginInstalled audits an install or an update (plugin.installed,
@@ -333,19 +333,19 @@ func (s *Server) pluginInstalled(w http.ResponseWriter, r *http.Request, res *pl
 	action := "plugin.installed"
 	details["version"], details["sha256"], details["package_sha256"] = res.Version, res.Report.WasmSHA256, res.Report.PackageSHA256
 	details["verdict"] = res.Report.Verdict
-	msg := s.t("Plugin installed. It is disabled: review the scan report and the permissions, then switch it on.")
+	msg := s.tu(r, "Plugin installed. It is disabled: review the scan report and the permissions, then switch it on.")
 	if held {
-		msg = s.t("Plugin installed. The network operator reviews it before it can be switched on.")
+		msg = s.tu(r, "Plugin installed. The network operator reviews it before it can be switched on.")
 	}
 	if res.Previous != "" {
 		action = "plugin.updated"
 		details["previous"] = res.Previous
-		msg = s.t("Plugin updated from %s to %s. Its settings and data were kept.", res.Previous, res.Version)
+		msg = s.tu(r, "Plugin updated from %s to %s. Its settings and data were kept.", res.Previous, res.Version)
 		if p := s.plugins.Get(res.ID); p != nil && p.Status == plugin.StatusModified {
-			msg += " " + s.t("Its code, assets or permissions changed, so it is stopped until you enable it again.")
+			msg += " " + s.tu(r, "Its code, assets or permissions changed, so it is stopped until you enable it again.")
 		}
 		if held {
-			msg += " " + s.t("The network operator reviews it before it can be switched on.")
+			msg += " " + s.tu(r, "The network operator reviews it before it can be switched on.")
 		}
 	}
 	s.audit(r, uid(r), action, res.ID, details)
@@ -362,7 +362,7 @@ func (s *Server) adminPluginApprove(w http.ResponseWriter, r *http.Request) {
 	// capabilities they reviewed.
 	pin := r.FormValue("pin")
 	if pin != p.ReviewPin() {
-		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.t("The plugin changed on disk while you were reviewing it. Review it again."))
+		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.tu(r, "The plugin changed on disk while you were reviewing it. Review it again."))
 		return
 	}
 	// Every enabled plugin has a current report: plugins copied by hand, or
@@ -371,30 +371,30 @@ func (s *Server) adminPluginApprove(w http.ResponseWriter, r *http.Request) {
 	if rep == nil {
 		var err error
 		if rep, err = s.plugins.Rescan(r.Context(), p.ID); err != nil && rep == nil {
-			s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.t("The plugin could not be scanned: %s", err.Error()))
+			s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.tu(r, "The plugin could not be scanned: %s", err.Error()))
 			return
 		}
 		s.audit(r, uid(r), "plugin.scanned", p.ID, map[string]string{"verdict": rep.Verdict, "sha256": rep.WasmSHA256})
 		if p = s.plugins.Get(p.ID); p == nil || p.ReviewPin() != pin {
-			s.redirect(w, r, "/admin/plugins/"+r.PathValue("id"), "error", s.t("The plugin changed on disk while you were reviewing it. Review it again."))
+			s.redirect(w, r, "/admin/plugins/"+r.PathValue("id"), "error", s.tu(r, "The plugin changed on disk while you were reviewing it. Review it again."))
 			return
 		}
 	}
 	if rep.Blocked() {
-		s.redirect(w, r, "/admin/plugins/"+p.ID+"#report", "error", s.t("The scanner found critical problems; this plugin cannot be enabled."))
+		s.redirect(w, r, "/admin/plugins/"+p.ID+"#report", "error", s.tu(r, "The scanner found critical problems; this plugin cannot be enabled."))
 		return
 	}
 	if needsConfirmation(p, rep) && r.FormValue("confirm_risk") != "1" {
-		s.redirect(w, r, "/admin/plugins/"+p.ID+"#review", "error", s.t("This plugin has high-risk permissions or findings. Tick the confirmation box to enable it."))
+		s.redirect(w, r, "/admin/plugins/"+p.ID+"#review", "error", s.tu(r, "This plugin has high-risk permissions or findings. Tick the confirmation box to enable it."))
 		return
 	}
 	if err := s.plugins.Approve(r.Context(), p.ID, pin, uid(r)); err != nil {
-		msg := s.t("The plugin could not be enabled: %s", err.Error())
+		msg := s.tu(r, "The plugin could not be enabled: %s", err.Error())
 		switch {
 		case errors.Is(err, plugin.ErrReviewRequired):
-			msg = s.t("The network operator must review this plugin before it can be enabled.")
+			msg = s.tu(r, "The network operator must review this plugin before it can be enabled.")
 		case errors.Is(err, plugin.ErrChangedSinceReview):
-			msg = s.t("The plugin changed on disk while you were reviewing it. Review it again.")
+			msg = s.tu(r, "The plugin changed on disk while you were reviewing it. Review it again.")
 		}
 		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", msg)
 		return
@@ -404,10 +404,10 @@ func (s *Server) adminPluginApprove(w http.ResponseWriter, r *http.Request) {
 		"permissions": strings.Join(p.EffectivePermissions(), " "), "version": p.Version, "verdict": rep.Verdict,
 		"confirmed_risk": fmt.Sprint(r.FormValue("confirm_risk") == "1")})
 	if np := s.plugins.Get(p.ID); np != nil && np.Status != plugin.StatusEnabled {
-		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.t("The plugin was approved but cannot run: %s", np.Err))
+		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.tu(r, "The plugin was approved but cannot run: %s", np.Err))
 		return
 	}
-	s.redirect(w, r, back, "success", s.t("Plugin enabled."))
+	s.redirect(w, r, back, "success", s.tu(r, "Plugin enabled."))
 }
 
 func (s *Server) adminPluginDisable(w http.ResponseWriter, r *http.Request) {
@@ -421,7 +421,7 @@ func (s *Server) adminPluginDisable(w http.ResponseWriter, r *http.Request) {
 	}
 	s.pluginsChanged()
 	s.audit(r, uid(r), "plugin.disabled", p.ID, nil)
-	s.redirect(w, r, pluginBack(r, p.ID), "success", s.t("Plugin disabled."))
+	s.redirect(w, r, pluginBack(r, p.ID), "success", s.tu(r, "Plugin disabled."))
 }
 
 func (s *Server) adminPluginScan(w http.ResponseWriter, r *http.Request) {
@@ -431,11 +431,11 @@ func (s *Server) adminPluginScan(w http.ResponseWriter, r *http.Request) {
 	}
 	rep, err := s.plugins.Rescan(r.Context(), p.ID)
 	if err != nil && rep == nil {
-		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.t("The plugin could not be scanned: %s", err.Error()))
+		s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.tu(r, "The plugin could not be scanned: %s", err.Error()))
 		return
 	}
 	s.audit(r, uid(r), "plugin.scanned", p.ID, map[string]string{"verdict": rep.Verdict, "sha256": rep.WasmSHA256})
-	s.redirect(w, r, "/admin/plugins/"+p.ID+"#report", "success", s.t("Scan finished: %s.", cmp.Or(s.t(scanVerdictLabels[rep.Verdict]), rep.Verdict)))
+	s.redirect(w, r, "/admin/plugins/"+p.ID+"#report", "success", s.tu(r, "Scan finished: %s.", cmp.Or(s.tu(r, scanVerdictLabels[rep.Verdict]), rep.Verdict)))
 }
 
 // scanVerdictLabels are the interface names of the scanner verdicts, as in
@@ -452,7 +452,7 @@ func (s *Server) adminPluginUninstall(w http.ResponseWriter, r *http.Request) {
 	deleteData := r.FormValue("delete_data") == "1"
 	if err := s.plugins.Uninstall(r.Context(), p.ID, deleteData); err != nil {
 		if errors.Is(err, plugin.ErrPluginEnabled) {
-			s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.t("Disable the plugin before uninstalling it."))
+			s.redirect(w, r, "/admin/plugins/"+p.ID, "error", s.tu(r, "Disable the plugin before uninstalling it."))
 			return
 		}
 		s.serverError(w, r, err)
@@ -460,9 +460,9 @@ func (s *Server) adminPluginUninstall(w http.ResponseWriter, r *http.Request) {
 	}
 	s.pluginsChanged()
 	s.audit(r, uid(r), "plugin.uninstalled", p.ID, map[string]string{"version": p.Version, "data_deleted": fmt.Sprint(deleteData)})
-	msg := s.t("Plugin uninstalled. Its settings and stored data were kept in case you install it again.")
+	msg := s.tu(r, "Plugin uninstalled. Its settings and stored data were kept in case you install it again.")
 	if deleteData {
-		msg = s.t("Plugin uninstalled and its data deleted.")
+		msg = s.tu(r, "Plugin uninstalled and its data deleted.")
 	}
 	s.redirect(w, r, "/admin/plugins", "success", msg)
 }
@@ -495,7 +495,7 @@ func (s *Server) adminPluginSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	s.pluginsChanged()
 	s.audit(r, uid(r), "plugin.settings_saved", p.ID, nil)
-	s.redirect(w, r, "/admin/plugins/"+p.ID+"#settings", "success", s.t("Saved."))
+	s.redirect(w, r, "/admin/plugins/"+p.ID+"#settings", "success", s.tu(r, "Saved."))
 }
 
 // pluginWidgetFields maps plugin widget kinds to their config fields.

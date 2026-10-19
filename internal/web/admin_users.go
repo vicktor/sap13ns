@@ -46,7 +46,7 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	vals := r.URL.Query()
 	vals.Del("page")
-	s.renderAdmin(w, r, "users", s.t("Users"), "users", usersData{Users: users, Total: total, Role: role, Query: q, Roles: assignableRoles,
+	s.renderAdmin(w, r, "users", s.tu(r, "Users"), "users", usersData{Users: users, Total: total, Role: role, Query: q, Roles: assignableRoles,
 		Page: newPagination("/admin/users", vals, page, per, total), Support: s.supportStatus(r)})
 }
 
@@ -64,24 +64,24 @@ type userEditData struct {
 }
 
 func (s *Server) adminUserNew(w http.ResponseWriter, r *http.Request) {
-	s.renderAdmin(w, r, "user_edit", s.t("New user"), "users", userEditData{User: &store.User{Role: s.settings().DefaultRole}, New: true, Roles: assignableRoles})
+	s.renderAdmin(w, r, "user_edit", s.tu(r, "New user"), "users", userEditData{User: &store.User{Role: s.settings().DefaultRole}, New: true, Roles: assignableRoles})
 }
 
 func (s *Server) adminUserCreate(w http.ResponseWriter, r *http.Request) {
 	u := &store.User{Username: strings.ToLower(trimmed(r, "username")), Email: strings.ToLower(trimmed(r, "email")),
 		DisplayName: trimmed(r, "display_name"), Role: r.FormValue("role")}
 	fail := func(msg string) {
-		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "user_edit", s.t("New user"), "users", userEditData{User: u, New: true, Roles: assignableRoles, Error: msg})
+		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "user_edit", s.tu(r, "New user"), "users", userEditData{User: u, New: true, Roles: assignableRoles, Error: msg})
 	}
 	if !auth.ValidRole(u.Role) {
-		fail(s.t("Invalid request."))
+		fail(s.tu(r, "Invalid request."))
 		return
 	}
 	if tooLong(u.DisplayName, 100) {
-		fail(s.t("The name is too long (100 characters max)."))
+		fail(s.tu(r, "The name is too long (100 characters max)."))
 		return
 	}
-	if msg := s.validateNewAccount(u.Username, u.Email, r.FormValue("password"), r.FormValue("password_confirm")); msg != "" {
+	if msg := s.validateNewAccount(r, u.Username, u.Email, r.FormValue("password"), r.FormValue("password_confirm")); msg != "" {
 		fail(msg)
 		return
 	}
@@ -92,7 +92,7 @@ func (s *Server) adminUserCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := s.store.CreateUser(r.Context(), store.NewUser{Username: u.Username, Email: u.Email, DisplayName: u.DisplayName, Role: u.Role, PasswordHash: hash})
 	if errors.Is(err, store.ErrConflict) {
-		fail(s.t("That username or e-mail address is already registered."))
+		fail(s.tu(r, "That username or e-mail address is already registered."))
 		return
 	}
 	if err != nil {
@@ -102,18 +102,18 @@ func (s *Server) adminUserCreate(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, uid(r), "user.created", u.Username, map[string]string{"role": u.Role})
 	s.plugins.Emit("user.registered", map[string]any{"username": u.Username, "role": u.Role})
 	s.gravatarSoon(id)
-	s.redirect(w, r, fmt.Sprintf("/admin/users/%d", id), "success", s.t("User “%s” created.", u.Username))
+	s.redirect(w, r, fmt.Sprintf("/admin/users/%d", id), "success", s.tu(r, "User “%s” created.", u.Username))
 }
 
 func (s *Server) loadUser(w http.ResponseWriter, r *http.Request) (*store.User, bool) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	u, err := s.store.UserByID(r.Context(), id)
 	if err != nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	return u, true
@@ -144,7 +144,7 @@ func (s *Server) refuseProtected(w http.ResponseWriter, r *http.Request, u *stor
 	}
 	if protected {
 		s.audit(r, uid(r), "user.change_refused", u.Username, map[string]string{"reason": "network administrator", "path": r.URL.Path})
-		s.adminError(w, r, http.StatusForbidden, s.t("Only a network administrator can change the account of a network administrator."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "Only a network administrator can change the account of a network administrator."))
 	}
 	return protected
 }
@@ -218,26 +218,26 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "user_edit", u.Name(), "users", d)
 	}
 	if !auth.ValidRole(role) || (status != "active" && status != "disabled") {
-		fail(s.t("Invalid request."))
+		fail(s.tu(r, "Invalid request."))
 		return
 	}
-	if msg := s.profileError(edited.Email, edited.DisplayName, edited.Bio, edited.Website); msg != "" {
+	if msg := s.profileError(r, edited.Email, edited.DisplayName, edited.Bio, edited.Website); msg != "" {
 		fail(msg)
 		return
 	}
 	if s.wouldRemoveLastAdmin(r, u, role, status) {
-		fail(s.t("This is the last active administrator. Promote someone else first."))
+		fail(s.tu(r, "This is the last active administrator. Promote someone else first."))
 		return
 	}
 	pw := r.FormValue("password")
 	if pw != "" && u.SSOOnly() {
-		fail(s.t("This user signs in with their sap13ns account and has no password here."))
+		fail(s.tu(r, "This user signs in with their sap13ns account and has no password here."))
 		return
 	}
 	ctx := r.Context()
 	if s.portal != nil && status == "disabled" && u.Status != "disabled" {
 		if err := s.portal.CheckAccountChange(ctx, u.ID, false); errors.Is(err, ErrLastNetworkAdmin) {
-			fail(s.t("This is the last network administrator. Make someone else a network administrator first."))
+			fail(s.tu(r, "This is the last network administrator. Make someone else a network administrator first."))
 			return
 		} else if err != nil {
 			s.serverError(w, r, err)
@@ -246,7 +246,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	err := s.store.UpdateUserProfile(ctx, u.ID, store.UserProfile{Email: edited.Email, DisplayName: edited.DisplayName, Bio: edited.Bio, Website: edited.Website})
 	if errors.Is(err, store.ErrConflict) {
-		fail(s.t("That username or e-mail address is already registered."))
+		fail(s.tu(r, "That username or e-mail address is already registered."))
 		return
 	}
 	if err != nil {
@@ -277,7 +277,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if pw != "" {
-		if msg := s.checkNewPassword(u, pw, r.FormValue("password_confirm")); msg != "" {
+		if msg := s.checkNewPassword(r, u, pw, r.FormValue("password_confirm")); msg != "" {
 			fail(msg)
 			return
 		}
@@ -295,7 +295,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), "user.updated", u.Username, nil)
 	s.contentChanged()
-	s.redirect(w, r, fmt.Sprintf("/admin/users/%d", u.ID), "success", s.t("Saved."))
+	s.redirect(w, r, fmt.Sprintf("/admin/users/%d", u.ID), "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
@@ -313,7 +313,7 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.audit(r, uid(r), "user.sessions_revoked", u.Username, nil)
-		s.redirect(w, r, back, "success", s.t("All sessions were closed."))
+		s.redirect(w, r, back, "success", s.tu(r, "All sessions were closed."))
 	case "reset-2fa":
 		if err := s.store.DisableTOTP(ctx, u.ID); err != nil {
 			s.serverError(w, r, err)
@@ -327,7 +327,7 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.audit(r, uid(r), "user.2fa_reset", u.Username, map[string]string{"passkeys_deleted": fmt.Sprint(n)})
-		s.redirect(w, r, back, "success", s.t("Two-factor authentication was disabled for this user."))
+		s.redirect(w, r, back, "success", s.tu(r, "Two-factor authentication was disabled for this user."))
 	case "unlock":
 		if err := s.store.RecordLoginSuccess(ctx, u.ID); err != nil {
 			s.serverError(w, r, err)
@@ -335,23 +335,23 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 		}
 		s.loginUser.Reset(u.Username)
 		s.audit(r, uid(r), "user.unlocked", u.Username, nil)
-		s.redirect(w, r, back, "success", s.t("The account was unlocked."))
+		s.redirect(w, r, back, "success", s.tu(r, "The account was unlocked."))
 	case "delete":
 		if self {
-			s.redirect(w, r, back, "error", s.t("You cannot delete your own account."))
+			s.redirect(w, r, back, "error", s.tu(r, "You cannot delete your own account."))
 			return
 		}
 		if s.wouldRemoveLastAdmin(r, u, "", "") {
-			s.redirect(w, r, back, "error", s.t("This is the last active administrator. Promote someone else first."))
+			s.redirect(w, r, back, "error", s.tu(r, "This is the last active administrator. Promote someone else first."))
 			return
 		}
 		if s.portal != nil {
 			switch err := s.portal.CheckAccountChange(ctx, u.ID, true); {
 			case errors.Is(err, ErrLastNetworkAdmin):
-				s.redirect(w, r, back, "error", s.t("This is the last network administrator. Make someone else a network administrator first."))
+				s.redirect(w, r, back, "error", s.tu(r, "This is the last network administrator. Make someone else a network administrator first."))
 				return
 			case errors.Is(err, ErrOwnsSites):
-				s.redirect(w, r, back, "error", s.t("This account owns sites of the network, so it cannot be deleted. Disable it instead."))
+				s.redirect(w, r, back, "error", s.tu(r, "This account owns sites of the network, so it cannot be deleted. Disable it instead."))
 				return
 			case err != nil:
 				s.serverError(w, r, err)
@@ -387,9 +387,9 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 		s.removeUserPhotos(ctx, u)
 		s.audit(r, uid(r), "user.deleted", u.Username, map[string]string{"reassigned_to": fmt.Sprint(reassign)})
 		s.contentChanged()
-		s.redirect(w, r, "/admin/users", "success", s.t("User “%s” deleted.", u.Username))
+		s.redirect(w, r, "/admin/users", "success", s.tu(r, "User “%s” deleted.", u.Username))
 	default:
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 	}
 }
 
@@ -402,28 +402,28 @@ func (s *Server) ownSessionHash(r *http.Request, userID int64) []byte {
 	return nil
 }
 
-func (s *Server) profileError(email, name, bio, website string) string {
+func (s *Server) profileError(r *http.Request, email, name, bio, website string) string {
 	switch sitecheck.Profile(email, name, bio, website) { // shared with restores
 	case "email":
-		return s.t("Enter a valid e-mail address.")
+		return s.tu(r, "Enter a valid e-mail address.")
 	case "display_name":
-		return s.t("The name is too long (100 characters max).")
+		return s.tu(r, "The name is too long (100 characters max).")
 	case "bio":
-		return s.t("The biography is too long (2000 characters max).")
+		return s.tu(r, "The biography is too long (2000 characters max).")
 	case "website":
-		return s.t("The website must be a valid http(s) address.")
+		return s.tu(r, "The website must be a valid http(s) address.")
 	}
 	return ""
 }
 
 func validEmail(email string) bool { return sitecheck.Email(email) }
 
-func (s *Server) checkNewPassword(u *store.User, pw, confirm string) string {
+func (s *Server) checkNewPassword(r *http.Request, u *store.User, pw, confirm string) string {
 	if pw != confirm {
-		return s.t("The passwords do not match.")
+		return s.tu(r, "The passwords do not match.")
 	}
 	if err := auth.CheckPasswordPolicy(pw, u.Username, u.Email); err != nil {
-		return s.passwordPolicyMessage(err)
+		return s.passwordPolicyMessage(r, err)
 	}
 	return ""
 }
@@ -460,7 +460,7 @@ func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status in
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "profile", s.t("Your profile"), "profile", profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks,
+	s.renderAdminStatus(w, r, status, "profile", s.tu(r, "Your profile"), "profile", profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks,
 		CanLink: s.sso != nil && !u.Linked(), Langs: s.uiLanguages(""), Lang: s.userLang(u), SiteLang: langName(s.lang())})
 }
 
@@ -477,18 +477,18 @@ func (s *Server) adminProfileUpdate(w http.ResponseWriter, r *http.Request) {
 		// They come from the network account, at every sign-in.
 		edited.Email, edited.DisplayName = u.Email, u.DisplayName
 	}
-	if msg := s.profileError(edited.Email, edited.DisplayName, edited.Bio, edited.Website); msg != "" {
+	if msg := s.profileError(r, edited.Email, edited.DisplayName, edited.Bio, edited.Website); msg != "" {
 		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", msg)
 		return
 	}
 	// Changing the e-mail address (used for password resets) needs the password.
 	if edited.Email != u.Email && !auth.VerifyPassword(u.PasswordHash, r.FormValue("current_password")) {
-		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", s.t("Enter your current password to change your e-mail address."))
+		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", s.tu(r, "Enter your current password to change your e-mail address."))
 		return
 	}
 	err := s.store.UpdateUserProfile(r.Context(), u.ID, store.UserProfile{Email: edited.Email, DisplayName: edited.DisplayName, Bio: edited.Bio, Website: edited.Website})
 	if errors.Is(err, store.ErrConflict) {
-		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", s.t("That username or e-mail address is already registered."))
+		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", s.tu(r, "That username or e-mail address is already registered."))
 		return
 	}
 	if err != nil {
@@ -500,26 +500,26 @@ func (s *Server) adminProfileUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.emailChanged(r, u, edited.Email)
 	s.contentChanged()
-	s.redirect(w, r, "/admin/profile", "success", s.t("Saved."))
+	s.redirect(w, r, "/admin/profile", "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminPasswordChange(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u.SSOOnly() {
-		s.renderProfile(w, r, http.StatusUnprocessableEntity, u, "security", s.t("You sign in with your sap13ns account and have no password here."))
+		s.renderProfile(w, r, http.StatusUnprocessableEntity, u, "security", s.tu(r, "You sign in with your sap13ns account and have no password here."))
 		return
 	}
 	if !s.loginUser.Allow("pw:" + u.Username) {
-		s.renderProfile(w, r, http.StatusTooManyRequests, u, "security", s.t("Too many attempts. Wait a few minutes and try again."))
+		s.renderProfile(w, r, http.StatusTooManyRequests, u, "security", s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	if !auth.VerifyPassword(u.PasswordHash, r.FormValue("current_password")) {
 		s.audit(r, u.ID, "profile.password_failed", u.Username, nil)
-		s.renderProfile(w, r, http.StatusUnprocessableEntity, u, "security", s.t("The current password is not correct."))
+		s.renderProfile(w, r, http.StatusUnprocessableEntity, u, "security", s.tu(r, "The current password is not correct."))
 		return
 	}
 	pw := r.FormValue("password")
-	if msg := s.checkNewPassword(u, pw, r.FormValue("password_confirm")); msg != "" {
+	if msg := s.checkNewPassword(r, u, pw, r.FormValue("password_confirm")); msg != "" {
 		s.renderProfile(w, r, http.StatusUnprocessableEntity, u, "security", msg)
 		return
 	}
@@ -535,7 +535,7 @@ func (s *Server) adminPasswordChange(w http.ResponseWriter, r *http.Request) {
 	s.store.DeleteUserSessions(r.Context(), u.ID, s.ownSessionHash(r, u.ID))
 	s.loginUser.Reset("pw:" + u.Username)
 	s.audit(r, u.ID, "profile.password_changed", u.Username, nil)
-	s.redirect(w, r, "/admin/profile#security", "success", s.t("Password changed. Other sessions were closed."))
+	s.redirect(w, r, "/admin/profile#security", "success", s.tu(r, "Password changed. Other sessions were closed."))
 }
 
 func (s *Server) adminRevokeSessions(w http.ResponseWriter, r *http.Request) {
@@ -545,7 +545,7 @@ func (s *Server) adminRevokeSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, u.ID, "profile.sessions_revoked", u.Username, nil)
-	s.redirect(w, r, "/admin/profile#security", "success", s.t("All other sessions were closed."))
+	s.redirect(w, r, "/admin/profile#security", "success", s.tu(r, "All other sessions were closed."))
 }
 
 // ------------------------------------------------------------------- 2FA --
@@ -601,7 +601,7 @@ func (s *Server) render2FA(w http.ResponseWriter, r *http.Request, status int, d
 			d.QR = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(code.PNG()))
 		}
 	}
-	s.renderAdminStatus(w, r, status, "twofa", s.t("Two-factor authentication"), "profile", d)
+	s.renderAdminStatus(w, r, status, "twofa", s.tu(r, "Two-factor authentication"), "profile", d)
 }
 
 func (s *Server) admin2FA(w http.ResponseWriter, r *http.Request) {
@@ -615,14 +615,14 @@ func (s *Server) admin2FAEnable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.mfaUser.Allow("enroll:" + u.Username) {
-		s.render2FA(w, r, http.StatusTooManyRequests, twofaData{Error: s.t("Too many attempts. Wait a few minutes and try again.")})
+		s.render2FA(w, r, http.StatusTooManyRequests, twofaData{Error: s.tu(r, "Too many attempts. Wait a few minutes and try again.")})
 		return
 	}
 	ctx := r.Context()
 	if r.FormValue("regenerate") == "1" {
 		// New recovery codes for an already enabled account.
 		if !auth.VerifyPassword(u.PasswordHash, r.FormValue("current_password")) {
-			s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.t("The current password is not correct.")})
+			s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.tu(r, "The current password is not correct.")})
 			return
 		}
 		codes, hashes := auth.NewRecoveryCodes(10)
@@ -640,7 +640,7 @@ func (s *Server) admin2FAEnable(w http.ResponseWriter, r *http.Request) {
 		step = auth.ValidateTOTP(secret, r.FormValue("code"), time.Now())
 	}
 	if step <= 0 {
-		s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.t("The code is not valid. Check the time on your phone and try again.")})
+		s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.tu(r, "The code is not valid. Check the time on your phone and try again.")})
 		return
 	}
 	codes, hashes := auth.NewRecoveryCodes(10)
@@ -660,7 +660,7 @@ func (s *Server) admin2FAEnable(w http.ResponseWriter, r *http.Request) {
 func (s *Server) admin2FADisable(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if !auth.VerifyPassword(u.PasswordHash, r.FormValue("current_password")) {
-		s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.t("The current password is not correct.")})
+		s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.tu(r, "The current password is not correct.")})
 		return
 	}
 	if err := s.store.DisableTOTP(r.Context(), u.ID); err != nil {
@@ -668,5 +668,5 @@ func (s *Server) admin2FADisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, u.ID, "2fa.disabled", u.Username, nil)
-	s.redirect(w, r, "/admin/profile#security", "warning", s.t("Two-factor authentication was disabled."))
+	s.redirect(w, r, "/admin/profile#security", "warning", s.tu(r, "Two-factor authentication was disabled."))
 }

@@ -337,7 +337,7 @@ func (s *Server) renderRedirects(w http.ResponseWriter, r *http.Request, status 
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "redirects", s.t("Redirects"), "redirects", redirectsData{Redirects: list, Error: msg, Form: form})
+	s.renderAdminStatus(w, r, status, "redirects", s.tu(r, "Redirects"), "redirects", redirectsData{Redirects: list, Error: msg, Form: form})
 }
 
 func (s *Server) adminRedirectSave(w http.ResponseWriter, r *http.Request) {
@@ -350,11 +350,11 @@ func (s *Server) adminRedirectSave(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errRedirectReserved):
 		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form,
-			s.t("The site serves this address itself (its home page, sign-in, admin, feeds or files), so it cannot be redirected."))
+			s.tu(r, "The site serves this address itself (its home page, sign-in, admin, feeds or files), so it cannot be redirected."))
 		return
 	case err != nil:
 		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form,
-			s.t("Use a path starting with / as the source, and a path or an http(s) address as the target."))
+			s.tu(r, "Use a path starting with / as the source, and a path or an http(s) address as the target."))
 		return
 	}
 	added := true
@@ -364,18 +364,18 @@ func (s *Server) adminRedirectSave(w http.ResponseWriter, r *http.Request) {
 		added, err = s.store.AddRedirect(r.Context(), src, dst, status, false)
 	}
 	if err != nil || !added {
-		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form, s.t("A redirect for that path already exists."))
+		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form, s.tu(r, "A redirect for that path already exists."))
 		return
 	}
 	s.redirects.reset()
 	s.audit(r, uid(r), "redirect.saved", src, map[string]string{"target": dst, "status": strconv.Itoa(status)})
-	s.redirect(w, r, "/admin/tools/redirects", "success", s.t("Redirect saved."))
+	s.redirect(w, r, "/admin/tools/redirects", "success", s.tu(r, "Redirect saved."))
 }
 
 func (s *Server) adminRedirectDelete(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if err := s.store.DeleteRedirect(r.Context(), id); err != nil {
@@ -384,7 +384,7 @@ func (s *Server) adminRedirectDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.redirects.reset()
 	s.audit(r, uid(r), "redirect.deleted", strconv.FormatInt(id, 10), nil)
-	s.redirect(w, r, "/admin/tools/redirects", "success", s.t("Redirect deleted."))
+	s.redirect(w, r, "/admin/tools/redirects", "success", s.tu(r, "Redirect deleted."))
 }
 
 // postMoved keeps old links working after a published post or page changes

@@ -32,7 +32,7 @@ type officialRow struct {
 // updates of those it installed from there, without the hidden ones. A
 // plugin with the same id installed some other way is left out: it may
 // not be the official one. A site whose plugins do not run lists none.
-func (s *Server) officialOffers(hidden []string) []officialRow {
+func (s *Server) officialOffers(r *http.Request, hidden []string) []officialRow {
 	if s.plugins.Inert() {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (s *Server) officialOffers(hidden []string) []officialRow {
 		if slices.Contains(hidden, op.ID) {
 			continue
 		}
-		row := officialRow{OfficialPlugin: op, Perms: s.permSummary(op.EffectivePermissions())}
+		row := officialRow{OfficialPlugin: op, Perms: s.permSummary(r, op.EffectivePermissions())}
 		if p := s.plugins.Get(op.ID); p != nil {
 			if p.Record == nil || p.Record.Source != plugin.SourceOfficial || !op.NewerThan(p.Version) {
 				continue
@@ -56,7 +56,7 @@ func (s *Server) officialOffers(hidden []string) []officialRow {
 // permSummary describes permissions in plain words, as the review on a
 // plugin's page does, with the hosts of http: in one line and the sources
 // of each csp: directive in another.
-func (s *Server) permSummary(perms []string) []pluginPerm {
+func (s *Server) permSummary(r *http.Request, perms []string) []pluginPerm {
 	type group struct {
 		at    int // its place in out
 		perm  string
@@ -75,7 +75,7 @@ func (s *Server) permSummary(perms []string) []pluginPerm {
 			key, item = plugin.PermCSP+dir+":", src
 		}
 		if key == "" {
-			out = append(out, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Help: s.permHelp(perm)})
+			out = append(out, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Help: s.permHelp(r, perm)})
 			continue
 		}
 		g := groups[key]
@@ -88,16 +88,16 @@ func (s *Server) permSummary(perms []string) []pluginPerm {
 		g.items = append(g.items, item)
 	}
 	for _, g := range order {
-		p := pluginPerm{Name: g.perm, Risk: plugin.PermissionRisk(g.perm), Help: s.permHelp(g.perm)}
+		p := pluginPerm{Name: g.perm, Risk: plugin.PermissionRisk(g.perm), Help: s.permHelp(r, g.perm)}
 		if len(g.items) > 1 {
 			list := strings.Join(g.items, ", ")
 			switch {
 			case strings.HasPrefix(g.perm, plugin.PermHTTP):
-				p.Name, p.Help = "http:", s.t("Make HTTPS requests to these hosts only: %s.", list)
+				p.Name, p.Help = "http:", s.tu(r, "Make HTTPS requests to these hosts only: %s.", list)
 			case strings.HasPrefix(g.perm, plugin.PermCSP+"frame-src:"):
-				p.Name, p.Help = plugin.PermCSP+"frame-src", s.t("Embed frames from %s in your pages.", list)
+				p.Name, p.Help = plugin.PermCSP+"frame-src", s.tu(r, "Embed frames from %s in your pages.", list)
 			case strings.HasPrefix(g.perm, plugin.PermCSP+"img-src:"):
-				p.Name, p.Help = plugin.PermCSP+"img-src", s.t("Load images from %s.", list)
+				p.Name, p.Help = plugin.PermCSP+"img-src", s.tu(r, "Load images from %s.", list)
 			}
 		}
 		out[g.at] = p
@@ -115,7 +115,7 @@ func (s *Server) adminPluginOfficialInstall(w http.ResponseWriter, r *http.Reque
 	}
 	op := s.official.Get(r.PathValue("id"))
 	if op == nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	if s.limits != nil {
@@ -125,13 +125,13 @@ func (s *Server) adminPluginOfficialInstall(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		if slices.Contains(pol.Hidden, op.ID) {
-			s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+			s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 			return
 		}
 	}
 	if p := s.plugins.Get(op.ID); p != nil && (p.Record == nil || p.Record.Source != plugin.SourceOfficial) {
 		s.redirect(w, r, "/admin/plugins/"+op.ID, "error",
-			s.t("A plugin with the id %s is already installed, not from the official plugins. Uninstall it first to install the official one.", op.ID))
+			s.tu(r, "A plugin with the id %s is already installed, not from the official plugins. Uninstall it first to install the official one.", op.ID))
 		return
 	}
 	pkg, err := op.Package()
@@ -145,17 +145,17 @@ func (s *Server) adminPluginOfficialInstall(w http.ResponseWriter, r *http.Reque
 		Source: plugin.SourceOfficial, Reviewed: true})
 	switch {
 	case errors.Is(err, media.ErrQuota):
-		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull())
+		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull(r))
 		return
 	case errors.Is(err, plugin.ErrRefused):
 		s.pluginRefused(w, r, res, map[string]string{"source": plugin.SourceOfficial})
 		return
 	case errors.Is(err, plugin.ErrDowngrade):
-		s.redirect(w, r, "/admin/plugins/"+op.ID, "error", s.t("The installed version %s is newer than the official %s.", res.Previous, res.Version))
+		s.redirect(w, r, "/admin/plugins/"+op.ID, "error", s.tu(r, "The installed version %s is newer than the official %s.", res.Previous, res.Version))
 		return
 	case err != nil:
 		s.log.Error("install an official plugin", "plugin", op.ID, "err", err)
-		s.redirect(w, r, "/admin/plugins", "error", s.t("The plugin could not be installed: %s", err.Error()))
+		s.redirect(w, r, "/admin/plugins", "error", s.tu(r, "The plugin could not be installed: %s", err.Error()))
 		return
 	}
 	s.pluginsChanged()
@@ -192,7 +192,7 @@ func (s *Server) adminNetOfficialPlugin(w http.ResponseWriter, r *http.Request) 
 	const back = "/admin/network/plugins#official"
 	op, hidden := s.official.Get(r.FormValue("plugin")), r.FormValue("hidden")
 	if op == nil || hidden != "0" && hidden != "1" {
-		s.redirect(w, r, back, "error", s.t("Invalid request."))
+		s.redirect(w, r, back, "error", s.tu(r, "Invalid request."))
 		return
 	}
 	if err := s.reviews.HideOfficialPlugin(r.Context(), op.ID, hidden == "1", uid(r)); err != nil {
@@ -201,9 +201,9 @@ func (s *Server) adminNetOfficialPlugin(w http.ResponseWriter, r *http.Request) 
 	}
 	if hidden == "1" {
 		s.audit(r, uid(r), "network.official_plugin_hidden", op.ID, map[string]string{"version": op.Version})
-		s.redirect(w, r, back, "success", s.t("%s is hidden from the sites. The copies they installed stay.", op.Name))
+		s.redirect(w, r, back, "success", s.tu(r, "%s is hidden from the sites. The copies they installed stay.", op.Name))
 		return
 	}
 	s.audit(r, uid(r), "network.official_plugin_offered", op.ID, map[string]string{"version": op.Version})
-	s.redirect(w, r, back, "success", s.t("%s is offered to the sites again.", op.Name))
+	s.redirect(w, r, back, "success", s.tu(r, "%s is offered to the sites again.", op.Name))
 }

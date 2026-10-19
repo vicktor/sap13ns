@@ -125,7 +125,7 @@ func (s *Server) builderRoutes(mux *http.ServeMux, admin func(string, auth.Cap, 
 	admin("GET /admin/appearance/builder", auth.CapAppearance, func(w http.ResponseWriter, r *http.Request) {
 		th := s.themes.Active(s.settings().ActiveTheme)
 		if th == nil {
-			s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+			s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 			return
 		}
 		http.Redirect(w, r, "/admin/appearance/themes/"+th.Slug+"/builder", http.StatusSeeOther)
@@ -486,7 +486,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	st := builderState{Theme: th.Slug, Layout: l, Presets: builder.PresetOrder,
-		Langs: []langOption{}, MainLang: s.mainLang(), Regions: s.builderRegions(ctx, th),
+		Langs: []langOption{}, MainLang: s.mainLang(), Regions: s.builderRegions(ctx, r, th),
 		DesignURL: "/admin/appearance/themes/" + th.Slug + "/customize"}
 	st.Menus, st.Areas = []theme.MenuLocation{}, []theme.WidgetArea{}
 	for _, m := range th.Menus {
@@ -502,21 +502,21 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	}
 	// The schema with its labels in the admin's language.
 	for _, t := range builder.Types {
-		t.Label, t.Help = s.t(t.Label), s.tOpt(t.Help)
-		t.Fields = s.builderFields(t.Fields)
+		t.Label, t.Help = s.tu(r, t.Label), s.tOpt(r, t.Help)
+		t.Fields = s.builderFields(r, t.Fields)
 		if t.Items != nil {
-			items := builder.ItemSchema{Label: s.t(t.Items.Label), Add: s.t(t.Items.Add), Max: t.Items.Max,
-				Fields: s.builderFields(t.Items.Fields)}
+			items := builder.ItemSchema{Label: s.tu(r, t.Items.Label), Add: s.tu(r, t.Items.Add), Max: t.Items.Max,
+				Fields: s.builderFields(r, t.Items.Fields)}
 			t.Items = &items
 		}
 		st.Types = append(st.Types, t)
 	}
-	st.Starters, st.Front = s.builderSamples()
+	st.Starters, st.Front = s.builderSamples(r)
 	st.MenusURL = "/admin/appearance/menus"
-	styleLabels := map[string]string{"background": s.t("Background"), "padding": s.t("Spacing"), "width": s.t("Width"), "align": s.t("Alignment")}
-	valueLabels := map[string]string{"none": s.t("None"), "muted": s.t("Muted"), "card": s.t("Card"), "primary": s.t("Primary colour"),
-		"accent": s.t("Accent colour"), "inverse": s.t("Inverted"), "small": s.t("Small"), "medium": s.t("Medium"), "large": s.t("Large"),
-		"content": s.t("Content width"), "narrow": s.t("Narrow"), "wide": s.t("Wide"), "full": s.t("Full width"), "start": s.t("Left"), "center": s.t("Centre")}
+	styleLabels := map[string]string{"background": s.tu(r, "Background"), "padding": s.tu(r, "Spacing"), "width": s.tu(r, "Width"), "align": s.tu(r, "Alignment")}
+	valueLabels := map[string]string{"none": s.tu(r, "None"), "muted": s.tu(r, "Muted"), "card": s.tu(r, "Card"), "primary": s.tu(r, "Primary colour"),
+		"accent": s.tu(r, "Accent colour"), "inverse": s.tu(r, "Inverted"), "small": s.tu(r, "Small"), "medium": s.tu(r, "Medium"), "large": s.tu(r, "Large"),
+		"content": s.tu(r, "Content width"), "narrow": s.tu(r, "Narrow"), "wide": s.tu(r, "Wide"), "full": s.tu(r, "Full width"), "start": s.tu(r, "Left"), "center": s.tu(r, "Centre")}
 	for _, k := range builder.StyleOrder {
 		sf := styleField{Key: k, Label: styleLabels[k]}
 		for _, v := range builder.SectionStyles[k] {
@@ -542,21 +542,21 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		data.Icons = append(data.Icons, c.Value)
 	}
 	w.Header().Set("Content-Security-Policy", setCSPDirective(w.Header().Get("Content-Security-Policy"), "frame-src", "'self'"))
-	s.renderAdmin(w, r, "builder", s.t("Page builder · %s", th.Name), "builder", data)
+	s.renderAdmin(w, r, "builder", s.tu(r, "Page builder · %s", th.Name), "builder", data)
 }
 
 // builderFields returns fields with their labels, help and choices in the
 // admin's language, and their translatable defaults too.
-func (s *Server) builderFields(in []builder.Field) []builder.Field {
+func (s *Server) builderFields(r *http.Request, in []builder.Field) []builder.Field {
 	fields := make([]builder.Field, len(in))
 	for i, f := range in {
-		f.Label, f.Help = s.t(f.Label), s.tOpt(f.Help)
+		f.Label, f.Help = s.tu(r, f.Label), s.tOpt(r, f.Help)
 		if f.Default != "" && f.I18n {
-			f.Default = s.t(f.Default)
+			f.Default = s.tu(r, f.Default)
 		}
 		chs := make([]builder.Choice, len(f.Choices))
 		for j, c := range f.Choices {
-			chs[j] = builder.Choice{Value: c.Value, Label: s.t(c.Label)}
+			chs[j] = builder.Choice{Value: c.Value, Label: s.tu(r, c.Label)}
 		}
 		f.Choices = chs
 		fields[i] = f
@@ -567,7 +567,7 @@ func (s *Server) builderFields(in []builder.Field) []builder.Field {
 // builderSamples returns the starters of the landing blocks and the front
 // page presets, with their texts in the site's main language and their
 // translations into its other languages.
-func (s *Server) builderSamples() (map[string]builder.Block, []frontPreset) {
+func (s *Server) builderSamples(req *http.Request) (map[string]builder.Block, []frontPreset) {
 	in := func(lang string) func(string, ...any) string {
 		return func(key string, args ...any) string { return s.i18n.T(lang, key, args...) }
 	}
@@ -581,8 +581,8 @@ func (s *Server) builderSamples() (map[string]builder.Block, []frontPreset) {
 		starters[typ] = b
 	}
 	labels := map[string][2]string{
-		"landing":  {s.t("Landing page"), s.t("A hero, features, testimonials, pricing and a call to action.")},
-		"one-page": {s.t("One-page site"), s.t("Every section with an anchor (#about, #services…), for a menu that scrolls to them.")},
+		"landing":  {s.tu(req, "Landing page"), s.tu(req, "A hero, features, testimonials, pricing and a call to action.")},
+		"one-page": {s.tu(req, "One-page site"), s.tu(req, "Every section with an anchor (#about, #services…), for a menu that scrolls to them.")},
 	}
 	var presets []frontPreset
 	for _, name := range builder.PresetNames {
@@ -596,11 +596,11 @@ func (s *Server) builderSamples() (map[string]builder.Block, []frontPreset) {
 }
 
 // tOpt translates s unless it is empty.
-func (s *Server) tOpt(v string) string {
+func (s *Server) tOpt(r *http.Request, v string) string {
 	if v == "" {
 		return ""
 	}
-	return s.t(v)
+	return s.tu(r, v)
 }
 
 func firstNonEmpty(vals ...string) string {
@@ -613,7 +613,7 @@ func firstNonEmpty(vals ...string) string {
 }
 
 // builderRegions lists the regions with a page of this site that shows each.
-func (s *Server) builderRegions(ctx context.Context, th *theme.Theme) []regionInfo {
+func (s *Server) builderRegions(ctx context.Context, r *http.Request, th *theme.Theme) []regionInfo {
 	q := "&preview_theme=" + url.QueryEscape(th.Slug) + "&customize=draft"
 	home := "/?" + strings.TrimPrefix(q, "&")
 	// The posts list is at / unless the front page is something else (or
@@ -623,9 +623,9 @@ func (s *Server) builderRegions(ctx context.Context, th *theme.Theme) []regionIn
 		posts = "/blog" + home[1:]
 	}
 	out := []regionInfo{
-		{Name: "header", Label: s.t("Header (all pages)"), Preview: home},
-		{Name: "front", Label: s.t("Front page (landing)"), Preview: "/?front=1" + q},
-		{Name: "home", Label: s.t("Latest posts"), Preview: posts},
+		{Name: "header", Label: s.tu(r, "Header (all pages)"), Preview: home},
+		{Name: "front", Label: s.tu(r, "Front page (landing)"), Preview: "/?front=1" + q},
+		{Name: "home", Label: s.tu(r, "Latest posts"), Preview: posts},
 	}
 	single, page, archive := "", "", ""
 	if posts, _, err := s.store.ListPosts(ctx, store.PostQuery{Type: store.TypePost, Lang: s.mainLang(), PublicOnly: true, Limit: 1}); err == nil && len(posts) > 0 {
@@ -652,12 +652,12 @@ func (s *Server) builderRegions(ctx context.Context, th *theme.Theme) []regionIn
 		return p + "?" + strings.TrimPrefix(q, "&")
 	}
 	out = append(out,
-		regionInfo{Name: "single", Label: s.t("Posts"), Preview: with(single)},
-		regionInfo{Name: "page", Label: s.t("Pages"), Preview: with(page)},
-		regionInfo{Name: "archive", Label: s.t("Archives"), Preview: with(archive)},
-		regionInfo{Name: "search", Label: s.t("Search results"), Preview: "/search?q=a" + q},
-		regionInfo{Name: "404", Label: s.t("Page not found"), Preview: with("/this-page-does-not-exist")},
-		regionInfo{Name: "footer", Label: s.t("Footer (all pages)"), Preview: home},
+		regionInfo{Name: "single", Label: s.tu(r, "Posts"), Preview: with(single)},
+		regionInfo{Name: "page", Label: s.tu(r, "Pages"), Preview: with(page)},
+		regionInfo{Name: "archive", Label: s.tu(r, "Archives"), Preview: with(archive)},
+		regionInfo{Name: "search", Label: s.tu(r, "Search results"), Preview: "/search?q=a" + q},
+		regionInfo{Name: "404", Label: s.tu(r, "Page not found"), Preview: with("/this-page-does-not-exist")},
+		regionInfo{Name: "footer", Label: s.tu(r, "Footer (all pages)"), Preview: home},
 	)
 	return out
 }
@@ -697,7 +697,7 @@ func (s *Server) parseLayoutJSON(raw []byte, th *theme.Theme, ms *mediaSet) (*bu
 func (s *Server) adminBuilderDraft(w http.ResponseWriter, r *http.Request) {
 	th, ok := s.themes.Get(r.PathValue("slug"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, layoutResult{Message: s.t("Not found.")})
+		writeJSON(w, http.StatusNotFound, layoutResult{Message: s.tu(r, "Not found.")})
 		return
 	}
 	ms := s.mediaSet(r.Context())
@@ -707,17 +707,17 @@ func (s *Server) adminBuilderDraft(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case ms.err != nil:
 			s.log.Error("check theme layout images", "theme", th.Slug, "err", err)
-			writeJSON(w, http.StatusInternalServerError, layoutResult{Message: s.t("Something went wrong. The error has been logged.")})
+			writeJSON(w, http.StatusInternalServerError, layoutResult{Message: s.tu(r, "Something went wrong. The error has been logged.")})
 		case errors.As(err, &errs):
-			writeJSON(w, http.StatusUnprocessableEntity, layoutResult{Errors: errs, Message: s.t("Some values were not accepted.")})
+			writeJSON(w, http.StatusUnprocessableEntity, layoutResult{Errors: errs, Message: s.tu(r, "Some values were not accepted.")})
 		default:
-			writeJSON(w, http.StatusBadRequest, layoutResult{Message: s.t("The request could not be read.")})
+			writeJSON(w, http.StatusBadRequest, layoutResult{Message: s.tu(r, "The request could not be read.")})
 		}
 		return
 	}
 	if err := s.store.SaveCustomDraft(r.Context(), th.Slug, store.CustomLayout, l.JSON(), uid(r)); err != nil {
 		s.log.Error("save theme layout draft", "theme", th.Slug, "err", err)
-		writeJSON(w, http.StatusInternalServerError, layoutResult{Message: s.t("Something went wrong. The error has been logged.")})
+		writeJSON(w, http.StatusInternalServerError, layoutResult{Message: s.tu(r, "Something went wrong. The error has been logged.")})
 		return
 	}
 	// The normalised layout (ids fixed, the footer credit put back) goes
@@ -745,7 +745,7 @@ func (s *Server) adminBuilderPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if row.Draft == nil {
-		s.builderDone(w, r, th, "info", s.t("There are no unpublished changes."))
+		s.builderDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
 		return
 	}
 	if err := s.store.PublishCustom(ctx, th.Slug, store.CustomLayout, l.JSON(), uid(r), nil); err != nil {
@@ -755,7 +755,7 @@ func (s *Server) adminBuilderPublish(w http.ResponseWriter, r *http.Request) {
 	s.custom.invalidate()
 	s.contentChanged()
 	s.audit(r, uid(r), "theme.layout_published", th.Slug, nil)
-	s.builderDone(w, r, th, "success", s.t("Published. Visitors now see the new layout."))
+	s.builderDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new layout."))
 }
 
 func (s *Server) adminBuilderDiscard(w http.ResponseWriter, r *http.Request) {
@@ -768,7 +768,7 @@ func (s *Server) adminBuilderDiscard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "theme.layout_discarded", th.Slug, nil)
-	s.builderDone(w, r, th, "success", s.t("Draft discarded."))
+	s.builderDone(w, r, th, "success", s.tu(r, "Draft discarded."))
 }
 
 func (s *Server) adminBuilderRestore(w http.ResponseWriter, r *http.Request) {
@@ -778,12 +778,12 @@ func (s *Server) adminBuilderRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	rev, err := s.store.CustomRevision(r.Context(), th.Slug, store.CustomLayout, id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	} else if err != nil {
 		s.serverError(w, r, err)
@@ -799,7 +799,7 @@ func (s *Server) adminBuilderRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "theme.layout_restored", th.Slug, map[string]string{"revision": strconv.FormatInt(id, 10)})
-	s.builderDone(w, r, th, "success", s.t("Version restored into the draft. Publish to apply it."))
+	s.builderDone(w, r, th, "success", s.tu(r, "Version restored into the draft. Publish to apply it."))
 }
 
 // -------------------------------------------------------- export/import --

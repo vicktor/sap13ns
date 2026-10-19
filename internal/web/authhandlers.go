@@ -65,7 +65,7 @@ func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
 	}
-	s.renderAuth(w, r, http.StatusOK, "login", s.t("Log in"), &authForm{Next: next})
+	s.renderAuth(w, r, http.StatusOK, "login", s.tu(r, "Log in"), &authForm{Next: next})
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -81,15 +81,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	form := &authForm{Next: next, Values: map[string]string{"login": login}}
 	fail := func(status int, msg string) {
 		form.Error = msg
-		s.renderAuth(w, r, status, "login", s.t("Log in"), form)
+		s.renderAuth(w, r, status, "login", s.tu(r, "Log in"), form)
 	}
 	if len(login) > 254 || len(password) > auth.MaxPasswordLen {
-		fail(http.StatusBadRequest, s.t("Invalid username or password."))
+		fail(http.StatusBadRequest, s.tu(r, "Invalid username or password."))
 		return
 	}
 	if !s.loginIP.Allow(ip) || s.loginUser.Blocked(login) {
 		s.audit(r, 0, "login.throttled", login, nil)
-		fail(http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		fail(http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	ctx := r.Context()
@@ -102,7 +102,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		auth.VerifyDummy(password) // equalize timing
 		s.loginUser.Allow(login)
 		s.audit(r, 0, "login.failed", login, map[string]string{"reason": "unknown user"})
-		fail(http.StatusUnauthorized, s.t("Invalid username or password."))
+		fail(http.StatusUnauthorized, s.tu(r, "Invalid username or password."))
 		return
 	}
 	if u.SSOOnly() {
@@ -111,20 +111,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		auth.VerifyDummy(password)
 		s.loginUser.Allow(login)
 		s.audit(r, u.ID, "login.failed", u.Username, map[string]string{"reason": "single sign-on only"})
-		fail(http.StatusUnauthorized, s.t("Invalid username or password."))
+		fail(http.StatusUnauthorized, s.tu(r, "Invalid username or password."))
 		return
 	}
 	if u.LockedUntil != nil && u.LockedUntil.After(time.Now()) {
 		auth.VerifyDummy(password)
 		s.audit(r, u.ID, "login.locked", u.Username, nil)
-		fail(http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		fail(http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	if !auth.VerifyPassword(u.PasswordHash, password) || u.Status != "active" {
 		s.loginUser.Allow(login)
 		s.store.RecordLoginFailure(ctx, u.ID, 10, 15*time.Minute)
 		s.audit(r, u.ID, "login.failed", u.Username, map[string]string{"reason": "bad password or disabled"})
-		fail(http.StatusUnauthorized, s.t("Invalid username or password."))
+		fail(http.StatusUnauthorized, s.tu(r, "Invalid username or password."))
 		return
 	}
 	if auth.NeedsRehash(u.PasswordHash) {
@@ -213,7 +213,7 @@ func (s *Server) handleMFAForm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.auth().Login, http.StatusSeeOther)
 		return
 	}
-	s.renderAuth(w, r, http.StatusOK, "login_2fa", s.t("Two-factor authentication"), s.mfaForm(u, safeNext(r.URL.Query().Get("next"))))
+	s.renderAuth(w, r, http.StatusOK, "login_2fa", s.tu(r, "Two-factor authentication"), s.mfaForm(u, safeNext(r.URL.Query().Get("next"))))
 }
 
 func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
@@ -227,15 +227,15 @@ func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
 	form := s.mfaForm(u, next)
 	fail := func(status int, msg string) {
 		form.Error = msg
-		s.renderAuth(w, r, status, "login_2fa", s.t("Two-factor authentication"), form)
+		s.renderAuth(w, r, status, "login_2fa", s.tu(r, "Two-factor authentication"), form)
 	}
 	if !validCSRF(r) {
-		fail(http.StatusForbidden, s.t("Your session form expired. Go back, reload the page and try again."))
+		fail(http.StatusForbidden, s.tu(r, "Your session form expired. Go back, reload the page and try again."))
 		return
 	}
 	if !s.mfaUser.Allow(u.Username) {
 		s.audit(r, u.ID, "2fa.throttled", u.Username, nil)
-		fail(http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		fail(http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	ctx := r.Context()
@@ -257,12 +257,12 @@ func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	if method == "" {
 		s.audit(r, u.ID, "2fa.failed", u.Username, nil)
-		fail(http.StatusUnauthorized, s.t("The code is not valid."))
+		fail(http.StatusUnauthorized, s.tu(r, "The code is not valid."))
 		return
 	}
 	s.mfaUser.Reset(u.Username)
 	if method == "recovery" {
-		s.flash(w, "warning", s.t("You signed in with a recovery code. Generate new codes if you are running out."))
+		s.flash(w, "warning", s.tu(r, "You signed in with a recovery code. Generate new codes if you are running out."))
 	}
 	s.completeLogin(w, r, u, next, method)
 }
@@ -294,7 +294,7 @@ func (s *Server) handleRegisterForm(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	s.renderAuth(w, r, http.StatusOK, "register", s.t("Create an account"), &authForm{Token: s.keys.Sign("register", "", time.Now())})
+	s.renderAuth(w, r, http.StatusOK, "register", s.tu(r, "Create an account"), &authForm{Token: s.keys.Sign("register", "", time.Now())})
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -312,19 +312,19 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	form := &authForm{Values: vals, Token: s.keys.Sign("register", "", time.Now())}
 	fail := func(status int, msg string) {
 		form.Error = msg
-		s.renderAuth(w, r, status, "register", s.t("Create an account"), form)
+		s.renderAuth(w, r, status, "register", s.tu(r, "Create an account"), form)
 	}
 	age, valid := s.keys.Verify("register", "", r.PostFormValue("token"), 6*time.Hour)
 	if r.PostFormValue("website") != "" || !valid || age < 2*time.Second {
-		fail(http.StatusBadRequest, s.t("The form could not be verified. Please try again."))
+		fail(http.StatusBadRequest, s.tu(r, "The form could not be verified. Please try again."))
 		return
 	}
 	if !s.registerIP.Allow(ipKey(clientIP(r))) {
-		fail(http.StatusTooManyRequests, s.t("Too many attempts. Wait a few minutes and try again."))
+		fail(http.StatusTooManyRequests, s.tu(r, "Too many attempts. Wait a few minutes and try again."))
 		return
 	}
 	password := r.PostFormValue("password")
-	if msg := s.validateNewAccount(vals["username"], vals["email"], password, r.PostFormValue("password2")); msg != "" {
+	if msg := s.validateNewAccount(r, vals["username"], vals["email"], password, r.PostFormValue("password2")); msg != "" {
 		fail(http.StatusUnprocessableEntity, msg)
 		return
 	}
@@ -339,7 +339,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := s.store.CreateUser(r.Context(), store.NewUser{Username: vals["username"], Email: vals["email"], Role: role, PasswordHash: hash})
 	if errors.Is(err, store.ErrConflict) {
-		fail(http.StatusConflict, s.t("That username or e-mail address is already registered."))
+		fail(http.StatusConflict, s.tu(r, "That username or e-mail address is already registered."))
 		return
 	}
 	if err != nil {
@@ -354,56 +354,56 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, id, "user.registered", u.Username, nil)
 	s.plugins.Emit("user.registered", map[string]any{"username": u.Username, "role": u.Role})
-	s.flash(w, "success", s.t("Welcome! Your account is ready."))
+	s.flash(w, "success", s.tu(r, "Welcome! Your account is ready."))
 	s.completeLogin(w, r, u, "/admin/profile", "registration")
 }
 
 // validateNewAccount returns a translated error message, or "".
-func (s *Server) validateNewAccount(username, email, password, confirm string) string {
+func (s *Server) validateNewAccount(r *http.Request, username, email, password, confirm string) string {
 	if !usernameRe.MatchString(username) {
-		return s.t("The username must be 3–32 characters: lowercase letters, numbers, dots, dashes or underscores.")
+		return s.tu(r, "The username must be 3–32 characters: lowercase letters, numbers, dots, dashes or underscores.")
 	}
 	if a, err := mail.ParseAddress(email); err != nil || a.Address != email || len(email) > 254 {
-		return s.t("Enter a valid e-mail address.")
+		return s.tu(r, "Enter a valid e-mail address.")
 	}
 	if password != confirm {
-		return s.t("The passwords do not match.")
+		return s.tu(r, "The passwords do not match.")
 	}
 	if err := auth.CheckPasswordPolicy(password, username, email); err != nil {
-		return s.passwordPolicyMessage(err)
+		return s.passwordPolicyMessage(r, err)
 	}
 	return ""
 }
 
-func (s *Server) passwordPolicyMessage(err error) string {
+func (s *Server) passwordPolicyMessage(r *http.Request, err error) string {
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "at least"):
-		return s.t("The password must have at least %d characters.", auth.MinPasswordLen)
+		return s.tu(r, "The password must have at least %d characters.", auth.MinPasswordLen)
 	case strings.Contains(msg, "at most"):
-		return s.t("The password is too long.")
+		return s.tu(r, "The password is too long.")
 	case strings.Contains(msg, "common"):
-		return s.t("That password is too common. Choose another one.")
+		return s.tu(r, "That password is too common. Choose another one.")
 	case strings.Contains(msg, "username"), strings.Contains(msg, "e-mail"):
-		return s.t("The password must not contain your username or e-mail address.")
+		return s.tu(r, "The password must not contain your username or e-mail address.")
 	default:
-		return s.t("The password is too simple. Use a longer, less repetitive one.")
+		return s.tu(r, "The password is too simple. Use a longer, less repetitive one.")
 	}
 }
 
 // ------------------------------------------------------------ password reset --
 
 func (s *Server) handleForgotForm(w http.ResponseWriter, r *http.Request) {
-	s.renderAuth(w, r, http.StatusOK, "forgot", s.t("Reset your password"), &authForm{})
+	s.renderAuth(w, r, http.StatusOK, "forgot", s.tu(r, "Reset your password"), &authForm{})
 }
 
 func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	email := strings.TrimSpace(r.PostFormValue("email"))
-	form := &authForm{Notice: s.t("If the address belongs to an account, you will receive a link to choose a new password. It is valid for one hour.")}
+	form := &authForm{Notice: s.tu(r, "If the address belongs to an account, you will receive a link to choose a new password. It is valid for one hour.")}
 	if !s.resetIP.Allow(ipKey(clientIP(r))) || !s.resetIP.Allow("email:"+strings.ToLower(email)) {
-		form.Notice, form.Error = "", s.t("Too many attempts. Wait a few minutes and try again.")
-		s.renderAuth(w, r, http.StatusTooManyRequests, "forgot", s.t("Reset your password"), form)
+		form.Notice, form.Error = "", s.tu(r, "Too many attempts. Wait a few minutes and try again.")
+		s.renderAuth(w, r, http.StatusTooManyRequests, "forgot", s.tu(r, "Reset your password"), form)
 		return
 	}
 	u, err := s.store.UserByEmail(r.Context(), email)
@@ -431,7 +431,7 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 		}
 		s.audit(r, u.ID, "password.reset_requested", u.Username, nil)
 	}
-	s.renderAuth(w, r, http.StatusOK, "forgot", s.t("Reset your password"), form)
+	s.renderAuth(w, r, http.StatusOK, "forgot", s.tu(r, "Reset your password"), form)
 }
 
 func (s *Server) handleResetForm(w http.ResponseWriter, r *http.Request) {
@@ -443,9 +443,9 @@ func (s *Server) handleResetForm(w http.ResponseWriter, r *http.Request) {
 	}
 	form := &authForm{Token: token}
 	if !ok {
-		form.Error = s.t("This link is invalid or has expired. Request a new one.")
+		form.Error = s.tu(r, "This link is invalid or has expired. Request a new one.")
 	}
-	s.renderAuth(w, r, http.StatusOK, "reset", s.t("Choose a new password"), form)
+	s.renderAuth(w, r, http.StatusOK, "reset", s.tu(r, "Choose a new password"), form)
 }
 
 func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
@@ -454,13 +454,13 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	form := &authForm{Token: token}
 	password := r.PostFormValue("password")
 	if password != r.PostFormValue("password2") {
-		form.Error = s.t("The passwords do not match.")
-		s.renderAuth(w, r, http.StatusUnprocessableEntity, "reset", s.t("Choose a new password"), form)
+		form.Error = s.tu(r, "The passwords do not match.")
+		s.renderAuth(w, r, http.StatusUnprocessableEntity, "reset", s.tu(r, "Choose a new password"), form)
 		return
 	}
 	invalid := func() {
-		form.Error = s.t("This link is invalid or has expired. Request a new one.")
-		s.renderAuth(w, r, http.StatusBadRequest, "reset", s.t("Choose a new password"), form)
+		form.Error = s.tu(r, "This link is invalid or has expired. Request a new one.")
+		s.renderAuth(w, r, http.StatusBadRequest, "reset", s.tu(r, "Choose a new password"), form)
 	}
 	userID, err := s.store.PasswordResetUser(r.Context(), auth.HashToken(token))
 	if err != nil {
@@ -474,8 +474,8 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 	// Check the policy before burning the token so a rejected password can be retried.
 	if err := auth.CheckPasswordPolicy(password, u.Username, u.Email); err != nil {
-		form.Error = s.passwordPolicyMessage(err)
-		s.renderAuth(w, r, http.StatusUnprocessableEntity, "reset", s.t("Choose a new password"), form)
+		form.Error = s.passwordPolicyMessage(r, err)
+		s.renderAuth(w, r, http.StatusUnprocessableEntity, "reset", s.tu(r, "Choose a new password"), form)
 		return
 	}
 	if consumed, err := s.store.ConsumePasswordReset(r.Context(), auth.HashToken(token)); err != nil || consumed != userID {
@@ -490,7 +490,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	s.store.SetPassword(r.Context(), userID, hash)
 	s.store.DeleteUserSessions(r.Context(), userID, nil)
 	s.audit(r, userID, "password.reset", u.Username, nil)
-	s.redirect(w, r, s.auth().Login, "success", s.t("Your password has been changed. You can log in now."))
+	s.redirect(w, r, s.auth().Login, "success", s.tu(r, "Your password has been changed. You can log in now."))
 }
 
 // ------------------------------------------------------------------ setup --
@@ -507,7 +507,7 @@ func (s *Server) handleSetupForm(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.renderAuth(w, r, http.StatusOK, "setup", s.t("Install sap13ns"), &authForm{Token: token,
+	s.renderAuth(w, r, http.StatusOK, "setup", s.tu(r, "Install sap13ns"), &authForm{Token: token,
 		Values: map[string]string{"site_title": s.settings().SiteTitle}})
 }
 
@@ -525,12 +525,12 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	form := &authForm{Token: token, Values: vals}
 	password := r.PostFormValue("password")
-	if msg := s.validateNewAccount(vals["username"], vals["email"], password, r.PostFormValue("password2")); msg != "" || vals["site_title"] == "" {
+	if msg := s.validateNewAccount(r, vals["username"], vals["email"], password, r.PostFormValue("password2")); msg != "" || vals["site_title"] == "" {
 		if msg == "" {
-			msg = s.t("The site title is required.")
+			msg = s.tu(r, "The site title is required.")
 		}
 		form.Error = msg
-		s.renderAuth(w, r, http.StatusUnprocessableEntity, "setup", s.t("Install sap13ns"), form)
+		s.renderAuth(w, r, http.StatusUnprocessableEntity, "setup", s.tu(r, "Install sap13ns"), form)
 		return
 	}
 	hash, err := auth.HashPassword(password)
@@ -566,6 +566,6 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	s.gravatarSoon(id)
 	u, _ := s.store.UserByID(ctx, id)
 	s.audit(r, id, "setup.completed", u.Username, nil)
-	s.flash(w, "success", s.t("Installation complete. Welcome to your new site!"))
+	s.flash(w, "success", s.tu(r, "Installation complete. Welcome to your new site!"))
 	s.completeLogin(w, r, u, "/admin/", "setup")
 }

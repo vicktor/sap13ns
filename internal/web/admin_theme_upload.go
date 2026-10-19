@@ -60,14 +60,14 @@ func (s *Server) themesPage(r *http.Request) (themesData, error) {
 }
 
 // refusal turns a refused upload into the list the page shows, translated.
-func (s *Server) refusal(ref *theme.Refusal, file string) *themeRefusal {
+func (s *Server) refusal(r *http.Request, ref *theme.Refusal, file string) *themeRefusal {
 	out := &themeRefusal{Slug: ref.Slug, File: file}
 	for i, p := range ref.Problems {
 		if i == maxListedProblems {
 			out.More = len(ref.Problems) - i
 			break
 		}
-		out.Problems = append(out.Problems, themeProblem{Where: p.Where(), Message: s.t(theme.Messages[p.Code], p.Args...)})
+		out.Problems = append(out.Problems, themeProblem{Where: p.Where(), Message: s.tu(r, theme.Messages[p.Code], p.Args...)})
 	}
 	return out
 }
@@ -81,21 +81,21 @@ func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !pol.Uploads {
-		s.adminError(w, r, http.StatusForbidden, s.t("On the %s plan, sites use the built-in themes and the network's. Uploading your own needs a paid plan.", pol.Plan))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "On the %s plan, sites use the built-in themes and the network's. Uploading your own needs a paid plan.", pol.Plan))
 		return
 	}
 	file, hdr, err := r.FormFile("theme")
 	if err != nil {
-		fail(s.t("Choose a theme (.zip) to upload."))
+		fail(s.tu(r, "Choose a theme (.zip) to upload."))
 		return
 	}
 	defer file.Close()
 	if !strings.EqualFold(filepath.Ext(hdr.Filename), ".zip") || hdr.Size <= 0 {
-		fail(s.t("A theme is uploaded as a .zip file."))
+		fail(s.tu(r, "A theme is uploaded as a .zip file."))
 		return
 	}
 	if hdr.Size > theme.MaxArchiveBytes {
-		fail(s.t("The theme is larger than %d MB.", theme.MaxArchiveBytes>>20))
+		fail(s.tu(r, "The theme is larger than %d MB.", theme.MaxArchiveBytes>>20))
 		return
 	}
 	var quota theme.Quota
@@ -121,20 +121,20 @@ func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
-		d.Refused = s.refusal(ref, name)
-		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "themes", s.t("Themes"), "themes", d)
+		d.Refused = s.refusal(r, ref, name)
+		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "themes", s.tu(r, "Themes"), "themes", d)
 		return
 	}
 	switch {
 	case errors.Is(err, media.ErrQuota):
-		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull())
+		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull(r))
 		return
 	case errors.Is(err, theme.ErrNoUploads):
-		fail(s.t("This site has no themes directory to install into."))
+		fail(s.tu(r, "This site has no themes directory to install into."))
 		return
 	case err != nil:
 		s.log.Error("install theme", "err", err)
-		fail(s.t("The theme could not be installed: %s", err.Error()))
+		fail(s.tu(r, "The theme could not be installed: %s", err.Error()))
 		return
 	}
 	action := "theme.uploaded"
@@ -144,9 +144,9 @@ func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, uid(r), action, res.Slug, map[string]string{"version": res.Version, "previous": res.Previous,
 		"sha256": res.SHA256, "bytes": strconv.FormatInt(res.Bytes, 10), "file": name})
 	s.contentChanged() // the active theme may be the one replaced
-	msg := s.t("“%s” was installed. Preview it, then activate it when it is ready.", res.Name)
+	msg := s.tu(r, "“%s” was installed. Preview it, then activate it when it is ready.", res.Name)
 	if res.Replaced {
-		msg = s.t("“%s” was replaced with the uploaded version.", res.Name)
+		msg = s.tu(r, "“%s” was replaced with the uploaded version.", res.Name)
 	}
 	s.redirect(w, r, back+"#theme-"+res.Slug, "success", msg)
 }
@@ -163,7 +163,7 @@ func (s *Server) adminThemeDelete(w http.ResponseWriter, r *http.Request) {
 		// A theme of the site's directory that does not load can go too,
 		// also one a built-in or network theme of its slug shadows.
 	default:
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	active := s.themes.Active(s.settings().ActiveTheme).Slug
@@ -177,10 +177,10 @@ func (s *Server) adminThemeDelete(w http.ResponseWriter, r *http.Request) {
 	n, err := s.themes.Remove(r.Context(), slug, active, quota)
 	switch {
 	case errors.Is(err, theme.ErrActive):
-		s.redirect(w, r, back, "error", s.t("The active theme cannot be deleted. Activate another theme first."))
+		s.redirect(w, r, back, "error", s.tu(r, "The active theme cannot be deleted. Activate another theme first."))
 		return
 	case errors.Is(err, theme.ErrNotOwn), errors.Is(err, theme.ErrNoUploads):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -188,5 +188,5 @@ func (s *Server) adminThemeDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), "theme.deleted", slug, map[string]string{"bytes": strconv.FormatInt(n, 10)})
 	s.contentChanged()
-	s.redirect(w, r, back, "success", s.t("“%s” was deleted.", name))
+	s.redirect(w, r, back, "success", s.tu(r, "“%s” was deleted.", name))
 }

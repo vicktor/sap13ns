@@ -109,9 +109,9 @@ func (s *Server) adminPostList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	counts["all"] = all
-	title, section := s.t("Posts"), "posts"
+	title, section := s.tu(r, "Posts"), "posts"
 	if typ == store.TypePage {
-		title, section = s.t("Pages"), "pages"
+		title, section = s.tu(r, "Pages"), "pages"
 	}
 	vals := r.URL.Query()
 	vals.Del("page")
@@ -123,8 +123,8 @@ func (s *Server) adminPostList(w http.ResponseWriter, r *http.Request) {
 		}
 		return Tab{Label: label, URL: withQuery(lp, "status", st, "lang", lang), Current: status == st, Count: n}
 	}
-	tabs := []Tab{tab(s.t("All"), ""), tab(s.t("Published"), store.StatusPublished), tab(s.t("Drafts"), store.StatusDraft),
-		tab(s.t("Pending review"), store.StatusPending), tab(s.t("Private"), store.StatusPrivate), tab(s.t("Trash"), store.StatusTrash)}
+	tabs := []Tab{tab(s.tu(r, "All"), ""), tab(s.tu(r, "Published"), store.StatusPublished), tab(s.tu(r, "Drafts"), store.StatusDraft),
+		tab(s.tu(r, "Pending review"), store.StatusPending), tab(s.tu(r, "Private"), store.StatusPrivate), tab(s.tu(r, "Trash"), store.StatusTrash)}
 	s.renderAdmin(w, r, "posts", title, section, postListData{
 		Tabs: tabs, Type: typ, Posts: posts, Status: status, Query: search, Counts: counts, Total: total, ListPath: listPath(typ),
 		Page: newPagination(listPath(typ), vals, page, per, total), Now: time.Now(),
@@ -255,9 +255,9 @@ func (s *Server) adminPostNew(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	title := s.t("New post")
+	title := s.tu(r, "New post")
 	if typ == store.TypePage {
-		title = s.t("New page")
+		title = s.tu(r, "New page")
 	}
 	s.renderAdmin(w, r, "post_edit", title, sectionFor(typ), d)
 }
@@ -297,9 +297,9 @@ func (s *Server) postFromForm(r *http.Request, typ string, existing *store.Post)
 	if l := r.FormValue("lang"); l != "" && l != in.Lang {
 		switch {
 		case !slices.Contains(s.siteLangs(), l):
-			errs = append(errs, s.t("That language is not enabled on this site."))
+			errs = append(errs, s.tu(r, "That language is not enabled on this site."))
 		case existing != nil && s.translationTaken(ctx, existing, l):
-			errs = append(errs, s.t("This content already has a translation in that language."))
+			errs = append(errs, s.tu(r, "This content already has a translation in that language."))
 		default:
 			in.Lang = l
 		}
@@ -315,19 +315,19 @@ func (s *Server) postFromForm(r *http.Request, typ string, existing *store.Post)
 		}
 	}
 	if in.Title == "" {
-		errs = append(errs, s.t("The title is required."))
+		errs = append(errs, s.tu(r, "The title is required."))
 	}
 	if tooLong(in.Title, 300) {
-		errs = append(errs, s.t("The title is too long (300 characters max)."))
+		errs = append(errs, s.tu(r, "The title is too long (300 characters max)."))
 	}
 	if tooLong(in.Excerpt, 2000) {
-		errs = append(errs, s.t("The excerpt is too long (2000 characters max)."))
+		errs = append(errs, s.tu(r, "The excerpt is too long (2000 characters max)."))
 	}
 	if tooLong(in.MetaDescription, 300) {
-		errs = append(errs, s.t("The meta description is too long (300 characters max)."))
+		errs = append(errs, s.tu(r, "The meta description is too long (300 characters max)."))
 	}
 	if len(in.Content) > 2_000_000 {
-		errs = append(errs, s.t("The content is too long."))
+		errs = append(errs, s.tu(r, "The content is too long."))
 	}
 
 	// Status from the button that was pressed.
@@ -353,7 +353,7 @@ func (s *Server) postFromForm(r *http.Request, typ string, existing *store.Post)
 
 	pub, err := s.parseLocal(r.FormValue("published_at"))
 	if err != nil {
-		errs = append(errs, s.t("The publication date is not valid."))
+		errs = append(errs, s.tu(r, "The publication date is not valid."))
 	}
 	in.PublishedAt = pub
 	if in.PublishedAt == nil && existing != nil {
@@ -370,7 +370,7 @@ func (s *Server) postFromForm(r *http.Request, typ string, existing *store.Post)
 	}
 	slugIn := trimmed(r, "slug")
 	if typ == store.TypePage && s.pageSlugReserved(content.Slugify(slugIn)) {
-		errs = append(errs, s.t("That address is reserved by the system. Choose another one."))
+		errs = append(errs, s.tu(r, "That address is reserved by the system. Choose another one."))
 	}
 	in.Slug, err = s.uniqueSlug(ctx, typ, in.Lang, slugIn, in.Title, exceptID)
 	if err != nil {
@@ -450,12 +450,12 @@ func (s *Server) adminPostTranslate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	lang := r.FormValue("lang")
 	if lang == p.Lang || !slices.Contains(s.siteLangs(), lang) {
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
 	}
 	id, err := s.createTranslation(ctx, u, p, lang, p.Slug, p.Title, p.Excerpt, p.Content)
 	if errors.Is(err, store.ErrTranslationExists) {
-		s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "error", s.t("This content already has a translation in that language."))
+		s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "error", s.tu(r, "This content already has a translation in that language."))
 		return
 	}
 	if err != nil {
@@ -464,7 +464,7 @@ func (s *Server) adminPostTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, p.Type+".translated", fmt.Sprintf("#%d → #%d (%s)", p.ID, id, lang), nil)
 	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", id), "success",
-		s.t("Draft created in %s. Translate the text and publish it when ready.", langName(lang)))
+		s.tu(r, "Draft created in %s. Translate the text and publish it when ready.", langName(lang)))
 }
 
 // adminPostUnlink removes a post from its translation group.
@@ -478,7 +478,7 @@ func (s *Server) adminPostUnlink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.contentChanged()
-	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "success", s.t("No longer linked to its translations."))
+	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "success", s.tu(r, "No longer linked to its translations."))
 }
 
 func (s *Server) adminPostCreate(w http.ResponseWriter, r *http.Request) {
@@ -495,7 +495,7 @@ func (s *Server) adminPostCreate(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
-		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "post_edit", s.t("New post"), sectionFor(typ), d)
+		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "post_edit", s.tu(r, "New post"), sectionFor(typ), d)
 		return
 	}
 	id, err := s.store.CreatePost(r.Context(), in)
@@ -505,19 +505,19 @@ func (s *Server) adminPostCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, typ+".created", fmt.Sprintf("#%d %s", id, in.Title), map[string]string{"status": in.Status})
 	s.afterPostSave(r, id, "", in.Status)
-	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", id), "success", s.savedMessage(in.Status, in.PublishedAt))
+	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", id), "success", s.savedMessage(r, in.Status, in.PublishedAt))
 }
 
-func (s *Server) savedMessage(status string, at *time.Time) string {
+func (s *Server) savedMessage(r *http.Request, status string, at *time.Time) string {
 	switch {
 	case status == store.StatusPublished && at != nil && at.After(time.Now()):
-		return s.t("Scheduled for %s.", s.dateTime(*at))
+		return s.tu(r, "Scheduled for %s.", s.uiDateTime(r, *at))
 	case status == store.StatusPublished:
-		return s.t("Published.")
+		return s.tu(r, "Published.")
 	case status == store.StatusPending:
-		return s.t("Submitted for review.")
+		return s.tu(r, "Submitted for review.")
 	default:
-		return s.t("Saved.")
+		return s.tu(r, "Saved.")
 	}
 }
 
@@ -601,12 +601,12 @@ func (s *Server) announceDue(ctx context.Context) {
 func (s *Server) loadEditable(w http.ResponseWriter, r *http.Request) (*store.Post, bool) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	p, err := s.store.PostByID(r.Context(), id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	if err != nil {
@@ -614,7 +614,7 @@ func (s *Server) loadEditable(w http.ResponseWriter, r *http.Request) (*store.Po
 		return nil, false
 	}
 	if !canEditPost(currentUser(r), p) {
-		s.adminError(w, r, http.StatusForbidden, s.t("You do not have permission to access this page."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 		return nil, false
 	}
 	return p, true
@@ -641,7 +641,7 @@ func (s *Server) adminPostUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	u := currentUser(r)
 	if !canModify(u, p) {
-		s.adminError(w, r, http.StatusForbidden, s.t("Published posts can only be edited by authors and editors."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "Published posts can only be edited by authors and editors."))
 		return
 	}
 	in, errs, err := s.postFromForm(r, p.Type, p)
@@ -651,7 +651,7 @@ func (s *Server) adminPostUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	conflictBy, conflict := s.editConflict(r, p)
 	if conflict && r.FormValue("overwrite") != "1" {
-		errs = append(errs, s.t("%s changed this post while you were editing it. Your version is below: save again to replace theirs, or open the revisions to compare.", conflictBy))
+		errs = append(errs, s.tu(r, "%s changed this post while you were editing it. Your version is below: save again to replace theirs, or open the revisions to compare.", conflictBy))
 	}
 	if len(errs) > 0 {
 		d, err := s.editData(r, p.Type, repopulate(p, in), false, errs)
@@ -676,7 +676,7 @@ func (s *Server) adminPostUpdate(w http.ResponseWriter, r *http.Request) {
 	s.store.DeleteAutosave(r.Context(), p.ID, u.ID)
 	s.audit(r, u.ID, p.Type+".updated", fmt.Sprintf("#%d %s", p.ID, in.Title), map[string]string{"status": in.Status})
 	s.afterPostSave(r, p.ID, p.Status, in.Status)
-	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "success", s.savedMessage(in.Status, in.PublishedAt))
+	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "success", s.savedMessage(r, in.Status, in.PublishedAt))
 }
 
 // adminPostStatus moves a post to the trash or restores it as a draft.
@@ -690,12 +690,12 @@ func (s *Server) adminPostStatus(w http.ResponseWriter, r *http.Request) {
 	switch to {
 	case store.StatusTrash:
 		if !canModify(u, p) && !auth.Can(u.Role, auth.CapEditOthersPosts) {
-			s.adminError(w, r, http.StatusForbidden, s.t("You do not have permission to access this page."))
+			s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 			return
 		}
 	case store.StatusDraft:
 	default:
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
 	}
 	if err := s.store.SetPostStatus(r.Context(), p.ID, to); err != nil {
@@ -704,9 +704,9 @@ func (s *Server) adminPostStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, p.Type+"."+map[string]string{store.StatusTrash: "trashed", store.StatusDraft: "restored"}[to], fmt.Sprintf("#%d %s", p.ID, p.Title), nil)
 	s.afterPostSave(r, p.ID, p.Status, to)
-	msg := s.t("Moved to the trash.")
+	msg := s.tu(r, "Moved to the trash.")
 	if to == store.StatusDraft {
-		msg = s.t("Restored as a draft.")
+		msg = s.tu(r, "Restored as a draft.")
 	}
 	s.redirect(w, r, listPath(p.Type)+"?status="+map[string]string{store.StatusTrash: "", store.StatusDraft: "draft"}[to], "success", msg)
 }
@@ -718,7 +718,7 @@ func (s *Server) adminPostDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	u := currentUser(r)
 	if p.Status != store.StatusTrash || !(auth.Can(u.Role, auth.CapEditOthersPosts) || auth.Can(u.Role, auth.CapPublishOwnPosts)) {
-		s.adminError(w, r, http.StatusForbidden, s.t("Only posts in the trash can be deleted permanently."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "Only posts in the trash can be deleted permanently."))
 		return
 	}
 	if err := s.store.DeletePost(r.Context(), p.ID); err != nil {
@@ -727,7 +727,7 @@ func (s *Server) adminPostDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, p.Type+".deleted", fmt.Sprintf("#%d %s", p.ID, p.Title), nil)
 	s.contentChanged()
-	s.redirect(w, r, listPath(p.Type)+"?status=trash", "success", s.t("Deleted permanently."))
+	s.redirect(w, r, listPath(p.Type)+"?status=trash", "success", s.tu(r, "Deleted permanently."))
 }
 
 func (s *Server) adminPostBulk(w http.ResponseWriter, r *http.Request) {
@@ -780,7 +780,7 @@ func (s *Server) adminPostBulk(w http.ResponseWriter, r *http.Request) {
 		s.audit(r, u.ID, typ+".bulk_"+action, fmt.Sprintf("%d items", n), nil)
 		s.contentChanged()
 	}
-	s.redirect(w, r, withQuery(listPath(typ), "status", r.FormValue("status")), "success", s.t("%d items updated.", n))
+	s.redirect(w, r, withQuery(listPath(typ), "status", r.FormValue("status")), "success", s.tu(r, "%d items updated.", n))
 }
 
 func postInputOf(p *store.Post) store.PostInput {
@@ -800,7 +800,7 @@ func (s *Server) adminEmptyTrash(w http.ResponseWriter, r *http.Request) {
 	typ := typeFromPath(r.URL.Path)
 	u := currentUser(r)
 	if typ == store.TypePost && !auth.Can(u.Role, auth.CapEditOthersPosts) {
-		s.adminError(w, r, http.StatusForbidden, s.t("You do not have permission to access this page."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 		return
 	}
 	n, err := s.store.EmptyTrash(r.Context(), typ)
@@ -810,7 +810,7 @@ func (s *Server) adminEmptyTrash(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, typ+".trash_emptied", fmt.Sprintf("%d items", n), nil)
 	s.contentChanged()
-	s.redirect(w, r, listPath(typ)+"?status=trash", "success", s.t("%d items deleted permanently.", n))
+	s.redirect(w, r, listPath(typ)+"?status=trash", "success", s.tu(r, "%d items deleted permanently.", n))
 }
 
 func (s *Server) adminPostPreview(w http.ResponseWriter, r *http.Request) {
@@ -836,18 +836,18 @@ func (s *Server) adminRevisions(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "revisions", s.t("Revisions")+" · "+p.Title, sectionFor(p.Type), revisionsData{Post: p, Revisions: revs})
+	s.renderAdmin(w, r, "revisions", s.tu(r, "Revisions")+" · "+p.Title, sectionFor(p.Type), revisionsData{Post: p, Revisions: revs})
 }
 
 func (s *Server) adminRevisionRestore(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	rev, err := s.store.RevisionByID(r.Context(), id)
 	if err != nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	p, err := s.store.PostByID(r.Context(), rev.PostID)
@@ -857,7 +857,7 @@ func (s *Server) adminRevisionRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	u := currentUser(r)
 	if !canModify(u, p) {
-		s.adminError(w, r, http.StatusForbidden, s.t("You do not have permission to access this page."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 		return
 	}
 	in := postInputOf(p)
@@ -868,7 +868,7 @@ func (s *Server) adminRevisionRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, p.Type+".revision_restored", fmt.Sprintf("#%d %s", p.ID, p.Title), map[string]string{"revision": fmt.Sprint(rev.ID)})
 	s.afterPostSave(r, p.ID, p.Status, p.Status)
-	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "success", s.t("Revision restored."))
+	s.redirect(w, r, fmt.Sprintf("/admin/posts/%d", p.ID), "success", s.tu(r, "Revision restored."))
 }
 
 // apiPreview renders Markdown exactly as the public site would.

@@ -125,7 +125,7 @@ func (s *Server) supportSite(w http.ResponseWriter, r *http.Request) (*NetSiteDe
 		return nil, false
 	}
 	if d.Site.Status == "deleted" || !d.SupportManager(uid(r)) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	return d, true
@@ -136,15 +136,15 @@ func (s *Server) adminMySupport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.renderAdmin(w, r, "site_support", s.t("Support access to %s", d.Site.Slug), "my-sites", d)
+	s.renderAdmin(w, r, "site_support", s.tu(r, "Support access to %s", d.Site.Slug), "my-sites", d)
 }
 
 // supportUntil tells until when a grant is open.
-func (s *Server) supportUntil(expires *time.Time) string {
+func (s *Server) supportUntil(r *http.Request, expires *time.Time) string {
 	if expires == nil {
-		return s.t("until you revoke it")
+		return s.tu(r, "until you revoke it")
 	}
-	return s.t("until %s", s.dateTime(*expires))
+	return s.tu(r, "until %s", s.uiDateTime(r, *expires))
 }
 
 func (s *Server) adminMySupportGrant(w http.ResponseWriter, r *http.Request) {
@@ -155,16 +155,16 @@ func (s *Server) adminMySupportGrant(w http.ResponseWriter, r *http.Request) {
 	back := mySupportPath(d.Site.ID)
 	dur, ok := supportDurations[r.FormValue("duration")]
 	if !ok {
-		s.redirect(w, r, back, "error", s.t("Choose how long support access stays open."))
+		s.redirect(w, r, back, "error", s.tu(r, "Choose how long support access stays open."))
 		return
 	}
 	g, err := s.portal.GrantSupport(r.Context(), d.Site.ID, uid(r), dur, clientIP(r))
 	switch {
 	case errors.Is(err, ErrNetworkState):
-		s.redirect(w, r, back, "error", s.supportStateError(d.Site.Status))
+		s.redirect(w, r, back, "error", s.supportStateError(r, d.Site.Status))
 		return
 	case errors.Is(err, ErrSupportDenied), errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -175,7 +175,7 @@ func (s *Server) adminMySupportGrant(w http.ResponseWriter, r *http.Request) {
 		until = g.ExpiresAt.UTC().Format(time.RFC3339)
 	}
 	s.audit(r, uid(r), "network.support_granted", d.Site.Slug, map[string]string{"site": strconv.FormatInt(d.Site.ID, 10), "until": until})
-	s.redirect(w, r, back, "success", s.t("Support access to %s is open %s.", d.Site.Slug, s.supportUntil(g.ExpiresAt)))
+	s.redirect(w, r, back, "success", s.tu(r, "Support access to %s is open %s.", d.Site.Slug, s.supportUntil(r, g.ExpiresAt)))
 }
 
 func (s *Server) adminMySupportRevoke(w http.ResponseWriter, r *http.Request) {
@@ -191,27 +191,27 @@ func (s *Server) revokeSupport(w http.ResponseWriter, r *http.Request, d *NetSit
 	revoked, err := s.portal.RevokeSupport(r.Context(), d.Site.ID, uid(r), clientIP(r))
 	switch {
 	case errors.Is(err, ErrSupportDenied), errors.Is(err, store.ErrNotFound):
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	case err != nil:
 		s.serverError(w, r, err)
 		return
 	}
 	if !revoked {
-		s.redirect(w, r, back, "info", s.t("Support access to %s was not open.", d.Site.Slug))
+		s.redirect(w, r, back, "info", s.tu(r, "Support access to %s was not open.", d.Site.Slug))
 		return
 	}
 	s.audit(r, uid(r), "network.support_revoked", d.Site.Slug, map[string]string{"site": strconv.FormatInt(d.Site.ID, 10)})
-	s.redirect(w, r, back, "success", s.t("Support access to %s is closed. Network administrators signed in to it were signed out.", d.Site.Slug))
+	s.redirect(w, r, back, "success", s.tu(r, "Support access to %s is closed. Network administrators signed in to it were signed out.", d.Site.Slug))
 }
 
 // supportStateError tells why support access cannot be opened on a site
 // in its status.
-func (s *Server) supportStateError(status string) string {
+func (s *Server) supportStateError(r *http.Request, status string) string {
 	if status == "suspended" {
-		return s.t("Support access cannot be opened while the site is suspended.")
+		return s.tu(r, "Support access cannot be opened while the site is suspended.")
 	}
-	return s.siteStateError(status)
+	return s.siteStateError(r, status)
 }
 
 // ------------------------------------------------- network admin area --
@@ -225,15 +225,15 @@ func (s *Server) adminNetSupportRequest(w http.ResponseWriter, r *http.Request) 
 	back := fmt.Sprintf("/admin/network/sites/%d#support", site.ID)
 	switch {
 	case !site.Served():
-		s.redirect(w, r, back, "error", s.supportStateError(site.Status))
+		s.redirect(w, r, back, "error", s.supportStateError(r, site.Status))
 		return
 	case d.Support.Open != nil:
-		s.redirect(w, r, back, "info", s.t("Support access to %s is already open.", site.Slug))
+		s.redirect(w, r, back, "info", s.tu(r, "Support access to %s is already open.", site.Slug))
 		return
 	}
 	msg := trimmed(r, "message")
 	if len(msg) > 500 {
-		s.redirect(w, r, back, "error", s.t("The message is too long (500 characters max)."))
+		s.redirect(w, r, back, "error", s.tu(r, "The message is too long (500 characters max)."))
 		return
 	}
 	u := currentUser(r)
@@ -250,10 +250,10 @@ func (s *Server) adminNetSupportRequest(w http.ResponseWriter, r *http.Request) 
 	}
 	s.audit(r, u.ID, "network.support_requested", site.Slug, details)
 	if !s.mailOwner(r.Context(), &site, s.t("Support access to %s requested", site.Slug), body) {
-		s.redirect(w, r, back, "warning", s.t("The owner of %s could not be asked by e-mail.", site.Slug))
+		s.redirect(w, r, back, "warning", s.tu(r, "The owner of %s could not be asked by e-mail.", site.Slug))
 		return
 	}
-	s.redirect(w, r, back, "success", s.t("The owner of %s was asked by e-mail.", site.Slug))
+	s.redirect(w, r, back, "success", s.tu(r, "The owner of %s was asked by e-mail.", site.Slug))
 }
 
 func (s *Server) adminNetSupportEnd(w http.ResponseWriter, r *http.Request) {

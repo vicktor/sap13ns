@@ -107,7 +107,7 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 			d.Plugins++
 		}
 	}
-	s.renderAdmin(w, r, "dashboard", s.t("Dashboard"), "dashboard", d)
+	s.renderAdmin(w, r, "dashboard", s.tu(r, "Dashboard"), "dashboard", d)
 }
 
 // ----------------------------------------------------------------- terms --
@@ -123,17 +123,17 @@ type termsData struct {
 
 func validTaxonomy(t string) bool { return t == "category" || t == "tag" }
 
-func taxonomyTitle(s *Server, t string) string {
+func taxonomyTitle(s *Server, r *http.Request, t string) string {
 	if t == "tag" {
-		return s.t("Tags")
+		return s.tu(r, "Tags")
 	}
-	return s.t("Categories")
+	return s.tu(r, "Categories")
 }
 
 func (s *Server) adminTerms(w http.ResponseWriter, r *http.Request) {
 	tax := r.PathValue("taxonomy")
 	if !validTaxonomy(tax) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	s.renderTerms(w, r, http.StatusOK, tax, "", store.TermInput{})
@@ -145,7 +145,7 @@ func (s *Server) renderTerms(w http.ResponseWriter, r *http.Request, status int,
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "terms", taxonomyTitle(s, tax), tax, termsData{Taxonomy: tax, Terms: terms, Error: errMsg, Form: form, Langs: s.extraLangs()})
+	s.renderAdminStatus(w, r, status, "terms", taxonomyTitle(s, r, tax), tax, termsData{Taxonomy: tax, Terms: terms, Error: errMsg, Form: form, Langs: s.extraLangs()})
 }
 
 func (s *Server) termFromForm(r *http.Request, tax string, exceptID int64) (store.TermInput, string) {
@@ -164,7 +164,7 @@ func (s *Server) termFromForm(r *http.Request, tax string, exceptID int64) (stor
 	for _, l := range s.siteLangs()[1:] {
 		tr := store.TermText{Name: trimmed(r, "i18n_"+l+"_name"), Description: trimmed(r, "i18n_"+l+"_description")}
 		if tooLong(tr.Name, 100) || tooLong(tr.Description, 1000) {
-			return in, s.t("The name is too long (100 characters max).")
+			return in, s.tu(r, "The name is too long (100 characters max).")
 		}
 		if tr.Name != "" || tr.Description != "" {
 			if in.I18n == nil {
@@ -175,11 +175,11 @@ func (s *Server) termFromForm(r *http.Request, tax string, exceptID int64) (stor
 	}
 	switch {
 	case in.Name == "" || in.Slug == "":
-		return in, s.t("The name is required.")
+		return in, s.tu(r, "The name is required.")
 	case tooLong(in.Name, 100):
-		return in, s.t("The name is too long (100 characters max).")
+		return in, s.tu(r, "The name is too long (100 characters max).")
 	case tooLong(in.Description, 1000):
-		return in, s.t("The description is too long (1000 characters max).")
+		return in, s.tu(r, "The description is too long (1000 characters max).")
 	}
 	return in, ""
 }
@@ -187,7 +187,7 @@ func (s *Server) termFromForm(r *http.Request, tax string, exceptID int64) (stor
 func (s *Server) adminTermCreate(w http.ResponseWriter, r *http.Request) {
 	tax := r.PathValue("taxonomy")
 	if !validTaxonomy(tax) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	in, msg := s.termFromForm(r, tax, 0)
@@ -197,7 +197,7 @@ func (s *Server) adminTermCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := s.store.CreateTerm(r.Context(), in)
 	if errors.Is(err, store.ErrConflict) {
-		s.renderTerms(w, r, http.StatusUnprocessableEntity, tax, s.t("Another item already uses that slug."), in)
+		s.renderTerms(w, r, http.StatusUnprocessableEntity, tax, s.tu(r, "Another item already uses that slug."), in)
 		return
 	}
 	if err != nil {
@@ -206,19 +206,19 @@ func (s *Server) adminTermCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), tax+".created", fmt.Sprintf("#%d %s", id, in.Name), nil)
 	s.contentChanged()
-	s.redirect(w, r, "/admin/terms/"+tax, "success", s.t("“%s” created.", in.Name))
+	s.redirect(w, r, "/admin/terms/"+tax, "success", s.tu(r, "“%s” created.", in.Name))
 }
 
 func (s *Server) loadTerm(w http.ResponseWriter, r *http.Request) (*store.Term, bool) {
 	id, ok := pathID(r)
 	tax := r.PathValue("taxonomy")
 	if !ok || !validTaxonomy(tax) {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	t, err := s.store.TermByID(r.Context(), id)
 	if err != nil || t.Taxonomy != tax {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	return t, true
@@ -255,7 +255,7 @@ func (s *Server) adminTermUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	err := s.store.UpdateTerm(r.Context(), t.ID, in)
 	if errors.Is(err, store.ErrConflict) {
-		s.renderTermEdit(w, r, http.StatusUnprocessableEntity, &edited, s.t("Another item already uses that slug."))
+		s.renderTermEdit(w, r, http.StatusUnprocessableEntity, &edited, s.tu(r, "Another item already uses that slug."))
 		return
 	}
 	if err != nil {
@@ -264,7 +264,7 @@ func (s *Server) adminTermUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), t.Taxonomy+".updated", fmt.Sprintf("#%d %s", t.ID, in.Name), nil)
 	s.contentChanged()
-	s.redirect(w, r, "/admin/terms/"+t.Taxonomy, "success", s.t("Saved."))
+	s.redirect(w, r, "/admin/terms/"+t.Taxonomy, "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminTermDelete(w http.ResponseWriter, r *http.Request) {
@@ -278,7 +278,7 @@ func (s *Server) adminTermDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), t.Taxonomy+".deleted", fmt.Sprintf("#%d %s", t.ID, t.Name), nil)
 	s.contentChanged()
-	s.redirect(w, r, "/admin/terms/"+t.Taxonomy, "success", s.t("“%s” deleted.", t.Name))
+	s.redirect(w, r, "/admin/terms/"+t.Taxonomy, "success", s.tu(r, "“%s” deleted.", t.Name))
 }
 
 // ----------------------------------------------------------------- media --
@@ -321,7 +321,7 @@ func (s *Server) adminMedia(w http.ResponseWriter, r *http.Request) {
 	}
 	vals := r.URL.Query()
 	vals.Del("page")
-	s.renderAdmin(w, r, "media", s.t("Media"), "media", mediaData{Items: items, Total: total, Query: q, Images: images,
+	s.renderAdmin(w, r, "media", s.tu(r, "Media"), "media", mediaData{Items: items, Total: total, Query: q, Images: images,
 		Page: newPagination("/admin/media", vals, page, per, total), Max: s.cfg.MaxUploadBytes, Accept: mediaAccept})
 }
 
@@ -338,17 +338,17 @@ func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 		s.redirect(w, r, "/admin/media", "error", msg)
 	}
 	if !s.uploadUser.Allow(fmt.Sprint(u.ID)) {
-		fail(http.StatusTooManyRequests, s.t("Too many uploads. Try again later."))
+		fail(http.StatusTooManyRequests, s.tu(r, "Too many uploads. Try again later."))
 		return
 	}
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		fail(http.StatusBadRequest, s.t("The file is too large (%s max).", filesize(s.cfg.MaxUploadBytes)))
+		fail(http.StatusBadRequest, s.tu(r, "The file is too large (%s max).", filesize(s.cfg.MaxUploadBytes)))
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
 	files := r.MultipartForm.File["file"]
 	if len(files) == 0 || len(files) > 20 {
-		fail(http.StatusBadRequest, s.t("Choose between 1 and 20 files."))
+		fail(http.StatusBadRequest, s.tu(r, "Choose between 1 and 20 files."))
 		return
 	}
 	var out []map[string]any
@@ -385,7 +385,7 @@ func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 		s.redirect(w, r, "/admin/media", "error", strings.Join(errs, " · "))
 		return
 	}
-	s.redirect(w, r, "/admin/media", "success", s.t("%d files uploaded.", len(out)))
+	s.redirect(w, r, "/admin/media", "success", s.tu(r, "%d files uploaded.", len(out)))
 }
 
 type multipartFile interface {
@@ -395,8 +395,8 @@ type multipartFile interface {
 
 // storageFull is what an editor reads when a file does not fit in the
 // site's storage (media.ErrQuota).
-func (s *Server) storageFull() string {
-	return s.t("The site's storage is full. Delete files you no longer need, or move the site to a plan with more space.")
+func (s *Server) storageFull(r *http.Request) string {
+	return s.tu(r, "The site's storage is full. Delete files you no longer need, or move the site to a plan with more space.")
 }
 
 // quotaError is an upload refused for the site's storage: 413.
@@ -413,28 +413,28 @@ func (s *Server) storeUpload(r *http.Request, u *store.User, name string, open f
 	res, err := s.media.Save(r.Context(), f)
 	switch {
 	case errors.Is(err, media.ErrQuota):
-		return nil, quotaError{s.storageFull()}
+		return nil, quotaError{s.storageFull(r)}
 	case errors.Is(err, media.ErrTooLarge):
-		return nil, errors.New(s.t("The file is too large (%s max).", filesize(s.cfg.MaxUploadBytes)))
+		return nil, errors.New(s.tu(r, "The file is too large (%s max).", filesize(s.cfg.MaxUploadBytes)))
 	case errors.Is(err, media.ErrUnsupported):
-		return nil, errors.New(s.t("This file type is not allowed."))
+		return nil, errors.New(s.tu(r, "This file type is not allowed."))
 	case errors.Is(err, media.ErrBadImage):
-		return nil, errors.New(s.t("The image could not be processed."))
+		return nil, errors.New(s.tu(r, "The image could not be processed."))
 	case err != nil:
 		s.log.Error("save upload", "err", err)
-		return nil, errors.New(s.t("The file could not be saved."))
+		return nil, errors.New(s.tu(r, "The file could not be saved."))
 	}
 	m := &store.Media{UploaderID: &u.ID, Path: res.Path, OriginalName: cleanFilename(name), MIME: res.MIME, Size: res.Size,
 		Width: res.Width, Height: res.Height, Variants: res.Variants, SHA256: res.SHA256}
 	if !media.MatchesName(res.MIME, m.OriginalName) {
 		s.media.Remove(r.Context(), m)
-		return nil, errors.New(s.t("This file type is not allowed."))
+		return nil, errors.New(s.tu(r, "This file type is not allowed."))
 	}
 	// Fonts go into the site's stylesheet (Appearance → Customise), so
 	// only those who may change the site's look upload them.
 	if res.MIME == "font/woff2" && !auth.Can(u.Role, auth.CapAppearance) {
 		s.media.Remove(r.Context(), m)
-		return nil, errors.New(s.t("Only users who can change the site's appearance can upload fonts."))
+		return nil, errors.New(s.tu(r, "Only users who can change the site's appearance can upload fonts."))
 	}
 	if existing, err := s.store.MediaBySHA(r.Context(), res.SHA256); err == nil && canManageMedia(u, existing) {
 		s.media.Remove(r.Context(), m) // duplicate upload: reuse the stored file
@@ -477,16 +477,16 @@ func mediaJSON(m *store.Media) map[string]any {
 func (s *Server) loadMedia(w http.ResponseWriter, r *http.Request) (*store.Media, bool) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	m, err := s.store.MediaByID(r.Context(), id)
 	if err != nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return nil, false
 	}
 	if !canManageMedia(currentUser(r), m) {
-		s.adminError(w, r, http.StatusForbidden, s.t("You do not have permission to access this page."))
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 		return nil, false
 	}
 	return m, true
@@ -507,7 +507,7 @@ func (s *Server) adminMediaUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	alt, caption := trimmed(r, "alt"), trimmed(r, "caption")
 	if tooLong(alt, 500) || tooLong(caption, 1000) {
-		s.redirect(w, r, fmt.Sprintf("/admin/media/%d", m.ID), "error", s.t("The text is too long."))
+		s.redirect(w, r, fmt.Sprintf("/admin/media/%d", m.ID), "error", s.tu(r, "The text is too long."))
 		return
 	}
 	if err := s.store.UpdateMediaText(r.Context(), m.ID, alt, caption); err != nil {
@@ -516,7 +516,7 @@ func (s *Server) adminMediaUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.contentChanged()
 	s.content.Invalidate()
-	s.redirect(w, r, fmt.Sprintf("/admin/media/%d", m.ID), "success", s.t("Saved."))
+	s.redirect(w, r, fmt.Sprintf("/admin/media/%d", m.ID), "success", s.tu(r, "Saved."))
 }
 
 func (s *Server) adminMediaDelete(w http.ResponseWriter, r *http.Request) {
@@ -531,7 +531,7 @@ func (s *Server) adminMediaDelete(w http.ResponseWriter, r *http.Request) {
 	s.media.Remove(r.Context(), m)
 	s.audit(r, uid(r), "media.deleted", fmt.Sprintf("#%d %s", m.ID, m.OriginalName), nil)
 	s.contentChanged()
-	s.redirect(w, r, "/admin/media", "success", s.t("“%s” deleted.", m.OriginalName))
+	s.redirect(w, r, "/admin/media", "success", s.tu(r, "“%s” deleted.", m.OriginalName))
 }
 
 // apiMediaList feeds the media picker in the editor.
@@ -594,8 +594,8 @@ func (s *Server) adminComments(w http.ResponseWriter, r *http.Request) {
 		}
 		return Tab{Label: label, URL: withQuery("/admin/comments", "status", st), Current: status == st, Count: n}
 	}
-	tabs := []Tab{tab(s.t("All"), ""), tab(s.t("Pending"), "pending"), tab(s.t("Approved"), "approved"), tab(s.t("Spam"), "spam"), tab(s.t("Trash"), "trash")}
-	s.renderAdmin(w, r, "comments", s.t("Comments"), "comments", commentsData{Tabs: tabs, Comments: list, Status: status, Counts: counts, Total: total,
+	tabs := []Tab{tab(s.tu(r, "All"), ""), tab(s.tu(r, "Pending"), "pending"), tab(s.tu(r, "Approved"), "approved"), tab(s.tu(r, "Spam"), "spam"), tab(s.tu(r, "Trash"), "trash")}
+	s.renderAdmin(w, r, "comments", s.tu(r, "Comments"), "comments", commentsData{Tabs: tabs, Comments: list, Status: status, Counts: counts, Total: total,
 		Page: newPagination("/admin/comments", vals, page, per, total)})
 }
 
@@ -629,23 +629,23 @@ func (s *Server) applyCommentAction(r *http.Request, c *store.Comment, action st
 func (s *Server) adminCommentAction(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	c, err := s.store.CommentByID(r.Context(), id)
 	if err != nil {
-		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
 	action := r.PathValue("action")
 	if err := s.applyCommentAction(r, c, action); err != nil {
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
 	}
 	s.audit(r, uid(r), "comment."+action, fmt.Sprintf("#%d %s", c.ID, c.AuthorName), nil)
 	s.contentChanged()
 	back := withQuery("/admin/comments", "status", r.FormValue("status"))
-	s.redirect(w, r, back, "success", s.t("Comment updated."))
+	s.redirect(w, r, back, "success", s.tu(r, "Comment updated."))
 }
 
 func (s *Server) adminCommentBulk(w http.ResponseWriter, r *http.Request) {
@@ -664,13 +664,13 @@ func (s *Server) adminCommentBulk(w http.ResponseWriter, r *http.Request) {
 		s.audit(r, uid(r), "comment.bulk_"+action, fmt.Sprintf("%d items", n), nil)
 		s.contentChanged()
 	}
-	s.redirect(w, r, withQuery("/admin/comments", "status", r.FormValue("status")), "success", s.t("%d items updated.", n))
+	s.redirect(w, r, withQuery("/admin/comments", "status", r.FormValue("status")), "success", s.tu(r, "%d items updated.", n))
 }
 
 func (s *Server) adminCommentEmpty(w http.ResponseWriter, r *http.Request) {
 	status := r.PathValue("status")
 	if status != "spam" && status != "trash" {
-		s.adminError(w, r, http.StatusBadRequest, s.t("Invalid request."))
+		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
 	}
 	n, err := s.store.EmptyCommentStatus(r.Context(), status)
@@ -679,5 +679,5 @@ func (s *Server) adminCommentEmpty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, uid(r), "comment.emptied_"+status, fmt.Sprintf("%d items", n), nil)
-	s.redirect(w, r, "/admin/comments?status="+status, "success", s.t("%d items deleted permanently.", n))
+	s.redirect(w, r, "/admin/comments?status="+status, "success", s.tu(r, "%d items deleted permanently.", n))
 }

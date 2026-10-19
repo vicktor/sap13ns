@@ -37,7 +37,7 @@ func (s *Server) updateNotice() *updateNotice {
 	return &updateNotice{Current: Version, Latest: strings.TrimPrefix(rel.Version, "v"), URL: rel.URL}
 }
 
-func (s *Server) updateRows() []sysRow {
+func (s *Server) updateRows(r *http.Request) []sysRow {
 	yes, no := true, false
 	flag := func(b bool) *bool {
 		if b {
@@ -46,31 +46,31 @@ func (s *Server) updateRows() []sysRow {
 		return &no
 	}
 	signed := update.PublicKey != ""
-	rows := []sysRow{{Label: s.t("Signed updates"), Value: map[bool]string{true: s.t("Yes"), false: s.t("No: this build cannot install updates")}[signed], OK: flag(signed)}}
+	rows := []sysRow{{Label: s.tu(r, "Signed updates"), Value: map[bool]string{true: s.tu(r, "Yes"), false: s.tu(r, "No: this build cannot install updates")}[signed], OK: flag(signed)}}
 	if s.updates == nil || s.updates.Disabled {
-		return append(rows, sysRow{Label: s.t("Release checks"), Value: s.t("Off (%s=false)", update.EnvCheck)})
+		return append(rows, sysRow{Label: s.tu(r, "Release checks"), Value: s.tu(r, "Off (%s=false)", update.EnvCheck)})
 	}
 	rel, newer, checked := s.updates.Latest()
 	switch {
 	case checked.IsZero():
-		rows = append(rows, sysRow{Label: s.t("Latest release"), Value: s.t("Not checked yet")})
+		rows = append(rows, sysRow{Label: s.tu(r, "Latest release"), Value: s.tu(r, "Not checked yet")})
 	case rel == nil:
-		rows = append(rows, sysRow{Label: s.t("Latest release"), Value: s.t("None published yet")})
+		rows = append(rows, sysRow{Label: s.tu(r, "Latest release"), Value: s.tu(r, "None published yet")})
 	default:
-		rows = append(rows, sysRow{Label: s.t("Latest release"), Value: strings.TrimPrefix(rel.Version, "v"), OK: flag(!newer)})
+		rows = append(rows, sysRow{Label: s.tu(r, "Latest release"), Value: strings.TrimPrefix(rel.Version, "v"), OK: flag(!newer)})
 	}
 	if !checked.IsZero() {
-		rows = append(rows, sysRow{Label: s.t("Last check"), Value: checked.Local().Format("2006-01-02 15:04")})
+		rows = append(rows, sysRow{Label: s.tu(r, "Last check"), Value: checked.Local().Format("2006-01-02 15:04")})
 	}
 	if err := s.updates.LastError(); err != nil && !errors.Is(err, update.ErrNoRelease) {
-		rows = append(rows, sysRow{Label: s.t("Last error"), Value: truncateErr(err), OK: flag(false)})
+		rows = append(rows, sysRow{Label: s.tu(r, "Last error"), Value: truncateErr(err), OK: flag(false)})
 	}
 	return rows
 }
 
 func (s *Server) adminUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	if s.updates == nil || s.updates.Disabled {
-		s.redirect(w, r, "/admin/system", "error", s.t("Release checks are turned off (%s=false).", update.EnvCheck))
+		s.redirect(w, r, "/admin/system", "error", s.tu(r, "Release checks are turned off (%s=false).", update.EnvCheck))
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
@@ -79,12 +79,12 @@ func (s *Server) adminUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, uid(r), "update.checked", "", nil)
 	switch {
 	case errors.Is(err, update.ErrNoRelease):
-		s.redirect(w, r, "/admin/system", "info", s.t("No release has been published yet."))
+		s.redirect(w, r, "/admin/system", "info", s.tu(r, "No release has been published yet."))
 	case err != nil:
-		s.redirect(w, r, "/admin/system", "error", s.t("The release check failed: %s", truncateErr(err)))
+		s.redirect(w, r, "/admin/system", "error", s.tu(r, "The release check failed: %s", truncateErr(err)))
 	case s.updateNotice() != nil:
-		s.redirect(w, r, "/admin/system", "info", s.t("sap13ns %s is available.", s.updateNotice().Latest))
+		s.redirect(w, r, "/admin/system", "info", s.tu(r, "sap13ns %s is available.", s.updateNotice().Latest))
 	default:
-		s.redirect(w, r, "/admin/system", "success", s.t("This site runs the latest release."))
+		s.redirect(w, r, "/admin/system", "success", s.tu(r, "This site runs the latest release."))
 	}
 }

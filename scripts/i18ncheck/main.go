@@ -14,7 +14,7 @@
 //     through {{themeT $theme .Label}}: descriptions, option labels, help
 //     and choices, menu and widget area labels (themes.go);
 //   - Go files (internal/** and cmd/**, tests excluded): s.t("..."),
-//     s.tr(r, "..."), catalogs.T(lang, "...") and calls to local translators,
+//     s.tr(r, "..."), s.tu(r, "..."), catalogs.T(lang, "...") and calls to local translators,
 //     that is variables and parameters of type func(string, ...any) string;
 //   - the tables that dynamic calls read: when the key indexes a package-level
 //     map literal (s.t(roleLabels[role])) or is a field of a range variable over
