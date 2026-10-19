@@ -1,0 +1,37 @@
+{
+  "abi": 1,
+  "id": "linkedin",
+  "name": "LinkedIn",
+  "version": "1.0.0",
+  "description": "Shares new articles on your LinkedIn profile when they are published: a text in the post's language with its title, excerpt and hashtags, and an article card with the link. You connect the account once on this page; LinkedIn tokens last 60 days, and the dashboard warns before they end.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["event"],
+  "events": ["post.published", "post.updated", "post.trashed", "cron.hourly"],
+  "permissions": ["kv", "posts:read", "oauth:linkedin", "http:www.linkedin.com", "http:api.linkedin.com"],
+  "oauth": [
+    {
+      "id": "linkedin",
+      "name": "LinkedIn",
+      "authorize_url": "https://www.linkedin.com/oauth/v2/authorization",
+      "token_url": "https://www.linkedin.com/oauth/v2/accessToken",
+      "userinfo_url": "https://api.linkedin.com/v2/userinfo",
+      "scopes": ["openid", "profile", "w_member_social"],
+      "client_id_setting": "client_id",
+      "client_secret_setting": "client_secret"
+    }
+  ],
+  "settings": [
+    {"key": "client_id", "label": "Client ID", "type": "text", "default": "", "help": "From your app in the LinkedIn Developer Portal → Auth. The app needs the “Share on LinkedIn” and “Sign In with LinkedIn using OpenID Connect” products. Save, then connect the account under Connections."},
+    {"key": "client_secret", "label": "Client secret", "type": "secret", "help": "The Primary Client Secret shown next to it."},
+    {"key": "visibility", "label": "Visibility", "type": "select", "default": "PUBLIC", "choices": ["PUBLIC", "CONNECTIONS"], "help": "PUBLIC: anyone on LinkedIn. CONNECTIONS: only your connections."},
+    {"key": "linkedin_version", "label": "LinkedIn API version", "type": "text", "default": "202610", "help": "The LinkedIn-Version header, year and month (YYYYMM). LinkedIn supports each version for at least a year; move it forward when the log says it is no longer supported."},
+    {"key": "template", "label": "Text", "type": "textarea", "default": "", "help": "Placeholders: {title} {url} {excerpt} {hashtags} {site}. Empty uses “New post: {title}”, the excerpt and the hashtags, in the post's language; the link is in the card below the text."},
+    {"key": "template_es", "label": "Text for Spanish posts", "type": "textarea", "default": "", "help": "Used instead of the text above for posts in Spanish."},
+    {"key": "template_en", "label": "Text for English posts", "type": "textarea", "default": "", "help": "Used instead of the text above for posts in English."},
+    {"key": "max_hashtags", "label": "Hashtags", "type": "number", "default": "3", "help": "How many of the post's tags become hashtags. 0 adds none."},
+    {"key": "post_types", "label": "Post", "type": "select", "default": "posts", "choices": ["posts", "pages", "both"], "help": "Which content types are posted when they are published."},
+    {"key": "skip_older_than_hours", "label": "Skip posts older than (hours)", "type": "number", "default": "48", "help": "A post whose publication date is older than this is never posted, so re-publishing an old article does not announce it again."},
+    {"key": "dry_run", "label": "Dry run", "type": "bool", "default": "false", "help": "Write the text that would be posted to the activity log instead of posting it. Nothing is recorded, so the post goes out once you turn this off and publish again."}
+  ]
+}
