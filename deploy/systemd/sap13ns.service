@@ -67,6 +67,9 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
+# @privileged includes @chown, which the socket needs to pass to the
+# sap13ns-web group (a group the service is in, so no capability is used).
+SystemCallFilter=@chown
 SystemCallErrorNumber=EPERM
 
 [Install]
