@@ -164,6 +164,8 @@ func (s *Server) routes() *http.ServeMux {
 	admin("POST /admin/api/ai/{task}", auth.CapEditOwnPosts, s.apiAI)
 	admin("GET /admin/settings/ai", auth.CapManageSettings, s.adminAISettings)
 	admin("POST /admin/settings/ai", auth.CapManageSettings, s.adminAISettingsSave)
+	admin("GET /admin/settings/privacy", auth.CapManageSettings, s.adminPrivacySettings)
+	admin("POST /admin/settings/privacy", auth.CapManageSettings, s.adminPrivacySettingsSave)
 	admin("GET /admin/settings/assistant", auth.CapManageSettings, s.adminAssistantSettings)
 	admin("POST /admin/settings/assistant", auth.CapManageSettings, s.adminAssistantSettingsSave)
 	admin("POST /admin/settings/assistant/rebuild", auth.CapManageSettings, s.adminAssistantRebuild)

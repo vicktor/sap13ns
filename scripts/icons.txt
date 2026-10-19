@@ -40,6 +40,7 @@ cloud
 code
 coffee
 columns-2
+cookie
 copy
 cpu
 credit-card

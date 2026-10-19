@@ -1,0 +1,269 @@
+/* Cookie consent: banner, cookie settings dialog and click-to-load notes
+   (shared/consent.html, static/consent.js). Linked before the theme's
+   stylesheet on every public page while the consent is on.
+
+   Not in a layer, so that a theme's layered resets (Tailwind's preflight)
+   do not undo it; a theme restyles it with the custom properties below,
+   set on .sap-consent-banner, .sap-consent-dialog and .sap-consent-note
+   (docs/THEMES.md, "Cookie consent"), or with more specific rules. The
+   defaults come from the Basecoat tokens every built-in theme defines, in
+   light and dark, with system colours for themes that define none. */
+
+.sap-consent-banner,
+.sap-consent-dialog,
+.sap-consent-note {
+  --sap-consent-bg: var(--popover, var(--card, var(--background, Canvas)));
+  --sap-consent-fg: var(--popover-foreground, var(--card-foreground, var(--foreground, CanvasText)));
+  --sap-consent-muted: var(--muted-foreground, color-mix(in srgb, var(--sap-consent-fg) 70%, transparent));
+  --sap-consent-border: var(--border, color-mix(in srgb, var(--sap-consent-fg) 18%, transparent));
+  --sap-consent-subtle: var(--muted, color-mix(in srgb, var(--sap-consent-fg) 6%, transparent));
+  --sap-consent-accent: var(--primary, LinkText);
+  --sap-consent-accent-fg: var(--primary-foreground, Canvas);
+  --sap-consent-ring: var(--ring, var(--sap-consent-accent));
+  --sap-consent-radius: var(--radius, 0.75rem);
+  --sap-consent-shadow: 0 18px 48px -12px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.08);
+  --sap-consent-font: inherit;
+}
+
+/* ------------------------------------------------------------- banner -- */
+.sap-consent-banner {
+  position: fixed;
+  z-index: 85; /* above the assistant's button (80), below the admin bar (90) */
+  inset-inline: max(1rem, env(safe-area-inset-left));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  max-width: 64rem;
+  margin-inline: auto;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--sap-consent-border);
+  border-radius: var(--sap-consent-radius);
+  background: var(--sap-consent-bg);
+  color: var(--sap-consent-fg);
+  box-shadow: var(--sap-consent-shadow);
+  font-family: var(--sap-consent-font);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.sap-consent-banner[hidden] { display: none; }
+.sap-consent-banner-text { flex: 1 1 22rem; min-width: 0; }
+.sap-consent-banner h2 { margin: 0 0 0.25rem; font-size: 1.05rem; font-weight: 650; line-height: 1.3; color: inherit; }
+.sap-consent-banner p { margin: 0; color: var(--sap-consent-muted); }
+
+.sap-consent-actions {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------ buttons -- */
+.sap-consent-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--sap-consent-accent);
+  border-radius: calc(var(--sap-consent-radius) * 0.75);
+  background: var(--sap-consent-accent);
+  color: var(--sap-consent-accent-fg);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.sap-consent-btn:hover { filter: brightness(1.08); }
+.sap-consent-btn.sap-consent-btn-quiet {
+  border-color: var(--sap-consent-border);
+  background: transparent;
+  color: var(--sap-consent-fg);
+}
+.sap-consent-btn.sap-consent-btn-quiet:hover { filter: none; background: var(--sap-consent-subtle); }
+:is(.sap-consent-banner, .sap-consent-dialog, .sap-consent-note) :is(button, a, summary, input):focus-visible {
+  outline: 3px solid var(--sap-consent-ring);
+  outline-offset: 2px;
+}
+.sap-consent-banner a,
+.sap-consent-dialog a,
+.sap-consent-note a { color: var(--sap-consent-accent); text-decoration: underline; text-underline-offset: 0.15em; }
+
+/* ------------------------------------------------------------- dialog -- */
+.sap-consent-dialog {
+  box-sizing: border-box;
+  flex-direction: column;
+  width: min(44rem, calc(100% - 2rem));
+  max-width: none;
+  max-height: min(48rem, calc(100dvh - 2rem));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--sap-consent-border);
+  border-radius: var(--sap-consent-radius);
+  background: var(--sap-consent-bg);
+  color: var(--sap-consent-fg);
+  box-shadow: var(--sap-consent-shadow);
+  font-family: var(--sap-consent-font);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.sap-consent-dialog[open] { display: flex; }
+.sap-consent-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+.sap-consent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--sap-consent-border);
+}
+.sap-consent-head h2 { margin: 0; font-size: 1.15rem; font-weight: 650; line-height: 1.3; color: inherit; }
+.sap-consent-close {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -0.25rem -0.5rem -0.25rem 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.sap-consent-close:hover { background: var(--sap-consent-subtle); }
+.sap-consent-close svg { width: 1.15rem; height: 1.15rem; }
+.sap-consent-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 1rem 1.25rem; overscroll-behavior: contain; }
+.sap-consent-body > p { margin: 0 0 1rem; color: var(--sap-consent-muted); }
+.sap-consent-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--sap-consent-border);
+}
+
+.sap-consent-cat { padding: 0.9rem 0; border-top: 1px solid var(--sap-consent-border); }
+.sap-consent-cat:first-of-type { border-top: 0; padding-top: 0.25rem; }
+.sap-consent-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.sap-consent-cat h3 { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.35; color: inherit; }
+.sap-consent-cat p { margin: 0.3rem 0 0.5rem; color: var(--sap-consent-muted); font-size: 0.9rem; }
+.sap-consent-on { flex: 0 0 auto; color: var(--sap-consent-muted); font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+
+/* A switch: a button with role="switch" and aria-checked. */
+.sap-consent-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 1.55rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--sap-consent-border);
+  border-radius: 999px;
+  background: var(--sap-consent-subtle);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.sap-consent-switch span {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: 0.15rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--sap-consent-muted);
+  transform: translateY(-50%);
+  transition: inset-inline-start 0.15s, background-color 0.15s;
+}
+.sap-consent-switch[aria-checked="true"] { border-color: var(--sap-consent-accent); background: var(--sap-consent-accent); }
+.sap-consent-switch[aria-checked="true"] span { inset-inline-start: calc(100% - 1.3rem); background: var(--sap-consent-accent-fg); }
+
+.sap-consent-details > summary {
+  display: inline-block;
+  color: var(--sap-consent-accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sap-consent-table {
+  width: 100%;
+  margin-top: 0.6rem;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.sap-consent-table :is(th, td) {
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--sap-consent-border);
+  text-align: start;
+  vertical-align: top;
+  color: inherit;
+  background: none;
+}
+.sap-consent-table thead th { color: var(--sap-consent-muted); font-size: 0.78rem; font-weight: 600; }
+.sap-consent-table tbody th { font-weight: 600; }
+.sap-consent-name { overflow-wrap: anywhere; }
+.sap-consent-kind { display: block; color: var(--sap-consent-muted); font-size: 0.78rem; font-weight: 400; }
+
+/* Narrow screens: every row becomes a small card with its labels. */
+@media (max-width: 40rem) {
+  .sap-consent-banner { inset-inline: 0.5rem; bottom: max(0.5rem, env(safe-area-inset-bottom)); padding: 1rem; }
+  .sap-consent-actions { grid-template-columns: 1fr 1fr; width: 100%; }
+  .sap-consent-actions .sap-consent-btn-quiet { grid-column: 1 / -1; }
+  .sap-consent-dialog { width: calc(100% - 1rem); max-height: calc(100dvh - 1rem); }
+  .sap-consent-head, .sap-consent-body, .sap-consent-foot { padding-inline: 1rem; }
+  .sap-consent-foot .sap-consent-btn { flex: 1 1 8rem; }
+  .sap-consent-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .sap-consent-table tr { display: block; padding: 0.5rem 0; border-bottom: 1px solid var(--sap-consent-border); }
+  .sap-consent-table :is(th, td) { display: block; padding: 0.15rem 0; border: 0; }
+  .sap-consent-table td::before { content: attr(data-label) ": "; color: var(--sap-consent-muted); font-weight: 600; }
+}
+
+/* ------------------------------------------------------ placeholder note -- */
+p.sap-consent-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin: 0.5rem 0 1.25rem;
+  padding: 0;
+  color: var(--sap-consent-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+p.sap-consent-note > span:first-child { flex: 1 1 100%; }
+/* "Always allow …" and the settings link: in the note, or at the end of a
+   plugin's own privacy notice. */
+.sap-consent-controls { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.9rem; }
+.sap-consent-controls label { display: inline-flex; align-items: center; gap: 0.4rem; color: inherit; font-weight: 600; cursor: pointer; }
+.sap-consent-controls input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--sap-consent-accent, currentColor); }
+.sap-consent-controls a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+.sap-consent-controls :is(a, input):focus-visible { outline: 3px solid var(--ring, currentColor); outline-offset: 2px; }
+.is-playing + p.sap-consent-note, .is-playing .sap-consent-controls { display: none; }
+
+/* ------------------------------------------------- without JavaScript --
+   The footer link opens the list in place (#sap-consent:target); the
+   controls, which need the script, stay hidden. */
+.sap-consent-dialog:target:not([open]) {
+  display: block;
+  position: static;
+  width: auto;
+  max-height: none;
+  margin: 1.5rem 0;
+  box-shadow: none;
+  text-align: start;
+}
+html:not(.sap-consent-ready) :is(.sap-consent-switch, .sap-consent-close, [data-consent-js]) { display: none; }
+.sap-consent-ready .sap-consent-dialog:target:not([open]) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sap-consent-switch, .sap-consent-switch span { transition: none; }
+}

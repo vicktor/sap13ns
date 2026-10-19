@@ -295,6 +295,9 @@ type SiteView struct {
 	atHome bool
 	theme  *theme.Theme
 	server *Server
+	// The cookie consent, computed on first use (consent.go).
+	consent     *ConsentView
+	consentDone bool
 }
 
 // Asset returns the cache-busted URL of a file in the active theme's static/.
@@ -664,8 +667,9 @@ type PageData struct {
 	PluginCSS []string
 	PluginJS  []string
 	// postInfo is Post as plugins see it (head.meta and widgets).
-	postInfo *plugin.PostInfo
-	ids      map[string]int // ElementID
+	postInfo    *plugin.PostInfo
+	ids         map[string]int // ElementID
+	consentDone bool           // ConsentOnce
 }
 
 // LangLink points to a page in one of the site languages.

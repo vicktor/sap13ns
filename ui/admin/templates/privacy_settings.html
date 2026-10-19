@@ -1,0 +1,82 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$c := $d.C}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
+    <h1>{{T "Privacy and cookies"}}</h1>
+    <p>{{T "The cookie banner and the cookie settings of the public site. The list below is generated from what the site and its enabled plugins declare they store or load."}}</p>
+  </div>
+</div>
+{{template "form-error" $d.Error}}
+
+<form method="post" action="/admin/settings/privacy" class="stack" data-unsaved>
+  {{.CSRFField}}
+  <section class="card" id="consent">
+    <header><h2>{{T "Cookie consent"}} {{if $c.Off}}<span class="badge" data-variant="secondary">{{T "Off"}}</span>{{else}}<span class="badge" data-variant="success">{{icon "circle-check"}}{{T "On"}}</span>{{end}}</h2>
+      <p>{{if $c.Off}}{{T "Visitors see no banner and no “Cookies” link. Turn it off only if another tool asks for consent on this site."}}
+        {{else if $d.Banner}}{{T "New visitors see the banner: something on this site needs their consent."}}
+        {{else if $d.Optional}}{{T "No banner: the only content that needs consent, such as videos, asks for it where it is shown. The “Cookies” link at the bottom of every page opens the settings."}}
+        {{else}}{{T "No banner: this site stores only what it needs to work. The “Cookies” link at the bottom of every page opens the list."}}{{end}}</p></header>
+    <section class="form">
+      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if not $c.Off}} checked{{end}}> {{T "Show the cookie settings on the site"}}</label>
+      <label class="check"><input type="checkbox" class="input" role="switch" name="always_banner" value="1"{{if $c.AlwaysBanner}} checked{{end}}> {{T "Show the banner even when the only content that needs consent asks for it where it is shown"}}</label>
+    </section>
+  </section>
+
+  <section class="card" id="texts">
+    <header><h2>{{T "Banner"}}</h2><p>{{T "Empty fields use the built-in text, in the language of the page."}}</p></header>
+    <section class="form">
+      <div class="field"><label for="title">{{T "Title"}} ({{$d.Main.Name}})</label><input class="input" id="title" name="title" value="{{$c.Title}}" maxlength="120" placeholder="{{T "Cookies on this site"}}" lang="{{$d.Main.Code}}"></div>
+      <div class="field"><label for="text">{{T "Text"}} ({{$d.Main.Name}})</label><textarea class="textarea" id="text" name="text" rows="3" maxlength="1000" placeholder="{{$d.DefaultText}}" lang="{{$d.Main.Code}}">{{$c.Text}}</textarea></div>
+      <div class="field"><label for="policy_url">{{T "Cookie policy"}} ({{$d.Main.Name}})</label><input class="input" id="policy_url" name="policy_url" value="{{$c.PolicyURL}}" maxlength="300" placeholder="/cookies">
+        <p class="hint">{{T "A page of this site, such as /cookies, or an https:// address. The banner and the settings link to it."}}</p></div>
+      {{range $d.Langs}}{{$t := index $d.Texts .Code}}
+      <details class="field"{{if or $t.Title $t.Text $t.PolicyURL}} open{{end}}>
+        <summary>{{T "Banner in %s" .Name}}</summary>
+        <div class="field"><label for="title_{{.Code}}">{{T "Title"}} ({{.Code}})</label><input class="input" id="title_{{.Code}}" name="title_{{.Code}}" value="{{$t.Title}}" maxlength="120" lang="{{.Code}}"></div>
+        <div class="field"><label for="text_{{.Code}}">{{T "Text"}} ({{.Code}})</label><textarea class="textarea" id="text_{{.Code}}" name="text_{{.Code}}" rows="3" maxlength="1000" lang="{{.Code}}">{{$t.Text}}</textarea></div>
+        <div class="field"><label for="policy_url_{{.Code}}">{{T "Cookie policy"}} ({{.Code}})</label><input class="input" id="policy_url_{{.Code}}" name="policy_url_{{.Code}}" value="{{$t.PolicyURL}}" maxlength="300" placeholder="/{{.Code}}/cookies"></div>
+      </details>
+      {{end}}
+      {{if $d.Langs}}<p class="hint">{{T "An empty translation uses the text above."}}</p>{{end}}
+    </section>
+  </section>
+
+  <section class="card" id="again">
+    <header><h2>{{T "Ask again"}}</h2><p>{{T "A visitor's choice lasts six months, and the banner also asks again when a new category appears. Ask everyone now after a change in what the site uses or in your policy."}}</p></header>
+    <section class="form">
+      <label class="check"><input type="checkbox" class="input" name="ask_again" value="1"> {{T "Ask every visitor again when I save"}}</label>
+    </section>
+  </section>
+
+  <div class="sticky-actions">
+    <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
+  </div>
+</form>
+
+<section class="card" id="list">
+  <header><h2>{{T "What this site stores and loads"}}</h2>
+    <p>{{T "Read only. Plugins declare their own entries in their plugin.json; enabling or disabling a plugin updates the list. Visit statistics use no cookies and are not listed."}}</p></header>
+  <section class="stack">
+    {{range $d.Categories}}
+    <div>
+      <h3 class="font-semibold">{{.Name}} {{if .Required}}<span class="badge" data-variant="secondary">{{T "Always on"}}</span>{{else if .Toggle}}<span class="badge" data-variant="outline">{{T "Needs consent"}}</span>{{end}}</h3>
+      <p class="hint">{{.Description}}</p>
+      <div class="overflow-x-auto">
+      <table class="table">
+        <thead><tr><th>{{T "Name"}}</th><th>{{T "Provider"}}</th><th>{{T "Purpose"}}</th><th>{{T "Duration"}}</th><th>{{T "Declared by"}}</th></tr></thead>
+        <tbody>{{range .Items}}<tr>
+          <td><span class="mono break-all">{{.Name}}</span><br><span class="text-muted-foreground text-xs">{{.KindLabel}}</span></td>
+          <td>{{if .Policy}}<a href="{{.Policy}}" rel="noopener noreferrer" target="_blank">{{.ProviderLabel}}</a>{{else}}{{.ProviderLabel}}{{end}}</td>
+          <td>{{.Purpose}}</td>
+          <td>{{.Lifetime}}</td>
+          <td>{{join .Sources ", "}}</td>
+        </tr>{{end}}</tbody>
+      </table>
+      </div>
+    </div>
+    {{end}}
+  </section>
+</section>
+{{end}}

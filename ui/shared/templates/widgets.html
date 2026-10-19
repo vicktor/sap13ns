@@ -40,13 +40,16 @@
 {{end}}
 
 {{/* shared/footer-meta: copyright line, attribution (required by the
-CPAL-1.0 licence, Exhibit B) and the sign-in link, unless the
-administration is hidden from visitors. Data: PageData. */}}
+CPAL-1.0 licence, Exhibit B), the cookie settings link and the sign-in
+link, unless the administration is hidden from visitors; then the cookie
+banner and dialog (consent.html). Data: PageData. */}}
 {{define "shared/footer-meta"}}
 <p class="footer-meta">
   {{if .Site.FooterText}}{{.Site.FooterText}}{{else}}© {{.Site.Year}} {{.Site.Title}}{{end}}
   <span aria-hidden="true">·</span> <a href="{{.Site.FeedRSS}}">{{icon "rss"}} RSS</a>
   <span aria-hidden="true">·</span> {{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a>
+  {{template "shared/consent-link" .}}
   {{if not .Site.Viewer}}{{with .Site.LoginURL}}<span aria-hidden="true">·</span> <a href="{{.}}" rel="nofollow">{{T "Log in"}}</a>{{end}}{{end}}
 </p>
+{{template "shared/consent" .}}
 {{end}}

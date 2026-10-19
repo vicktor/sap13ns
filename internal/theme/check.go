@@ -68,6 +68,7 @@ import (
 var protected = map[string]bool{
 	"shared/head": true, "shared/footer-meta": true, "shared/blocks-footer": true,
 	"shared/blocks-sections": true, "shared/block": true, "blocks/footer-meta": true,
+	"shared/consent": true, "shared/consent-link": true,
 }
 
 // textOnly are shared templates a theme must call in the page's text: the
@@ -98,7 +99,7 @@ var themeFuncs = map[string]bool{
 // reading the page data.
 var (
 	secretFields  = map[string]bool{"CSRF": true, "Token": true}
-	deniedMembers = map[string]bool{"Assistant": true}
+	deniedMembers = map[string]bool{"Assistant": true, "Consent": true, "ConsentOnce": true}
 )
 
 // TokenSlots are the placeholders the server replaces with a fresh form

@@ -1,0 +1,69 @@
+{{/* Cookie consent (internal/web/consent.go, static/consent.js and
+     static/consent.css). shared/footer-meta renders both templates, so
+     every theme has them; themes cannot redefine them. Data: PageData.
+
+     shared/consent-link: the footer link to the cookie settings.
+     shared/consent: the banner and the cookie settings dialog, once per
+     page. Without JavaScript the link opens the dialog's list in place
+     (#sap-consent:target); consent.js moves both to the end of <body>,
+     shows the banner when the visitor has not chosen yet and opens the
+     dialog as a modal. Every string the script shows comes from the
+     data-t-* attributes, in the page's language. */}}
+{{define "shared/consent-link"}}{{with .Site.Consent}}<span aria-hidden="true">·</span> <a href="#sap-consent" data-consent-open>{{T "Cookies"}}</a>{{end}}{{end}}
+
+{{define "shared/consent"}}{{with .Site.Consent}}{{if $.ConsentOnce}}
+{{if .Banner}}<section class="sap-consent-banner" data-consent-banner aria-labelledby="sap-consent-banner-title" hidden>
+  <div class="sap-consent-banner-text">
+    <h2 id="sap-consent-banner-title">{{.Title}}</h2>
+    <p>{{.Text}}{{with .PolicyURL}} <a href="{{.}}">{{T "Cookie policy"}}</a>{{end}}</p>
+  </div>
+  <div class="sap-consent-actions">
+    <button type="button" class="sap-consent-btn" data-consent-accept>{{T "Accept all"}}</button>
+    <button type="button" class="sap-consent-btn" data-consent-reject>{{T "Reject all"}}</button>
+    <button type="button" class="sap-consent-btn sap-consent-btn-quiet" data-consent-open aria-haspopup="dialog">{{T "Customise"}}</button>
+  </div>
+</section>
+{{end}}<dialog id="sap-consent" class="sap-consent-dialog" aria-labelledby="sap-consent-title" data-consent-dialog
+  data-key="{{.Key}}" data-rev="{{.Rev}}" data-days="{{.Days}}"{{if .Banner}} data-banner{{end}}
+  data-t-note="{{T "{provider} ({category}): it loads only when you start it, and {provider} may then store data on your device."}}"
+  data-t-always="{{T "Always allow {provider}"}}" data-t-settings="{{T "Cookie settings"}}">
+  <div class="sap-consent-head">
+    <h2 id="sap-consent-title">{{T "Cookie settings"}}</h2>
+    <button type="button" class="sap-consent-close" data-consent-close aria-label="{{T "Close"}}" title="{{T "Close"}}">{{icon "x"}}</button>
+  </div>
+  <div class="sap-consent-body">
+    <p>{{if .Optional}}{{T "Choose what this site may store on your device and which content from other sites it may load. Necessary storage is always on. You can change your mind here at any time."}}{{else}}{{T "This site stores only what it needs to work, so there is nothing to accept. This is the full list."}}{{end}}{{with .PolicyURL}} <a href="{{.}}">{{T "Cookie policy"}}</a>{{end}}</p>
+    {{range .Categories}}
+    <section class="sap-consent-cat" data-consent-category="{{.ID}}">
+      <div class="sap-consent-cat-head">
+        <h3 id="sap-consent-cat-{{.ID}}">{{.Name}}</h3>
+        {{if .Required}}<span class="sap-consent-on">{{T "Always on"}}</span>
+        {{else if .Toggle}}<button type="button" class="sap-consent-switch" role="switch" aria-checked="false" data-consent-toggle="{{.ID}}" aria-labelledby="sap-consent-cat-{{.ID}}" aria-describedby="sap-consent-cat-{{.ID}}-d"><span aria-hidden="true"></span></button>
+        {{else}}<span class="sap-consent-on">{{T "Nothing to choose"}}</span>{{end}}
+      </div>
+      <p id="sap-consent-cat-{{.ID}}-d">{{.Description}}</p>
+      <details class="sap-consent-details">
+        <summary>{{T "Details"}}</summary>
+        <table class="sap-consent-table">
+          <thead><tr><th scope="col">{{T "Name"}}</th><th scope="col">{{T "Provider"}}</th><th scope="col">{{T "Purpose"}}</th><th scope="col">{{T "Duration"}}</th></tr></thead>
+          <tbody>
+          {{range .Items}}<tr{{with .Service}} data-service="{{.}}"{{end}} data-category="{{.Category}}" data-name="{{.Name}}"{{if .Clear}} data-clear="{{.Kind}}"{{end}}>
+            <th scope="row" data-label="{{T "Name"}}"><span class="sap-consent-name">{{.Name}}</span> <span class="sap-consent-kind">{{.KindLabel}}</span></th>
+            <td data-label="{{T "Provider"}}">{{if .Policy}}<a href="{{.Policy}}" rel="noopener nofollow" target="_blank">{{.ProviderLabel}}</a>{{else}}{{.ProviderLabel}}{{end}}</td>
+            <td data-label="{{T "Purpose"}}">{{.Purpose}}</td>
+            <td data-label="{{T "Duration"}}">{{.Lifetime}}</td>
+          </tr>
+          {{end}}</tbody>
+        </table>
+      </details>
+    </section>
+    {{end}}
+  </div>
+  <div class="sap-consent-foot" data-consent-js>
+    {{if .Optional}}<button type="button" class="sap-consent-btn" data-consent-accept>{{T "Accept all"}}</button>
+    <button type="button" class="sap-consent-btn" data-consent-reject>{{T "Reject all"}}</button>
+    <button type="button" class="sap-consent-btn sap-consent-btn-quiet" data-consent-save>{{T "Save my choices"}}</button>
+    {{else}}<button type="button" class="sap-consent-btn" data-consent-close>{{T "Close"}}</button>{{end}}
+  </div>
+</dialog>
+{{end}}{{end}}{{end}}

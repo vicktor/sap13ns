@@ -28,11 +28,14 @@
 <link rel="apple-touch-icon" href="{{.Site.Static "brand/apple-touch-icon.png"}}">
 <link rel="manifest" href="/manifest.webmanifest">
 <script src="{{.Site.Static "theme-init.js"}}"></script>
-<link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
+{{if .Site.Consent}}<link rel="stylesheet" href="{{.Site.Static "consent.css"}}">
+{{end}}<link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
 {{with .Site.PreviewTheme}}<meta name="sap-preview-theme" content="{{.}}">
 {{end}}{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
 {{end}}{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
 {{end}}<script src="{{.Site.Static "site.js"}}" defer></script>
+{{if .Site.Consent}}<script src="{{.Site.Static "consent.js"}}" defer></script>
+{{end}}
 {{if .OnePage}}<script src="{{.Site.Static "onepage.js"}}" defer></script>
 {{end}}{{if .Video}}<script src="{{.Site.Static "video.js"}}" defer></script>
 {{end}}
