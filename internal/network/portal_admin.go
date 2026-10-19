@@ -284,7 +284,8 @@ func (h portalHooks) PlanOffers(ctx context.Context) ([]web.PlanOffer, error) {
 	}
 	var out []web.PlanOffer
 	for _, p := range b.Prices() {
-		out = append(out, web.PlanOffer{Plan: p.Plan, Name: plans[p.Plan].Name, Yearly: p.Yearly, Amount: p.Amount, Currency: p.Currency})
+		out = append(out, web.PlanOffer{Plan: p.Plan, Name: plans[p.Plan].Name, Yearly: p.Yearly, Amount: p.Amount, Currency: p.Currency,
+			TaxBehavior: p.TaxBehavior})
 	}
 	return out, nil
 }

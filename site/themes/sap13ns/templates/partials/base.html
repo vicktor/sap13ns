@@ -58,10 +58,13 @@
 {{/* sap/grid: cards. Data: []*PostView. */}}
 {{define "sap/grid"}}{{if .}}<div class="post-grid">{{range .}}{{template "sap/card" .}}{{end}}</div>{{end}}{{end}}
 
-{{/* sap/plans: hosting plans from {{plans}}. Data: []PlanView. */}}
+{{/* sap/plans: hosting plans from {{plans}}. Data: []PlanView. A plan
+     sold by the month and by the year shows both prices at once, the
+     yearly one on a second line with the months it saves, then whether
+     VAT is included or added. */}}
 {{define "sap/plans"}}
 <div class="plans">
-  {{range .}}
+  {{range .}}{{$p := .}}
   <article class="plan{{if .Highlight}} is-highlight{{end}}">
     <header class="plan-head">
       <h3>{{T .Name}}</h3>
@@ -69,6 +72,14 @@
     </header>
     {{with .Description}}<p class="plan-desc">{{T .}}</p>{{end}}
     <p class="plan-price">{{if .Free}}<strong>{{T "Free"}}</strong>{{else}}<strong>{{.Price}}</strong>{{with .Interval}}<span>/ {{if eq . "month"}}{{T "month"}}{{else if eq . "year"}}{{T "year"}}{{else}}{{.}}{{end}}</span>{{end}}{{end}}</p>
+    {{- with .YearlyPrice}}{{$free := $p.FreeMonths}}
+    <p class="plan-yearly"><span>{{T "or %s a year" .}}</span>{{if eq $free 1}}<span class="plan-save">{{T "1 month free"}}</span>{{else if $free}}<span class="plan-save">{{T "%d months free" $free}}</span>{{end}}</p>
+    {{- end}}
+    {{- if eq .Tax "included"}}
+    <p class="plan-tax">{{T "VAT included"}}</p>
+    {{- else if eq .Tax "added"}}
+    <p class="plan-tax">{{T "+ VAT"}}</p>
+    {{- end}}
     <p class="plan-use">{{if .Commercial}}{{icon "badge-check"}} {{T "Commercial use allowed"}}{{else}}{{icon "user-round-check"}} {{T "Personal, non-commercial sites"}}{{end}}</p>
     <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{template "plan-feature" .}}</span></li>{{end}}</ul>
     {{$hl := .Highlight}}{{with .SignupURL}}<a class="button {{if $hl}}button-primary{{else}}button-outline{{end}} plan-cta" href="{{.}}">{{T "Choose plan"}}</a>{{end}}

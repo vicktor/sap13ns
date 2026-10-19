@@ -162,6 +162,9 @@ type Price struct {
 	ID       string
 	Amount   int64 // in the currency's smallest unit
 	Currency string
+	// TaxBehavior is the Stripe price's: inclusive (VAT included),
+	// exclusive (VAT added on top) or unspecified.
+	TaxBehavior string
 }
 
 // A BillingNotice is something to tell an account about its billing.
@@ -271,7 +274,8 @@ func (b *Billing) check(ctx context.Context) error {
 					"interval", p.Interval, "count", p.IntervalCount, "expected", want)
 			}
 			b.plans[x.id] = plan.Slug
-			b.prices = append(b.prices, Price{Plan: plan.Slug, Yearly: x.yearly, ID: x.id, Amount: p.UnitAmount, Currency: p.Currency})
+			b.prices = append(b.prices, Price{Plan: plan.Slug, Yearly: x.yearly, ID: x.id, Amount: p.UnitAmount, Currency: p.Currency,
+				TaxBehavior: p.TaxBehavior})
 		}
 	}
 	return nil

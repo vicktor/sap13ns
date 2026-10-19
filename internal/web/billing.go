@@ -58,6 +58,21 @@ type PlanOffer struct {
 	Yearly   bool
 	Amount   int64 // in the currency's smallest unit
 	Currency string
+	// TaxBehavior is the Stripe price's: inclusive (VAT included),
+	// exclusive (VAT added on top) or unspecified.
+	TaxBehavior string
+}
+
+// Tax says how VAT applies to the price: "included", "added", or "" when
+// the price does not say.
+func (o PlanOffer) Tax() string {
+	switch o.TaxBehavior {
+	case "inclusive":
+		return "included"
+	case "exclusive":
+		return "added"
+	}
+	return ""
 }
 
 // Value is the offer's form value: the plan and its interval. Prices
@@ -80,6 +95,34 @@ func (o PlanOffer) Price() string {
 		return fmt.Sprintf("%d %s", o.Amount, cur)
 	}
 	return fmt.Sprintf("%d.%02d %s", o.Amount/100, o.Amount%100, cur)
+}
+
+// currencySigns are the currencies a pricing table writes with a sign:
+// before the amount, or after it with a space.
+var currencySigns = map[string]struct {
+	sign   string
+	before bool
+}{"eur": {"€", false}, "usd": {"$", true}, "gbp": {"£", true}}
+
+// Display is the amount as a pricing table shows it: "9 €", "9.50 €",
+// "$12", "30 CHF", without decimals when it is a whole amount. The space
+// does not break.
+func (o PlanOffer) Display() string {
+	cur := strings.ToLower(o.Currency)
+	n := strconv.FormatInt(o.Amount, 10)
+	if !zeroDecimal[cur] {
+		n = strconv.FormatInt(o.Amount/100, 10)
+		if c := o.Amount % 100; c != 0 {
+			n += fmt.Sprintf(".%02d", c)
+		}
+	}
+	if s, ok := currencySigns[cur]; ok {
+		if s.before {
+			return s.sign + n
+		}
+		return n + "\u00a0" + s.sign
+	}
+	return n + "\u00a0" + strings.ToUpper(cur)
 }
 
 type CheckoutRequest struct {

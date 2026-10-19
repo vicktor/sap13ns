@@ -53,9 +53,9 @@ const (
 func newFakeStripe(t *testing.T, key string) *fakeStripe {
 	f := &fakeStripe{t: t, key: key, subs: map[string]*fakeSub{}, fetched: map[string]int{},
 		prices: []string{
-			priceJSON("price_pro_month", false, 1900, "month"),
-			priceJSON("price_pro_year", false, 19000, "year"),
-			priceJSON("price_biz_month", false, 4900, "month"),
+			taxedPriceJSON("price_pro_month", 900, "month", "inclusive"),
+			taxedPriceJSON("price_pro_year", 9900, "year", "inclusive"),
+			taxedPriceJSON("price_biz_month", 3000, "month", "exclusive"),
 			priceJSON("price_other", false, 100, "month"),
 		}}
 	f.srv = httptest.NewServer(f)
@@ -65,7 +65,13 @@ func newFakeStripe(t *testing.T, key string) *fakeStripe {
 
 func priceJSON(id string, live bool, amount int, interval string) string {
 	return fmt.Sprintf(`{"id":%q,"object":"price","active":true,"livemode":%t,"unit_amount":%d,"currency":"eur","type":"recurring",`+
-		`"recurring":{"interval":%q,"interval_count":1},"product":{"id":"prod_test","object":"product","name":"Plan"}}`, id, live, amount, interval)
+		`"tax_behavior":"unspecified","recurring":{"interval":%q,"interval_count":1},"product":{"id":"prod_test","object":"product","name":"Plan"}}`,
+		id, live, amount, interval)
+}
+
+// taxedPriceJSON is a test-mode price with a tax behavior.
+func taxedPriceJSON(id string, amount int, interval, tax string) string {
+	return strings.Replace(priceJSON(id, false, amount, interval), `"tax_behavior":"unspecified"`, `"tax_behavior":"`+tax+`"`, 1)
 }
 
 func (f *fakeStripe) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -360,8 +366,8 @@ func TestBillingStart(t *testing.T) {
 	if err != nil || b == nil {
 		t.Fatalf("a valid configuration: %v", err)
 	}
-	if got := b.Prices(); len(got) != 3 || got[0] != (Price{Plan: "pro", ID: "price_pro_month", Amount: 1900, Currency: "eur"}) ||
-		got[1].ID != "price_pro_year" || !got[1].Yearly || got[2].Plan != "business" {
+	if got := b.Prices(); len(got) != 3 || got[0] != (Price{Plan: "pro", ID: "price_pro_month", Amount: 900, Currency: "eur", TaxBehavior: "inclusive"}) ||
+		got[1].ID != "price_pro_year" || !got[1].Yearly || got[1].Amount != 9900 || got[2].Plan != "business" || got[2].TaxBehavior != "exclusive" {
 		t.Fatalf("prices: %+v", got)
 	}
 	// Without a key there is no billing.
@@ -441,7 +447,7 @@ func TestBillingCheckout(t *testing.T) {
 
 	body := b.page("/admin/sites")
 	for _, want := range []string{`action="/admin/sites/` + strconv.FormatInt(a.ID, 10) + `/upgrade"`, `value="pro:month"`, `value="pro:year"`,
-		`value="business:month"`, "19.00 EUR", "190.00 EUR"} {
+		`value="business:month"`, "Pro · 9\u00a0€ al mes · IVA incluido", "Pro · 99\u00a0€ al año · IVA incluido", "Business · 30\u00a0€ al mes · &#43; IVA"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("My sites has no %s:\n%s", want, body)
 		}

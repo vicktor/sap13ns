@@ -62,10 +62,12 @@ func TestPortalPlans(t *testing.T) {
 		t.Fatalf("%d queries for two renders", portal.calls)
 	}
 
+	// Pro is sold by the month and by the year, VAT included; Business by
+	// the year only, VAT on top.
 	s.billing = &fakeOffers{offers: []PlanOffer{
-		{Plan: "pro", Yearly: true, Amount: 5000, Currency: "eur"},
-		{Plan: "pro", Amount: 500, Currency: "eur"},
-		{Plan: "business", Yearly: true, Amount: 12000, Currency: "eur"},
+		{Plan: "pro", Yearly: true, Amount: 9900, Currency: "eur", TaxBehavior: "inclusive"},
+		{Plan: "pro", Amount: 900, Currency: "eur", TaxBehavior: "inclusive"},
+		{Plan: "business", Yearly: true, Amount: 33000, Currency: "eur", TaxBehavior: "exclusive"},
 	}}
 	s.plans = planCache{}
 	views = s.planViews()
@@ -73,11 +75,13 @@ func TestPortalPlans(t *testing.T) {
 		t.Fatalf("with billing: %+v", views)
 	}
 	pro, business := views[1], views[2]
-	if pro.Price != "5.00 EUR" || pro.Interval != "month" || !pro.Highlight || pro.Free || !pro.Commercial {
-		t.Fatalf("pro: the monthly price, highlighted: %+v", pro)
+	if pro.Price != "9\u00a0€" || pro.Interval != "month" || pro.YearlyPrice != "99\u00a0€" || pro.FreeMonths != 1 || pro.Tax != "included" ||
+		!pro.Highlight || pro.Free || !pro.Commercial {
+		t.Fatalf("pro: the monthly price and the yearly one, VAT included, highlighted: %+v", pro)
 	}
-	if business.Price != "120.00 EUR" || business.Interval != "year" || business.Highlight {
-		t.Fatalf("business: only a yearly price: %+v", business)
+	if business.Price != "330\u00a0€" || business.Interval != "year" || business.YearlyPrice != "" || business.FreeMonths != 0 ||
+		business.Tax != "added" || business.Highlight {
+		t.Fatalf("business: only a yearly price, VAT added: %+v", business)
 	}
 	want = []PlanFeature{{Text: "1 site"}, {Text: "Up to %s custom domains with HTTPS", Arg: "2"}, {Text: "%s storage", Arg: "10 GB"},
 		{Text: "Upload your own plugins, reviewed before they run"}, {Text: "Upload your own themes"}}
@@ -93,6 +97,53 @@ func TestPortalPlans(t *testing.T) {
 	portal.err = errors.New("database down")
 	if got := s.planViews(); len(got) != 3 {
 		t.Fatalf("after a failed load: %+v", got)
+	}
+}
+
+// TestPortalPlanPrices: both intervals with both tax behaviours, and the
+// prices that save no whole month or say nothing of VAT.
+func TestPortalPlanPrices(t *testing.T) {
+	s := networkServer(t, testutil.Store(t), nil)
+	s.portal = &fakePlansPortal{plans: []NetPlan{
+		{Slug: "pro", Name: "Pro", Paid: true, Commercial: true, SitesPerGrant: 1},
+		{Slug: "business", Name: "Business", Paid: true, Commercial: true, SitesPerGrant: 1},
+		{Slug: "team", Name: "Team", Paid: true, Commercial: true, SitesPerGrant: 1},
+		{Slug: "agency", Name: "Agency", Paid: true, Commercial: true, SitesPerGrant: 1},
+	}}
+	s.billing = &fakeOffers{offers: []PlanOffer{
+		{Plan: "pro", Amount: 900, Currency: "eur", TaxBehavior: "inclusive"},
+		{Plan: "pro", Yearly: true, Amount: 9900, Currency: "eur", TaxBehavior: "inclusive"},
+		{Plan: "business", Amount: 3000, Currency: "eur", TaxBehavior: "exclusive"},
+		{Plan: "business", Yearly: true, Amount: 33000, Currency: "eur", TaxBehavior: "exclusive"},
+		{Plan: "team", Amount: 1250, Currency: "usd", TaxBehavior: "unspecified"},
+		{Plan: "team", Yearly: true, Amount: 10500, Currency: "usd", TaxBehavior: "unspecified"},
+		{Plan: "agency", Amount: 5000, Currency: "chf"},
+	}}
+	views, err := s.portalPlans(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	type row struct {
+		price, interval, yearly string
+		free                    int
+		tax                     string
+	}
+	want := []row{
+		{"9\u00a0€", "month", "99\u00a0€", 1, "included"},
+		{"30\u00a0€", "month", "330\u00a0€", 1, "added"},
+		{"$12.50", "month", "$105", 0, ""}, // saves 45 dollars: not a whole month
+		{"50\u00a0CHF", "month", "", 0, ""},
+	}
+	if len(views) != len(want) {
+		t.Fatalf("%d plans: %+v", len(views), views)
+	}
+	for i, v := range views {
+		if got := (row{v.Price, v.Interval, v.YearlyPrice, v.FreeMonths, v.Tax}); got != want[i] {
+			t.Errorf("%s: %+v, want %+v", v.Slug, got, want[i])
+		}
+	}
+	if !views[0].Highlight || views[1].Highlight {
+		t.Error("the first paid plan is the highlighted one")
 	}
 }
 

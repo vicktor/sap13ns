@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,10 +32,12 @@ func (s *Server) planViews() []PlanView {
 var samplePlans = []PlanView{
 	{Slug: "personal", Name: "Personal", Description: "For your blog, portfolio or CV.", Free: true, SignupURL: "/register",
 		Features: []PlanFeature{{Text: "1 site"}, {Text: "sap13ns.site subdomain"}, {Text: "1 GB storage"}, {Text: "All themes"}}},
-	{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "9 €", Interval: "month", Commercial: true, Highlight: true,
-		SignupURL: "/register", Features: []PlanFeature{{Text: "Custom domain with HTTPS"}, {Text: "10 GB storage"}, {Text: "Your own themes and plugins"}, {Text: "Daily backups"}}},
-	{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "30 €", Interval: "month", Commercial: true,
-		SignupURL: "/register", Features: []PlanFeature{{Text: "Everything in Pro"}, {Text: "50 GB storage"}, {Text: "AI assistant credits"}, {Text: "Priority support"}}},
+	{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "9\u00a0€", Interval: "month",
+		YearlyPrice: "99\u00a0€", FreeMonths: 1, Tax: "included", Commercial: true, Highlight: true, SignupURL: "/register",
+		Features: []PlanFeature{{Text: "Custom domain with HTTPS"}, {Text: "10 GB storage"}, {Text: "Your own themes and plugins"}, {Text: "Daily backups"}}},
+	{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "30\u00a0€", Interval: "month",
+		YearlyPrice: "330\u00a0€", FreeMonths: 1, Tax: "added", Commercial: true, SignupURL: "/register",
+		Features: []PlanFeature{{Text: "Everything in Pro"}, {Text: "50 GB storage"}, {Text: "AI assistant credits"}, {Text: "Priority support"}}},
 }
 
 // planCacheTTL bounds how long the portal's pricing table may lag behind
@@ -76,15 +79,23 @@ func (s *Server) portalPlans(ctx context.Context) ([]PlanView, error) {
 	if err != nil {
 		return nil, err
 	}
-	prices := map[string]PlanOffer{}
+	type pair struct{ month, year *PlanOffer }
+	prices := map[string]*pair{}
 	if s.billing != nil {
 		offers, err := s.billing.PlanOffers(ctx)
 		if err != nil {
 			return nil, err
 		}
 		for _, o := range offers {
-			if cur, ok := prices[o.Plan]; !ok || cur.Yearly && !o.Yearly {
-				prices[o.Plan] = o // the monthly price when there is one
+			p := prices[o.Plan]
+			if p == nil {
+				p = &pair{}
+				prices[o.Plan] = p
+			}
+			if o.Yearly {
+				p.year = &o
+			} else {
+				p.month = &o
 			}
 		}
 	}
@@ -98,14 +109,11 @@ func (s *Server) portalPlans(ctx context.Context) ([]PlanView, error) {
 		v := PlanView{Slug: p.Slug, Name: p.Name, Free: !p.Paid, Commercial: p.Commercial, SignupURL: signup,
 			Features: planFeatures(p, s.cfg.SitesDomain)}
 		if p.Paid {
-			o, ok := prices[p.Slug]
-			if !ok {
+			o := prices[p.Slug]
+			if o == nil {
 				continue
 			}
-			v.Price, v.Interval = o.Price(), "month"
-			if o.Yearly {
-				v.Interval = "year"
-			}
+			setPrices(&v, o.month, o.year)
 			if !highlighted {
 				v.Highlight, highlighted = true, true
 			}
@@ -113,6 +121,30 @@ func (s *Server) portalPlans(ctx context.Context) ([]PlanView, error) {
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// setPrices writes the prices of a paid plan: the monthly one, and the
+// yearly one beside it; a plan sold by the year only shows that price.
+// The VAT note follows the main price.
+func setPrices(v *PlanView, month, year *PlanOffer) {
+	main := month
+	if main == nil {
+		main = year
+	}
+	v.Price, v.Interval, v.Tax = main.Display(), "month", main.Tax()
+	if main == year {
+		v.Interval = "year"
+		return
+	}
+	if year == nil {
+		return
+	}
+	v.YearlyPrice = year.Display()
+	if strings.EqualFold(year.Currency, month.Currency) && month.Amount > 0 {
+		if saved := 12*month.Amount - year.Amount; saved > 0 && saved%month.Amount == 0 {
+			v.FreeMonths = int(saved / month.Amount)
+		}
+	}
 }
 
 // planFeatures describes what a plan gives, from its limits. The sap13ns
