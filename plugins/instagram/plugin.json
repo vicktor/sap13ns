@@ -1,0 +1,53 @@
+{
+  "abi": 1,
+  "id": "instagram",
+  "name": "Instagram",
+  "version": "1.0.0",
+  "description": "Publishes new articles that have a JPEG featured image to your Instagram professional account, with a caption in the post's language, and shows your latest Instagram posts as a carousel or a grid with [instagram_feed] and as a widget. You connect the account once on this page; the 60-day token renews itself.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["event", "shortcode", "widget"],
+  "shortcodes": ["instagram_feed"],
+  "widgets": [
+    {"id": "feed", "title": "Instagram feed", "description": "Your latest Instagram posts, as a carousel or a grid.", "config": [
+      {"key": "count", "label": "Number of posts", "type": "number", "default": "", "help": "1 to 24. Empty uses the plugin settings."},
+      {"key": "layout", "label": "Layout", "type": "select", "default": "carousel", "choices": ["carousel", "grid"]}
+    ]}
+  ],
+  "events": ["post.published", "post.updated", "post.trashed", "cron.hourly", "oauth.connected"],
+  "permissions": ["kv", "posts:read", "oauth:instagram", "http:www.instagram.com", "http:api.instagram.com", "http:graph.instagram.com", "assets:js"],
+  "assets": {"css": ["assets/instagram.css"], "js": ["assets/instagram.js"]},
+  "csp": {"img-src": ["https://*.cdninstagram.com", "https://*.fbcdn.net"]},
+  "oauth": [
+    {
+      "id": "instagram",
+      "name": "Instagram",
+      "authorize_url": "https://www.instagram.com/oauth/authorize",
+      "token_url": "https://api.instagram.com/oauth/access_token",
+      "scopes": ["instagram_business_basic", "instagram_business_content_publish"],
+      "scope_separator": ",",
+      "client_id_setting": "app_id",
+      "client_secret_setting": "app_secret",
+      "userinfo_url": "https://graph.instagram.com/v26.0/me?fields=user_id,username",
+      "userinfo_token": "query",
+      "exchange": {"url": "https://graph.instagram.com/access_token", "grant_type": "ig_exchange_token"},
+      "refresh": {"url": "https://graph.instagram.com/refresh_access_token", "grant_type": "ig_refresh_token", "token": "access_token"}
+    }
+  ],
+  "settings": [
+    {"key": "app_id", "label": "Instagram app ID", "type": "text", "default": "", "help": "From your app in the Meta App Dashboard → Instagram → API setup with Instagram login → Business login settings. Save, then connect the account under Connections."},
+    {"key": "app_secret", "label": "Instagram app secret", "type": "secret", "help": "The Instagram app secret shown next to it (not the Meta app secret of App settings → Basic)."},
+    {"key": "publish", "label": "Publish new posts", "type": "bool", "default": "true", "help": "Publish new articles that have a featured image to Instagram. Off keeps only the feed."},
+    {"key": "template", "label": "Caption", "type": "textarea", "default": "", "help": "Placeholders: {title} {url} {excerpt} {hashtags} {site}. Empty uses “New post: {title}”, the excerpt, “Link in bio.” and the hashtags, in the post's language. Links in captions are not clickable on Instagram."},
+    {"key": "template_es", "label": "Caption for Spanish posts", "type": "textarea", "default": "", "help": "Used instead of the caption above for posts in Spanish."},
+    {"key": "template_en", "label": "Caption for English posts", "type": "textarea", "default": "", "help": "Used instead of the caption above for posts in English."},
+    {"key": "max_hashtags", "label": "Hashtags", "type": "number", "default": "5", "help": "How many of the post's tags become hashtags (at most 20). 0 adds none."},
+    {"key": "post_types", "label": "Post", "type": "select", "default": "posts", "choices": ["posts", "pages", "both"], "help": "Which content types are published when they go live."},
+    {"key": "skip_older_than_hours", "label": "Skip posts older than (hours)", "type": "number", "default": "48", "help": "A post whose publication date is older than this is never published, so re-publishing an old article does not announce it again."},
+    {"key": "dry_run", "label": "Dry run", "type": "bool", "default": "false", "help": "Write the caption that would be published to the activity log instead of publishing it. The feed is still refreshed."},
+    {"key": "count", "label": "Posts in the feed", "type": "number", "default": "8", "help": "1 to 24. For [instagram_feed] without count=. The widget has its own setting."},
+    {"key": "layout", "label": "Feed layout", "type": "select", "default": "carousel", "choices": ["carousel", "grid"], "help": "For [instagram_feed] without layout=."},
+    {"key": "show_notice", "label": "Show the privacy note", "type": "bool", "default": "true", "help": "A short note under each feed that says the images load from Instagram (Meta)."},
+    {"key": "privacy_url", "label": "Privacy policy link", "type": "text", "default": "", "help": "https://…, http://… or a site path such as /privacy. Adds a “Privacy policy” link after the note."}
+  ]
+}

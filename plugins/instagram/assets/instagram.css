@@ -1,0 +1,73 @@
+/* Instagram feed. In a post the feed is a Basecoat .card, which every theme
+   styles in light and dark mode; in a widget the host's section is the
+   frame. Everything else uses the theme's tokens (--primary, --ring,
+   --border, --muted, --muted-foreground, --radius). The badges sit on the
+   images, so they are dark in both modes.
+   Without the script every post is a link to Instagram and the carousel
+   scrolls by touch, trackpad or keyboard; instagram.js adds the buttons. */
+
+.igf { container-type: inline-size; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.prose .igf { margin-block: 2rem; }
+.igf-ui { display: none !important; }
+
+/* The head: an optional heading and the carousel's buttons. */
+.igf-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 2.25rem; }
+.igf .igf-head h2.igf-heading { margin: 0; font-size: 1.125rem; font-weight: 650; line-height: 1.3; letter-spacing: -0.01em; }
+.igf-controls { display: flex; gap: 0.5rem; margin-inline-start: auto; }
+.igf-controls[hidden], .igf-head[hidden] { display: none; }
+
+/* The list, undoing the .prose styles of a post body. */
+.igf ul.igf-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr)); gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.igf ul.igf-list > li.igf-item { position: relative; min-width: 0; margin: 0; padding: 0; }
+.igf ul.igf-list > li.igf-item::marker { content: none; }
+
+.igf a.igf-link { position: relative; display: block; color: inherit; text-decoration: none; border-radius: calc(var(--radius) - 2px); }
+.igf-thumb { position: relative; display: block; aspect-ratio: 1; overflow: hidden; border-radius: calc(var(--radius) - 2px); background: var(--muted); }
+.igf .igf-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; object-fit: cover; transition: transform 0.3s ease, opacity 0.3s ease; }
+.igf-none { display: grid; place-items: center; color: var(--muted-foreground); }
+.igf-none svg { width: 1.75rem; height: 1.75rem; }
+.igf-badge { position: absolute; top: 0.4rem; right: 0.4rem; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 999px; background: oklch(0 0 0 / 0.55); color: oklch(0.98 0 0); pointer-events: none; }
+.igf-badge svg { width: 0.95rem; height: 0.95rem; }
+.igf-badge.igf-video svg { margin-left: 0.1rem; fill: currentColor; }
+
+.igf a.igf-link:hover img { transform: scale(1.04); opacity: 0.92; }
+.igf a.igf-link:focus-visible { outline: none; }
+.igf a.igf-link:focus-visible .igf-thumb { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* The note and the link to the profile. */
+.igf footer.igf-footer { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.35rem 1rem; margin: 0; padding: 0; border: 0; color: var(--muted-foreground); font-size: 0.8125rem; line-height: 1.5; }
+.igf footer.igf-footer:empty { display: none; }
+.igf p.igf-notice { flex: 1 1 16rem; margin: 0; color: inherit; font-size: inherit; text-align: start; }
+.igf p.igf-notice a { color: inherit; text-decoration: underline; text-underline-offset: 0.2em; }
+.igf a.igf-more { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--primary); font-weight: 600; text-decoration: none; border-radius: 0.25rem; }
+.igf a.igf-more:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.igf a.igf-more:focus-visible, .igf p.igf-notice a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.igf a.igf-more svg { width: 1rem; height: 1rem; }
+.igf-empty { flex-direction: row; }
+
+/* The carousel: a row that scrolls and snaps. Without the script it still
+   scrolls (tabbing to a post brings it into view); instagram.js adds the
+   buttons, which scroll smoothly unless the visitor asks for reduced
+   motion. */
+.igf-carousel ul.igf-list { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: calc((100% - 1.5rem) / 4); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: 5px; padding: 5px 5px 0.85rem; margin-inline: -5px; scrollbar-width: thin; }
+.igf-carousel ul.igf-list > li.igf-item { scroll-snap-align: start; }
+@container (max-width: 40rem) { .igf-carousel ul.igf-list { grid-auto-columns: calc((100% - 1rem) / 3); } }
+@container (max-width: 26rem) { .igf-carousel ul.igf-list { grid-auto-columns: calc((100% - 0.5rem) / 2); } }
+@container (max-width: 15rem) { .igf-carousel ul.igf-list { grid-auto-columns: 82%; } }
+
+.igf-nav { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--background); color: var(--foreground); cursor: pointer; transition: background-color 0.15s ease, opacity 0.15s ease; }
+.igf-nav svg { width: 1.1rem; height: 1.1rem; }
+.igf-nav:hover { background: var(--muted); }
+.igf-nav:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.igf-nav[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.igf-nav[aria-disabled="true"]:hover { background: var(--background); }
+
+/* In a widget the host's .widget-html may style its content as rich text
+   (muted, smaller, underlined links): undo that. */
+.widget-html:has(> .igf) { margin-inline: 0; color: inherit; font-size: inherit; line-height: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  .igf .igf-thumb img, .igf-nav { transition: none; }
+  .igf a.igf-link:hover img { transform: none; }
+  .igf-carousel ul.igf-list { scroll-behavior: auto; }
+}
