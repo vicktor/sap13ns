@@ -237,10 +237,15 @@ func (c *convState) shortcodes(src string) string {
 				body, caption = p[1], strings.TrimSpace(p[2])
 			}
 		}
-		if strings.TrimSpace(caption) == "" {
-			return body
+		// The alignment travels on a wrapper, where img finds it.
+		open := "<figure>"
+		if m := reWPAlign.FindStringSubmatch(a["align"]); m != nil {
+			open = `<figure class="align` + m[1] + `">`
 		}
-		return "\n\n<figure>" + strings.TrimSpace(body) + "<figcaption>" + caption + "</figcaption></figure>\n\n"
+		if strings.TrimSpace(caption) == "" {
+			return open + strings.TrimSpace(body) + "</figure>"
+		}
+		return "\n\n" + open + strings.TrimSpace(body) + "<figcaption>" + caption + "</figcaption></figure>\n\n"
 	})
 
 	src = reEmbed.ReplaceAllStringFunc(src, func(m string) string {
@@ -585,7 +590,59 @@ func (c *convState) img(n *html.Node) {
 		remove(n)
 		return
 	}
+	layout := imageLayout(n)
 	setAttrs(n, "src", c.rewrite(u), "alt", strings.TrimSpace(attr(n, "alt")), "title", strings.TrimSpace(attr(n, "title")))
+	if layout != "" && n.Parent != nil {
+		// ![alt](src){width=… align=…}: kept out of Markdown escaping like
+		// a shortcode and put back in tidy.
+		c.protected = append(c.protected, layout)
+		n.Parent.InsertBefore(textNode(c.token(len(c.protected)-1)), n.NextSibling)
+	}
+}
+
+var (
+	reWPAlign = regexp.MustCompile(`(?:^|\s)align(left|right|center|none|wide|full)(?:\s|$)`)
+	reWPSize  = regexp.MustCompile(`(?:^|\s)size-full(?:\s|$)`)
+)
+
+// imageLayout reads WordPress's alignment classes (alignleft, alignright,
+// aligncenter, alignwide, alignfull) from the image or the figure, link or
+// block around it, and its width, as {width=300 align=left}. A full-size
+// image (size-full) keeps its natural width.
+func imageLayout(img *html.Node) string {
+	classes := attr(img, "class")
+	n := img.Parent
+	for depth := 0; n != nil && depth < 3; depth, n = depth+1, n.Parent {
+		if n.Type != html.ElementNode || (n.DataAtom != atom.Figure && n.DataAtom != atom.Div && n.DataAtom != atom.A && n.DataAtom != atom.Span) {
+			break
+		}
+		classes += " " + attr(n, "class")
+	}
+	align := ""
+	if m := reWPAlign.FindStringSubmatch(classes); m != nil {
+		switch m[1] {
+		case "left", "right", "center":
+			align = m[1]
+		case "wide", "full":
+			align = "full"
+		}
+	}
+	width := 0
+	if w, err := strconv.Atoi(strings.TrimSpace(attr(img, "width"))); err == nil && w > 0 && w <= 4096 && // content.MaxImageWidth
+		!reWPSize.MatchString(classes) && align != "full" {
+		width = w
+	}
+	var parts []string
+	if width > 0 {
+		parts = append(parts, "width="+strconv.Itoa(width))
+	}
+	if align != "" {
+		parts = append(parts, "align="+align)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "{" + strings.Join(parts, " ") + "}"
 }
 
 func (c *convState) link(n *html.Node) {
@@ -605,6 +662,8 @@ func (c *convState) link(n *html.Node) {
 		case ch.Type == html.ElementNode && ch.DataAtom == atom.Img && img == nil:
 			img = ch
 		case ch.Type == html.TextNode && strings.TrimSpace(ch.Data) == "":
+		case ch.Type == html.TextNode && img != nil && ch.PrevSibling == img && strings.HasPrefix(ch.Data, "WPIMPORTSC"+c.nonce):
+			// The image's {width=… align=…} (img).
 		default:
 			return
 		}

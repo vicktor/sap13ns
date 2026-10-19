@@ -354,7 +354,7 @@ func TestImportFixture(t *testing.T) {
 	}
 	mustContain(t, hola.Content,
 		"Bienvenido a **Café Ñandú**. Este es el primer párrafo.  \nUna segunda línea del mismo párrafo.",
-		"!"+"[Una foto]("+photoURL+")\n\n*Atardecer en la playa*",
+		"!"+"[Una foto]("+photoURL+"){width=300 align=center}\n\n*Atardecer en la playa*",
 		"<https://www.youtube.com/watch?v=dQw4w9WgXcQ>",
 		"<https://vimeo.com/76979871>",
 		"[acerca de](/acerca-de)", "[informe]("+reportURL+")",

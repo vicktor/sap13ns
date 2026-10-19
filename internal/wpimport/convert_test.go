@@ -132,6 +132,27 @@ func TestToMarkdownCaption(t *testing.T) {
 	}
 }
 
+func TestToMarkdownImageLayout(t *testing.T) {
+	cases := map[string]string{
+		// Classic editor: classes on the image.
+		`<p><img class="alignleft size-medium wp-image-5" src="https://example.com/a-300x200.jpg" alt="A" width="300" height="200" /> Text.</p>`: "![A](https://example.com/a-300x200.jpg){width=300 align=left} Text.",
+		`<img class="alignright size-thumbnail" src="https://example.com/a.jpg" alt="A" width="150" height="150" />`:                             "![A](https://example.com/a.jpg){width=150 align=right}",
+		`<img class="aligncenter size-full" src="https://example.com/a.jpg" alt="A" width="1600" height="900" />`:                                "![A](https://example.com/a.jpg){align=center}",
+		`<img class="alignnone size-large" src="https://example.com/a.jpg" alt="A" width="99999" />`:                                             "![A](https://example.com/a.jpg)",
+		// Caption shortcode: the alignment is on the shortcode.
+		`[caption align="alignright" width="300"]<img src="https://example.com/a.jpg" alt="A" width="300" />[/caption]`: "![A](https://example.com/a.jpg){width=300 align=right}",
+		// Gutenberg: classes on the figure, linked image.
+		`<!-- wp:image --><figure class="wp-block-image alignleft size-medium"><a href="https://example.com/x"><img src="https://example.com/a.jpg" alt="A" width="300"/></a></figure><!-- /wp:image -->`: "[![A](https://example.com/a.jpg){width=300 align=left}](https://example.com/x)",
+		`<!-- wp:image {"align":"wide"} --><figure class="wp-block-image alignwide size-large"><img src="https://example.com/a.jpg" alt="A" width="1024"/></figure><!-- /wp:image -->`:                    "![A](https://example.com/a.jpg){align=full}",
+		`<div class="wp-block-image"><figure class="aligncenter size-large"><img src="https://example.com/a.jpg" alt="A"/></figure></div>`:                                                                "![A](https://example.com/a.jpg){align=center}",
+	}
+	for in, want := range cases {
+		if md, _ := ToMarkdown(in, ConvertOptions{}); md != want {
+			t.Errorf("ToMarkdown(%s)\n got %q\nwant %q", in, md, want)
+		}
+	}
+}
+
 func TestToMarkdownEmbedsAndBareURLs(t *testing.T) {
 	in := "Intro.\n\nhttps://www.youtube.com/watch?v=abc_123\n\n[embed width=\"640\"]https://vimeo.com/76979871[/embed]\n\nA sentence with https://example.org/inline in it.\n\n<pre>https://example.org/in-code</pre>"
 	md, _ := ToMarkdown(in, ConvertOptions{})

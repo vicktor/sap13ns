@@ -421,6 +421,51 @@ func (e *exporter) wpStatus(p *store.Post) string {
 	return "draft"
 }
 
+var (
+	imgTag      = regexp.MustCompile(`<img [^>]*>`)
+	imgAlign    = regexp.MustCompile(` class="align-(left|right|center|full)"`)
+	imgWidthRe  = regexp.MustCompile(` width="([0-9]{1,5})"`)
+	wpSizeLimit = []struct {
+		max  int
+		name string
+	}{{150, "size-thumbnail"}, {300, "size-medium"}, {1024, "size-large"}}
+)
+
+// wpImageClasses gives images with a width or an alignment ({width=…
+// align=…}) WordPress's classes: alignleft, alignright, aligncenter or
+// alignfull, and the size class nearest its width (size-full without one).
+func wpImageClasses(h string) string {
+	if !strings.Contains(h, "<img ") {
+		return h
+	}
+	return imgTag.ReplaceAllStringFunc(h, func(tag string) string {
+		a := imgAlign.FindStringSubmatch(tag)
+		w := imgWidthRe.FindStringSubmatch(tag)
+		if a == nil && w == nil {
+			return tag
+		}
+		var classes []string
+		if a != nil {
+			classes = append(classes, "align"+a[1])
+		}
+		size := "size-full"
+		if w != nil && (a == nil || a[1] != "full") {
+			n, _ := strconv.Atoi(w[1])
+			for _, s := range wpSizeLimit {
+				if n <= s.max {
+					size = s.name
+					break
+				}
+			}
+		}
+		class := ` class="` + strings.Join(append(classes, size), " ") + `"`
+		if a != nil {
+			return strings.Replace(tag, a[0], class, 1)
+		}
+		return strings.Replace(tag, "<img ", "<img"+class+" ", 1)
+	})
+}
+
 // rootURL finds site-relative addresses in attributes of rendered HTML.
 var rootURL = regexp.MustCompile(`(\s(?:src|href|poster)=")(/[^/"][^"]*|/)"`)
 
@@ -431,7 +476,10 @@ var rootURL = regexp.MustCompile(`(\s(?:src|href|poster)=")(/[^/"][^"]*|/)"`)
 var uploadPath = regexp.MustCompile(`/uploads/[0-9]{4}/[0-9]{2}/[^"'\s?#<>]+`)
 
 func (e *exporter) renderHTML(md string) string {
-	h := string(content.RenderPlain(md))
+	// Videos become their URL alone in a paragraph, which WordPress
+	// embeds; sized and aligned images get WordPress's classes.
+	h := string(content.RenderWith(md, content.Options{Video: &content.VideoOptions{Mode: content.VideoWordPress}}))
+	h = wpImageClasses(h)
 	h = rootURL.ReplaceAllString(h, `${1}`+strings.ReplaceAll(e.o.Site.URL, "$", "$$")+`${2}"`)
 	if len(e.variants) > 0 {
 		// The editor inserts the medium copy of an image. WordPress makes
