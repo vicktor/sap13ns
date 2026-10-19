@@ -46,6 +46,7 @@ type Server struct {
 	imports   importJob
 	exports   exportJob
 	backups   backupJob
+	converted convertedThemes // themes converted from another CMS, awaiting confirmation (admin_theme_import.go)
 	ai        aiState
 	cfg       *config.Config
 	log       *slog.Logger

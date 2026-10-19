@@ -24,7 +24,8 @@ type themesData struct {
 	Tenant   bool   // a site of a network
 	MaxMB    int
 	Refused  *themeRefusal
-	Failures []theme.Failure // themes of the site's directory that did not load
+	Import   *themeImportView // a converted theme awaiting confirmation (admin_theme_import.go)
+	Failures []theme.Failure  // themes of the site's directory that did not load
 }
 
 func (s *Server) adminThemes(w http.ResponseWriter, r *http.Request) {

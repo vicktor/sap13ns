@@ -195,6 +195,7 @@ func (s *Server) routes() *http.ServeMux {
 	admin("GET /admin/appearance/themes", auth.CapAppearance, s.adminThemes)
 	admin("POST /admin/appearance/themes/{slug}/activate", auth.CapAppearance, s.adminThemeActivate)
 	admin("POST /admin/appearance/themes/upload", auth.CapAppearance, s.adminThemeUpload)
+	admin("POST /admin/appearance/themes/import", auth.CapAppearance, s.adminThemeImport)
 	admin("POST /admin/appearance/themes/{slug}/delete", auth.CapAppearance, s.adminThemeDelete)
 	admin("GET /admin/appearance/themes/{slug}/options", auth.CapAppearance, s.adminThemeOptions)
 	admin("POST /admin/appearance/themes/{slug}/options", auth.CapAppearance, s.adminThemeOptionsSave)

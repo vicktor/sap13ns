@@ -21,11 +21,53 @@
 </div>
 {{end}}
 
+{{with $d.Import}}
+<section class="card theme-import" id="import" aria-labelledby="import-title">
+  <header>
+    <h2 id="import-title">{{icon "file-input"}} {{T "Converted from WordPress: %s" .Name}}</h2>
+    <p>{{T "The WordPress theme was converted into a sap13ns theme; nothing of it ran. Read what the conversion kept and left out, then install it: it goes through the checks of any upload, and it is not activated."}}</p>
+  </header>
+  <section>
+    <dl class="meta-list">
+      <div><dt>{{T "Theme"}}</dt><dd><span class="mono">{{.Slug}}</span>{{with .Version}} · v{{.}}{{end}}</dd></div>
+      {{with .Author}}<div><dt>{{T "Author"}}</dt><dd>{{.}}</dd></div>{{end}}
+      {{with .License}}<div><dt>{{T "Licence"}}</dt><dd>{{.}}</dd></div>{{end}}
+      <div><dt>{{T "Pages"}}</dt><dd class="flex-wrap">{{range .Pages}}<code>{{.}}</code>{{end}}</dd></div>
+      <div><dt>{{T "Converted"}}</dt><dd>{{T "%d blocks of %d kinds, %d images, %d fonts, %d colour styles" .Blocks .Kinds .Images .Fonts .Variations}}</dd></div>
+      <div><dt>{{T "File"}}</dt><dd class="break-all">{{.File}}</dd></div>
+    </dl>
+    {{if .ReplacesOther}}
+    <div class="alert mt-4" data-variant="destructive" role="alert">{{icon "octagon-alert"}}<h2>{{T "A built-in or network theme has this name"}}</h2><section><p>{{T "The converted theme cannot be installed as %s. Upload it from the command line with another name: sap13ns theme import -slug NAME." .Slug}}</p></section></div>
+    {{else if .Replaces}}
+    <div class="alert mt-4" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "It replaces an installed theme"}}</h2><section><p>{{if .ReplacesActive}}{{T "The active theme %s is replaced with the converted one." .Slug}}{{else}}{{T "The theme %s is installed already; installing replaces it." .Slug}}{{end}}</p></section></div>
+    {{end}}
+    {{with .Notes}}
+    <h3 class="mt-6 font-medium">{{T "What the conversion changed or left out"}}</h3>
+    <ul class="finding-list">
+      {{range .}}
+      <li data-severity="info">{{icon "info"}}<div><p>{{.Message}}{{if gt .Count 1}} (×{{.Count}}){{end}}</p>{{with .Where}}<p class="rule">{{.}}</p>{{end}}</div></li>
+      {{end}}
+    </ul>
+    {{end}}
+    <p class="hint mt-4">{{T "The converted theme keeps the credits and licence of the original in its README.md and LICENSE.txt. Check the result with the preview before you activate it."}}</p>
+  </section>
+  <footer>
+    <form method="post" action="/admin/appearance/themes/import" class="flex flex-wrap gap-2">
+      {{$.CSRFField}}
+      <input type="hidden" name="token" value="{{.Token}}">
+      {{if not .ReplacesOther}}<button class="btn" type="submit" name="action" value="install">{{icon "download"}}{{T "Install the converted theme"}}</button>{{end}}
+      <button class="btn" data-variant="ghost" type="submit" name="action" value="cancel">{{T "Cancel"}}</button>
+    </form>
+  </footer>
+</section>
+{{end}}
+
 {{if $d.Uploads}}
 <section class="card plugin-upload" id="upload">
   <header>
     <h2>{{icon "upload"}} {{T "Upload a theme"}}</h2>
     <p>{{T "A .zip file of up to %d MB with theme.json, templates/ and static/. It is checked before it is installed, and it is not activated: preview it first. Uploading a theme with the same name replaces it." $d.MaxMB}}</p>
+    <p>{{T "A WordPress block theme (.zip from wordpress.org) is converted first: you see what the conversion kept and left out before anything is installed."}}</p>
   </header>
   <section>
     <form method="post" action="/admin/appearance/themes/upload" enctype="multipart/form-data" class="plugin-upload-form">
@@ -70,7 +112,7 @@
       <p>{{themeT . .Description}}</p>
     </header>
     <section class="theme-meta muted text-xs">
-      {{with .Version}}<span>v{{.}}</span>{{end}}{{with .Author}} · <span>{{.}}</span>{{end}}{{if .Builtin}} · <span>{{T "Built-in"}}</span>{{else if .Uploaded}} · <span>{{T "Uploaded"}}</span>{{end}}
+      {{with .Version}}<span>v{{.}}</span>{{end}}{{with .Author}} · <span>{{.}}</span>{{end}}{{if .Builtin}} · <span>{{T "Built-in"}}</span>{{else if .Uploaded}} · <span>{{if and .Upload (eq .Upload.ImportedFrom "wordpress-block")}}{{T "Converted from WordPress"}}{{else}}{{T "Uploaded"}}{{end}}</span>{{end}}
     </section>
     <footer>
       <a class="btn" data-variant="outline" data-size="sm" href="/?preview_theme={{.Slug}}" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a>

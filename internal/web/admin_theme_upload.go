@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -11,6 +12,7 @@ import (
 
 	"sap13ns/internal/media"
 	"sap13ns/internal/theme"
+	"sap13ns/internal/themeimport"
 )
 
 // Theme uploads (docs/THEMES.md, "Uploading a theme"). An administrator
@@ -98,12 +100,29 @@ func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 		fail(s.tu(r, "The theme is larger than %d MB.", theme.MaxArchiveBytes>>20))
 		return
 	}
+	name := truncateStr(hdr.Filename, 120)
+	// A theme of another CMS: converted when it can be (admin_theme_import.go).
+	switch k := themeimport.Detect(file, hdr.Size); {
+	case k.Convertible():
+		s.convertUpload(w, r, file, hdr.Size, name)
+		return
+	case s.importRefusal(r, k) != "":
+		fail(s.importRefusal(r, k))
+		return
+	}
+	s.installTheme(w, r, file, hdr.Size, name, "")
+}
+
+// installTheme installs a theme archive, uploaded or converted from an
+// upload (importedFrom), and renders the outcome.
+func (s *Server) installTheme(w http.ResponseWriter, r *http.Request, file io.ReaderAt, size int64, name, importedFrom string) {
+	const back = "/admin/appearance/themes"
+	fail := func(msg string) { s.redirect(w, r, back, "error", msg) }
 	var quota theme.Quota
 	if s.limits != nil {
 		quota = s.limits
 	}
-	name := truncateStr(hdr.Filename, 120)
-	res, err := s.themes.Install(r.Context(), file, hdr.Size, theme.InstallOptions{UserID: uid(r), Source: "upload", Quota: quota})
+	res, err := s.themes.Install(r.Context(), file, size, theme.InstallOptions{UserID: uid(r), Source: "upload", Quota: quota, ImportedFrom: importedFrom})
 	if ref, ok := theme.IsRefusal(err); ok {
 		var codes []string
 		for _, p := range ref.Problems {
@@ -112,6 +131,9 @@ func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		details := map[string]string{"file": name, "problems": strconv.Itoa(len(ref.Problems)), "rules": strings.Join(codes, " ")}
+		if importedFrom != "" {
+			details["imported_from"] = importedFrom
+		}
 		if res != nil {
 			details["sha256"] = res.SHA256
 		}
@@ -141,8 +163,12 @@ func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 	if res.Replaced {
 		action = "theme.updated"
 	}
-	s.audit(r, uid(r), action, res.Slug, map[string]string{"version": res.Version, "previous": res.Previous,
-		"sha256": res.SHA256, "bytes": strconv.FormatInt(res.Bytes, 10), "file": name})
+	details := map[string]string{"version": res.Version, "previous": res.Previous,
+		"sha256": res.SHA256, "bytes": strconv.FormatInt(res.Bytes, 10), "file": name}
+	if importedFrom != "" {
+		details["imported_from"] = importedFrom
+	}
+	s.audit(r, uid(r), action, res.Slug, details)
 	s.contentChanged() // the active theme may be the one replaced
 	msg := s.tu(r, "“%s” was installed. Preview it, then activate it when it is ready.", res.Name)
 	if res.Replaced {
