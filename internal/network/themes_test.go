@@ -23,6 +23,7 @@ func themeZip(t *testing.T, slug, marker string) []byte {
 <body><main>{{template "content" .}}</main><footer>{{template "shared/footer-meta" .}}</footer></body></html>{{end}}`,
 		"templates/home.html":   `{{define "content"}}<p>` + marker + `</p>{{range .Posts}}<h2>{{.Title}}</h2>{{end}}{{end}}`,
 		"templates/single.html": `{{define "content"}}<p>` + marker + `</p>{{with .Post}}<h1>{{.Title}}</h1>{{end}}{{end}}`,
+		"templates/404.html":    `{{define "content"}}<p>` + marker + `</p>{{end}}`,
 		"static/theme.css":      `body{margin:0}` + strings.Repeat("\n/* padding */", 200),
 	}
 	var buf bytes.Buffer

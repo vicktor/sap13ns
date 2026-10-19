@@ -30,6 +30,7 @@ func cliThemeNamed(t *testing.T, slug, name, version string, credit bool) string
 <body><main>{{template "content" .}}</main><footer>` + footer + `</footer></body></html>{{end}}`,
 		"templates/home.html":   `{{define "content"}}<p>home</p>{{end}}`,
 		"templates/single.html": `{{define "content"}}{{with .Post}}<h1>{{.Title}}</h1>{{end}}{{end}}`,
+		"templates/404.html":    `{{define "content"}}<p>not found</p>{{end}}`,
 		"static/theme.css":      `body{margin:0}`,
 	}
 	var buf bytes.Buffer
