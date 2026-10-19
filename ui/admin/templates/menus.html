@@ -9,7 +9,7 @@
   <a href="/admin/appearance/menus"{{if not $d.Lang}} aria-current="page"{{end}}>{{T "Shared menus"}}</a>
   {{range .}}<a href="/admin/appearance/menus?lang={{.Code}}"{{if eq .Code $d.Lang}} aria-current="page"{{end}}>{{.Name}}</a>{{end}}
 </nav>
-<p class="hint">{{if $d.Lang}}{{T "Items here replace the shared menu for this language, location by location."}}{{else}}{{T "Shared menus are used in every language that has no menu of its own."}}{{end}}</p>
+<p class="hint mt-2 mb-6">{{if $d.Lang}}{{T "Items here replace the shared menu for this language, location by location."}}{{else}}{{T "Shared menus are used in every language that has no menu of its own."}}{{end}}</p>
 {{end}}
 <div class="split">
   <section class="card">

@@ -21,7 +21,7 @@
           <td>{{template "site-status" .Status}}{{with .Billing}}{{if .Held}} <span class="badge" data-variant="destructive">{{T "Held for billing"}}</span>{{end}}{{end}}</td>
           <td class="max-md:hidden">{{with .PlanName}}{{.}}{{else}}{{.Plan}}{{end}}{{if and $d.Billing .Billing}}<div class="row-sub">{{template "billing-state" .Billing}}</div>{{end}}</td>
           <td class="max-sm:hidden">{{roleLabel .Role}}{{if eq .OwnerID $.User.ID}} <span class="badge" data-variant="secondary">{{T "Owner"}}</span>{{end}}</td>
-          <td class="text-right nowrap">
+          <td class="text-right"><div class="cell-actions">
             {{if .Served}}
             {{if eq .Status "active"}}<a class="btn" data-variant="ghost" data-size="icon-sm" href="{{.URL}}/" target="_blank" rel="noopener" aria-label="{{T "View %s" .Slug}}" title="{{T "View site"}}">{{icon "external-link"}}</a>{{end}}
             <a class="btn" data-size="sm" href="{{.AdminURL}}">{{icon "log-in"}}{{T "Go to admin"}}</a>
@@ -31,7 +31,7 @@
             {{if and $d.Billing (eq .OwnerID $.User.ID) .Billing}}{{if .Billing.Manageable}}
             <form method="post" action="/admin/sites/{{.ID}}/billing" class="inline-flex">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Manage billing"}}</button></form>
             {{end}}{{end}}
-          </td>
+          </div></td>
         </tr>
         {{end}}
       </tbody>

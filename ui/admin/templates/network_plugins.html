@@ -21,11 +21,11 @@
           {{if .Findings}}<div class="row-sub muted">{{T "%d findings" .Findings}}</div>{{end}}
           {{with .Imports}}<div class="row-sub muted mono break-all">{{join . ", "}}</div>{{end}}
         </td>
-        <td class="text-right nowrap">
+        <td class="text-right"><div class="cell-actions">
           {{if .SiteURL}}<a class="btn" data-variant="ghost" data-size="sm" href="{{.SiteURL}}" target="_blank" rel="noopener">{{icon "external-link"}}{{T "Open on the site"}}</a>{{end}}
           <form method="post" action="/admin/network/plugins/review" class="inline-flex">{{$.CSRFField}}<input type="hidden" name="site" value="{{.SiteID}}"><input type="hidden" name="plugin" value="{{.PluginID}}"><input type="hidden" name="pin" value="{{.Pin}}"><input type="hidden" name="verdict" value="approve"><button class="btn" data-size="sm" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>
           <form method="post" action="/admin/network/plugins/review" class="inline-flex">{{$.CSRFField}}<input type="hidden" name="site" value="{{.SiteID}}"><input type="hidden" name="plugin" value="{{.PluginID}}"><input type="hidden" name="pin" value="{{.Pin}}"><input type="hidden" name="verdict" value="reject"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "x"}}{{T "Reject"}}</button></form>
-        </td>
+        </div></td>
       </tr>
       {{else}}
       <tr><td colspan="5">{{template "empty" (dict "Icon" "circle-check" "Title" (T "No plugin is waiting for a review"))}}</td></tr>

@@ -227,13 +227,13 @@
         <td><span class="mono break-all">{{.Host}}</span>{{if .Primary}} <span class="badge" data-variant="secondary">{{T "Primary"}}</span>{{end}}<div class="row-sub muted">{{if .Custom}}{{T "Custom domain"}}{{else}}{{T "Default"}}{{end}}</div></td>
         <td>{{template "domain-status" .}}</td>
         <td class="max-md:hidden muted nowrap">{{if .Custom}}{{with .CheckedAt}}{{ago .}}{{else}}—{{end}}{{else}}—{{end}}</td>
-        <td class="text-right nowrap">
+        <td class="text-right"><div class="cell-actions">
           {{if $v.Editable}}
           {{if .Custom}}<form method="post" action="{{$v.Base}}/check" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{if .VerifiedAt}}{{T "Check"}}{{else}}{{T "Verify"}}{{end}}</button></form>{{end}}
           {{if and .VerifiedAt (not .Primary)}}<form method="post" action="{{$v.Base}}/primary" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Serve the site on %s? Its other domains redirect there." .Host}}">{{icon "star"}}{{T "Make primary"}}</button></form>{{end}}
           {{if and .Custom (not .Primary)}}<form method="post" action="{{$v.Base}}/remove" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Remove %s" .Host}}" data-confirm="{{T "Remove %s from this site?" .Host}}">{{icon "trash-2"}}</button></form>{{end}}
           {{end}}
-        </td>
+        </div></td>
       </tr>
       {{end}}
     </tbody>

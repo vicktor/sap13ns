@@ -159,8 +159,12 @@
   backdrop-filter: saturate(1.6) blur(12px);
 }
 .topbar-title { @apply min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground; }
-.topbar-actions { @apply flex items-center gap-1; }
+.topbar-actions { @apply flex items-center gap-2; }
 .admin-content { @apply mx-auto w-full max-w-7xl flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8; }
+/* A card or a column layout at the top level of a page keeps its distance
+   from what follows (the upload cards above the theme grid and the plugin
+   list, the backups page's cards). */
+.admin-content > :is(.card, .split):not(:last-child) { @apply mb-6; }
 
 /* ------------------------------------------------------------ page parts */
 .page-header { @apply mb-6 flex flex-wrap items-end justify-between gap-4; }
@@ -176,6 +180,10 @@
 .grid-2 { @apply grid gap-4 sm:grid-cols-2; }
 .form, .card > section.form { @apply flex flex-col gap-4; }
 .form-actions { @apply flex flex-wrap items-center gap-2 pt-2; }
+/* A button in a stacked form keeps its own width instead of stretching. */
+.form > :is(.btn, button) { @apply self-start; }
+/* Buttons, links and one-button forms side by side in a table cell. */
+.cell-actions { @apply inline-flex flex-wrap items-center justify-end gap-1.5; }
 .card > footer { @apply flex-wrap gap-2; }
 .card > header h2 { @apply flex items-center gap-2; }
 .card > header h2 svg { @apply size-4; }
@@ -270,14 +278,19 @@
 
 /* --------------------------------------------------------------- tables */
 .toolbar { @apply mb-4 flex flex-wrap items-center justify-between gap-3; }
-.filter-tabs { @apply -mb-px flex flex-wrap gap-1 rounded-lg bg-muted p-1 text-sm; }
+.filter-tabs { @apply -mb-px flex w-fit max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1 text-sm; }
 .filter-tabs a { @apply rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground; }
 .filter-tabs a[aria-current="page"] { @apply bg-card font-medium text-foreground shadow-xs; }
 .filter-tabs a span { @apply ml-1 text-xs tabular-nums opacity-70; }
-.search-inline { @apply w-full sm:w-64; }
+.search-inline { @apply flex w-full flex-wrap items-center gap-2 sm:w-auto; }
+.search-inline > .input-icon { @apply min-w-0 flex-1 sm:w-56 sm:flex-none; }
 .bulk-bar { @apply mb-3 flex flex-wrap items-center gap-2; }
 .table-wrap { @apply overflow-x-auto py-0; }
 .table-wrap > .table { @apply text-sm; }
+/* A table card has no vertical padding, so the table meets the edges; a
+   header above it or a footer below it gets the card's padding back. */
+.table-wrap > header:first-child { @apply pt-6; }
+.table-wrap > :is(header, section, footer, form):last-child { @apply pb-6; }
 .table th { @apply text-muted-foreground h-10 px-4 text-left text-xs font-medium whitespace-nowrap; }
 .table td { @apply px-4 py-3 align-middle; }
 .table tbody tr { @apply transition-colors hover:bg-muted/50; }
@@ -387,7 +400,7 @@
 .theme-card h2 { @apply flex flex-wrap items-center gap-2; }
 .menu-items { @apply flex flex-col gap-2; }
 .menu-item-form { @apply grid gap-2 rounded-lg border p-2 sm:grid-cols-[1fr_1.4fr_auto]; }
-.item-actions { @apply flex items-center; }
+.item-actions { @apply flex flex-wrap items-center gap-1; }
 .widget-areas { @apply grid gap-6 lg:grid-cols-2; }
 .widget-item { @apply rounded-lg border; }
 .widget-item > summary, .revision > summary { @apply flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm [&::-webkit-details-marker]:hidden; }
@@ -499,7 +512,7 @@
 .settings-nav a { @apply flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4; text-decoration: none !important; }
 .settings .card { scroll-margin-top: 5rem; }
 .sticky-actions {
-  @apply sticky bottom-0 z-10 -mx-1 flex justify-end rounded-xl px-1 py-3;
+  @apply sticky bottom-0 z-10 -mx-1 flex flex-wrap justify-end gap-2 rounded-xl px-1 py-3;
   background: linear-gradient(transparent, var(--background) 40%);
 }
 .system-grid { @apply grid gap-6 lg:grid-cols-2; }

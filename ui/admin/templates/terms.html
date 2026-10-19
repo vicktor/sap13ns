@@ -29,10 +29,10 @@
           <td><a class="row-title" href="/admin/terms/{{$d.Taxonomy}}/{{.ID}}">{{.Name}}</a>{{with .Description}}<div class="row-sub muted">{{truncate . 90}}</div>{{end}}</td>
           <td class="max-sm:hidden muted">/{{$d.Taxonomy}}/{{.Slug}}</td>
           <td class="text-right tabular">{{.Count}}</td>
-          <td class="text-right nowrap">
+          <td class="text-right"><div class="cell-actions">
             <a class="btn" data-variant="ghost" data-size="icon-sm" href="/{{$d.Taxonomy}}/{{.Slug}}" target="_blank" rel="noopener" aria-label="{{T "View"}}">{{icon "external-link"}}</a>
             <a class="btn" data-variant="ghost" data-size="icon-sm" href="/admin/terms/{{$d.Taxonomy}}/{{.ID}}" aria-label="{{T "Edit"}}">{{icon "pencil"}}</a>
-          </td>
+          </div></td>
         </tr>
         {{end}}
       </tbody>
