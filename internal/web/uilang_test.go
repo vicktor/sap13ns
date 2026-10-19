@@ -154,6 +154,28 @@ func TestSignInLanguage(t *testing.T) {
 	if body := e.get("/admin/?lang=en", e.admin).Body.String(); !strings.Contains(body, `<html lang="es"`) {
 		t.Error("?lang= changed the language of an admin page")
 	}
+
+	// At a sign-in address of the site's own choosing (signin.go), the
+	// same, under it.
+	e.setSignIn("/entrar", false)
+	for target, wants := range map[string][]string{
+		"/entrar?lang=en": {">Log in<", `action="/entrar?lang=en"`, `href="/entrar/forgot?lang=en"`, `href="/entrar?lang=es"`},
+		"/entrar/forgot?lang=en": {" Back to log in</a>", `action="/entrar/forgot?lang=en"`, `href="/entrar?lang=en"`,
+			`href="/entrar/forgot?lang=es"`},
+	} {
+		body := e.get(target, nil).Body.String()
+		if !strings.Contains(body, `<html lang="en" dir="ltr">`) {
+			t.Errorf("%s is not in English", target)
+		}
+		for _, want := range wants {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s lacks %q", target, want)
+			}
+		}
+	}
+	if body := e.get("/entrar", nil).Body.String(); !strings.Contains(body, `<html lang="es"`) || !strings.Contains(body, `action="/entrar"`) {
+		t.Error("/entrar is not in the site's language")
+	}
 }
 
 // On a site of a network, a user signed in through single sign-on chooses
