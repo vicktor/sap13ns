@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -491,6 +492,106 @@ func TestMemoryPressure(t *testing.T) {
 	}
 }
 
+// TestSiteLangs: the languages of the status pages are read once per site
+// at a time, served stale while they are read again, kept after a failed
+// read, never read for a busy page, and the least recently used site is
+// forgotten when the cache is full.
+func TestSiteLangs(t *testing.T) {
+	var (
+		mu    sync.Mutex
+		reads = map[int64]int{}
+		fail  bool
+	)
+	gate := make(chan struct{})
+	c := &siteLangs{max: 2, load: func(ctx context.Context, id int64) ([]string, error) {
+		mu.Lock()
+		reads[id]++
+		f := fail
+		mu.Unlock()
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		if f {
+			return nil, errors.New("database down")
+		}
+		return []string{"es", "en"}, nil
+	}}
+	count := func(id int64) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return reads[id]
+	}
+	ctx := context.Background()
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+
+	if got := c.get(ctx, nil, 1, now, true); got != nil || count(1) != 0 {
+		t.Fatalf("cache only, unknown: %v, %d reads", got, count(1))
+	}
+	// Twenty pages at once: one read.
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			if got := c.get(ctx, nil, 1, now, false); !slices.Equal(got, []string{"es", "en"}) {
+				t.Errorf("waited: %v", got)
+			}
+		})
+	}
+	waitFor(t, "the read", func() bool { return count(1) == 1 })
+	close(gate)
+	wg.Wait()
+	if count(1) != 1 {
+		t.Fatalf("%d reads for twenty pages", count(1))
+	}
+	if got := c.get(ctx, nil, 1, now.Add(time.Minute), true); !slices.Equal(got, []string{"es", "en"}) || count(1) != 1 {
+		t.Fatalf("cached: %v", got)
+	}
+
+	// Stale: served at once while a read runs; a failed read keeps it.
+	gate = make(chan struct{})
+	mu.Lock()
+	fail = true
+	mu.Unlock()
+	later := now.Add(siteLangsTTL)
+	if got := c.get(ctx, nil, 1, later, false); !slices.Equal(got, []string{"es", "en"}) {
+		t.Fatalf("stale: %v", got)
+	}
+	if got := c.get(ctx, nil, 1, later, false); !slices.Equal(got, []string{"es", "en"}) {
+		t.Fatalf("stale, again: %v", got)
+	}
+	waitFor(t, "the second read", func() bool { return count(1) == 2 })
+	close(gate)
+	waitFor(t, "the failed read to end", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.inflight) == 0
+	})
+	if count(1) != 2 {
+		t.Fatalf("%d reads, want 2", count(1))
+	}
+	if got := c.get(ctx, nil, 1, later.Add(time.Second), false); !slices.Equal(got, []string{"es", "en"}) {
+		t.Fatalf("after a failed read: %v", got)
+	}
+
+	// Full: the site used least recently goes.
+	mu.Lock()
+	fail = false
+	mu.Unlock()
+	c.get(ctx, nil, 2, later.Add(2*time.Second), false)
+	c.get(ctx, nil, 1, later.Add(3*time.Second), true) // site 1 used again
+	c.get(ctx, nil, 3, later.Add(4*time.Second), false)
+	c.mu.Lock()
+	_, has1 := c.m[1]
+	_, has2 := c.m[2]
+	_, has3 := c.m[3]
+	n := len(c.m)
+	c.mu.Unlock()
+	if n != 2 || !has1 || has2 || !has3 {
+		t.Fatalf("after eviction: 1 %t, 2 %t, 3 %t, %d entries", has1, has2, has3, n)
+	}
+}
+
 func TestInflightCapAndLoadWait(t *testing.T) {
 	e := newNetEnv(t, func(o *RegistryOptions) { o.MaxInflight = 1 })
 	a := e.tenant("alpha", "pro")
@@ -501,9 +602,24 @@ func TestInflightCapAndLoadWait(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := e.do("GET", "https://alpha.sap13ns.site/")
-	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" || !strings.Contains(rec.Body.String(), "Este sitio está ocupado") {
-		t.Fatalf("over the cap: %d", rec.Code)
+	// The busy page sheds load: it reads nothing from the database, even
+	// to know the site's languages, which it does not know yet (the
+	// visitor's language then).
+	var reads atomic.Int64
+	e.reg.langs.mu.Lock()
+	e.reg.langs.load = func(context.Context, int64) ([]string, error) {
+		reads.Add(1)
+		return nil, errors.New("database down")
+	}
+	e.reg.langs.mu.Unlock()
+	for range 5 {
+		rec := e.do("GET", "https://alpha.sap13ns.site/")
+		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" || !strings.Contains(rec.Body.String(), "This site is busy") {
+			t.Fatalf("over the cap: %d", rec.Code)
+		}
+	}
+	if n := reads.Load(); n != 0 {
+		t.Fatalf("the busy page read the site's languages %d times", n)
 	}
 	e.reg.release(held)
 	if rec := e.do("GET", "https://alpha.sap13ns.site/"); rec.Code != http.StatusOK {

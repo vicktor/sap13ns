@@ -96,7 +96,8 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // statusPage answers for a host without a running site, rt when the host
 // is a site's, in the site's language; the stylesheet and scripts of the
-// page come from the router too.
+// page come from the router too. The busy page sheds load: it never reads
+// the database, and uses the site's languages only when they are known.
 func (r *Registry) statusPage(w http.ResponseWriter, req *http.Request, rt *siteRoute, kind string, status int) {
 	if strings.HasPrefix(req.URL.Path, "/static/") {
 		r.pages.ServeStatic(w, req)
@@ -104,7 +105,7 @@ func (r *Registry) statusPage(w http.ResponseWriter, req *http.Request, rt *site
 	}
 	var langs []string
 	if rt != nil {
-		langs = r.langs.get(req.Context(), r.net, rt.ID, r.o.Now())
+		langs = r.langs.get(req.Context(), r.net, rt.ID, r.o.Now(), kind == web.StatusBusy)
 	}
 	r.pages.Serve(w, req, kind, status, r.cfg.BaseURL.Scheme == "https", langs)
 }
@@ -120,40 +121,123 @@ const (
 
 // siteLangs keeps the languages of the sites whose status pages were
 // served (a site with a status page is not loaded, so its settings are
-// read from its schema): a held site answers every visitor with one.
+// read from its schema): a held site answers every visitor with one. One
+// read at most runs per site; while it runs, the languages read before
+// are served. When full, the site whose page was served least recently
+// is forgotten.
 type siteLangs struct {
-	mu sync.Mutex
-	m  map[int64]siteLangsEntry
+	mu       sync.Mutex
+	m        map[int64]*siteLangsEntry
+	inflight map[int64]chan struct{} // closed when the read ends
+	// Zero values give Network.SiteLanguages and siteLangsMax; tests
+	// change them.
+	load func(context.Context, int64) ([]string, error)
+	max  int
 }
 
 type siteLangsEntry struct {
 	langs []string
-	until time.Time
+	until time.Time // read again after this
+	used  time.Time
 }
 
 // get returns the languages of a site, its main one first; nil when they
-// cannot be read, and the page follows the visitor.
-func (c *siteLangs) get(ctx context.Context, n *Network, id int64, now time.Time) []string {
+// are not known, and the page follows the visitor. With cacheOnly it
+// never reads them: what is known, even stale, or nil. Otherwise a stale
+// entry starts a read and is returned at once; a site not known yet waits
+// for the read (siteLangsTimeout at most) or for ctx.
+func (c *siteLangs) get(ctx context.Context, n *Network, id int64, now time.Time, cacheOnly bool) []string {
 	c.mu.Lock()
-	e, ok := c.m[id]
-	c.mu.Unlock()
-	if ok && now.Before(e.until) {
+	e := c.m[id]
+	if e != nil {
+		e.used = now
+	}
+	if cacheOnly || e != nil && now.Before(e.until) {
+		defer c.mu.Unlock()
+		if e == nil {
+			return nil
+		}
 		return e.langs
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), siteLangsTimeout)
-	defer cancel()
-	langs, err := n.SiteLanguages(ctx, id)
-	e = siteLangsEntry{langs: langs, until: now.Add(siteLangsTTL)}
-	if err != nil {
-		e = siteLangsEntry{until: now.Add(siteLangsRetry)}
+	done, running := c.inflight[id]
+	if !running {
+		if c.inflight == nil {
+			c.inflight = map[int64]chan struct{}{}
+		}
+		done = make(chan struct{})
+		c.inflight[id] = done
+		go c.read(n, id, now, done)
+	}
+	c.mu.Unlock()
+	if e != nil {
+		return e.langs
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+		return nil
 	}
 	c.mu.Lock()
-	if c.m == nil || len(c.m) >= siteLangsMax {
-		c.m = map[int64]siteLangsEntry{}
+	defer c.mu.Unlock()
+	if e := c.m[id]; e != nil {
+		return e.langs
+	}
+	return nil
+}
+
+// read reads the languages of a site and keeps them; a failed read keeps
+// those read before, and is tried again after siteLangsRetry.
+func (c *siteLangs) read(n *Network, id int64, now time.Time, done chan struct{}) {
+	ctx, cancel := context.WithTimeout(context.Background(), siteLangsTimeout)
+	defer cancel()
+	load := c.load
+	if load == nil {
+		load = n.SiteLanguages
+	}
+	langs, err := load(ctx, id)
+	e := &siteLangsEntry{langs: langs, until: now.Add(siteLangsTTL), used: now}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	old := c.m[id]
+	if err != nil {
+		e.langs, e.until = nil, now.Add(siteLangsRetry)
+		if old != nil {
+			e.langs = old.langs
+		}
+	}
+	if old != nil {
+		e.used = old.used
+	}
+	if c.m == nil {
+		c.m = map[int64]*siteLangsEntry{}
+	}
+	if old == nil {
+		limit := c.max
+		if limit <= 0 {
+			limit = siteLangsMax
+		}
+		for len(c.m) >= limit {
+			c.evict()
+		}
 	}
 	c.m[id] = e
-	c.mu.Unlock()
-	return e.langs
+	delete(c.inflight, id)
+	close(done)
+}
+
+// evict forgets the site whose page was served least recently.
+func (c *siteLangs) evict() {
+	var (
+		oldest int64
+		at     time.Time
+		found  bool
+	)
+	for id, e := range c.m {
+		if !found || e.used.Before(at) {
+			oldest, at, found = id, e.used, true
+		}
+	}
+	delete(c.m, oldest)
 }
 
 // aliasServed are the paths a site answers on all its hosts: ACME HTTP-01
