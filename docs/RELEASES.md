@@ -52,7 +52,7 @@ assets:
 
 | Asset                                        | Contents                                    |
 | -------------------------------------------- | ------------------------------------------- |
-| `sap13ns_1.4.0_linux_amd64.tar.gz`           | `sap13ns`, plus `LICENSE`/`README.md` if present |
+| `sap13ns_1.4.0_linux_amd64.tar.gz`           | `sap13ns`, `deploy/` (install.sh, systemd units, nginx site), plus `LICENSE`/`README.md` if present |
 | `sap13ns_1.4.0_linux_arm64.tar.gz`           | same                                         |
 | `sap13ns_1.4.0_darwin_amd64.tar.gz`          | same                                         |
 | `sap13ns_1.4.0_darwin_arm64.tar.gz`          | same                                         |
