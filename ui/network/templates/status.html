@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="same-origin">
+<title>{{template "title" .}}</title>
+<script src="{{asset "theme-init.js"}}"></script>
+<link rel="stylesheet" href="{{asset "admin.css"}}">
+<link rel="icon" href="{{asset "favicon.svg"}}" type="image/svg+xml">
+</head>
+<body class="auth">
+<main id="main" class="auth-shell">
+  <section class="card auth-card">
+    <div class="empty-state error-page">
+      <p class="error-code">{{.Status}}</p>
+      <h1>{{template "title" .}}</h1>
+      {{if eq .Kind "pending"}}<p>{{T "It opens once the network approves it. Its administrators can already sign in."}}</p>
+      <a class="btn" data-variant="outline" href="/login">{{T "Log in"}}</a>
+      {{else if eq .Kind "suspended"}}<p>{{T "It is not available at the moment."}}</p>
+      {{else if eq .Kind "busy"}}<p>{{T "Try again in a few seconds."}}</p>
+      {{else}}<p>{{T "Check the address, or ask the site's owner whether it moved."}}</p>{{end}}
+    </div>
+  </section>
+  <p class="auth-foot">{{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a></p>
+</main>
+</body>
+</html>
+{{- /* The page a network serves on a host without a running site
+       (web.StatusPages): unknown, not open yet, suspended or busy. */ -}}
+{{define "title"}}{{if eq .Kind "pending"}}{{T "This site is not open yet"}}{{else if eq .Kind "suspended"}}{{T "This site is suspended"}}{{else if eq .Kind "busy"}}{{T "This site is busy"}}{{else}}{{T "There is no site at this address"}}{{end}}{{end}}

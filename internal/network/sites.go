@@ -353,6 +353,14 @@ func (n *Network) InitNetworkSite(ctx context.Context, host string) (*Site, erro
 	return n.Site(ctx, id)
 }
 
+// WakeAt records that a site has a scheduled post due at at, so that it
+// is woken then even if unloaded. Routing does not change, so it does not
+// notify.
+func (n *Network) WakeAt(ctx context.Context, siteID int64, at time.Time) error {
+	_, err := n.db.Exec(ctx, `UPDATE sites SET next_announce_at = least(next_announce_at, $2::timestamptz) WHERE id = $1`, siteID, at)
+	return err
+}
+
 // setStatus moves a tenant site from one of the statuses in from; it
 // returns ErrNotFound for no such tenant and ErrState for another status.
 func (n *Network) setStatus(ctx context.Context, id int64, from []string, set string, args ...any) error {

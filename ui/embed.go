@@ -7,5 +7,5 @@ import "embed"
 // Themes are embedded whole (their src/ CSS is small) so that a theme that is
 // still missing its built static/ directory does not break the build.
 //
-//go:embed admin/templates static shared/templates i18n themes
+//go:embed admin/templates network/templates static shared/templates i18n themes
 var FS embed.FS

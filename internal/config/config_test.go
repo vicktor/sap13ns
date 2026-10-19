@@ -397,3 +397,38 @@ func TestForSiteKeepsPort(t *testing.T) {
 		t.Fatalf("dev site: url=%s secure=%v hsts=%v origins=%v", c.BaseURL, c.CookieSecure, c.HSTS, c.PasskeyOrigins)
 	}
 }
+
+func TestForNetwork(t *testing.T) {
+	base := networkConfig(t, "https://sap13ns.site")
+	secret := []byte(strings.Repeat("n", 32))
+	c, err := ForNetwork(base, 1, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(base.DataDir, "sites", "1")
+	if c.BaseURL.String() != "https://sap13ns.site" || c.DataDir != dir || c.UploadsDir != filepath.Join(dir, "uploads") ||
+		string(c.SecretKey) != string(secret) || c.PasskeyRPID != "" || c.HSTSNoSubdomains || !c.Stripe.Enabled() {
+		t.Fatalf("portal config: %+v", c)
+	}
+	bv, cv := reflect.ValueOf(base).Elem(), reflect.ValueOf(c).Elem()
+	for i := range bv.NumField() {
+		f := bv.Type().Field(i)
+		switch f.Type.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Map:
+			if !bv.Field(i).IsNil() && !cv.Field(i).IsNil() && bv.Field(i).Pointer() == cv.Field(i).Pointer() {
+				t.Errorf("Config.%s is shared between the network and the portal", f.Name)
+			}
+		}
+	}
+	if &c.Stripe.Prices == &base.Stripe.Prices || reflect.ValueOf(c.Stripe.Prices).Pointer() == reflect.ValueOf(base.Stripe.Prices).Pointer() {
+		t.Error("the Stripe prices are shared")
+	}
+	if _, err := ForNetwork(base, 1, secret[:8]); err == nil {
+		t.Error("ForNetwork accepted a short secret")
+	}
+	single := *base
+	single.Multisite = false
+	if _, err := ForNetwork(&single, 1, secret); err == nil {
+		t.Error("ForNetwork accepted a single-site config")
+	}
+}

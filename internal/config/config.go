@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/netip"
 	"net/url"
 	"os"
@@ -472,6 +473,37 @@ func ForSite(base *Config, p SiteParams) (*Config, error) {
 		// origin (Related Origin Requests), so both origins are accepted.
 		c.PasskeyOrigins = append(c.PasskeyOrigins, origin(rpID).String())
 	}
+	return &c, nil
+}
+
+// ForNetwork returns the configuration of the network portal, the site
+// served on the SAP13NS_BASE_URL host: a deep copy of base with the
+// portal's own secret and data directory. It keeps the base URL, so its
+// passkeys use the portal host, and the billing settings, since billing
+// runs there.
+func ForNetwork(base *Config, id int64, secret []byte) (*Config, error) {
+	switch {
+	case !base.Multisite:
+		return nil, errors.New("config: ForNetwork needs a multisite configuration")
+	case id < 1:
+		return nil, fmt.Errorf("config: invalid site id %d", id)
+	case len(secret) != 32:
+		return nil, errors.New("config: a site secret must be 32 bytes")
+	}
+	c := *base
+	u := *base.BaseURL
+	c.BaseURL = &u
+	c.TrustedProxies = slices.Clone(base.TrustedProxies)
+	c.SecretKey = slices.Clone(secret)
+	c.Stripe.WebhookSecrets = slices.Clone(base.Stripe.WebhookSecrets)
+	if base.Stripe.Prices != nil {
+		c.Stripe.Prices = maps.Clone(base.Stripe.Prices)
+	}
+	c.DataDir = filepath.Join(base.DataDir, "sites", strconv.FormatInt(id, 10))
+	c.UploadsDir = filepath.Join(c.DataDir, "uploads")
+	c.PluginsDir = filepath.Join(c.DataDir, "plugins")
+	c.ThemesDir = filepath.Join(c.DataDir, "themes")
+	c.HSTSNoSubdomains, c.PasskeyRPID, c.PasskeyOrigins = false, "", nil
 	return &c, nil
 }
 
