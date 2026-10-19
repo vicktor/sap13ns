@@ -82,6 +82,7 @@ An administrator can install a theme from a `.zip` file, without access to the s
 - **Audit log.** `theme.uploaded`, `theme.updated`, `theme.refused` (with the rules it broke), `theme.deleted`, with the archive's SHA-256.
 - **Command line.** `sap13ns theme list`, `sap13ns theme install <file.zip>` and `sap13ns theme remove <slug>` do the same on the server (`-site <slug>` on a network). They run the same checks and write the same audit entries (with `"source": "cli"`), and skip the plan's gate and its storage count, which the network's daily measurement corrects.
 - **On a network,** the site's plan decides whether it can upload themes, and the files count against its storage ([MULTISITE.md](MULTISITE.md#plugins-and-themes)).
+- **WordPress block themes.** An upload that is a WordPress block theme is converted into a sap13ns theme first, and installed through these same checks once the administrator has read the conversion's report; `sap13ns theme import` does the same on the command line ([THEME-IMPORT.md](THEME-IMPORT.md)).
 
 **The archive.** The limits are the plugin packages' (`internal/archive`).
 
