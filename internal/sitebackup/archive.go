@@ -59,7 +59,7 @@ func open(file, passphrase, tmpDir string) (*reader, error) {
 			f.Close()
 			return nil, err
 		}
-		tf, err := os.CreateTemp(tmpDir, ".decrypted-*")
+		tf, err := os.CreateTemp(tmpDir, decryptedPattern)
 		if err != nil {
 			f.Close()
 			return nil, err

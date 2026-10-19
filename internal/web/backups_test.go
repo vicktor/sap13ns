@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -263,6 +264,142 @@ func TestBackupsRestore(t *testing.T) {
 	// The public pages show the restored content at once.
 	if rec := e.get("/", nil); !strings.Contains(rec.Body.String(), "Kept post") || strings.Contains(rec.Body.String(), "Later post") {
 		t.Errorf("home page after the restore: %d", rec.Code)
+	}
+
+	// Each restore makes a safety backup: a second within the cooldown is
+	// refused, and makes none.
+	restore := func() *httptest.ResponseRecorder {
+		t.Helper()
+		rec := e.postBackups("/restore", e.admin, e.csrf, form(label, backupPassword))
+		e.waitJobs()
+		return rec
+	}
+	if rec := restore(); rec.Code != http.StatusTooManyRequests {
+		t.Errorf("a second restore within the cooldown: %d", rec.Code)
+	}
+	if n := safetyBackups(t, e); n != 1 {
+		t.Errorf("%d safety backups after a refused restore", n)
+	}
+	// The pace is on disk, with the backups: a site reloaded after its
+	// restore (or when idle) keeps it.
+	dir := e.s.cfg.SiteBackups.Dir
+	if wait, err := sitebackup.RestoreWait(dir, restorePace, time.Now()); err != nil || wait <= restorePace.Cooldown-time.Minute {
+		t.Errorf("wait after a restore: %v %v", wait, err)
+	}
+	cooledDown := func() {
+		t.Helper()
+		st, err := sitebackup.ReadStatus(dir)
+		if err != nil || len(st.Restores) == 0 {
+			t.Fatalf("status: %+v %v", st, err)
+		}
+		for i := range st.Restores {
+			st.Restores[i] = st.Restores[i].Add(-restorePace.Cooldown)
+		}
+		b, _ := json.Marshal(st)
+		if err := os.WriteFile(filepath.Join(dir, "status.json"), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Past it, at most 3 an hour.
+	for i := range 2 {
+		cooledDown()
+		if rec := restore(); rec.Code != http.StatusSeeOther {
+			t.Fatalf("restore %d after the cooldown: %d", i+2, rec.Code)
+		}
+	}
+	cooledDown()
+	if rec := restore(); rec.Code != http.StatusTooManyRequests {
+		t.Errorf("a fourth restore in an hour: %d", rec.Code)
+	}
+	if n := safetyBackups(t, e); n != sitebackup.SafetyKeep {
+		t.Errorf("%d safety backups after 3 restores", n)
+	}
+	if n := len(e.audited("backup.restored")); n != 3 {
+		t.Errorf("%d backup.restored entries", n)
+	}
+	if st, _ := sitebackup.ReadStatus(dir); len(st.Restores) != 3 {
+		t.Errorf("restores recorded: %v", st.Restores)
+	}
+}
+
+func safetyBackups(t *testing.T, e *customEnv) int {
+	t.Helper()
+	list, err := sitebackup.List(e.s.cfg.SiteBackups.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, a := range list {
+		if a.PreRestore {
+			n++
+		}
+	}
+	return n
+}
+
+// TestBackupsQuota: on a network, a backup larger than the storage of the
+// site's plan is refused, and so is a restore whose safety backup would
+// be; what the backups keep stays within twice the storage.
+func TestBackupsQuota(t *testing.T) {
+	e := backupEnv(t)
+	e.publishPost("Kept post", "It was there when the backup was made.")
+	link := e.backUp()
+	name := strings.TrimPrefix(link[:strings.Index(link, "?")], "/admin/tools/backups/download/")
+	first, err := sitebackup.Find(e.s.cfg.SiteBackups.Dir, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e.s.limits = quotaLimits{quota: 1 << 10}
+	if page := e.get("/admin/tools/backups", e.admin).Body.String(); !strings.Contains(page, filesize(1<<10)) {
+		t.Errorf("the page does not show the plan's storage")
+	}
+	if rec := e.postBackups("", e.admin, e.csrf, nil); rec.Code != http.StatusSeeOther {
+		t.Fatalf("back up now: %d", rec.Code)
+	}
+	e.waitJobs()
+	if res := e.s.backups.last; res == nil || res.Error != e.s.t("The backup would be larger than the storage of the site's plan. Remove media you no longer need, or move to a larger plan.") {
+		t.Errorf("an oversize backup: %+v", res)
+	}
+	if list, _ := sitebackup.List(e.s.cfg.SiteBackups.Dir); len(list) != 1 {
+		t.Errorf("an oversize backup was written: %v", list)
+	}
+	if st, _ := sitebackup.ReadStatus(e.s.cfg.SiteBackups.Dir); st.Result != sitebackup.ResultSkipped || st.Reason != sitebackup.ReasonQuota {
+		t.Errorf("status: %+v", st)
+	}
+	e.s.backups.mu.Lock()
+	e.s.backups.last = nil // the page shows the status then
+	e.s.backups.mu.Unlock()
+	why := e.s.t("The latest backup, %s, was skipped: the site is larger than the storage of its plan.", "\x00")
+	why = html.EscapeString(why[strings.Index(why, "\x00")+1:])
+	if page := e.get("/admin/tools/backups", e.admin).Body.String(); !strings.Contains(page, why) {
+		t.Errorf("the page does not say why the backup was skipped (%q)", why)
+	}
+
+	// A restore of a backup larger than the plan: nothing changes.
+	rec := e.postBackups("/restore", e.admin, e.csrf, url.Values{"name": {name}, "confirm": {e.s.cfg.BaseURL.Hostname()},
+		"current_password": {backupPassword}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("restore: %d", rec.Code)
+	}
+	e.waitJobs()
+	if res := e.s.backups.last; res == nil || !res.Restore || res.Error != e.s.t("The backup would be larger than the storage of the site's plan. Remove media you no longer need, or move to a larger plan.") {
+		t.Errorf("a restore larger than the plan: %+v", res)
+	}
+	if n := safetyBackups(t, e); n != 0 {
+		t.Errorf("%d safety backups", n)
+	}
+
+	// What the backups keep stays within twice the storage (Prune is
+	// tested in sitebackup); a single site has no bound.
+	e.s.limits = quotaLimits{quota: first.Size}
+	_, maxBackup, keep, err := e.s.backupLimits(context.Background())
+	if err != nil || maxBackup != first.Size || keep.MaxBytes != 2*first.Size || keep.Daily != 7 || keep.Weekly != 4 {
+		t.Errorf("limits: %d %+v %v", maxBackup, keep, err)
+	}
+	e.s.limits = nil
+	if _, maxBackup, keep, err := e.s.backupLimits(context.Background()); err != nil || maxBackup != 0 || keep.MaxBytes != 0 {
+		t.Errorf("limits of a single site: %d %+v %v", maxBackup, keep, err)
 	}
 }
 

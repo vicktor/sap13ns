@@ -7,7 +7,7 @@
 {{with $d.Backups}}
 {{if .Last}}{{if .Last.Error}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "The nightly backups of %s made no backup" (dateTime .Last.Started)}}</h2><section><p>{{T "The backup passphrase cannot be read. Check SAP13NS_BACKUP_PASSPHRASE_FILE and the log."}}</p></section></div>{{end}}{{end}}
 {{if .Failing}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Sites whose latest backup was not made: %d" (len .Failing)}}</h2>
-  <section><ul>{{range .Failing}}<li>{{if .Portal}}{{T "The portal"}}{{else}}<a href="/admin/network/sites/{{.ID}}">{{.Slug}}</a>{{end}} · {{dateTime .Status.Tried}} · {{if eq .Status.Result "skipped"}}{{T "skipped: not enough free disk space"}}{{else}}{{T "failed"}}{{end}}{{with .Status.Error}} <span class="muted">({{.}})</span>{{end}}</li>{{end}}</ul>
+  <section><ul>{{range .Failing}}<li>{{if .Portal}}{{T "The portal"}}{{else}}<a href="/admin/network/sites/{{.ID}}">{{.Slug}}</a>{{end}} · {{dateTime .Status.Tried}} · {{if and (eq .Status.Result "skipped") (eq .Status.Reason "quota")}}{{T "skipped: larger than the storage of its plan"}}{{else if eq .Status.Result "skipped"}}{{T "skipped: not enough free disk space"}}{{else}}{{T "failed"}}{{end}}{{with .Status.Error}} <span class="muted">({{.}})</span>{{end}}</li>{{end}}</ul>
   <p>{{T "Free disk space where the backups are, %s, or look at the log; the next nightly run tries these sites first." .Dir}}</p></section></div>{{end}}
 {{end}}
 <div class="toolbar">

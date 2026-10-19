@@ -106,19 +106,23 @@ type backupRow struct {
 }
 
 type backupsData struct {
-	List                  []backupRow
-	Status                sitebackup.Status
-	Running, Restoring    bool
-	Started               time.Time
-	User                  string
-	Result                *backupResult
-	Label                 string // the name a restore asks for
-	Encrypted             bool   // archives are encrypted
-	Network, Portal       bool
-	KeepDaily, KeepWeekly int
-	NeedPassword          bool // a restore asks for the password (else a recent sign-in)
-	WPBase                string
-	Error                 string
+	List                   []backupRow
+	Status                 sitebackup.Status
+	Running, Restoring     bool
+	Started                time.Time
+	User                   string
+	Result                 *backupResult
+	Label                  string // the name a restore asks for
+	Encrypted              bool   // archives are encrypted
+	Network, Portal        bool
+	KeepDaily, KeepWeekly  int
+	NeedPassword           bool  // a restore asks for the password (else a recent sign-in)
+	Quota                  int64 // the storage of the site's plan; 0: none
+	SafetyKeep, SafetyDays int
+	CooldownMinutes        int
+	PerHour                int
+	WPBase                 string
+	Error                  string
 }
 
 // backupOptions are the options of this site's backups.
@@ -131,6 +135,22 @@ func (s *Server) backupOptions() (sitebackup.Options, error) {
 		o.Site.ID, o.Site.Label, o.Site.Network = id.ID, id.Label, id.Network
 	}
 	return o, err
+}
+
+// backupLimits are the bounds of this site's backups: the largest it may
+// make, and what Prune keeps. On a network they follow the storage of the
+// site's plan (sitebackup.Limits); backups do not count toward it, so a
+// site cannot fill the disk the network shares with them.
+func (s *Server) backupLimits(ctx context.Context) (quota, maxBackup int64, keep sitebackup.Retention, err error) {
+	keep = sitebackup.Retention{Daily: s.cfg.SiteBackups.KeepDaily, Weekly: s.cfg.SiteBackups.KeepWeekly}
+	if s.limits == nil {
+		return 0, 0, keep, nil
+	}
+	if quota, err = s.limits.StorageQuota(ctx); err != nil {
+		return 0, 0, keep, err
+	}
+	maxBackup, keep.MaxBytes = sitebackup.Limits(quota)
+	return quota, maxBackup, keep, nil
 }
 
 // hasPassword reports whether the user signs in with a password here.
@@ -150,7 +170,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, status in
 	u := currentUser(r)
 	d := backupsData{Label: o.Site.Label, Encrypted: o.Passphrase != "", Network: s.backupHooks != nil,
 		KeepDaily: s.cfg.SiteBackups.KeepDaily, KeepWeekly: s.cfg.SiteBackups.KeepWeekly, NeedPassword: hasPassword(u),
-		WPBase: wpBase, Error: msg}
+		WPBase: wpBase, Error: msg, SafetyKeep: sitebackup.SafetyKeep, SafetyDays: sitebackup.PreRestoreDays,
+		CooldownMinutes: int(restorePace.Cooldown.Minutes()), PerHour: restorePace.PerHour}
+	if d.Quota, _, _, err = s.backupLimits(r.Context()); err != nil {
+		s.log.Warn("backup limits", "err", err)
+	}
 	if s.backupHooks != nil {
 		d.Portal = s.backupHooks.BackupIdentity().Portal
 	}
@@ -188,6 +212,11 @@ func (s *Server) backupURL(r *http.Request, name string) string {
 	return "/admin/tools/backups/download/" + name + "?t=" + s.keys.Sign(backupPurpose, backupBinding(r, name), time.Now())
 }
 
+// restorePace spaces out the restores of a site from its admin pages:
+// each makes a safety backup. It is kept with the site's backups, so it
+// holds when the site's server is reloaded.
+var restorePace = sitebackup.Pace{Cooldown: 10 * time.Minute, PerHour: 3}
+
 // startBackupJob claims the site's job, or reports that one runs.
 func (s *Server) startBackupJob(r *http.Request, restore bool) bool {
 	j := &s.backups
@@ -198,6 +227,16 @@ func (s *Server) startBackupJob(r *http.Request, restore bool) bool {
 	}
 	j.running, j.restore, j.started, j.user = true, restore, time.Now(), currentUser(r).Name()
 	return true
+}
+
+// restorePaceError explains when the next restore may start.
+func (s *Server) restorePaceError(dir string) string {
+	wait, err := sitebackup.RestoreWait(dir, restorePace, time.Now())
+	if err != nil {
+		s.log.Warn("restore pace", "err", err)
+	}
+	return s.t("Restores of this site are spaced out: one every %d minutes, at most %d an hour. Try again in %d minutes.",
+		int(restorePace.Cooldown.Minutes()), restorePace.PerHour, int(wait.Minutes())+1)
 }
 
 func (s *Server) finishBackupJob(res *backupResult) {
@@ -214,6 +253,8 @@ func (s *Server) backupError(err error) string {
 		return s.t("A backup or restore of this site is already running. Try again when it has finished.")
 	case errors.Is(err, sitebackup.ErrLowDisk):
 		return s.t("The server does not have enough free disk space for a backup of this site. The server administrator has been told in the log.")
+	case errors.Is(err, sitebackup.ErrTooLarge):
+		return s.t("The backup would be larger than the storage of the site's plan. Remove media you no longer need, or move to a larger plan.")
 	case errors.Is(err, sitebackup.ErrNotSiteBackup):
 		return s.t("This file is not a backup of a sap13ns site.")
 	case strings.Contains(err.Error(), "passphrase"):
@@ -240,6 +281,12 @@ func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	o.WPBase = wpBase
+	_, maxBackup, keep, err := s.backupLimits(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	o.MaxBytes = maxBackup
 	if !s.startBackupJob(r, false) {
 		s.renderBackups(w, r, http.StatusConflict, s.t("A backup or restore of this site is already running. Try again when it has finished."), wpBase)
 		return
@@ -265,7 +312,7 @@ func (s *Server) adminBackupCreate(w http.ResponseWriter, r *http.Request) {
 			if err := s.store.Audit(ctx, u.ID, "backup.created", a.Name, ip, details); err != nil {
 				s.log.Error("audit", "err", err)
 			}
-			if removed, err := sitebackup.Prune(o.Dir, s.cfg.SiteBackups.KeepDaily, s.cfg.SiteBackups.KeepWeekly, time.Now()); err != nil {
+			if removed, err := sitebackup.Prune(o.Dir, keep, time.Now()); err != nil {
 				s.log.Error("prune site backups", "err", err)
 			} else if len(removed) > 0 {
 				s.log.Info("old site backups removed", "count", len(removed))
@@ -350,6 +397,21 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		s.renderBackups(w, r, http.StatusUnauthorized, msg, "")
 		return
 	}
+	// Each restore makes a safety backup: a few, spaced out. Restore
+	// checks it again under the site's lock.
+	if wait, err := sitebackup.RestoreWait(o.Dir, restorePace, time.Now()); err != nil {
+		s.serverError(w, r, err)
+		return
+	} else if wait > 0 {
+		s.renderBackups(w, r, http.StatusTooManyRequests, s.restorePaceError(o.Dir), "")
+		return
+	}
+	_, maxBackup, keep, err := s.backupLimits(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	o.MaxBytes = maxBackup
 	if !s.startBackupJob(r, true) {
 		s.renderBackups(w, r, http.StatusConflict, s.t("A backup or restore of this site is already running. Try again when it has finished."), "")
 		return
@@ -361,12 +423,15 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		res := &backupResult{UserID: u.ID, Restore: true}
 		rep, err := sitebackup.Restore(ctx, s.store, a.Path, sitebackup.RestoreOptions{Options: o, Replace: true, ActorID: u.ID,
-			CheckRedirect: CheckRestoredRedirect, Plugins: s.pluginRules(),
+			CheckRedirect: CheckRestoredRedirect, Plugins: s.pluginRules(), Retention: &keep, Pace: restorePace,
 			Theme: func(slug string) bool { _, ok := s.themes.Get(slug); return ok }})
 		details := map[string]string{}
 		if err != nil {
 			s.log.Error("site restore", "archive", a.Name, "err", err)
 			res.Error = s.backupError(err)
+			if errors.Is(err, sitebackup.ErrTooSoon) {
+				res.Error = s.restorePaceError(o.Dir)
+			}
 			details["error"] = err.Error()
 		} else {
 			res.Report = rep
@@ -375,6 +440,9 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 			details["pages"] = strconv.Itoa(rep.Pages)
 			if rep.Safety != nil {
 				details["safety_backup"] = rep.Safety.Name
+			}
+			if len(rep.Pruned) > 0 {
+				details["pruned"] = strconv.Itoa(len(rep.Pruned))
 			}
 			if err := s.Restored(ctx); err != nil {
 				s.log.Error("reload after a restore", "err", err)

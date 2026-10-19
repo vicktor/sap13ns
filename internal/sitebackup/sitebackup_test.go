@@ -826,7 +826,7 @@ func TestEncryptedPruneAndStatus(t *testing.T) {
 		}
 	}
 	os.WriteFile(filepath.Join(pd, "unrelated.zip"), nil, 0o600)
-	if _, err := Prune(pd, 7, 4, now); err != nil {
+	if _, err := Prune(pd, Retention{Daily: 7, Weekly: 4}, now); err != nil {
 		t.Fatal(err)
 	}
 	left, _ := List(pd)

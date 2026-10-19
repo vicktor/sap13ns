@@ -48,7 +48,11 @@ const backupUsage = `usage: sap13ns backup create|list|verify|restore|prune|decr
   verify [-site S] ARCHIVE
   restore [-site S] [-replace] [-yes] ARCHIVE
   prune [-format full|site] [-site S] [-keep-daily N] [-keep-weekly N]
-  decrypt [-o OUT] ARCHIVE.enc`
+  decrypt [-o OUT] ARCHIVE.enc
+Site archives: prune also keeps the newest 3 backups made before a restore
+(7 days at most) and, on a network, bounds what a site's backups take to
+twice the storage of its plan, removing the oldest first; a restore prunes
+after its safety backup, never the archive it restores.`
 
 // backupCmd implements "sap13ns backup create|list|verify|restore|prune|decrypt".
 func backupCmd(args []string) error {
@@ -270,8 +274,19 @@ func siteBackupCmd(ctx context.Context, cfg *config.Config, log *slog.Logger, su
 	if keepWeekly < 0 {
 		keepWeekly = cfg.SiteBackups.KeepWeekly
 	}
+	// On a network, the storage of the site's plan bounds what its backups
+	// take in all (sitebackup.Limits). A backup made here is the
+	// operator's, of any size.
+	keep := sitebackup.Retention{Daily: keepDaily, Weekly: keepWeekly}
+	if t.net != nil && t.site != nil {
+		quota, err := t.net.BackupQuota(ctx, t.site)
+		if err != nil {
+			return fmt.Errorf("the storage of the site's plan: %w", err)
+		}
+		_, keep.MaxBytes = sitebackup.Limits(quota)
+	}
 	prune := func() error {
-		removed, err := sitebackup.Prune(o.Dir, keepDaily, keepWeekly, time.Now())
+		removed, err := sitebackup.Prune(o.Dir, keep, time.Now())
 		for _, p := range removed {
 			fmt.Fprintln(out, "removed", p)
 		}
@@ -346,7 +361,7 @@ func siteBackupCmd(ctx context.Context, cfg *config.Config, log *slog.Logger, su
 		}
 		defer host.Close(context.WithoutCancel(ctx))
 		rep, err := sitebackup.Restore(ctx, t.store, file, sitebackup.RestoreOptions{Options: o, Replace: a.replace,
-			CheckRedirect: web.CheckRestoredRedirect, Plugins: host, Theme: themeInstalled(t.cfg)})
+			CheckRedirect: web.CheckRestoredRedirect, Plugins: host, Theme: themeInstalled(t.cfg), Retention: &keep})
 		if errors.Is(err, sitebackup.ErrNotEmpty) {
 			return errors.New("the site has content: add -replace to replace it (a backup of it is taken first)")
 		}
@@ -400,6 +415,9 @@ func printRestore(rep *sitebackup.RestoreReport) {
 	fmt.Fprintln(out)
 	if rep.Safety != nil {
 		fmt.Fprintln(out, "  what it replaced is in", rep.Safety.Path)
+	}
+	for _, p := range rep.Pruned {
+		fmt.Fprintln(out, "  removed", p)
 	}
 	for _, w := range rep.Warnings {
 		fmt.Fprintln(out, "  warning:", w)

@@ -120,8 +120,9 @@ type (
 
 // Create makes a backup of the site in o.Dir and records the outcome
 // (ReadStatus). It refuses with ErrBusy while another backup or restore
-// of the site runs, and with ErrLowDisk when the disk lacks twice the
-// estimated size.
+// of the site runs, with ErrLowDisk when the disk lacks twice the
+// estimated size, and with ErrTooLarge when the backup would be larger
+// than o.MaxBytes.
 func Create(ctx context.Context, st *store.Store, o Options) (*Archive, *Manifest, error) {
 	unlock, err := lock(o.Dir)
 	if err != nil {
@@ -145,25 +146,23 @@ func Estimate(ctx context.Context, st *store.Store, uploadsDir string) (int64, e
 // CheckSpace returns ErrLowDisk unless dir's file system has twice the
 // estimated size of a backup free.
 func CheckSpace(ctx context.Context, st *store.Store, dir, uploadsDir string) error {
-	return checkSpace(ctx, st, dir, uploadsDir, freeSpace)
+	return checkSpace(ctx, st, dir, uploadsDir, freeSpace, 0)
 }
 
-func checkSpace(ctx context.Context, st *store.Store, dir, uploadsDir string, freeSpace func(string) (int64, error)) error {
+// checkSpace also refuses, with ErrTooLarge, a backup estimated larger
+// than maxBytes (0: no limit).
+func checkSpace(ctx context.Context, st *store.Store, dir, uploadsDir string, freeSpace func(string) (int64, error), maxBytes int64) error {
 	need, err := Estimate(ctx, st, uploadsDir)
 	if err != nil {
 		return err
 	}
+	if maxBytes > 0 && need > maxBytes {
+		return fmt.Errorf("%w: about %s, the limit is %s", ErrTooLarge, size(need), size(maxBytes))
+	}
 	if err := ensureDir(dir); err != nil {
 		return err
 	}
-	free, err := freeSpace(dir)
-	if err != nil {
-		return err
-	}
-	if free >= 0 && free < 2*need {
-		return fmt.Errorf("%w: %d MiB free, %d MiB needed", ErrLowDisk, free>>20, 2*need>>20)
-	}
-	return nil
+	return Options{FreeSpace: freeSpace}.fits(dir, need)
 }
 
 func exportOptions(o Options) export.Options {
@@ -184,11 +183,7 @@ func create(ctx context.Context, st *store.Store, o Options, preRestore bool) (*
 			return nil, nil, err
 		}
 	}
-	free := o.FreeSpace
-	if free == nil {
-		free = freeSpace
-	}
-	if err := checkSpace(ctx, st, o.Dir, o.UploadsDir, free); err != nil {
+	if err := checkSpace(ctx, st, o.Dir, o.UploadsDir, o.freeSpace, o.MaxBytes); err != nil {
 		return nil, nil, err
 	}
 	// One snapshot: the archive holds the site as it was at one moment,
@@ -224,7 +219,7 @@ func create(ctx context.Context, st *store.Store, o Options, preRestore bool) (*
 		return nil, nil, fmt.Errorf("sitebackup: %s exists", name)
 	}
 	final := filepath.Join(o.Dir, name)
-	f, err := os.CreateTemp(o.Dir, ".partial-*")
+	f, err := os.CreateTemp(o.Dir, partialPattern)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -247,7 +242,7 @@ func create(ctx context.Context, st *store.Store, o Options, preRestore bool) (*
 		out = enc
 	}
 	bw := bufio.NewWriterSize(out, 256<<10)
-	w := &writer{zw: zip.NewWriter(bw), now: now}
+	w := &writer{zw: zip.NewWriter(bw), now: now, max: o.MaxBytes}
 	if o.Site.Title == "" {
 		o.Site.Title = set.SiteTitle
 	}
@@ -308,6 +303,7 @@ type writer struct {
 	now   time.Time
 	files []backup.Member
 	total int64
+	max   int64 // Options.MaxBytes: the estimate was low, stop anyway
 }
 
 type counter struct{ n int64 }
@@ -336,6 +332,9 @@ func (w *writer) add(name string, deflate bool, mod time.Time, limit int64, fn f
 	}
 	if w.total += n.n; w.total > maxTotalBytes {
 		return fmt.Errorf("sitebackup: the backup is larger than %d bytes", maxTotalBytes)
+	}
+	if w.max > 0 && w.total > w.max {
+		return fmt.Errorf("%w: more than %s", ErrTooLarge, size(w.max))
 	}
 	if name != NameManifest {
 		w.files = append(w.files, backup.Member{Name: name, Size: n.n, SHA256: hex.EncodeToString(sum.Sum(nil))})

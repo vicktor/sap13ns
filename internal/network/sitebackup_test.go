@@ -157,6 +157,30 @@ func TestNightlyBackups(t *testing.T) {
 	if page := nb.page("/admin/network/sites/" + itoa(b.ID)); !strings.Contains(page, `data-variant="warning"`) {
 		t.Error("the site's page does not show the skipped backup")
 	}
+
+	// Sites larger than the storage of their plan are skipped too, and
+	// shown as such; the portal has no plan.
+	if _, err := e.n.db.Exec(e.ctx, `UPDATE plans SET storage_bytes = 1024 WHERE slug = 'pro'`); err != nil {
+		t.Fatal(err)
+	}
+	if q, err := e.n.BackupQuota(e.ctx, b); err != nil || q != 1024 {
+		t.Fatalf("bravo's backup quota: %d %v", q, err)
+	}
+	before := len(e.backups(b.ID))
+	run = e.reg.SweepBackups(e.ctx)
+	if run.Skipped != 3 || run.Done != 1 {
+		t.Fatalf("over the plan: %+v", run)
+	}
+	if st, _ := sitebackup.ReadStatus(e.cfg.SiteBackups.SiteBackupDir(b.ID)); st.Result != sitebackup.ResultSkipped || st.Reason != sitebackup.ReasonQuota {
+		t.Errorf("bravo's status over the plan: %+v", st)
+	}
+	if n := len(e.backups(b.ID)); n != before {
+		t.Errorf("bravo's backups: %d, then %d", before, n)
+	}
+	if page := nb.page("/admin/network/sites"); !strings.Contains(page, "larger than the storage of its plan") &&
+		!strings.Contains(page, "ocupa más que el almacenamiento de su plan") {
+		t.Error("the sites page does not say why the backups were skipped")
+	}
 }
 
 // TestSiteBackupsPage: a site of a network names its backups after its

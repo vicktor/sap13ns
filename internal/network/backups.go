@@ -7,8 +7,9 @@ package network
 // few sites at once (SAP13NS_SITE_BACKUP_CONCURRENCY) and starts none after
 // its time budget (SAP13NS_SITE_BACKUP_BUDGET): the sites least recently
 // tried go first, so the sites a night did not reach are the first of the
-// next. Before each site, sitebackup checks the free disk space; a site it
-// skips is logged and shown in the network administration.
+// next. Before each site, sitebackup checks the free disk space and the
+// storage of the site's plan (BackupQuota); a site it skips is logged and
+// shown in the network administration.
 
 import (
 	"cmp"
@@ -56,6 +57,21 @@ func (r *Registry) BackupSites(ctx context.Context) ([]Site, error) {
 	}
 	slices.SortStableFunc(sites, func(a, b Site) int { return tried[a.ID].Compare(tried[b.ID]) })
 	return sites, nil
+}
+
+// BackupQuota is the storage of the plan of a site, which bounds its
+// backups (sitebackup.Limits): each at most this size, all of them at
+// most twice it. The portal has none (0). Backups do not count toward the
+// storage the site uses.
+func (n *Network) BackupQuota(ctx context.Context, s *Site) (int64, error) {
+	if s.Kind == KindNetwork || s.Plan == "" {
+		return 0, nil
+	}
+	p, err := n.Plan(ctx, s.Plan)
+	if err != nil {
+		return 0, err
+	}
+	return p.StorageBytes, nil
 }
 
 // SweepBackups backs up the sites of the network once, within the time
@@ -146,12 +162,23 @@ func (r *Registry) backupSite(ctx context.Context, s *Site, pass string) string 
 	if set, err := st.LoadSettings(ctx); err == nil {
 		title = cmp.Or(set.SiteTitle, title)
 	}
+	quota, err := r.net.BackupQuota(ctx, s)
+	if err != nil {
+		log.Error("site backup: the storage of the plan", "err", err)
+		return sitebackup.ResultFailed
+	}
+	maxBackup, maxTotal := sitebackup.Limits(quota)
 	o := sitebackup.Options{Dir: cfg.SiteBackups.Dir, UploadsDir: cfg.UploadsDir, Passphrase: pass, AppVersion: web.Version,
-		FreeSpace: r.backupFree, Site: sitebackup.Site{ID: s.ID, Label: s.Slug, URL: cfg.BaseURL.String(), Title: title, Network: r.cfg.BaseURL.Hostname()}}
+		FreeSpace: r.backupFree, MaxBytes: maxBackup,
+		Site: sitebackup.Site{ID: s.ID, Label: s.Slug, URL: cfg.BaseURL.String(), Title: title, Network: r.cfg.BaseURL.Hostname()}}
+	keep := sitebackup.Retention{Daily: cfg.SiteBackups.KeepDaily, Weekly: cfg.SiteBackups.KeepWeekly, MaxBytes: maxTotal}
 	a, _, err := sitebackup.Create(ctx, st, o)
 	switch {
 	case errors.Is(err, sitebackup.ErrLowDisk):
 		log.Warn("site backup skipped: not enough free disk space", "dir", o.Dir, "err", err)
+		return sitebackup.ResultSkipped
+	case errors.Is(err, sitebackup.ErrTooLarge):
+		log.Warn("site backup skipped: larger than the storage of the site's plan", "plan", s.Plan, "err", err)
 		return sitebackup.ResultSkipped
 	case errors.Is(err, sitebackup.ErrBusy):
 		// Someone backs it up or restores it now: tonight's backup is theirs.
@@ -161,7 +188,7 @@ func (r *Registry) backupSite(ctx context.Context, s *Site, pass string) string 
 		log.Error("site backup", "err", err)
 		return sitebackup.ResultFailed
 	}
-	removed, err := sitebackup.Prune(o.Dir, cfg.SiteBackups.KeepDaily, cfg.SiteBackups.KeepWeekly, r.o.Now())
+	removed, err := sitebackup.Prune(o.Dir, keep, r.o.Now())
 	if err != nil {
 		log.Error("prune site backups", "err", err)
 	}

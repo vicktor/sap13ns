@@ -52,6 +52,13 @@ type RestoreOptions struct {
 	// Theme reports whether a theme is installed here. Nil checks the
 	// active theme's name only.
 	Theme func(slug string) bool
+	// Retention prunes the site's backups once the safety backup is made
+	// (Prune), never the archive being restored nor that safety backup.
+	// Nil prunes nothing.
+	Retention *Retention
+	// Pace spaces out the restores of the site (ErrTooSoon). Every
+	// restore is recorded, whatever its pace.
+	Pace Pace
 }
 
 // PluginRules are the checks of the plugins installed on the site
@@ -71,6 +78,7 @@ type RestoreReport struct {
 	UsersCreated, UsersMatched           int
 	MenuItems, Widgets, Designs          int
 	Redirects, RedirectsRefused, Plugins int
+	Pruned                               []string // older backups removed after the safety backup
 	Warnings                             []string
 }
 
@@ -101,6 +109,11 @@ type sidecar struct {
 // first, and needs Replace. The database changes in one transaction and
 // the uploads directory is swapped in only then: a restore that fails
 // leaves the site as it was.
+//
+// What a restore writes is bounded like a backup: the decrypted copy of an
+// encrypted archive and the staged files each need twice their size free
+// (ErrLowDisk), and an archive larger than o.MaxBytes is refused
+// (ErrTooLarge), as is a safety backup.
 func Restore(ctx context.Context, st *store.Store, file string, o RestoreOptions) (*RestoreReport, error) {
 	if o.CheckRedirect == nil || o.UploadsDir == "" {
 		return nil, errors.New("sitebackup: a restore needs the redirect check and the uploads directory")
@@ -110,12 +123,24 @@ func Restore(ctx context.Context, st *store.Store, file string, o RestoreOptions
 		return nil, err
 	}
 	defer unlock()
+	if err := startRestore(o.Dir, o.Pace, o.now()); err != nil {
+		return nil, err
+	}
+	if err := o.decryptFits(file); err != nil {
+		return nil, err
+	}
 	r, err := open(file, o.Passphrase, o.Dir)
 	if err != nil {
 		return nil, err
 	}
 	defer r.close()
 	rep := &RestoreReport{Manifest: r.m}
+	if o.MaxBytes > 0 && r.m.TotalBytes > o.MaxBytes {
+		return nil, fmt.Errorf("%w: the backup holds %s, the limit is %s", ErrTooLarge, size(r.m.TotalBytes), size(o.MaxBytes))
+	}
+	if err := o.fits(filepath.Dir(o.UploadsDir), r.m.uploadBytes()); err != nil {
+		return nil, err
+	}
 	side, err := readSidecar(r)
 	if err != nil {
 		return nil, err
@@ -140,6 +165,18 @@ func Restore(ctx context.Context, st *store.Store, file string, o RestoreOptions
 			return nil, fmt.Errorf("the safety backup failed, nothing was restored: %w", err)
 		}
 		rep.Safety = a
+	}
+	if o.Retention != nil {
+		protect := []string{file}
+		if rep.Safety != nil {
+			protect = append(protect, rep.Safety.Path)
+		}
+		// The space the older backups took, before the files are staged.
+		removed, err := prune(o.Dir, *o.Retention, o.now(), protect...)
+		if err != nil {
+			rep.warn("older backups were not pruned: %v", err)
+		}
+		rep.Pruned = removed
 	}
 
 	// The files, into a directory next to the uploads.

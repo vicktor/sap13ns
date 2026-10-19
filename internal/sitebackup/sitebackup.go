@@ -43,6 +43,7 @@
 package sitebackup
 
 import (
+	"bufio"
 	"cmp"
 	"encoding/json"
 	"errors"
@@ -89,6 +90,9 @@ var (
 	ErrNotSiteBackup = errors.New("not a sap13ns site backup")
 	// ErrNotFound: no backup has that name in the directory.
 	ErrNotFound = errors.New("backup not found")
+	// ErrTooLarge refuses a backup larger than the site may make
+	// (Options.MaxBytes).
+	ErrTooLarge = errors.New("the backup would be larger than the storage of the site's plan")
 )
 
 // Site describes the site a backup is made of or restored into.
@@ -117,6 +121,10 @@ type Options struct {
 	// FreeSpace measures the free space of the file system of a directory
 	// (-1: unknown); nil measures it with statfs.
 	FreeSpace func(dir string) (int64, error)
+	// MaxBytes is the largest backup the site may make, before
+	// compression: the storage of its plan on a network (Limits). 0: no
+	// limit.
+	MaxBytes int64
 	// PluginSettings, if set, keeps the plain settings of a plugin (it
 	// knows the manifests); otherwise every sealed secret, e-mail address
 	// and setting named like a secret is left out.
@@ -247,38 +255,115 @@ func Find(dir, name string) (*Archive, error) {
 }
 
 // PreRestoreDays is how long the safety backups taken before a restore are
-// kept, whatever the schedule.
-const PreRestoreDays = 7
+// kept, whatever the schedule, and SafetyKeep how many of them at most.
+const (
+	PreRestoreDays = 7
+	SafetyKeep     = 3
+)
 
-// Prune removes the backups that the schedule does not keep: the newest of
-// each of the last keepDaily days and keepWeekly ISO weeks (UTC), and the
-// newest of all. Safety backups taken before a restore are kept for
-// PreRestoreDays, and do not count.
-func Prune(dir string, keepDaily, keepWeekly int, now time.Time) (removed []string, err error) {
-	if keepDaily < 0 || keepWeekly < 0 {
-		return nil, errors.New("prune: keep counts must not be negative")
+// QuotaMultiple bounds the backups a site keeps: this many times the
+// storage of its plan, in all (Limits).
+const QuotaMultiple = 2
+
+// Limits are the bounds of the backups of a site whose plan has quota
+// bytes of storage (0: no limit): the largest backup it may make
+// (Options.MaxBytes) and the most its backups may take in all
+// (Retention.MaxBytes).
+func Limits(quota int64) (maxBackup, maxTotal int64) {
+	if quota <= 0 {
+		return 0, 0
 	}
-	list, err := List(dir)
+	return quota, QuotaMultiple * quota
+}
+
+// Retention is what Prune keeps.
+type Retention struct {
+	// The newest backup of each of the last Daily days and Weekly ISO
+	// weeks (UTC), and the newest of all.
+	Daily, Weekly int
+	// MaxBytes bounds what the kept backups take on disk, safety backups
+	// included: the oldest go first, never the newest backup. 0: no
+	// bound.
+	MaxBytes int64
+}
+
+// Prune removes the backups that r does not keep. Safety backups taken
+// before a restore do not count toward the schedule: the newest
+// SafetyKeep are kept, for PreRestoreDays. It refuses with ErrBusy while
+// a backup or restore of the site runs.
+func Prune(dir string, r Retention, now time.Time) (removed []string, err error) {
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	unlock, err := lock(dir)
 	if err != nil {
 		return nil, err
 	}
-	var regular []Archive
-	var drop []Archive
+	defer unlock()
+	return prune(dir, r, now)
+}
+
+// prune is Prune under the lock. It never removes the archives named by
+// protect (the one a restore uses, and its safety backup).
+func prune(dir string, r Retention, now time.Time, protect ...string) (removed []string, err error) {
+	if r.Daily < 0 || r.Weekly < 0 || r.MaxBytes < 0 {
+		return nil, errors.New("prune: keep counts must not be negative")
+	}
+	list, err := List(dir) // newest first
+	if err != nil {
+		return nil, err
+	}
+	keep := make(map[string]bool, len(protect))
+	for _, p := range protect {
+		if abs, err := filepath.Abs(p); err == nil {
+			keep[abs] = true
+		}
+	}
+	protected := func(a Archive) bool {
+		abs, err := filepath.Abs(a.Path)
+		return err != nil || keep[abs]
+	}
+	var regular, kept, drop []Archive
+	safety := 0
 	for _, a := range list {
 		switch {
 		case !a.PreRestore:
 			regular = append(regular, a)
-		case now.Sub(a.Created) > PreRestoreDays*24*time.Hour:
+		case !protected(a) && (safety >= SafetyKeep || now.Sub(a.Created) > PreRestoreDays*24*time.Hour):
 			drop = append(drop, a)
+		default:
+			safety++
+			kept = append(kept, a)
 		}
 	}
 	created := make([]time.Time, len(regular))
 	for i, a := range regular {
 		created[i] = a.Created
 	}
-	for i, keep := range backup.Keep(created, keepDaily, keepWeekly, 0) {
-		if !keep {
+	for i, keep := range backup.Keep(created, r.Daily, r.Weekly, 0) {
+		switch {
+		case keep || protected(regular[i]):
+			kept = append(kept, regular[i])
+		default:
 			drop = append(drop, regular[i])
+		}
+	}
+	if r.MaxBytes > 0 {
+		// Within the bound: the oldest go first, but never the newest
+		// backup, nor the one a restore uses.
+		slices.SortFunc(kept, func(a, b Archive) int { return b.Created.Compare(a.Created) })
+		var total int64
+		for _, a := range kept {
+			total += a.Size
+		}
+		var newest string
+		if len(regular) > 0 {
+			newest = regular[0].Path
+		}
+		for i := len(kept) - 1; i >= 0 && total > r.MaxBytes; i-- {
+			if a := kept[i]; a.Path != newest && !protected(a) {
+				drop, total = append(drop, a), total-a.Size
+			}
 		}
 	}
 	var errs []error
@@ -288,6 +373,19 @@ func Prune(dir string, keepDaily, keepWeekly int, now time.Time) (removed []stri
 			continue
 		}
 		removed = append(removed, a.Path)
+	}
+	// The decrypted copy of an archive, and the archive being written,
+	// are removed when the restore, check or backup that made them ends;
+	// one a crash left behind goes now.
+	stale, _ := filepath.Glob(filepath.Join(dir, decryptedPattern))
+	partial, _ := filepath.Glob(filepath.Join(dir, partialPattern))
+	stale = append(stale, partial...)
+	for _, p := range stale {
+		if fi, err := os.Lstat(p); err == nil && fi.Mode().IsRegular() && now.Sub(fi.ModTime()) > staleDecrypted {
+			if err := os.Remove(p); err == nil {
+				removed = append(removed, p)
+			}
+		}
 	}
 	if len(errs) > 0 {
 		return removed, fmt.Errorf("prune: %w", errors.Join(errs...))
@@ -301,16 +399,85 @@ type Status struct {
 	Tried   time.Time `json:"tried"`             // the latest attempt
 	OK      time.Time `json:"ok,omitzero"`       // the latest backup made
 	Result  string    `json:"result"`            // ResultOK, ResultFailed or ResultSkipped
+	Reason  string    `json:"reason,omitempty"`  // why it was skipped: ReasonDisk or ReasonQuota
 	Error   string    `json:"error,omitempty"`   // why it failed or was skipped
 	Archive string    `json:"archive,omitempty"` // the latest backup made
 	Bytes   int64     `json:"bytes,omitempty"`
+	// Restores are when the latest restores started, oldest first (Pace):
+	// on disk, so that they hold across reloads of the site and servers.
+	Restores []time.Time `json:"restores,omitempty"`
+}
+
+// Pace spaces out the restores of a site, each of which makes a safety
+// backup. The zero Pace allows any.
+type Pace struct {
+	Cooldown time.Duration // the least time between two restores
+	PerHour  int           // at most this many start in an hour; 0: no limit
+}
+
+// ErrTooSoon refuses a restore that RestoreOptions.Pace does not allow yet.
+var ErrTooSoon = errors.New("a restore of this site started too recently")
+
+// wait is how long until p allows the next restore after those that
+// started at starts (oldest first).
+func (p Pace) wait(starts []time.Time, now time.Time) time.Duration {
+	var wait time.Duration
+	if n := len(starts); p.Cooldown > 0 && n > 0 {
+		wait = max(wait, starts[n-1].Add(p.Cooldown).Sub(now))
+	}
+	if p.PerHour > 0 {
+		var hour []time.Time
+		for _, t := range starts {
+			if now.Sub(t) < time.Hour {
+				hour = append(hour, t)
+			}
+		}
+		if len(hour) >= p.PerHour {
+			wait = max(wait, hour[len(hour)-p.PerHour].Add(time.Hour).Sub(now))
+		}
+	}
+	return max(wait, 0)
+}
+
+// RestoreWait is how long until pace allows the next restore of the site
+// whose backups are in dir: 0 for now.
+func RestoreWait(dir string, pace Pace, now time.Time) (time.Duration, error) {
+	s, err := ReadStatus(dir)
+	if err != nil {
+		return 0, err
+	}
+	return pace.wait(s.Restores, now), nil
+}
+
+// startRestore checks the pace of the restores of the site, under the
+// lock, and records this one: it counts from its start, whatever its
+// outcome.
+func startRestore(dir string, pace Pace, now time.Time) error {
+	s, err := ReadStatus(dir)
+	if err != nil {
+		return err
+	}
+	if wait := pace.wait(s.Restores, now); wait > 0 {
+		return fmt.Errorf("%w: try again in %s", ErrTooSoon, wait.Round(time.Second))
+	}
+	keep := s.Restores[:0]
+	for _, t := range s.Restores {
+		if now.Sub(t) < 24*time.Hour {
+			keep = append(keep, t)
+		}
+	}
+	s.Restores = append(keep[max(len(keep)-19, 0):], now)
+	return writeStatus(dir, s)
 }
 
 // Results of a backup.
 const (
 	ResultOK      = "ok"
 	ResultFailed  = "failed"
-	ResultSkipped = "skipped" // not enough disk space
+	ResultSkipped = "skipped" // not enough disk space, or larger than the plan allows
+
+	ReasonDisk  = "disk"  // ErrLowDisk
+	ReasonQuota = "quota" // ErrTooLarge
 )
 
 const statusName = "status.json"
@@ -338,15 +505,21 @@ func record(dir string, at time.Time, a *Archive, cause error) error {
 	s.Tried = at
 	switch {
 	case cause == nil:
-		s.Result, s.Error, s.OK = ResultOK, "", at
+		s.Result, s.Reason, s.Error, s.OK = ResultOK, "", "", at
 		if a != nil {
 			s.Archive, s.Bytes = a.Name, a.Size
 		}
 	case errors.Is(cause, ErrLowDisk):
-		s.Result, s.Error = ResultSkipped, truncate(cause.Error(), 500)
+		s.Result, s.Reason, s.Error = ResultSkipped, ReasonDisk, truncate(cause.Error(), 500)
+	case errors.Is(cause, ErrTooLarge):
+		s.Result, s.Reason, s.Error = ResultSkipped, ReasonQuota, truncate(cause.Error(), 500)
 	default:
-		s.Result, s.Error = ResultFailed, truncate(cause.Error(), 500)
+		s.Result, s.Reason, s.Error = ResultFailed, "", truncate(cause.Error(), 500)
 	}
+	return writeStatus(dir, s)
+}
+
+func writeStatus(dir string, s Status) error {
 	b, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -369,6 +542,85 @@ func truncate(s string, n int) string {
 }
 
 func utf8RuneStart(b byte) bool { return b&0xC0 != 0x80 }
+
+// decryptedPattern names the decrypted copy of an encrypted archive
+// (open), staleDecrypted the age at which Prune removes one left behind.
+const (
+	decryptedPattern = ".decrypted-*"
+	partialPattern   = ".partial-*" // an archive being written (create)
+	staleDecrypted   = 24 * time.Hour
+)
+
+func (o Options) freeSpace(dir string) (int64, error) {
+	if o.FreeSpace != nil {
+		return o.FreeSpace(dir)
+	}
+	return freeSpace(dir)
+}
+
+// fits returns ErrLowDisk unless dir's file system has twice need free:
+// what a backup or restore writes takes at most half the free space.
+func (o Options) fits(dir string, need int64) error {
+	if need <= 0 {
+		return nil
+	}
+	// The directory may not exist yet: its file system is its nearest
+	// parent's.
+	for {
+		if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) || filepath.Dir(dir) == dir {
+			break
+		}
+		dir = filepath.Dir(dir)
+	}
+	free, err := o.freeSpace(dir)
+	if err != nil {
+		return err
+	}
+	if free >= 0 && free < 2*need {
+		return fmt.Errorf("%w: %s free, %s needed", ErrLowDisk, size(free), size(2*need))
+	}
+	return nil
+}
+
+// size writes n bytes for a log line.
+func size(n int64) string {
+	switch {
+	case n >= 10<<20:
+		return fmt.Sprintf("%d MiB", n>>20)
+	case n >= 10<<10:
+		return fmt.Sprintf("%d KiB", n>>10)
+	}
+	return fmt.Sprintf("%d bytes", n)
+}
+
+// decryptFits checks the room for the decrypted copy of file, if it is
+// encrypted: about its size, in o.Dir.
+func (o Options) decryptFits(file string) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !backup.IsEncrypted(bufio.NewReader(f)) {
+		return nil
+	}
+	return o.fits(o.Dir, fi.Size())
+}
+
+// uploadBytes is what the uploaded files of the archive take.
+func (m *Manifest) uploadBytes() int64 {
+	var n int64
+	for _, f := range m.Files {
+		if strings.HasPrefix(f.Name, DirUploads) {
+			n += f.Size
+		}
+	}
+	return n
+}
 
 // ensureDir creates a backups directory (0700) and tightens one that is
 // more open.

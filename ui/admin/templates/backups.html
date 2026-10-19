@@ -16,12 +16,12 @@
 {{with $d.Result}}
 {{if .Error}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{if .Restore}}{{T "The restore did not finish. The site is as it was."}}{{else}}{{T "The backup did not finish"}}{{end}}</h2><section><p>{{.Error}}</p></section></div>
 {{else if .Restore}}{{with .Report}}<div class="alert" data-variant="success" role="status">{{icon "circle-check"}}<h2>{{T "The site was restored from the backup of %s." (dateTime .Manifest.Created)}}</h2>
-  <section><p>{{T "%d posts, %d pages, %d media files, %d comments, %d menu items, %d widgets and %d redirects." .Posts .Pages .Media .Comments .MenuItems .Widgets .Redirects}}{{with .Safety}} {{T "What it replaced is in the backup %s, kept for 7 days." .Name}}{{end}}</p>
+  <section><p>{{T "%d posts, %d pages, %d media files, %d comments, %d menu items, %d widgets and %d redirects." .Posts .Pages .Media .Comments .MenuItems .Widgets .Redirects}}{{with .Safety}} {{T "What it replaced is in the backup %s." .Name}} {{T "The latest %d backups made before a restore are kept, for %d days at most." $d.SafetyKeep $d.SafetyDays}}{{end}}</p>
   {{if .Warnings}}<p>{{T "Some parts were not restored as they were:"}}</p><ul>{{range .Warnings}}<li>{{.}}</li>{{end}}</ul>{{end}}</section></div>{{end}}
 {{else}}<div class="alert" data-variant="success" role="status">{{icon "circle-check"}}<h2>{{T "The backup %s is ready." .Archive}}</h2></div>{{end}}
 {{end}}
 {{if and (not $d.Result) (or (eq $d.Status.Result "failed") (eq $d.Status.Result "skipped"))}}
-<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{if eq $d.Status.Result "skipped"}}{{T "The latest backup, %s, was skipped: the server did not have enough free disk space." (dateTime $d.Status.Tried)}}{{else}}{{T "The latest backup, %s, failed." (dateTime $d.Status.Tried)}}{{end}}</h2>
+<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{if and (eq $d.Status.Result "skipped") (eq $d.Status.Reason "quota")}}{{T "The latest backup, %s, was skipped: the site is larger than the storage of its plan." (dateTime $d.Status.Tried)}}{{else if eq $d.Status.Result "skipped"}}{{T "The latest backup, %s, was skipped: the server did not have enough free disk space." (dateTime $d.Status.Tried)}}{{else}}{{T "The latest backup, %s, failed." (dateTime $d.Status.Tried)}}{{end}}</h2>
   <section><p>{{if $d.Status.OK.IsZero}}{{T "This site has no backup yet."}}{{else}}{{T "The latest backup made is from %s." (dateTime $d.Status.OK)}}{{end}} {{T "The server administrator sees this in the log."}}</p></section></div>
 {{end}}
 {{if $d.Portal}}<div class="alert" role="status">{{icon "info"}}<h2>{{T "The portal holds the network's accounts: it is restored from a backup of the database, by the server administrator."}}</h2><section><p>{{T "You can still back up its content here and download it."}}</p></section></div>{{end}}
@@ -47,7 +47,8 @@
         {{else}}<li>{{T "Backups made here are kept: the latest %d daily and %d weekly. The server administrator can back up the site each night." $d.KeepDaily $d.KeepWeekly}}</li>{{end}}
         <li>{{if $d.Encrypted}}{{T "Backups are encrypted on the server, and decrypted when you download them."}}{{else}}{{T "Backups are not encrypted on the server. Keep the files you download safe."}}{{end}}</li>
         <li>{{T "A backup holds no passwords, two-factor settings, passkeys, sessions or API keys. After a restore, new users sign in with a password reset or single sign-on."}}</li>
-        <li>{{T "Backups do not count toward the storage of your plan."}}</li>
+        <li>{{if $d.Quota}}{{T "Backups do not count toward the storage of your plan (%s), but each can be at most that size, and together at most twice it: the oldest are removed first." (filesize $d.Quota)}}{{else}}{{T "Backups do not count toward the storage of your plan."}}{{end}}</li>
+        <li>{{T "A restore can start once every %d minutes, and at most %d times an hour." $d.CooldownMinutes $d.PerHour}}</li>
         <li>{{T "Moving to WordPress? Download a backup and import its export.xml in WordPress, under Tools → Import → WordPress."}} <a href="https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md" rel="noopener" target="_blank">{{T "Read the steps"}} {{icon "external-link" "size-3"}}</a></li>
       </ul>
     </section>
