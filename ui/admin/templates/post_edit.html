@@ -55,7 +55,9 @@
     <div class="card editor-card" data-editor data-editor-user="{{.User.ID}}"
       data-msg-uploading="{{T "Uploading…"}}" data-msg-upload-failed="{{T "Upload failed"}}" data-msg-loading="{{T "Loading…"}}" data-msg-preview-failed="{{T "Preview failed"}}"
       data-msg-images-dropped="{{T "Some pasted images could not be kept. Upload them from the media library."}}" data-msg-bad-url="{{T "Enter a valid web address."}}" data-msg-text="{{T "text"}}" data-msg-markup="{{T "Markup"}}"
-      data-msg-footnote="{{T "Footnote"}}" data-msg-link-refs="{{T "Link references"}}" data-msg-shortcode="{{T "Shortcode"}}">
+      data-msg-footnote="{{T "Footnote"}}" data-msg-link-refs="{{T "Link references"}}" data-msg-shortcode="{{T "Shortcode"}}"
+      data-msg-video="{{T "Video"}}" data-msg-video-watch="{{T "Watch on %s"}}" data-msg-video-play="{{T "Play video: %s"}}" data-msg-video-untitled="{{T "%s video"}}" data-msg-video-play-untitled="{{T "Play %s"}}"
+      data-msg-video-off="{{T "Video embeds are turned off in the settings, so visitors see a link."}}" data-msg-bad-video="{{T "Enter a YouTube or Vimeo address."}}" data-msg-resize-image="{{T "Resize image"}}">
       <div class="editor-toolbar" role="toolbar" aria-label="{{T "Formatting"}}">
         <div class="segmented" role="group" aria-label="{{T "Editing mode"}}">
           <button type="button" data-editor-mode="visual" aria-pressed="false" title="{{T "Edit the formatted text"}}">{{icon "pen-line"}}<span>{{T "Visual"}}</span></button>
@@ -76,6 +78,7 @@
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="codeblock" title="{{T "Code block"}}" aria-label="{{T "Code block"}}">{{icon "square-code"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="table" title="{{T "Table"}}" aria-label="{{T "Table"}}">{{icon "table"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="hr" title="{{T "Divider"}}" aria-label="{{T "Divider"}}">{{icon "separator-horizontal"}}</button>
+          <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="video" aria-haspopup="dialog" aria-expanded="false" title="{{T "YouTube or Vimeo video"}}" aria-label="{{T "Video"}}">{{icon "square-play"}}</button>
           <span class="toolbar-sep" aria-hidden="true" data-visual-only hidden></span>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="undo" title="{{T "Undo"}} (Ctrl+Z)" aria-label="{{T "Undo"}}" data-visual-only hidden>{{icon "undo-2"}}</button>
           <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-md="redo" title="{{T "Redo"}} (Ctrl+Shift+Z)" aria-label="{{T "Redo"}}" data-visual-only hidden>{{icon "redo-2"}}</button>
@@ -110,6 +113,28 @@
           <button type="button" class="btn" data-size="sm" data-pop-apply>{{T "Apply"}}</button>
         </div>
       </div>
+      <div class="editor-pop is-bar" data-editor-pop="imagebar" role="toolbar" aria-label="{{T "Image layout"}}" hidden>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-pressed="false" title="{{T "Left, with the text around it"}}" aria-label="{{T "Left, with the text around it"}}" data-img="left">{{icon "align-left"}}</button>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-pressed="false" title="{{T "Centered"}}" aria-label="{{T "Centered"}}" data-img="center">{{icon "align-center"}}</button>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-pressed="false" title="{{T "Right, with the text around it"}}" aria-label="{{T "Right, with the text around it"}}" data-img="right">{{icon "align-right"}}</button>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-pressed="false" title="{{T "Full width"}}" aria-label="{{T "Full width"}}" data-img="full">{{icon "stretch-horizontal"}}</button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Original size"}}" aria-label="{{T "Original size"}}" data-img="original">{{icon "scaling"}}</button>
+        <label class="editor-pop-width"><span class="sr-only">{{T "Width in pixels"}}</span><input class="input" type="number" min="1" max="4096" step="1" inputmode="numeric" placeholder="{{T "Auto"}}" data-img-width><span aria-hidden="true">px</span></label>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-img="alt">{{icon "type"}}<span>{{T "Alt text"}}</span></button>
+        <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Remove image"}}" aria-label="{{T "Remove image"}}" data-img="remove">{{icon "trash-2"}}</button>
+      </div>
+      <div class="editor-pop" data-editor-pop="video" role="dialog" aria-label="{{T "Video"}}" hidden>
+        <label class="editor-pop-field"><span>{{T "YouTube or Vimeo address"}}</span><input class="input" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…" data-pop-video></label>
+        <p class="editor-pop-hint">{{T "A YouTube or Vimeo link alone on its own line also becomes a video."}}</p>
+        <p class="editor-pop-error" role="alert" data-pop-error hidden></p>
+        <div class="editor-pop-actions">
+          <span class="grow"></span>
+          <button type="button" class="btn" data-variant="outline" data-size="sm" data-pop-cancel>{{T "Cancel"}}</button>
+          <button type="button" class="btn" data-size="sm" data-pop-apply>{{T "Insert"}}</button>
+        </div>
+      </div>
       <div class="editor-pop editor-menu" data-editor-pop="heading" role="menu" aria-label="{{T "Text style"}}" hidden>
         <button type="button" role="menuitemradio" aria-checked="false" data-block="0">{{icon "pilcrow"}}<span>{{T "Paragraph"}}</span><kbd>Ctrl+Alt+0</kbd></button>
         <button type="button" role="menuitemradio" aria-checked="false" data-block="2">{{icon "heading-2"}}<span class="menu-h2">{{T "Heading 2"}}</span><kbd>Ctrl+Alt+2</kbd></button>
@@ -132,6 +157,7 @@
       </div>
       <div class="editor-pop is-bar" data-editor-pop="raw" role="toolbar" aria-label="{{T "Markup"}}" hidden>
         <span class="editor-pop-label" data-pop-label></span>
+        <button type="button" class="btn" data-variant="ghost" data-size="sm" data-pop-change data-pop-video-only hidden>{{icon "link"}}<span>{{T "Change address"}}</span></button>
         <button type="button" class="btn" data-variant="ghost" data-size="sm" data-pop-source>{{icon "hash"}}<span>{{T "Edit in Markdown"}}</span></button>
         <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" title="{{T "Delete"}}" aria-label="{{T "Delete"}}" data-pop-delete>{{icon "trash-2"}}</button>
       </div>
@@ -140,6 +166,7 @@
         <span data-word-count></span>
         <a href="https://commonmark.org/help/" target="_blank" rel="noopener">{{icon "info" "size-3.5"}} {{T "Markdown help"}}</a>
       </div>
+      <script src="{{asset "video.js"}}" defer></script>
       <script type="module" src="{{asset "editor.js"}}"></script>
     </div>
 

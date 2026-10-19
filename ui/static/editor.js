@@ -33,7 +33,225 @@ const isBlank = (l) => /^[ \t]*$/.test(l);
 const normLabel = (s) => s.trim().replace(/\s+/g, " ").toLowerCase();
 const stripInvisible = (s) => s.replace(/[\u200B\uE000\uE001]/g, "");
 
-export const LABELS = { html: "HTML", footnote: "Footnote", ref: "Link references", shortcode: "Shortcode" };
+export const LABELS = { html: "HTML", footnote: "Footnote", ref: "Link references", shortcode: "Shortcode", video: "Video" };
+
+/* ---------------------------------------------------------------- videos --
+A YouTube or Vimeo link alone on a top-level line (bare, as <URL> or as
+[video url=… start=… title=…]) is a video (internal/content/video.go, which
+these functions mirror). The editor keeps the line verbatim as a "video" raw
+block and shows the same click-to-load player as the site. */
+const YT_ID = /^[A-Za-z0-9_-]{11}$/, YT_LIST = /^[A-Za-z0-9_-]{10,64}$/;
+const VM_ID = /^[1-9][0-9]{0,11}$/, VM_HASH = /^[0-9a-f]{6,20}$/, VM_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+const START_DURATION = /^(?:(\d{1,2})h)?(?:(\d{1,4})m)?(?:(\d{1,6})s?)?$/, START_CLOCK = /^(?:(\d{1,2}):)?(\d{1,3}):(\d{2})$/;
+const MAX_START = 99 * 3600 + 59 * 60 + 59;
+const reVideoTag = /^\[([a-z][a-z0-9_-]{0,39})((?:\s+[a-z][a-z0-9_-]*(?:=(?:"[^"\]\n]*"|'[^'\]\n]*'|[^\s\]"']+))?)*)\s*(\/)?\]$/;
+const reVideoAttr = /([a-z][a-z0-9_-]{0,39})(?:=(?:"([^"]*)"|'([^']*)'|([^\s"']+)))?/g;
+
+// parseStart reads a start offset: 90, 90s, 1m30s, 1h2m3s, 1:30 or 1:02:03.
+export function parseStart(s) {
+  s = String(s ?? "").trim().toLowerCase();
+  if (!s) return 0;
+  let n = 0, m;
+  if ((m = START_CLOCK.exec(s))) {
+    if (+m[3] > 59) return 0;
+    n = (+m[1] || 0) * 3600 + +m[2] * 60 + +m[3];
+  } else if ((m = START_DURATION.exec(s))) n = (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+  return n > 0 && n <= MAX_START ? n : 0;
+}
+const startOf = (q, frag, keys) => {
+  for (const k of keys) { const n = parseStart(q.get(k)); if (n) return n; }
+  for (const part of frag.split("&")) if (part.startsWith("t=")) return parseStart(part.slice(2));
+  return 0;
+};
+// parseVideoURL recognises a YouTube video, Short, live stream or playlist,
+// or a Vimeo video, on the providers' own hosts only. It returns
+// {provider, id, list, hash, start, portrait} or null.
+export function parseVideoURL(raw) {
+  raw = String(raw ?? "").trim();
+  if (!raw || raw.length > 2048) return null;
+  const m = /^(https?):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/i.exec(raw);
+  if (!m || /[@:\s]/.test(m[2])) return null; // credentials, a port
+  let segs, frag;
+  try {
+    segs = decodeURIComponent(m[3]).split("/").filter(Boolean);
+    frag = decodeURIComponent(m[5] || "");
+  } catch (_) { return null; }
+  const q = new URLSearchParams(m[4] || "");
+  const host = m[2].toLowerCase();
+  const v = { provider: "youtube", id: "", list: "", hash: "", start: 0, portrait: false };
+  if (["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"].includes(host)) {
+    const list = q.get("list") || "";
+    if ((segs.length === 1 && segs[0] === "playlist") || (segs.length === 2 && segs[0] === "embed" && segs[1] === "videoseries")) {
+      return YT_LIST.test(list) ? { ...v, list } : null;
+    }
+    if (segs.length === 1 && segs[0] === "watch") v.id = q.get("v") || "";
+    else if (segs.length === 2 && ["embed", "live", "v"].includes(segs[0])) v.id = segs[1];
+    else if (segs.length === 2 && segs[0] === "shorts") { v.id = segs[1]; v.portrait = true; }
+    else return null;
+    v.start = startOf(q, frag, ["t", "start"]);
+    return YT_ID.test(v.id) ? v : null;
+  }
+  if (host === "youtu.be") {
+    if (segs.length !== 1 || !YT_ID.test(segs[0])) return null;
+    return { ...v, id: segs[0], start: startOf(q, frag, ["t", "start"]) };
+  }
+  if (host === "vimeo.com" || host === "www.vimeo.com" || host === "player.vimeo.com") {
+    v.provider = "vimeo";
+    v.hash = q.get("h") || "";
+    if (host === "player.vimeo.com") {
+      if (segs.length !== 2 || segs[0] !== "video") return null;
+      v.id = segs[1];
+    } else if (segs.length === 1) v.id = segs[0];
+    else if (segs.length === 2 && VM_ID.test(segs[0])) { v.id = segs[0]; v.hash = segs[1]; }
+    else if (segs.length === 3 && segs[0] === "channels" && VM_NAME.test(segs[1])) v.id = segs[2];
+    else if (segs.length === 4 && segs[0] === "groups" && VM_NAME.test(segs[1]) && segs[2] === "videos") v.id = segs[3];
+    else return null;
+    if (!VM_ID.test(v.id) || (v.hash && !VM_HASH.test(v.hash))) return null;
+    const fs = startOf(new URLSearchParams(), frag, []);
+    v.start = fs || parseStart(q.get("t"));
+    return v;
+  }
+  return null;
+}
+// videoLine reads a line that names a video: a bare URL, <URL> or the
+// [video] shortcode. It returns the video plus {url, title, shortcode}, or null.
+export function videoLine(line) {
+  line = String(line ?? "").trim();
+  if (line.startsWith("[video") && line.endsWith("]")) {
+    const m = reVideoTag.exec(line);
+    if (!m || m[1] !== "video") return null;
+    const attrs = {};
+    for (const a of m[2].matchAll(reVideoAttr)) attrs[a[1]] = a[2] || a[3] || a[4] || "true";
+    const v = parseVideoURL(attrs.url);
+    if (!v) return null;
+    if ("start" in attrs) v.start = parseStart(attrs.start);
+    return { ...v, url: attrs.url.trim(), title: String(attrs.title || "").trim().replace(/\s+/g, " ").slice(0, 200), shortcode: true };
+  }
+  const url = line.startsWith("<") && line.endsWith(">") ? line.slice(1, -1) : line;
+  if (/[ \t<>"']/.test(url)) return null;
+  const v = parseVideoURL(url);
+  return v ? { ...v, url, title: "", shortcode: false } : null;
+}
+// videoPlayerURL is the player loaded on click (content.Video.PlayerURL).
+export function videoPlayerURL(v) {
+  if (v.provider === "vimeo") return "https://player.vimeo.com/video/" + v.id + "?autoplay=1&dnt=1" + (v.hash ? "&h=" + v.hash : "") + (v.start ? "#t=" + v.start + "s" : "");
+  if (v.list) return "https://www.youtube-nocookie.com/embed/videoseries?list=" + v.list + "&autoplay=1";
+  return "https://www.youtube-nocookie.com/embed/" + v.id + "?autoplay=1" + (v.start ? "&start=" + v.start : "");
+}
+// checkVideo validates what was typed in the video popover.
+export function checkVideo(value) {
+  const line = String(value ?? "").trim();
+  if (!line) return { ok: false, empty: true };
+  const v = videoLine(line);
+  return v ? { ok: true, line: v.shortcode ? line : v.url, video: v } : { ok: false };
+}
+// The player's texts, in the page language (setupEditor fills them in), and
+// what /admin/api/video said about each URL: {title, poster, width, height,
+// portrait, mode}.
+export const VIDEO_TEXT = { watch: "Watch on %s", play: "Play video: %s", untitled: "%s video", playUntitled: "Play %s", off: "" };
+export const VIDEO_META = new Map();
+const fmt = (s, ...args) => { let k = 0; return String(s).replace(/%[sd]/g, () => String(args[k++] ?? "")); };
+// videoFacadeHTML is the player as content.videoHTML renders it, with a
+// button (the editor plays it itself).
+export function videoFacadeHTML(v, meta = {}) {
+  const provider = v.provider === "vimeo" ? "Vimeo" : "YouTube";
+  const title = v.title || meta.title || "";
+  const shown = title || fmt(VIDEO_TEXT.untitled, provider);
+  const frameTitle = title ? title + " (" + provider + ")" : shown;
+  const label = title ? fmt(VIDEO_TEXT.play, frameTitle) : fmt(VIDEO_TEXT.playUntitled, shown);
+  const size = meta.width > 0 && meta.height > 0 && meta.width <= 4096 && meta.height <= 4096 ? ` width="${meta.width}" height="${meta.height}"` : "";
+  const poster = /^\/video-thumbs\/[a-z]{2,4}-[A-Za-z0-9_-]{1,64}\.jpg$/.test(meta.poster || "") ? `<img class="sap-video-poster" src="${meta.poster}" alt=""${size}>` : "";
+  return `<figure class="sap-video sap-video-${v.provider}${v.portrait || meta.portrait ? " sap-video-portrait" : ""}" data-video-provider="${v.provider}">` +
+    `<button type="button" class="sap-video-link" tabindex="-1" data-video-src="${escHTML(videoPlayerURL(v))}" data-video-title="${escHTML(frameTitle)}" aria-label="${escHTML(label)}">` +
+    poster + `<span class="sap-video-play" aria-hidden="true"></span><span class="sap-video-caption"><span class="sap-video-title">${escHTML(shown)}</span>` +
+    `<span class="sap-video-source">${escHTML(fmt(VIDEO_TEXT.watch, provider))}</span></span></button></figure>`;
+}
+function videoBlockHTML(text) {
+  const v = videoLine(text);
+  if (!v) return null;
+  const meta = VIDEO_META.get(v.url);
+  const note = meta && meta.mode === "off" && VIDEO_TEXT.off ? `<p class="md-video-note">${escHTML(VIDEO_TEXT.off)}</p>` : "";
+  return `<div class="md-raw md-video" contenteditable="false" data-raw="${escHTML(text)}" data-kind="video" data-label="${escHTML(LABELS.video)}"${meta ? " data-video-ready" : ""}>` +
+    videoFacadeHTML(v, meta || {}) + note + "</div>";
+}
+
+/* ----------------------------------------------------------- image layout --
+![alt](src){width=480 align=left}: the width in pixels and how the image
+sits in the text (content.ImageAttrs). */
+export const IMAGE_ALIGNS = ["left", "right", "center", "full"];
+export const MAX_IMAGE_WIDTH = 4096;
+const reImageAttrs = /^\{([a-z]{1,10}=[a-z0-9]{1,10}(?: [a-z]{1,10}=[a-z0-9]{1,10}){0,3})\}/;
+// parseImageAttrs reads the inside of {width=480 align=left}: null when
+// anything in it is unknown, out of range or repeated.
+export function parseImageAttrs(s) {
+  const out = {}, seen = new Set();
+  for (const part of String(s).split(" ")) {
+    const [k, v] = part.split("=");
+    if (seen.has(k)) return null;
+    seen.add(k);
+    if (k === "width") {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1 || n > MAX_IMAGE_WIDTH || String(n) !== v) return null;
+      out.width = n;
+    } else if (k === "align" && IMAGE_ALIGNS.includes(v)) out.align = v;
+    else return null;
+  }
+  return seen.size ? out : null;
+}
+export function imageAttrsMd(run) {
+  const p = [];
+  if (run.width) p.push("width=" + run.width);
+  if (run.align) p.push("align=" + run.align);
+  return p.length ? "{" + p.join(" ") + "}" : "";
+}
+// imageOp applies an image bar action to an image run: an alignment (the
+// active one again removes it), "original" (no width) or "width".
+export function imageOp(run, op, value) {
+  const r = { ...run };
+  switch (op) {
+    case "left": case "right": case "center":
+      if (r.align === op) delete r.align; else r.align = op;
+      break;
+    case "full":
+      if (r.align === "full") delete r.align; else { r.align = "full"; delete r.width; }
+      break;
+    case "original":
+      delete r.width;
+      if (r.align === "full") delete r.align;
+      break;
+    case "width": {
+      const n = Math.round(Number(value));
+      if (!(n >= 1 && n <= MAX_IMAGE_WIDTH)) return r;
+      r.width = n;
+      if (r.align === "full") delete r.align;
+      break;
+    }
+  }
+  return r;
+}
+// snapWidth rounds a width to tenths of the column, from 10% to 100%.
+export function snapWidth(px, column) {
+  const step = column / 10;
+  if (!(step > 0)) return Math.max(1, Math.min(MAX_IMAGE_WIDTH, Math.round(px)));
+  const n = Math.max(1, Math.min(10, Math.round(px / step)));
+  return Math.max(1, Math.min(MAX_IMAGE_WIDTH, Math.round(n * step)));
+}
+// resizeWidth is the width a corner drag asks for, keeping the image's
+// ratio (height / width): the larger of the horizontal and the vertical
+// movement wins.
+export function resizeWidth(startW, dx, dy, corner, ratio) {
+  const byX = startW + (/e$/.test(corner) ? dx : -dx);
+  const byY = ratio > 0 ? startW + (/^s/.test(corner) ? dy : -dy) / ratio : byX;
+  return Math.abs(byX - startW) >= Math.abs(byY - startW) ? byX : byY;
+}
+// stepWidth is the width delta tenths of the column away (arrow keys).
+export function stepWidth(cur, column, delta) {
+  const step = column / 10;
+  if (!(step > 0)) return snapWidth(cur, column);
+  return snapWidth(Math.max(1, Math.min(10, Math.round(cur / step) + delta)) * step, column);
+}
+// imageHeight is the height of an image shown w wide (as the server rounds).
+export const imageHeight = (w, natW, natH) => (natW > 0 && natH > 0 ? Math.floor((w * natH + Math.floor(natW / 2)) / natW) : 0);
 
 /* ------------------------------------------------------------------ runs -- */
 const sameLink = (a, b) => (!a && !b) || (!!a && !!b && a.href === b.href && (a.title || "") === (b.title || ""));
@@ -172,7 +390,7 @@ function splitRow(line) {
   return cells;
 }
 
-function parseBlocks(lines, ctx) {
+function parseBlocks(lines, ctx, top) {
   const out = [];
   const n = lines.length;
   let i = 0;
@@ -318,7 +536,9 @@ function parseBlocks(lines, ctx) {
         j++;
       }
       const text = buf.map((l) => l.replace(/^[ \t]+/, "")).join("\n").replace(/[ \t]+$/, "");
-      b = level ? { type: "h", level, text } : { type: "p", text };
+      // A video link alone in a top-level paragraph is a player.
+      if (top && !level && buf.length === 1 && videoLine(text)) b = { type: "raw", kind: "video", text };
+      else b = level ? { type: "h", level, text } : { type: "p", text };
       i = j;
     }
     b.l0 = start;
@@ -344,7 +564,7 @@ export function parseMarkdown(src) {
   src = String(src ?? "").replace(/\r\n?/g, "\n").replace(/\u0000/g, "\uFFFD");
   const lines = src.split("\n");
   const ctx = { defs: new Set() };
-  const blocks = parseBlocks(lines, ctx);
+  const blocks = parseBlocks(lines, ctx, true);
   const starts = [];
   let o = 0;
   for (const l of lines) { starts.push(o); o += l.length + 1; }
@@ -538,11 +758,18 @@ function parseInline(src, ctx) {
       if (lk) {
         processEmphasis(delims, op.dl);
         const o = op.img ? { img: true, src: lk.href, title: lk.title } : { l: { href: lk.href, title: lk.title } };
+        let end = lk.end;
+        if (op.img) {
+          // {width=480 align=left} right after the image.
+          const am = reImageAttrs.exec(src.slice(end, end + 100));
+          const at = am && parseImageAttrs(am[1]);
+          if (at) { Object.assign(o, at); end += am[0].length; }
+        }
         op.k = "open";
         op.o = o;
         nodes.push({ k: "close", o });
         if (!op.img) for (const b of brackets) if (!b.img) b.active = false;
-        i = lk.end;
+        i = end;
         continue;
       }
       // Reference links, footnote references and shortcodes stay verbatim.
@@ -596,7 +823,13 @@ function flatten(nodes) {
   };
   const closeM = (o) => {
     if (o.img) {
-      if (img && img.o === o) { runs.push({ a: "img", src: img.src, alt: img.alt.replace(/\s+/g, " ").trim(), title: img.title, m: img.m }); img = null; }
+      if (img && img.o === o) {
+        const run = { a: "img", src: img.src, alt: img.alt.replace(/\s+/g, " ").trim(), title: img.title, m: img.m };
+        if (o.width) run.width = o.width;
+        if (o.align) run.align = o.align;
+        runs.push(run);
+        img = null;
+      }
       return;
     }
     const k = open.lastIndexOf(o);
@@ -753,9 +986,14 @@ function emitNodes(nodes, o, out) {
       out.s += "](" + mdDest(l.href) + mdTitle(l.title) + ")";
     } else if (nd.k === "c") out.s += codeSpan(nd.v, o);
     else if (nd.a === "br") out.s += o.heading || o.cell ? " " : "\\\n";
-    else if (nd.a === "img") out.s += "![" + mdAlt(nd.alt) + "](" + mdDest(nd.src) + mdTitle(nd.title) + ")";
+    else if (nd.a === "img") { out.s += "![" + mdAlt(nd.alt) + "](" + mdDest(nd.src) + mdTitle(nd.title) + ")" + imageAttrsMd(nd); out.img = out.s.length; }
     else if (nd.a === "raw") out.s += o.cell ? nd.v.replace(/\n/g, " ").replace(/\|/g, "\\|") : o.heading ? nd.v.replace(/\n/g, " ") : nd.v;
-    else if (nd.t !== undefined) out.s += escapeText(nd.t, o, out.s);
+    else if (nd.t !== undefined) {
+      const s = escapeText(nd.t, o, out.s);
+      // Text such as "{width=2}" right after an image is not its layout.
+      const am = out.img === out.s.length && reImageAttrs.exec(s);
+      out.s += am && parseImageAttrs(am[1]) ? "\\" + s : s;
+    }
   }
 }
 
@@ -884,6 +1122,12 @@ export function joinTop(entries) {
 /* ======================================================= surface HTML == */
 const safeHref = (h) => !/^\s*(?:javascript|vbscript|data|file):/i.test(h || "");
 const safeSrc = (s) => /^(?:https?:|blob:|data:image\/(?:png|jpe?g|gif|webp|avif);)/i.test(s || "") || !/^\s*[a-z][a-z0-9+.-]*:/i.test(s || "");
+// imgHTML renders an image run; its width and alignment are attributes and
+// the class the site uses (img.align-left floats with the text around it).
+export function imgHTML(nd) {
+  return `<img ${safeSrc(nd.src) ? "src" : "data-src"}="${escHTML(nd.src || "")}" alt="${escHTML(nd.alt || "")}"${nd.title ? ` title="${escHTML(nd.title)}"` : ""}` +
+    `${nd.width ? ` width="${nd.width}"` : ""}${nd.align ? ` data-align="${nd.align}" class="align-${nd.align}"` : ""}>`;
+}
 function nodesHTML(nodes) {
   let s = "";
   for (const nd of nodes) {
@@ -895,7 +1139,7 @@ function nodesHTML(nodes) {
       s += `<a ${safeHref(h) ? "href" : "data-href"}="${escHTML(h)}"${nd.l.title ? ` title="${escHTML(nd.l.title)}"` : ""}${nd.l.auto ? ' data-auto=""' : ""}>${nodesHTML(nd.kids)}</a>`;
     } else if (nd.k === "c") s += "<code>" + escHTML(nd.v) + "</code>";
     else if (nd.a === "br") s += "<br>";
-    else if (nd.a === "img") s += `<img ${safeSrc(nd.src) ? "src" : "data-src"}="${escHTML(nd.src || "")}" alt="${escHTML(nd.alt || "")}"${nd.title ? ` title="${escHTML(nd.title)}"` : ""}>`;
+    else if (nd.a === "img") s += imgHTML(nd);
     else if (nd.a === "raw") s += `<span class="md-raw" contenteditable="false" data-raw="${escHTML(nd.v)}">${escHTML(nd.v)}</span>`;
     else if (nd.t !== undefined) s += escHTML(nd.t);
   }
@@ -935,6 +1179,8 @@ export function blockHTML(b) {
     }
     case "raw": {
       const kind = b.kind || "html";
+      const video = kind === "video" && videoBlockHTML(b.text);
+      if (video) return video;
       return `<div class="md-raw" contenteditable="false" data-raw="${escHTML(b.text)}" data-kind="${kind}" data-label="${escHTML(LABELS[kind] || kind)}">${escHTML(b.text)}</div>`;
     }
   }
@@ -1256,7 +1502,16 @@ function bImage(B, n, m) {
     else if (!/^https?:\/\//i.test(src)) { ctx.images.dropped++; return; }
   }
   if (!src) return;
-  B.runs.push({ a: "img", src, alt, title: ctx.paste ? "" : attr(n, "title") || "", m });
+  B.runs.push({ a: "img", src, alt, title: ctx.paste ? "" : attr(n, "title") || "", m, ...(ctx.paste ? {} : imgLayoutOf(n)) });
+}
+// imgLayoutOf reads the width and alignment that imgHTML rendered.
+function imgLayoutOf(n) {
+  const out = {};
+  const w = attr(n, "width") || "", a = attr(n, "data-align");
+  const at = /^[0-9]{1,4}$/.test(w) && parseImageAttrs("width=" + w);
+  if (at) out.width = at.width;
+  if (IMAGE_ALIGNS.includes(a)) out.align = a;
+  return out;
 }
 function walk(n, m, B) {
   const ctx = B.ctx;
@@ -2065,6 +2320,39 @@ export function exitBlock(blocks) {
   return blocks;
 }
 
+function stripMarkers(blocks) {
+  const strip = (s) => s.replace(/[]/g, "");
+  eachRuns(blocks, (runs) => runs.map((r) => (r.t !== undefined ? { t: strip(r.t), m: r.m } : r)).filter((r) => r.t !== ""), (b) => { b.text = strip(b.text); });
+}
+// insertVideo puts a video block at the caret. Videos are players only at
+// the top level, so inside a list, a quote or a table it goes after them.
+export function insertVideo(blocks, line) {
+  const v = { type: "raw", kind: "video", text: line };
+  const path = locate(blocks, M1);
+  if (!path) { blocks.push(v, { type: "p", runs: [caretRun()] }); return blocks; }
+  const b = path[0].arr[path[0].i];
+  if (path.length === 1 && b.type === "p" && !hasContent(b.runs)) {
+    blocks.splice(path[0].i, 1, v, { type: "p", runs: [caretRun()] });
+    return blocks;
+  }
+  if (path.length === 1 && path[0].row === undefined && (b.type === "p" || b.type === "h")) return insertBlocks(blocks, [v], { blocks: true });
+  stripMarkers(blocks);
+  blocks.splice(path[0].i + 1, 0, v, { type: "p", runs: [caretRun()] });
+  return blocks;
+}
+// pasteVideo turns a video link pasted on an empty top-level line into a
+// video block; null when it does not apply (the text is pasted as usual).
+export function pasteVideo(blocks, text) {
+  const line = String(text ?? "").trim();
+  if (line.includes("\n") || !videoLine(line)) return null;
+  const path = locate(blocks, M1);
+  if (!path || path.length !== 1 || hasSelection(blocks)) return null;
+  const b = path[0].arr[path[0].i];
+  if (b.type !== "p" || hasContent(b.runs)) return null;
+  blocks.splice(path[0].i, 1, { type: "raw", kind: "video", text: line }, { type: "p", runs: [caretRun()] });
+  return blocks;
+}
+
 /* ============================================================== browser == */
 // Everything below runs only on the post editor page. The textarea stays the
 // source of truth: the visual surface is rendered from it and serialized back
@@ -2091,7 +2379,11 @@ function setupEditor() {
   const toolbar = $(".editor-toolbar");
   const say = (k, fb) => root.dataset["msg" + k] || fb;
   // The labels of raw Markdown boxes, in the page language.
-  Object.assign(LABELS, { footnote: say("Footnote", LABELS.footnote), ref: say("LinkRefs", LABELS.ref), shortcode: say("Shortcode", LABELS.shortcode) });
+  Object.assign(LABELS, { footnote: say("Footnote", LABELS.footnote), ref: say("LinkRefs", LABELS.ref), shortcode: say("Shortcode", LABELS.shortcode), video: say("Video", LABELS.video) });
+  Object.assign(VIDEO_TEXT, {
+    watch: say("VideoWatch", VIDEO_TEXT.watch), play: say("VideoPlay", VIDEO_TEXT.play), untitled: say("VideoUntitled", VIDEO_TEXT.untitled),
+    playUntitled: say("VideoPlayUntitled", VIDEO_TEXT.playUntitled), off: say("VideoOff", ""),
+  });
   const csrf = () => (document.querySelector('input[name="csrf"]') || {}).value || "";
   const toast = (category, title) => document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: escHTML(title) } } }));
   const storeKey = "sap13ns:editor-mode:" + (root.dataset.editorUser || "0");
@@ -2201,8 +2493,44 @@ function setupEditor() {
   surface.addEventListener("focusout", () => flushSync());
   // Context bars (code language, table) go away when focus leaves the editor.
   root.addEventListener("focusout", () => setTimeout(() => {
-    if ((popOpen === "code" || popOpen === "table" || popOpen === "raw") && !root.contains(document.activeElement)) closePop(false);
+    if ((popOpen === "code" || popOpen === "table" || popOpen === "raw" || popOpen === "imagebar") && !root.contains(document.activeElement)) closePop(false);
   }, 0));
+
+  /* --------------------------------------------------------------- videos */
+  // Video blocks are rendered at once and filled in with the title and the
+  // poster the server knows (/admin/api/video), once per address.
+  const videoReqs = new Map();
+  function videoInfo(url) {
+    let p = videoReqs.get(url);
+    if (!p) {
+      p = fetch("/admin/api/video?url=" + encodeURIComponent(url), { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null)
+        .then((d) => {
+          if (!d) { videoReqs.delete(url); return null; }
+          const meta = { title: String(d.title || ""), poster: String(d.poster || ""), width: +d.width || 0, height: +d.height || 0, portrait: !!d.portrait, mode: String(d.mode || "") };
+          VIDEO_META.set(url, meta);
+          return meta;
+        });
+      videoReqs.set(url, p);
+    }
+    return p;
+  }
+  function hydrateVideos() {
+    for (const el of surface.querySelectorAll("div.md-video:not([data-video-ready])")) {
+      el.setAttribute("data-video-ready", "");
+      const line = el.getAttribute("data-raw") || "";
+      const v = videoLine(line);
+      if (!v) continue;
+      videoInfo(v.url).then((meta) => {
+        if (!meta || !el.isConnected || el.getAttribute("data-raw") !== line || el.querySelector("iframe")) return;
+        const tpl = document.createElement("template");
+        tpl.innerHTML = blockHTML({ type: "raw", kind: "video", text: line });
+        if (tpl.content.firstChild) el.replaceChildren(...tpl.content.firstChild.childNodes);
+      });
+    }
+  }
+  new MutationObserver(hydrateVideos).observe(surface, { childList: true });
 
   /* ------------------------------------------------------------ selection */
   function curRange() {
@@ -2460,6 +2788,7 @@ function setupEditor() {
   function typed() { clearTimeout(hist.timer); hist.timer = setTimeout(pushState, 700); }
   function endTyping() { if (hist.timer) pushState(); }
   function restore(s) {
+    if (popOpen === "imagebar") closePop(false);
     surface.innerHTML = s.html;
     const a = pathPoint(s.a);
     surface.focus({ preventScroll: true });
@@ -2674,8 +3003,18 @@ function setupEditor() {
     if (text) return { blocks: looksLikeMarkdown(text) ? normalizeHeadings(parseMarkdown(text)) : textToBlocks(text), text, plain: true };
     return { text };
   }
+  // A video link pasted on an empty top-level line becomes a video.
+  function emptyTopLine(r) {
+    const h = r && r.collapsed ? holderOf(r.startContainer) : null;
+    return !!h && h.tagName === "P" && h.parentNode === surface && !stripInvisible(h.textContent).trim() && !h.querySelector("img,[data-raw]");
+  }
   function pasteData(dt) {
     const r = curRange() || useRange();
+    const vt = (dt.getData("text/plain") || "").trim();
+    if (!dt.getData(MIME) && !(dt.files && dt.files.length) && emptyTopLine(r) && videoLine(vt) && !vt.includes("\n")) {
+      command((b) => pasteVideo(b, vt) || b);
+      return;
+    }
     const p = pasteFrom(dt);
     if (r && closest(r.startContainer, "pre")) {
       if (p.text) command((b) => typeText(deleteSelection(b), p.text.replace(/\r\n?/g, "\n")), { wide: false });
@@ -2795,6 +3134,7 @@ function setupEditor() {
     codeblock: () => { const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd); mdInsertBlock("```\n" + sel + "\n```", [4, sel.length]); },
     hr: () => mdInsertBlock("---"),
     table: () => mdInsertBlock("|  |  |  |\n| --- | --- | --- |\n|  |  |  |", [2, 0]),
+    video: () => openVideo(),
   };
   // Paste in Markdown mode: rich HTML becomes Markdown, plain text stays as is.
   ta.addEventListener("paste", (e) => {
@@ -2825,6 +3165,7 @@ function setupEditor() {
   const pops = {};
   $$("[data-editor-pop]").forEach((p) => { pops[p.dataset.editorPop] = p; });
   let popOpen = null, popRange = null, popTarget = null, popReturn = null;
+  let frame = null, frameImg = null, drag = null, videoTarget = null; // image resize frame, video being changed
   function rectOf(r) {
     let rect = r.getBoundingClientRect();
     if (!rect.width && !rect.height) { const h = holderOf(r.startContainer) || elOf(r.startContainer); if (h) rect = h.getBoundingClientRect(); }
@@ -2857,7 +3198,10 @@ function setupEditor() {
     const name = popOpen;
     popOpen = null;
     if (popReturn) popReturn.setAttribute("aria-expanded", "false");
-    if (refocus) {
+    if (name === "imagebar") hideFrame();
+    if (name === "video") videoTarget = null;
+    if (refocus && mode === "markdown") ta.focus({ preventScroll: true });
+    else if (refocus) {
       surface.focus({ preventScroll: true });
       if (popRange) { const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(popRange); }
     }
@@ -2870,7 +3214,7 @@ function setupEditor() {
   document.addEventListener("mousedown", (e) => {
     if (!popOpen || popOpen === "code" || popOpen === "table") return;
     const pop = pops[popOpen];
-    if (pop.contains(e.target) || (popReturn && popReturn.contains(e.target))) return;
+    if (pop.contains(e.target) || (popReturn && popReturn.contains(e.target)) || (frame && frame.contains(e.target))) return;
     closePop(false);
   });
   for (const pop of Object.values(pops)) {
@@ -2986,6 +3330,9 @@ function setupEditor() {
   }
   // Context bars for code blocks, tables and opaque blocks follow the caret.
   function updateContext() {
+    // The image bar stays while its image is selected (or the focus is in
+    // the bar or on a handle, outside the surface).
+    if (popOpen === "imagebar") { const r = curRange(); if (r && !imageSelected(r)) closePop(false); return; }
     if (mode !== "visual" || (popOpen && popOpen !== "code" && popOpen !== "table" && popOpen !== "raw")) return;
     const r = curRange();
     const pre = r && closest(r.startContainer, "pre");
@@ -3046,13 +3393,16 @@ function setupEditor() {
     popTarget = el;
     popReturn = null;
     field(pop, "[data-pop-label]").textContent = el.getAttribute("data-label") || LABELS[el.getAttribute("data-kind")] || say("Markup", "Markup");
-    openPop("raw", el.getBoundingClientRect());
+    const isVideo = el.getAttribute("data-kind") === "video";
+    $$("[data-pop-video-only]", pop).forEach((b) => { b.hidden = !isVideo; });
+    openPop("raw", el.getBoundingClientRect(), isVideo ? "above" : undefined);
     popTarget = el;
   }
   if (pops.raw) {
     pops.raw.addEventListener("click", (e) => {
       const el = popTarget;
       if (!el || !el.isConnected) { closePop(false); return; }
+      if (e.target.closest("[data-pop-change]")) { openVideo(el); return; }
       if (e.target.closest("[data-pop-source]")) {
         flushSync();
         const seg = segMap.get(topOf(el));
@@ -3077,14 +3427,243 @@ function setupEditor() {
     });
   }
 
+  // The video popover inserts a video (toolbar, both modes) or changes the
+  // address of one (target: its block).
+  function openVideo(target) {
+    const pop = pops.video;
+    if (!pop) return;
+    const btn = $('[data-md="video"]');
+    if (popOpen === "video" && !target) { closePop(true); return; }
+    closePop(false);
+    if (mode === "visual" && !target) { const r = useRange(); popRange = r ? r.cloneRange() : null; }
+    const input = field(pop, "[data-pop-video]");
+    const cur = target ? videoLine(target.getAttribute("data-raw")) : null;
+    input.value = cur ? cur.url : "";
+    field(pop, "[data-pop-error]").hidden = true;
+    popReturn = target ? null : btn;
+    if (popReturn) popReturn.setAttribute("aria-expanded", "true");
+    openPop("video", (target || btn || toolbar).getBoundingClientRect(), target ? "above" : undefined);
+    videoTarget = target || null;
+    input.focus();
+    input.select();
+  }
+  function applyVideo() {
+    const pop = pops.video;
+    const input = field(pop, "[data-pop-video]");
+    const res = checkVideo(input.value);
+    if (!res.ok) {
+      const err = field(pop, "[data-pop-error]");
+      err.textContent = say("BadVideo", "Enter a YouTube or Vimeo address.");
+      err.hidden = false;
+      input.focus();
+      return;
+    }
+    const target = videoTarget;
+    closePop(false);
+    if (target && target.isConnected) { changeVideo(target, res); return; }
+    if (mode === "markdown") { ta.focus({ preventScroll: true }); mdInsertBlock(res.line); return; }
+    restorePopRange();
+    command((b) => insertVideo(deleteSelection(b), res.line));
+  }
+  // changeVideo gives a video block a new address. A [video] shortcode keeps
+  // its start and title.
+  function changeVideo(el, res) {
+    const old = el.getAttribute("data-raw") || "";
+    let line = res.line;
+    const was = videoLine(old);
+    if (was && was.shortcode && !res.video.shortcode) line = old.replace(/(\surl=)(?:"[^"]*"|'[^']*'|[^\s\]"']+)/, (_, p) => p + '"' + res.video.url + '"');
+    if (!videoLine(line)) line = res.line;
+    place([el], blockHTML({ type: "raw", kind: "video", text: line }));
+    fixStructure();
+    touch();
+    pushState();
+  }
+  if (pops.video) {
+    pops.video.addEventListener("click", (e) => {
+      if (e.target.closest("[data-pop-apply]")) applyVideo();
+      else if (e.target.closest("[data-pop-cancel]")) closePop(true);
+    });
+    pops.video.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); applyVideo(); } });
+    field(pops.video, "[data-pop-video]").addEventListener("input", () => { field(pops.video, "[data-pop-error]").hidden = true; });
+  }
+
+  /* --------------------------------------------------------- image layout */
+  // Clicking an image selects it: a frame with four resize handles goes over
+  // it and the image bar above it sets the alignment and the width. Widths
+  // snap to tenths of the column; the image keeps its ratio.
+  function columnOf(img) {
+    const box = holderOf(img) || surface;
+    const cs = getComputedStyle(box);
+    return Math.max(1, box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0));
+  }
+  function ensureFrame() {
+    if (frame) return frame;
+    frame = document.createElement("div");
+    frame.className = "editor-img-frame";
+    frame.hidden = true;
+    for (const c of ["nw", "ne", "sw", "se"]) {
+      const h = document.createElement("span");
+      h.className = "editor-img-handle";
+      h.dataset.corner = c;
+      h.tabIndex = 0;
+      h.setAttribute("role", "slider");
+      h.setAttribute("aria-label", say("ResizeImage", "Resize image"));
+      h.setAttribute("aria-valuemin", "10");
+      h.setAttribute("aria-valuemax", "100");
+      frame.appendChild(h);
+    }
+    const size = document.createElement("span");
+    size.className = "editor-img-size";
+    size.setAttribute("aria-hidden", "true");
+    frame.appendChild(size);
+    root.appendChild(frame);
+    frame.addEventListener("pointerdown", (e) => {
+      const h = e.target.closest("[role=slider]");
+      if (!h || !frameImg || e.button !== 0) return;
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
+      const r = frameImg.getBoundingClientRect();
+      drag = { h, id: e.pointerId, x: e.clientX, y: e.clientY, w: r.width, ratio: r.width ? r.height / r.width : 0, col: columnOf(frameImg), corner: h.dataset.corner, last: 0 };
+      frame.classList.add("is-resizing");
+    });
+    frame.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id || !frameImg) return;
+      const w = snapWidth(resizeWidth(drag.w, e.clientX - drag.x, e.clientY - drag.y, drag.corner, drag.ratio), drag.col);
+      if (w === drag.last) return;
+      drag.last = w;
+      frameImg.setAttribute("width", String(w));
+      frameImg.classList.remove("align-full");
+      placeFrame();
+    });
+    const endDrag = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const { h, last } = drag;
+      drag = null;
+      frame.classList.remove("is-resizing");
+      if (last) applyImageOp("width", last);
+      h.focus({ preventScroll: true });
+    };
+    frame.addEventListener("pointerup", endDrag);
+    frame.addEventListener("pointercancel", endDrag);
+    frame.addEventListener("keydown", (e) => {
+      if (!e.target.closest("[role=slider]") || !frameImg) return;
+      if (e.key === "Escape") { e.preventDefault(); closePop(true); return; }
+      const delta = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1, Home: -10, End: 10 }[e.key];
+      if (!delta) return;
+      e.preventDefault();
+      const cur = +frameImg.getAttribute("width") || frameImg.getBoundingClientRect().width;
+      applyImageOp("width", stepWidth(cur, columnOf(frameImg), delta));
+    });
+    window.addEventListener("resize", () => { if (frameImg) requestAnimationFrame(placeFrame); });
+    return frame;
+  }
+  function hideFrame() {
+    frameImg = null;
+    drag = null;
+    if (frame) { frame.hidden = true; frame.classList.remove("is-resizing"); }
+  }
+  function placeFrame() {
+    if (!frame || !frameImg) return;
+    if (!frameImg.isConnected) { closePop(false); return; }
+    const rr = root.getBoundingClientRect(), ir = frameImg.getBoundingClientRect();
+    frame.hidden = false;
+    frame.style.left = Math.round(ir.left - rr.left) + "px";
+    frame.style.top = Math.round(ir.top - rr.top) + "px";
+    frame.style.width = Math.round(ir.width) + "px";
+    frame.style.height = Math.round(ir.height) + "px";
+    const w = +frameImg.getAttribute("width") || Math.round(ir.width);
+    const text = w + " px";
+    frame.querySelector(".editor-img-size").textContent = text;
+    const pct = Math.max(10, Math.min(100, Math.round(w / columnOf(frameImg) * 10) * 10));
+    for (const h of frame.querySelectorAll("[role=slider]")) { h.setAttribute("aria-valuenow", String(pct)); h.setAttribute("aria-valuetext", text); }
+    if (popOpen === "imagebar") position(pops.imagebar, ir, "above");
+  }
+  function selectImage(img) {
+    frameImg = img;
+    const r = document.createRange();
+    r.selectNode(img);
+    popRange = r;
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    lastRange = r.cloneRange();
+    if (!img.complete) img.addEventListener("load", () => { if (frameImg === img) placeFrame(); }, { once: true });
+  }
+  // imageSelected: does the range select the framed image (and no text)?
+  const imageSelected = (r) => !!frameImg && !r.collapsed && r.intersectsNode(frameImg) && !stripInvisible(r.toString()).trim();
+  function openImageBar(img) {
+    const pop = pops.imagebar;
+    if (!pop) { openImage(img); return; }
+    ensureFrame();
+    closePop(false);
+    popReturn = null;
+    selectImage(img);
+    openPop("imagebar", img.getBoundingClientRect(), "above");
+    frameImg = img;
+    syncImageBar();
+  }
+  function syncImageBar() {
+    const pop = pops.imagebar, img = frameImg;
+    if (!pop || !img) return;
+    const a = img.getAttribute("data-align") || "";
+    $$("[data-img]", pop).forEach((b) => { if (IMAGE_ALIGNS.includes(b.dataset.img)) b.setAttribute("aria-pressed", String(b.dataset.img === a)); });
+    const wi = field(pop, "[data-img-width]");
+    if (document.activeElement !== wi) wi.value = img.getAttribute("width") || "";
+    placeFrame();
+  }
+  const imageRunOf = (img) => { const b = readNodes([img])[0]; const r = b && b.runs && b.runs[0]; return r && r.a === "img" ? r : null; };
+  // applyImageOp changes the framed image (see imageOp) and renders it anew.
+  function applyImageOp(op, value) {
+    const img = frameImg;
+    if (!img || !img.isConnected) { closePop(false); return; }
+    const run = imageRunOf(img);
+    if (!run) return;
+    const tpl = document.createElement("template");
+    tpl.innerHTML = imgHTML(imageOp(run, op, value));
+    const fresh = tpl.content.firstChild;
+    img.replaceWith(fresh);
+    selectImage(fresh);
+    touch();
+    pushState();
+    syncImageBar();
+  }
+  if (pops.imagebar) {
+    pops.imagebar.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-img]");
+      if (!b) return;
+      const op = b.dataset.img, img = frameImg;
+      if (op === "alt") { if (img && img.isConnected) openImage(img); return; }
+      if (op === "remove") { closePop(false); restorePopRange(); if (img && img.isConnected) command(deleteSelection, { wide: false }); return; }
+      applyImageOp(op);
+    });
+    const wi = field(pops.imagebar, "[data-img-width]");
+    const setWidth = () => {
+      const v = wi.value.trim();
+      if (!v) { applyImageOp("original"); return; }
+      const n = Math.round(Number(v));
+      if (n >= 1 && n <= MAX_IMAGE_WIDTH) applyImageOp("width", n);
+      else wi.value = frameImg ? frameImg.getAttribute("width") || "" : "";
+    };
+    wi.addEventListener("change", setWidth);
+    wi.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); setWidth(); } });
+  }
+
   /* ---------------------------------------------------------- surface UI */
   surface.addEventListener("mousedown", (e) => {
     const li = e.target.closest && e.target.closest("li[data-checked]");
     if (li && e.target === li && e.clientX < li.getBoundingClientRect().left) { e.preventDefault(); toggleTask(li); }
   });
   surface.addEventListener("click", (e) => {
+    // A video plays on click (static/video.js leaves the editor's to it).
+    const vid = e.target.closest && e.target.closest("div.md-video");
+    if (vid && inSurface(vid)) {
+      const btn = e.target.closest(".sap-video-link");
+      if (btn && window.sapVideo) window.sapVideo.play(btn);
+      openRaw(vid);
+      return;
+    }
     const img = e.target.closest && e.target.closest("img");
-    if (img && inSurface(img)) { openImage(img); return; }
+    if (img && inSurface(img) && !img.closest("[data-raw]")) { openImageBar(img); return; }
     const raw = e.target.closest && e.target.closest("[data-raw]");
     if (raw && inSurface(raw)) { openRaw(raw); return; }
     const a = e.target.closest && e.target.closest("a[href]");
@@ -3142,6 +3721,7 @@ function setupEditor() {
       case "codeblock": return command(toggleCodeBlock);
       case "hr": return command((b) => insertBlocks(deleteSelection(b), [{ type: "hr" }], { blocks: true }));
       case "table": return command((b) => insertBlocks(deleteSelection(b), [newTable(3, 3)], { blocks: true }));
+      case "video": return openVideo();
       case "undo": return undo();
       case "redo": return redo();
     }

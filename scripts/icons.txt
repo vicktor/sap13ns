@@ -1,5 +1,8 @@
 # Lucide icons embedded in the binary. Add a name and run `npm run build`.
 activity
+align-center
+align-left
+align-right
 archive
 arrow-down
 arrow-left
@@ -130,6 +133,7 @@ rocket
 rotate-ccw
 rss
 save
+scaling
 scan-eye
 search
 send
@@ -146,7 +150,9 @@ sparkle
 sparkles
 square-code
 square-pen
+square-play
 star
+stretch-horizontal
 strikethrough
 sun
 sun-moon

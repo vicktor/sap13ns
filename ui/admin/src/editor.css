@@ -206,3 +206,64 @@
 .editor-menu .menu-h2 { font-size: 1.05rem; font-weight: 600; }
 .editor-menu .menu-h3 { font-size: 0.95rem; font-weight: 600; }
 .editor-menu .menu-h4 { font-size: 0.875rem; font-weight: 600; }
+
+/* ----------------------------------------------------------------- videos
+   A video block shows the site's click-to-load player (shared media.css)
+   inside the opaque box; a click plays it and opens the video bar. */
+.editor-visual div.md-raw.md-video {
+  padding: 0.4rem;
+  white-space: normal;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: default;
+}
+.editor-visual div.md-video::before { margin: 0.1rem 0.2rem 0.4rem; }
+.editor-visual div.md-video figure.sap-video { margin-block: 0; }
+.editor-visual .md-video-note { margin: 0.4rem 0.2rem 0.1rem; font-size: 0.75rem; color: var(--muted-foreground); }
+.editor-pop-hint { font-size: 0.75rem; color: var(--muted-foreground); }
+
+/* ------------------------------------------------------------ image layout
+   The frame over a selected image: four corner handles resize it (drag, or
+   the arrow keys on a focused handle) and a badge shows its width. */
+.editor-img-frame {
+  --handle: 0.8rem;
+  position: absolute;
+  z-index: 15;
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  pointer-events: none;
+}
+.editor-img-frame[hidden] { display: none; }
+@media (pointer: coarse) { .editor-img-frame { --handle: 1.25rem; } }
+.editor-img-handle {
+  position: absolute;
+  width: var(--handle);
+  height: var(--handle);
+  border: 2px solid var(--primary);
+  border-radius: 0.2rem;
+  background: var(--card);
+  pointer-events: auto;
+  touch-action: none;
+}
+.editor-img-handle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.editor-img-handle[data-corner="nw"] { top: calc(var(--handle) / -2); left: calc(var(--handle) / -2); cursor: nwse-resize; }
+.editor-img-handle[data-corner="ne"] { top: calc(var(--handle) / -2); right: calc(var(--handle) / -2); cursor: nesw-resize; }
+.editor-img-handle[data-corner="sw"] { bottom: calc(var(--handle) / -2); left: calc(var(--handle) / -2); cursor: nesw-resize; }
+.editor-img-handle[data-corner="se"] { bottom: calc(var(--handle) / -2); right: calc(var(--handle) / -2); cursor: nwse-resize; }
+.editor-img-size {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  background: rgb(15 23 42 / 0.78);
+  color: #fff;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.editor-img-frame:not(.is-resizing) .editor-img-size { opacity: 0.9; }
+.editor-pop-width { display: inline-flex; align-items: center; gap: 0.3rem; padding-inline: 0.25rem; font-size: 0.75rem; color: var(--muted-foreground); }
+.editor-pop.is-bar .editor-pop-width .input { width: 5.25rem; }
+.editor-pop.is-bar button[aria-pressed="true"] { background: var(--accent); color: var(--accent-foreground); }
