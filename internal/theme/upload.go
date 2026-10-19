@@ -37,6 +37,9 @@ type UploadInfo struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 	UserID     int64     `json:"user_id,omitempty"` // 0 for the command line
 	Source     string    `json:"source"`            // "upload" | "cli"
+	// ImportedFrom is the kind of theme it was converted from
+	// (internal/themeimport: "wordpress-block"); "" for a sap13ns theme.
+	ImportedFrom string `json:"imported_from,omitempty"`
 }
 
 const uploadFile = ".sap13ns-upload.json"
@@ -57,6 +60,9 @@ func readUploadInfo(fsys fs.FS) *UploadInfo {
 type InstallOptions struct {
 	UserID int64
 	Source string // "upload" | "cli"
+	// ImportedFrom: the archive was converted from another CMS's theme
+	// (themeimport's Report.Source).
+	ImportedFrom string
 	// Quota counts the theme's files against the site's storage; nil on a
 	// single-site install and for the command line.
 	Quota Quota
@@ -163,7 +169,7 @@ func (m *Manager) Install(ctx context.Context, r io.ReaderAt, size int64, opts I
 		}
 	}
 	info, err := json.Marshal(UploadInfo{SHA256: res.SHA256, UploadedAt: time.Now().UTC().Truncate(time.Second),
-		UserID: opts.UserID, Source: opts.Source})
+		UserID: opts.UserID, Source: opts.Source, ImportedFrom: opts.ImportedFrom})
 	if err != nil {
 		return nil, err
 	}
