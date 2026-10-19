@@ -63,8 +63,14 @@ func (s AssistantSettings) In(lang string) AssistantText {
 
 const assistantSettingsKey = "assistant"
 
+// DefaultAssistantSettings are the settings of a site that never saved
+// them.
+func DefaultAssistantSettings() AssistantSettings {
+	return AssistantSettings{PerIPHour: 20, DailyRequests: 300, MonthlyRequests: 3000, EmbedProvider: "same"}
+}
+
 func (s *Store) AssistantSettings(ctx context.Context) (AssistantSettings, error) {
-	st := AssistantSettings{PerIPHour: 20, DailyRequests: 300, MonthlyRequests: 3000, EmbedProvider: "same"}
+	st := DefaultAssistantSettings()
 	if err := s.GetJSON(ctx, assistantSettingsKey, &st); err != nil && !errors.Is(err, ErrNotFound) {
 		return st, err
 	}

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
@@ -15,17 +16,11 @@ import (
 // prefix so the router only ever sees unprefixed paths.
 
 // languageNames are endonyms for the languages offered in the settings.
-var languageNames = map[string]string{
-	"ar": "العربية", "ca": "Català", "cs": "Čeština", "da": "Dansk", "de": "Deutsch", "el": "Ελληνικά",
-	"en": "English", "es": "Español", "eu": "Euskara", "fi": "Suomi", "fr": "Français", "gl": "Galego",
-	"he": "עברית", "hi": "हिन्दी", "it": "Italiano", "ja": "日本語", "ko": "한국어", "nb": "Norsk bokmål",
-	"nl": "Nederlands", "pl": "Polski", "pt": "Português", "pt-br": "Português (Brasil)", "ro": "Română",
-	"ru": "Русский", "sv": "Svenska", "tr": "Türkçe", "uk": "Українська", "zh": "中文",
-}
+var languageNames = sitecheck.Languages
 
 var langCodeRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
 
-func validLang(code string) bool { _, ok := languageNames[code]; return ok }
+func validLang(code string) bool { return sitecheck.ValidLang(code) }
 
 // ValidLanguage reports whether code is a language a site can be set to.
 func ValidLanguage(code string) bool { return validLang(code) }

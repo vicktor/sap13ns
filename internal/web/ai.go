@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/content"
 	"sap13ns/internal/media"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
@@ -27,7 +27,7 @@ import (
 // polls. Every call is checked against the user's monthly budget, metered,
 // and written to the audit log. The style linter is local and free.
 
-var aiRoles = []string{auth.RoleContributor, auth.RoleAuthor, auth.RoleEditor, auth.RoleAdmin}
+var aiRoles = sitecheck.AIRoles
 
 type aiState struct {
 	mu       sync.Mutex
@@ -562,26 +562,21 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.MonthlyRequests, st.MonthlyImages = formInt(r, "monthly_requests", 0), formInt(r, "monthly_images", 0)
 	st.ImageStyle = trimmed(r, "image_style")
 	fail := func(msg string) { s.renderAISettings(w, r, http.StatusUnprocessableEntity, st, msg, "") }
-	switch {
-	case !slices.Contains(ai.Providers, st.Provider):
-		fail(s.t("Choose a provider."))
-		return
-	case !slices.Contains(aiRoles, st.MinRole):
-		fail(s.t("Invalid request."))
-		return
-	case st.MonthlyRequests < 0 || st.MonthlyImages < 0 || st.MonthlyRequests > 1_000_000 || st.MonthlyImages > 100_000:
-		fail(s.t("Invalid number."))
-		return
-	case tooLong(st.TextModel, 100) || tooLong(st.ImageModel, 100) || tooLong(st.ImageStyle, 500):
-		fail(s.t("The text is too long."))
-		return
-	}
-	if st.BaseURL != "" {
-		u, err := url.Parse(st.BaseURL)
-		if err != nil || (u.Scheme != "https" && !(u.Scheme == "http" && st.AllowLocal)) || u.Host == "" || u.User != nil {
+	// The rules are shared with restores (sitecheck).
+	if bad := sitecheck.AI(st); len(bad) > 0 {
+		switch bad[0] {
+		case "provider":
+			fail(s.t("Choose a provider."))
+		case "min_role":
+			fail(s.t("Invalid request."))
+		case "monthly_requests", "monthly_images":
+			fail(s.t("Invalid number."))
+		case "base_url":
 			fail(s.t("The address must start with https:// (or http://localhost with local models allowed)."))
-			return
+		default:
+			fail(s.t("The text is too long."))
 		}
+		return
 	}
 	if key := strings.TrimSpace(r.FormValue("api_key")); key != "" {
 		if len(key) > 500 {

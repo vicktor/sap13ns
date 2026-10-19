@@ -10,7 +10,6 @@ import (
 	"html/template"
 	"mime"
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"sap13ns/internal/analytics"
 	"sap13ns/internal/assistant"
 	"sap13ns/internal/auth"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
@@ -516,34 +516,23 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 	st.MCPEnabled = r.FormValue("mcp_enabled") == "1"
 
 	fail := func(msg string) { s.renderAssistantSettings(w, r, http.StatusUnprocessableEntity, st, msg, "", "") }
-	tooLongText := tooLong(st.Name, 60) || tooLong(st.Greeting, 300) || tooLong(st.EmbedModel, 100) || tooLong(st.EmbedBaseURL, 300)
-	for _, q := range st.Suggestions {
-		tooLongText = tooLongText || tooLong(q, 120)
-	}
-	for _, t := range st.Text {
-		tooLongText = tooLongText || tooLong(t.Greeting, 300)
-		for _, q := range t.Suggestions {
-			tooLongText = tooLongText || tooLong(q, 120)
+	// The rules are shared with restores (sitecheck).
+	if bad := sitecheck.Assistant(st); len(bad) > 0 {
+		switch bad[0] {
+		case "embed_provider":
+			fail(s.t("Choose a provider."))
+		case "per_ip_hour", "daily_requests", "monthly_requests", "embed_dimensions":
+			fail(s.t("Invalid number."))
+		case "embed_base_url":
+			if tooLong(st.EmbedBaseURL, 300) {
+				fail(s.t("The text is too long."))
+			} else {
+				fail(s.t("The address must start with https:// (or http://localhost with local models allowed)."))
+			}
+		default:
+			fail(s.t("The text is too long."))
 		}
-	}
-	switch {
-	case !slices.Contains([]string{"same", "none", ai.ProviderOpenAI, ai.ProviderGemini}, st.EmbedProvider):
-		fail(s.t("Choose a provider."))
 		return
-	case st.PerIPHour < 0 || st.PerIPHour > 10_000 || st.DailyRequests < 0 || st.DailyRequests > 1_000_000 ||
-		st.MonthlyRequests < 0 || st.MonthlyRequests > 10_000_000 || st.EmbedDimensions < 0 || st.EmbedDimensions > 4000:
-		fail(s.t("Invalid number."))
-		return
-	case tooLongText:
-		fail(s.t("The text is too long."))
-		return
-	}
-	if st.EmbedBaseURL != "" {
-		u, err := url.Parse(st.EmbedBaseURL)
-		if err != nil || (u.Scheme != "https" && !(u.Scheme == "http" && st.EmbedAllowLocal)) || u.Host == "" || u.User != nil {
-			fail(s.t("The address must start with https:// (or http://localhost with local models allowed)."))
-			return
-		}
 	}
 	if key := strings.TrimSpace(r.FormValue("embed_api_key")); key != "" {
 		if len(key) > 500 {

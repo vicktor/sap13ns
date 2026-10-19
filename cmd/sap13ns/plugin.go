@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -20,6 +21,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"sap13ns/internal/config"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/pluginskel"
 )
@@ -253,25 +255,11 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 		return err
 	}
 	defer t.close()
-	st := t.store
-	settings, err := st.LoadSettings(ctx)
-	if err != nil {
-		return err
-	}
-	site := func() plugin.SiteInfo {
-		return plugin.SiteInfo{URL: t.cfg.BaseURL.String(), Title: settings.SiteTitle, Language: settings.Language, Timezone: settings.Timezone}
-	}
-	// The compilation cache and the blocklist are the install's (a
-	// network's are shared by its sites), the plugins the site's.
-	host, err := plugin.NewHost(ctx, t.cfg.PluginsDir, filepath.Join(cfg.DataDir, "cache", "wasm"), st, log, site, nil)
+	host, err := sitePluginHost(ctx, cfg, t, log)
 	if err != nil {
 		return err
 	}
 	defer host.Close(context.WithoutCancel(ctx))
-	host.SetBlocklistFile(filepath.Join(cfg.DataDir, "plugin-blocklist.txt"))
-	if err := host.Load(ctx); err != nil {
-		return err
-	}
 
 	if sub == "list" {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
@@ -392,4 +380,27 @@ func termSafe(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// sitePluginHost loads the plugins of the site t, as its server does.
+// The compilation cache and the blocklist are the install's (a network's
+// are shared by its sites), the plugins the site's.
+func sitePluginHost(ctx context.Context, cfg *config.Config, t *target, log *slog.Logger) (*plugin.Host, error) {
+	settings, err := t.store.LoadSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	site := func() plugin.SiteInfo {
+		return plugin.SiteInfo{URL: t.cfg.BaseURL.String(), Title: settings.SiteTitle, Language: settings.Language, Timezone: settings.Timezone}
+	}
+	host, err := plugin.NewHost(ctx, t.cfg.PluginsDir, filepath.Join(cfg.DataDir, "cache", "wasm"), t.store, log, site, nil)
+	if err != nil {
+		return nil, err
+	}
+	host.SetBlocklistFile(filepath.Join(cfg.DataDir, "plugin-blocklist.txt"))
+	if err := host.Load(ctx); err != nil {
+		host.Close(context.WithoutCancel(ctx))
+		return nil, err
+	}
+	return host, nil
 }

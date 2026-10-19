@@ -27,8 +27,13 @@ type AISettings struct {
 
 const aiSettingsKey = "ai"
 
+// DefaultAISettings are the settings of a site that never saved them.
+func DefaultAISettings() AISettings {
+	return AISettings{Provider: "anthropic", MinRole: "author", MonthlyRequests: 300, MonthlyImages: 30}
+}
+
 func (s *Store) AISettings(ctx context.Context) (AISettings, error) {
-	st := AISettings{Provider: "anthropic", MinRole: "author", MonthlyRequests: 300, MonthlyImages: 30}
+	st := DefaultAISettings()
 	if err := s.GetJSON(ctx, aiSettingsKey, &st); err != nil && !errors.Is(err, ErrNotFound) {
 		return st, err
 	}

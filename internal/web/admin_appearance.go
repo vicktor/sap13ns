@@ -3,13 +3,13 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"sap13ns/internal/plugin"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -198,16 +198,7 @@ func (s *Server) adminMenus(w http.ResponseWriter, r *http.Request) {
 }
 
 // validMenuURL accepts site-relative paths, fragments and http(s) links.
-func validMenuURL(u string) bool {
-	if u == "" || len(u) > 1000 || strings.ContainsAny(u, "\r\n\t ") {
-		return false
-	}
-	if strings.HasPrefix(u, "/") && !strings.HasPrefix(u, "//") || strings.HasPrefix(u, "#") {
-		return true
-	}
-	p, err := url.Parse(u)
-	return err == nil && (p.Scheme == "https" || p.Scheme == "http") && p.Host != ""
-}
+func validMenuURL(u string) bool { return sitecheck.MenuURL(u) }
 
 func (s *Server) adminMenuAdd(w http.ResponseWriter, r *http.Request) {
 	th := s.themes.Active(s.settings().ActiveTheme)
@@ -240,7 +231,7 @@ func (s *Server) adminMenuAdd(w http.ResponseWriter, r *http.Request) {
 		}
 	default:
 		label, link := trimmed(r, "label"), trimmed(r, "url")
-		if label == "" || tooLong(label, 100) || !validMenuURL(link) {
+		if !sitecheck.MenuItem(label, link) {
 			s.redirect(w, r, back, "error", s.t("Enter a label and a valid link (/path or https://…)."))
 			return
 		}
@@ -264,7 +255,7 @@ func (s *Server) adminMenuUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	label, link := trimmed(r, "label"), trimmed(r, "url")
-	if label == "" || tooLong(label, 100) || !validMenuURL(link) {
+	if !sitecheck.MenuItem(label, link) {
 		s.redirect(w, r, menusPath(s.menuScope(r)), "error", s.t("Enter a label and a valid link (/path or https://…)."))
 		return
 	}
@@ -361,22 +352,7 @@ func (s *Server) validWidgetKind(kind string) bool {
 
 // widgetConfig reads the per-kind settings from the form.
 func widgetConfig(r *http.Request, kind string) map[string]string {
-	cfg := map[string]string{}
-	switch kind {
-	case "recent_posts":
-		n := formInt(r, "count", 5)
-		if n < 1 || n > 20 {
-			n = 5
-		}
-		cfg["count"] = strconv.Itoa(n)
-	case "text":
-		t := r.FormValue("text")
-		if len(t) > 10000 {
-			t = t[:10000]
-		}
-		cfg["text"] = t
-	}
-	return cfg
+	return sitecheck.WidgetConfig(kind, map[string]string{"count": strings.TrimSpace(r.FormValue("count")), "text": r.FormValue("text")})
 }
 
 // widgetLang is the language a widget is limited to ("" = every language).

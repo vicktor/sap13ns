@@ -98,6 +98,7 @@ type Server struct {
 	backupHooks BackupHooks    // a site of a network: its name, and the reload after a restore (backups.go)
 	netBackups  NetworkBackups // the portal: the network's nightly backups
 	backupNow   *auth.Limiter  // backups started from Tools → Backups
+	webSub      *http.Client   // tests: the client of WebSub pings (webSubClient)
 	ssoFailures *auth.Limiter  // failed single sign-on callbacks, per IP
 	checkout    *auth.Limiter  // Checkout and Customer Portal sessions, per account
 	// DNS checks and additions of custom domains, per account

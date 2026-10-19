@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -318,6 +319,28 @@ func TestHooks(t *testing.T) {
 		h.Load(ctx)
 		if v := h.pluginSettings(h.Get("pii"))["api_key"]; v != "" || !hasLog(h.Get("pii"), "cannot decrypt") {
 			t.Fatalf("secret moved to another plugin decrypts to %q", v)
+		}
+	})
+
+	t.Run("restored settings", func(t *testing.T) {
+		current := map[string]string{"api_key": "enc1:mine", "copy_to": "copy@example.test", emailMark + "copy_to": "1",
+			"mode": "a", "limit": "10", "site": "https://example.test/"}
+		restored := map[string]string{"api_key": "enc1:theirs", "copy_to": "thief@example.org", emailMark + "copy_to": "1",
+			"mode": "c", "limit": "20", "site": "http://127.0.0.1/", "starts": "2026-07-01T10:00", "undeclared": "x"}
+		out, refused, ok := h.RestoreSettings("hooks", restored, current)
+		if !ok {
+			t.Fatal("hooks is installed")
+		}
+		want := map[string]string{"api_key": "enc1:mine", "copy_to": "copy@example.test", emailMark + "copy_to": "1",
+			"mode": "a", "limit": "20", "site": "https://example.test/", "starts": "2026-07-01T10:00"}
+		if !maps.Equal(out, want) || !slices.Equal(refused, []string{"Mode", "Site"}) {
+			t.Fatalf("restored %v, refused %v", out, refused)
+		}
+		if _, _, ok := h.RestoreSettings("not-installed", restored, current); ok {
+			t.Error("a plugin that is not installed")
+		}
+		if !h.WidgetKnown("plugin:hooks:info") || h.WidgetKnown("plugin:hooks:nope") || h.WidgetKnown("text") {
+			t.Error("WidgetKnown")
 		}
 	})
 

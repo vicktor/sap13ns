@@ -12,6 +12,7 @@ import (
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/plugin"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
@@ -75,10 +76,6 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	for _, l := range st.Languages {
 		t := store.SiteText{SiteTitle: trimmed(r, "text_"+l+"_title"), Tagline: trimmed(r, "text_"+l+"_tagline"),
 			FooterText: trimmed(r, "text_"+l+"_footer")}
-		if tooLong(t.SiteTitle, 120) || tooLong(t.Tagline, 250) || tooLong(t.FooterText, 1000) {
-			s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.t("The text is too long."))
-			return
-		}
 		if t != (store.SiteText{}) {
 			st.SiteText[l] = t
 		}
@@ -100,61 +97,53 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.AIAccess, st.AnalyticsOff = r.FormValue("ai_access"), !on("analytics")
 	st.SessionDays, st.IdleHours = formInt(r, "session_days", 14), formInt(r, "idle_hours", 48)
 
-	fail := func(msg string) { s.renderSettings(w, r, http.StatusUnprocessableEntity, st, msg) }
-	switch {
-	case st.SiteTitle == "" || tooLong(st.SiteTitle, 120):
-		fail(s.t("The site title is required (120 characters max)."))
-	case tooLong(st.Tagline, 250) || tooLong(st.FooterText, 1000):
-		fail(s.t("The text is too long."))
-	case !validLang(st.Language):
-		fail(s.t("Invalid request."))
-	case !validZone(st.Timezone):
-		fail(s.t("Unknown time zone."))
-	case st.PostsPerPage < 1 || st.PostsPerPage > 100:
-		fail(s.t("Posts per page must be between 1 and 100."))
-	case st.FrontPage != FrontPosts && st.FrontPage != FrontPage && st.FrontPage != FrontTheme:
-		fail(s.t("Invalid request."))
-	case st.FrontPage == "page" && !s.publicPage(r, st.FrontPageID):
-		fail(s.t("Choose a published page for the front page."))
-	case !slices.Contains([]string{"all", "returning", "none"}, st.CommentModeration):
-		fail(s.t("Invalid request."))
-	case st.CommentsCloseDays < 0 || st.CommentsCloseDays > 3650:
-		fail(s.t("Invalid number of days."))
-	case !slices.Contains([]string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, st.DefaultRole):
-		fail(s.t("Invalid request."))
-	case st.FeedItems < 1 || st.FeedItems > 100:
-		fail(s.t("Feed items must be between 1 and 100."))
-	case st.WebSubHub != "" && (!strings.HasPrefix(st.WebSubHub, "https://") || !validHTTPURL(st.WebSubHub)):
-		fail(s.t("The WebSub hub must be an https:// address."))
-	case !slices.Contains([]string{"staff", "editors"}, st.TwoFactor):
-		fail(s.t("Invalid request."))
-	case !slices.Contains([]string{"classic", "bold", "minimal", "off"}, st.OGCards):
-		fail(s.t("Invalid request."))
-	case st.OGAccent != "" && !hexColorRe.MatchString(st.OGAccent):
-		fail(s.t("Use a colour like #3f068b."))
-	case !slices.Contains([]string{"open", "no-training", "block"}, st.AIAccess):
-		fail(s.t("Invalid request."))
-	case st.SessionDays < 1 || st.SessionDays > 90:
-		fail(s.t("Session length must be between 1 and 90 days."))
-	case st.IdleHours < 1 || st.IdleHours > 24*90:
-		fail(s.t("Idle timeout must be between 1 and 2160 hours."))
-	default:
-		if err := s.saveSettings(r, st); err != nil {
-			s.serverError(w, r, err)
-			return
-		}
-		s.audit(r, uid(r), "settings.saved", "", nil)
-		s.redirect(w, r, "/admin/settings", "success", s.t("Settings saved."))
+	// The rules are shared with restores (sitecheck). The active theme is
+	// not on this page: an uninstalled one must not block it.
+	if bad := sitecheck.Settings(st, sitecheck.Site{PublicPage: func(id int64) bool { return s.publicPage(r, id) }}); len(bad) > 0 {
+		s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.settingsError(bad[0], st))
+		return
 	}
+	if err := s.saveSettings(r, st); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.audit(r, uid(r), "settings.saved", "", nil)
+	s.redirect(w, r, "/admin/settings", "success", s.t("Settings saved."))
 }
 
-func validZone(z string) bool {
-	if z == "" || len(z) > 64 {
-		return false
+// settingsError explains why the setting field (sitecheck.Settings) was
+// refused.
+func (s *Server) settingsError(field string, st store.Settings) string {
+	switch field {
+	case "site_title":
+		return s.t("The site title is required (120 characters max).")
+	case "tagline", "footer_text", "site_text":
+		return s.t("The text is too long.")
+	case "timezone":
+		return s.t("Unknown time zone.")
+	case "posts_per_page":
+		return s.t("Posts per page must be between 1 and 100.")
+	case "front_page":
+		if st.FrontPage == "page" {
+			return s.t("Choose a published page for the front page.")
+		}
+	case "comments_close_days":
+		return s.t("Invalid number of days.")
+	case "feed_items":
+		return s.t("Feed items must be between 1 and 100.")
+	case "websub_hub":
+		return s.t("The WebSub hub must be an https:// address.")
+	case "og_accent":
+		return s.t("Use a colour like #3f068b.")
+	case "session_days":
+		return s.t("Session length must be between 1 and 90 days.")
+	case "idle_hours":
+		return s.t("Idle timeout must be between 1 and 2160 hours.")
 	}
-	_, err := time.LoadLocation(z)
-	return err == nil
+	return s.t("Invalid request.")
 }
+
+func validZone(z string) bool { return sitecheck.ValidZone(z) }
 
 func (s *Server) publicPage(r *http.Request, id int64) bool {
 	if id <= 0 {

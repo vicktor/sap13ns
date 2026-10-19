@@ -361,7 +361,8 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		res := &backupResult{UserID: u.ID, Restore: true}
 		rep, err := sitebackup.Restore(ctx, s.store, a.Path, sitebackup.RestoreOptions{Options: o, Replace: true, ActorID: u.ID,
-			CheckRedirect: CheckRestoredRedirect})
+			CheckRedirect: CheckRestoredRedirect, Plugins: s.pluginRules(),
+			Theme: func(slug string) bool { _, ok := s.themes.Get(slug); return ok }})
 		details := map[string]string{}
 		if err != nil {
 			s.log.Error("site restore", "archive", a.Name, "err", err)
@@ -393,6 +394,14 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		s.finishBackupJob(res)
 	})
 	s.redirect(w, r, "/admin/tools/backups", "success", s.t("The restore has started. This page shows its result when it has finished."))
+}
+
+// pluginRules checks the plugin settings and widgets of a restore.
+func (s *Server) pluginRules() sitebackup.PluginRules {
+	if s.plugins == nil {
+		return nil
+	}
+	return s.plugins
 }
 
 // restoreReauth checks that the administrator restoring is who they say:

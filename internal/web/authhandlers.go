@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"net/mail"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
-var usernameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{2,31}$`)
+var usernameRe = sitecheck.Username
 
-var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+var hexColorRe = sitecheck.HexColor
 
 type authForm struct {
 	Error             string

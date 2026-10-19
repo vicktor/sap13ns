@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -1006,6 +1007,65 @@ func (h *Host) SaveSettings(ctx context.Context, id string, values map[string]st
 		return err
 	}
 	return h.Load(ctx)
+}
+
+// RestoreSettings merges the settings a backup holds for plugin id into
+// its current ones, with the rules of SaveSettings: only settings the
+// manifest declares, each cleaned like a submitted value. Secrets and
+// e-mail addresses (which backups never hold) stay as they are here, and
+// so does a value that does not validate. It returns the settings, the
+// labels of the values refused, and false when the plugin is not
+// installed here.
+func (h *Host) RestoreSettings(id string, restored, current map[string]string) (map[string]string, []string, bool) {
+	p := h.Get(id)
+	if p == nil || p.Record == nil {
+		return nil, nil, false
+	}
+	out := map[string]string{}
+	var refused []string
+	for _, s := range p.Settings {
+		old, stored := current[s.Key]
+		keep := func() {
+			if stored {
+				out[s.Key] = old
+			}
+			if m := current[emailMark+s.Key]; s.Type == "email" && m != "" {
+				out[emailMark+s.Key] = m
+			}
+		}
+		v, ok := restored[s.Key]
+		if !ok || s.Type == "secret" || s.Type == "email" || strings.HasPrefix(v, secretPrefix) || restored[emailMark+s.Key] != "" {
+			keep()
+			continue
+		}
+		v, err := h.cleanSetting(s, v)
+		if err != nil {
+			refused = append(refused, cmp.Or(s.Label, s.Key))
+			keep()
+			continue
+		}
+		out[s.Key] = v
+	}
+	return out, refused, true
+}
+
+// WidgetKnown reports whether an installed plugin has the widget kind
+// ("plugin:<id>:<widget>").
+func (h *Host) WidgetKnown(kind string) bool {
+	parts := strings.SplitN(kind, ":", 3)
+	if len(parts) != 3 || parts[0] != "plugin" {
+		return false
+	}
+	p := h.Get(parts[1])
+	if p == nil {
+		return false
+	}
+	for _, w := range p.Widgets {
+		if w.ID == parts[2] {
+			return true
+		}
+	}
+	return false
 }
 
 // cleanSetting validates and normalizes one setting or widget config value.

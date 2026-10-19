@@ -25,6 +25,7 @@ import (
 	"sap13ns/internal/i18n"
 	"sap13ns/internal/icons"
 	"sap13ns/internal/plugin"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -782,10 +783,7 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 	done("pending")
 }
 
-func validHTTPURL(raw string) bool {
-	u, err := url.Parse(raw)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && len(raw) <= 300
-}
+func validHTTPURL(raw string) bool { return sitecheck.HTTPURL(raw) }
 
 func truncateStr(s string, n int) string {
 	if len(s) > n {
@@ -796,7 +794,7 @@ func truncateStr(s string, n int) string {
 
 // --------------------------------------------------------------- widgets --
 
-var builtinWidgets = []string{"recent_posts", "categories", "tags", "archives", "search", "feeds", "text"}
+var builtinWidgets = sitecheck.BuiltinWidgets
 
 func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData, pd *PageData) map[string][]WidgetView {
 	out := map[string][]WidgetView{}

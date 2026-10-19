@@ -10,6 +10,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/content"
 	"sap13ns/internal/feed"
+	"sap13ns/internal/netguard"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 )
@@ -148,14 +149,33 @@ func escapeAttr(s string) string {
 	return strings.NewReplacer(`&`, "&amp;", `"`, "&quot;", `<`, "&lt;", `>`, "&gt;").Replace(s)
 }
 
+// webSubClient pings WebSub hubs. The hub is a setting, so it only dials
+// public addresses (netguard, as plugin fetches do), over https, and
+// follows no redirect.
+var webSubClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		DialContext:           netguard.Dialer(nil, nil, 5*time.Second),
+		Proxy:                 nil,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 8 * time.Second,
+		MaxIdleConns:          4,
+		IdleConnTimeout:       30 * time.Second,
+	},
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 // pingWebSub notifies the configured hub that the feeds changed.
 func (s *Server) pingWebSub() {
 	hub := s.settings().WebSubHub
-	if hub == "" {
+	if hub == "" || !strings.HasPrefix(hub, "https://") || !validHTTPURL(hub) {
 		return
 	}
 	s.goJob(func() {
-		client := &http.Client{Timeout: 10 * time.Second}
+		client := s.webSub
+		if client == nil {
+			client = webSubClient
+		}
 		var feeds []string
 		for _, l := range s.siteLangs() {
 			for _, f := range []string{"/feed.xml", "/feed.atom", "/feed.json"} {

@@ -14,15 +14,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/backup"
 	"sap13ns/internal/builder"
 	"sap13ns/internal/customize"
 	"sap13ns/internal/media"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 	"sap13ns/internal/wpimport"
 )
@@ -44,6 +45,21 @@ type RestoreOptions struct {
 	// redirect (st is the restore's transaction, where the restored posts
 	// are), returning it normalised or an error to leave it out. Required.
 	CheckRedirect func(ctx context.Context, st *store.Store, mainLang, source, target string, status int) (string, string, error)
+	// Plugins checks the settings and widgets of plugins against the
+	// manifests of those installed here (*plugin.Host). Nil leaves them
+	// out, with a warning.
+	Plugins PluginRules
+	// Theme reports whether a theme is installed here. Nil checks the
+	// active theme's name only.
+	Theme func(slug string) bool
+}
+
+// PluginRules are the checks of the plugins installed on the site
+// (*plugin.Host).
+type PluginRules interface {
+	RestoreSettings(id string, restored, current map[string]string) (map[string]string, []string, bool)
+	WidgetKnown(kind string) bool
+	CleanWidgetConfig(kind string, values map[string]string) (map[string]string, error)
 }
 
 // RestoreReport says what a restore did.
@@ -472,6 +488,25 @@ func swapBack(staging, target, old string) error {
 func restoreUsers(ctx context.Context, st *store.Store, list []sideUser, actor int64, sameSite bool, rep *RestoreReport) (map[int64]int64, map[string]int64, error) {
 	ids, logins := map[int64]int64{}, map[string]int64{}
 	for _, u := range list {
+		if !sitecheck.Username.MatchString(u.Username) {
+			rep.warn("user %q left out: not a valid username; their content belongs to the administrator restoring", u.Username)
+			continue
+		}
+		// The checks of the profile page: what fails keeps this site's
+		// value, or is left empty.
+		var bad []string
+		if sitecheck.TooLong(u.DisplayName, 100) {
+			u.DisplayName, bad = "", append(bad, "name")
+		}
+		if sitecheck.TooLong(u.Bio, 2000) {
+			u.Bio, bad = "", append(bad, "biography")
+		}
+		if u.Website != "" && !sitecheck.HTTPURL(u.Website) {
+			u.Website, bad = "", append(bad, "website")
+		}
+		if len(bad) > 0 {
+			rep.warn("user %q: %s not valid in the backup, not restored", u.Username, strings.Join(bad, ", "))
+		}
 		if !auth.ValidRole(u.Role) {
 			rep.warn("user %q had an unknown role %q; restored as a subscriber", u.Username, u.Role)
 			u.Role = auth.RoleSubscriber
@@ -491,6 +526,16 @@ func restoreUsers(ctx context.Context, st *store.Store, list []sideUser, actor i
 				// administrator restoring keeps theirs.
 				role, status = "", ""
 			}
+			for _, f := range bad {
+				switch f {
+				case "name":
+					u.DisplayName = ex.DisplayName
+				case "biography":
+					u.Bio = ex.Bio
+				case "website":
+					u.Website = ex.Website
+				}
+			}
 			if err := st.RestoreUserProfile(ctx, ex.ID, u.DisplayName, u.Bio, u.Website, role, status); err != nil {
 				return nil, nil, err
 			}
@@ -501,7 +546,7 @@ func restoreUsers(ctx context.Context, st *store.Store, list []sideUser, actor i
 			return nil, nil, err
 		}
 		email := strings.ToLower(strings.TrimSpace(u.Email))
-		if !strings.Contains(email, "@") {
+		if !sitecheck.Email(email) {
 			email = u.Username + "@restore.invalid"
 		}
 		nu := store.RestoredUser{Username: u.Username, Email: email, DisplayName: u.DisplayName, Bio: u.Bio, Website: u.Website,
@@ -543,13 +588,24 @@ func mapUser(ids map[int64]int64, old *int64) *int64 {
 	return nil
 }
 
-var themeSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-
-// applySidecar puts back what only sap13ns has, after the content.
+// applySidecar puts back what only sap13ns has, after the content. Every
+// row goes through the checks of the page that saves it (sitecheck, the
+// plugins' manifests, the redirect rules): a value that fails is reset to
+// this site's or left out, and the report says which.
 func applySidecar(ctx context.Context, st *store.Store, side *sidecar, users map[int64]int64, m *Manifest, o RestoreOptions, rep *RestoreReport) error {
+	set, err := applySettings(ctx, st, side, o, rep)
+	if err != nil {
+		return err
+	}
+	siteLangs := append([]string{set.Language}, set.Languages...)
 	for _, it := range side.menus {
-		if !builder.SafeURL(it.URL) {
-			rep.warn("menu item %q left out: its address is not allowed", it.Label)
+		it.Label = strings.TrimSpace(it.Label)
+		switch {
+		case !sitecheck.MenuItem(it.Label, it.URL):
+			rep.warn("menu item %q left out: its label or address is not allowed", it.Label)
+			continue
+		case !sitecheck.Slug.MatchString(it.Location) || it.Lang != "" && !slices.Contains(set.Languages, it.Lang):
+			rep.warn("menu item %q left out: its menu is not one of this site", it.Label)
 			continue
 		}
 		if err := st.RestoreMenuItem(ctx, it); err != nil {
@@ -558,6 +614,25 @@ func applySidecar(ctx context.Context, st *store.Store, side *sidecar, users map
 		rep.MenuItems++
 	}
 	for _, w := range side.widgets {
+		w.Title = sitecheck.WidgetTitle(w.Title)
+		switch {
+		case slices.Contains(sitecheck.BuiltinWidgets, w.Kind):
+			w.Config = sitecheck.WidgetConfig(w.Kind, w.Config)
+		case o.Plugins != nil && o.Plugins.WidgetKnown(w.Kind):
+			cfg, err := o.Plugins.CleanWidgetConfig(w.Kind, w.Config)
+			if err != nil {
+				rep.warn("widget %q left out: %v", w.Title, err)
+				continue
+			}
+			w.Config = cfg
+		default:
+			rep.warn("widget %q left out: no plugin installed here has its kind %q", w.Title, w.Kind)
+			continue
+		}
+		if !sitecheck.Widget(w, siteLangs) {
+			rep.warn("widget %q left out: its area or language is not one of this site", w.Title)
+			continue
+		}
 		if err := st.RestoreWidget(ctx, w); err != nil {
 			return fmt.Errorf("widget %q: %w", w.Title, err)
 		}
@@ -568,14 +643,19 @@ func applySidecar(ctx context.Context, st *store.Store, side *sidecar, users map
 		if c.Kind == store.CustomLayout {
 			limit = builder.MaxJSON
 		}
-		if !themeSlug.MatchString(c.Theme) || (c.Kind != store.CustomDesign && c.Kind != store.CustomLayout) ||
+		if !sitecheck.Slug.MatchString(c.Theme) || (c.Kind != store.CustomDesign && c.Kind != store.CustomLayout) ||
 			len(c.Published) > limit || len(c.Draft) > limit || (len(c.Published) > 0 && !json.Valid(c.Published)) ||
 			(len(c.Draft) > 0 && !json.Valid(c.Draft)) {
 			rep.warn("%s of theme %q left out: it is not valid", c.Kind, c.Theme)
 			continue
 		}
-		// Designs and layouts are normalised again whenever they are
-		// loaded (customize.Load, builder.Load), as stored ones always are.
+		// The rest of a design or layout is normalised again whenever it
+		// is loaded (customize.Load, builder.Load), as stored ones always
+		// are; their custom CSS is checked here too.
+		if c.Kind == store.CustomDesign {
+			c.Published = cleanDesignCSS(c.Published, "the published design of theme "+c.Theme, rep)
+			c.Draft = cleanDesignCSS(c.Draft, "the draft design of theme "+c.Theme, rep)
+		}
 		if err := st.RestoreThemeCustom(ctx, store.ThemeCustom{Theme: c.Theme, Kind: c.Kind, Published: c.Published, Draft: c.Draft,
 			PublishedAt: c.PublishedAt, DraftAt: c.DraftAt, UpdatedBy: mapUser(users, c.UpdatedBy)}); err != nil {
 			return fmt.Errorf("%s of theme %s: %w", c.Kind, c.Theme, err)
@@ -583,8 +663,11 @@ func applySidecar(ctx context.Context, st *store.Store, side *sidecar, users map
 		rep.Designs++
 	}
 	for _, rv := range side.appearance.Revisions {
-		if !themeSlug.MatchString(rv.Theme) || len(rv.Data) > builder.MaxJSON || !json.Valid(rv.Data) {
+		if !sitecheck.Slug.MatchString(rv.Theme) || len(rv.Data) > builder.MaxJSON || !json.Valid(rv.Data) {
 			continue
+		}
+		if rv.Kind == store.CustomDesign {
+			rv.Data = cleanDesignCSS(rv.Data, "a past design of theme "+rv.Theme, rep)
 		}
 		rv.UserID = mapUser(users, rv.UserID)
 		if err := st.RestoreThemeCustomRevision(ctx, rv); err != nil {
@@ -609,47 +692,129 @@ func applySidecar(ctx context.Context, st *store.Store, side *sidecar, users map
 			rep.RedirectsRefused++
 		}
 	}
-	return applySettings(ctx, st, side, rep)
+	return nil
 }
 
-func applySettings(ctx context.Context, st *store.Store, side *sidecar, rep *RestoreReport) error {
+// cleanDesignCSS checks the custom CSS of a stored design as the
+// customiser does, and drops it when it fails.
+func cleanDesignCSS(raw json.RawMessage, what string, rep *RestoreReport) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || fields["css"] == nil {
+		return raw
+	}
+	var css, clean string
+	err := json.Unmarshal(fields["css"], &css)
+	if err == nil {
+		if clean, err = customize.SanitizeCSS(css); err == nil && clean == css {
+			return raw
+		}
+	}
+	if err != nil {
+		rep.warn("the custom CSS of %s was left out: %v", what, err)
+		clean = ""
+	}
+	fields["css"], _ = json.Marshal(clean)
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+// publicPage reports whether id is a published page of st.
+func publicPage(ctx context.Context, st *store.Store) func(int64) bool {
+	return func(id int64) bool {
+		if id <= 0 {
+			return false
+		}
+		p, err := st.PostByID(ctx, id)
+		return err == nil && p.Type == store.TypePage && p.IsPublic(time.Now())
+	}
+}
+
+// applySettings restores the settings with the checks of the settings
+// pages (sitecheck), and returns the site's settings. Keys and tokens are
+// never in a backup: those of this site stay, but only while the
+// provider and address they were entered for do not change; and a
+// backup never allows local (plain http) models by itself.
+func applySettings(ctx context.Context, st *store.Store, side *sidecar, o RestoreOptions, rep *RestoreReport) (store.Settings, error) {
 	ss := side.settings
+	set, err := st.LoadSettings(ctx)
+	if err != nil {
+		return set, err
+	}
 	if len(ss.Site) > 0 {
-		set := store.DefaultSettings()
-		if err := json.Unmarshal(ss.Site, &set); err != nil {
-			return fmt.Errorf("%w: settings: %v", backup.ErrCorrupt, err)
+		in := store.DefaultSettings()
+		if err := json.Unmarshal(ss.Site, &in); err != nil {
+			return set, fmt.Errorf("%w: settings: %v", backup.ErrCorrupt, err)
+		}
+		cur := set
+		cur.FrontPage, cur.FrontPageID = "posts", 0 // the pages of this site are gone
+		var reset []string
+		set, reset = sitecheck.CleanSettings(in, cur, sitecheck.Site{PublicPage: publicPage(ctx, st), Theme: o.Theme})
+		if len(reset) > 0 {
+			rep.warn("settings not valid in the backup, kept as they were here or set to their defaults: %s", strings.Join(reset, ", "))
 		}
 		if err := st.SaveSettings(ctx, set); err != nil {
-			return err
+			return set, err
 		}
 	}
 	if len(ss.AI) > 0 {
 		cur, err := st.AISettings(ctx)
 		if err != nil {
-			return err
+			return set, err
 		}
-		next := cur
-		if err := json.Unmarshal(ss.AI, &next); err != nil {
-			return fmt.Errorf("%w: AI settings: %v", backup.ErrCorrupt, err)
+		in := store.DefaultAISettings()
+		if err := json.Unmarshal(ss.AI, &in); err != nil {
+			return set, fmt.Errorf("%w: AI settings: %v", backup.ErrCorrupt, err)
 		}
-		next.APIKeyEnc = cur.APIKeyEnc // keys are never in a backup
+		var local []string
+		if in.AllowLocal && !cur.AllowLocal {
+			in.AllowLocal, local = false, []string{"allow_local"}
+		}
+		next, reset := sitecheck.CleanAI(in, cur)
+		if reset = append(local, reset...); len(reset) > 0 {
+			rep.warn("writing assistant settings not valid in the backup, kept as they were here or set to their defaults: %s", strings.Join(reset, ", "))
+		}
+		next.APIKeyEnc = nil
+		if next.Provider == cur.Provider && next.BaseURL == cur.BaseURL {
+			next.APIKeyEnc = cur.APIKeyEnc
+		} else if len(cur.APIKeyEnc) > 0 {
+			rep.warn("the writing assistant's API key was removed: the backup uses another provider or address; enter its key in Settings → AI")
+		}
 		if next.Enabled && len(next.APIKeyEnc) == 0 {
 			rep.warn("the writing assistant is on, but API keys are not in backups: enter the key again in Settings → AI")
 		}
 		if err := st.SaveAISettings(ctx, next); err != nil {
-			return err
+			return set, err
 		}
 	}
 	if len(ss.Assistant) > 0 {
 		cur, err := st.AssistantSettings(ctx)
 		if err != nil {
-			return err
+			return set, err
 		}
-		next := cur
-		if err := json.Unmarshal(ss.Assistant, &next); err != nil {
-			return fmt.Errorf("%w: assistant settings: %v", backup.ErrCorrupt, err)
+		in := store.DefaultAssistantSettings()
+		if err := json.Unmarshal(ss.Assistant, &in); err != nil {
+			return set, fmt.Errorf("%w: assistant settings: %v", backup.ErrCorrupt, err)
 		}
-		next.EmbedKeyEnc, next.MCPTokenHash = cur.EmbedKeyEnc, cur.MCPTokenHash
+		var local []string
+		if in.EmbedAllowLocal && !cur.EmbedAllowLocal {
+			in.EmbedAllowLocal, local = false, []string{"embed_allow_local"}
+		}
+		next, reset := sitecheck.CleanAssistant(in, cur)
+		if reset = append(local, reset...); len(reset) > 0 {
+			rep.warn("site assistant settings not valid in the backup, kept as they were here or set to their defaults: %s", strings.Join(reset, ", "))
+		}
+		next.EmbedKeyEnc, next.MCPTokenHash = nil, cur.MCPTokenHash
+		if next.EmbedProvider == cur.EmbedProvider && next.EmbedBaseURL == cur.EmbedBaseURL {
+			next.EmbedKeyEnc = cur.EmbedKeyEnc
+		} else if len(cur.EmbedKeyEnc) > 0 {
+			rep.warn("the embedding API key was removed: the backup uses another provider or address; enter its key in Settings → Assistant")
+		}
 		if ss.MCPToken && next.MCPTokenHash == "" && next.MCPEnabled {
 			// The backup had a token for /mcp, which a backup never holds:
 			// do not open the endpoint without one.
@@ -657,38 +822,53 @@ func applySettings(ctx context.Context, st *store.Store, side *sidecar, rep *Res
 			rep.warn("the MCP endpoint was switched off: its token is not in backups; set a new one in Settings → Assistant")
 		}
 		if err := st.SaveAssistantSettings(ctx, next); err != nil {
-			return err
+			return set, err
 		}
 	}
-	for theme, opts := range ss.ThemeOptions {
-		if !themeSlug.MatchString(theme) {
+	themes := slices.Sorted(maps.Keys(ss.ThemeOptions))
+	for _, theme := range themes {
+		if !sitecheck.Slug.MatchString(theme) {
+			rep.warn("the options of theme %q were left out: not a theme name", theme)
 			continue
 		}
+		opts, bad := sitecheck.ThemeOptions(ss.ThemeOptions[theme])
+		if len(bad) > 0 {
+			rep.warn("options of theme %s left out, as they are not valid: %s", theme, strings.Join(bad, ", "))
+		}
 		if err := st.SaveThemeOptions(ctx, theme, opts); err != nil {
-			return err
+			return set, err
 		}
 	}
 	recs, err := st.ListPluginRecords(ctx)
 	if err != nil {
-		return err
+		return set, err
 	}
 	for _, p := range side.plugins {
 		rec, ok := recs[p.ID]
+		if ok && o.Plugins == nil {
+			rep.warn("the settings of plugin %s were left out: they cannot be checked here", p.ID)
+			continue
+		}
+		var (
+			merged  map[string]string
+			refused []string
+		)
+		if ok {
+			merged, refused, ok = o.Plugins.RestoreSettings(p.ID, plainSettings(p.ID, p.Settings), rec.Settings)
+		}
 		if !ok {
 			rep.warn("plugin %s %s is not installed here; install it to use its settings", p.ID, p.Version)
 			continue
 		}
-		merged := maps.Clone(rec.Settings)
-		if merged == nil {
-			merged = map[string]string{}
+		if len(refused) > 0 {
+			rep.warn("settings of plugin %s not valid in the backup, kept as they were here: %s", p.ID, strings.Join(refused, ", "))
 		}
-		maps.Copy(merged, plainSettings(p.ID, p.Settings)) // secrets and e-mail addresses stay as they are here
 		if err := st.SavePluginSettings(ctx, p.ID, merged); err != nil {
-			return err
+			return set, err
 		}
 		rep.Plugins++
 	}
-	return nil
+	return set, nil
 }
 
 // restoreSink writes the content of export.xml with the ids it had, so

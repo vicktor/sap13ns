@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"net/mail"
 	"strings"
 	"time"
 
 	"rsc.io/qr"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
@@ -400,23 +400,20 @@ func (s *Server) ownSessionHash(r *http.Request, userID int64) []byte {
 }
 
 func (s *Server) profileError(email, name, bio, website string) string {
-	switch {
-	case !validEmail(email):
+	switch sitecheck.Profile(email, name, bio, website) { // shared with restores
+	case "email":
 		return s.t("Enter a valid e-mail address.")
-	case tooLong(name, 100):
+	case "display_name":
 		return s.t("The name is too long (100 characters max).")
-	case tooLong(bio, 2000):
+	case "bio":
 		return s.t("The biography is too long (2000 characters max).")
-	case website != "" && (!validHTTPURL(website) || len(website) > 300):
+	case "website":
 		return s.t("The website must be a valid http(s) address.")
 	}
 	return ""
 }
 
-func validEmail(email string) bool {
-	a, err := mail.ParseAddress(email)
-	return err == nil && a.Address == email && len(email) <= 254
-}
+func validEmail(email string) bool { return sitecheck.Email(email) }
 
 func (s *Server) checkNewPassword(u *store.User, pw, confirm string) string {
 	if pw != confirm {

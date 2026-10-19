@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -23,6 +24,7 @@ import (
 	"sap13ns/internal/network"
 	"sap13ns/internal/sitebackup"
 	"sap13ns/internal/web"
+	"sap13ns/ui"
 )
 
 // The two formats of `sap13ns backup`:
@@ -337,8 +339,14 @@ func siteBackupCmd(ctx context.Context, cfg *config.Config, log *slog.Logger, su
 				return errors.New("cancelled")
 			}
 		}
+		// The plugins installed here check their settings and widgets.
+		host, err := sitePluginHost(ctx, cfg, t, log)
+		if err != nil {
+			return fmt.Errorf("load the site's plugins: %w", err)
+		}
+		defer host.Close(context.WithoutCancel(ctx))
 		rep, err := sitebackup.Restore(ctx, t.store, file, sitebackup.RestoreOptions{Options: o, Replace: a.replace,
-			CheckRedirect: web.CheckRestoredRedirect})
+			CheckRedirect: web.CheckRestoredRedirect, Plugins: host, Theme: themeInstalled(t.cfg)})
 		if errors.Is(err, sitebackup.ErrNotEmpty) {
 			return errors.New("the site has content: add -replace to replace it (a backup of it is taken first)")
 		}
@@ -495,4 +503,23 @@ func humanBytes(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// themeInstalled reports whether a site has a theme: built in, the
+// network's or its own.
+func themeInstalled(cfg *config.Config) func(string) bool {
+	return func(slug string) bool {
+		if _, err := fs.Stat(ui.FS, "themes/"+slug+"/theme.json"); err == nil {
+			return true
+		}
+		for _, dir := range []string{cfg.NetworkThemesDir, cfg.ThemesDir} {
+			if dir == "" {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(dir, slug, "theme.json")); err == nil {
+				return true
+			}
+		}
+		return false
+	}
 }

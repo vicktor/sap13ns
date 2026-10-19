@@ -14,6 +14,7 @@ import (
 	"image/png"
 	"io"
 	"io/fs"
+	"maps"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -184,9 +185,10 @@ func seed(t testing.TB, st *store.Store, uploads string) seeded {
 	set.FrontPage, set.FrontPageID = "page", about
 	must(st.SaveSettings(ctx, set))
 	must(st.SaveThemeOptions(ctx, "default", map[string]string{"layout": "wide"}))
-	must(st.SaveAISettings(ctx, store.AISettings{Enabled: true, Provider: "anthropic", APIKeyEnc: []byte(aiKeyMarker), TextModel: "m1"}))
+	must(st.SaveAISettings(ctx, store.AISettings{Enabled: true, Provider: "anthropic", APIKeyEnc: []byte(aiKeyMarker), TextModel: "m1",
+		MinRole: "author", MonthlyRequests: 100}))
 	must(st.SaveAssistantSettings(ctx, store.AssistantSettings{Enabled: true, Greeting: "Hola", EmbedKeyEnc: []byte(embedMarker),
-		MCPEnabled: true, MCPTokenHash: mcpMarker}))
+		EmbedProvider: "same", PerIPHour: 20, MCPEnabled: true, MCPTokenHash: mcpMarker}))
 
 	must(st.SaveRedirect(ctx, "/viejo", "/blog/hola", 301, false))
 	must(st.SaveRedirect(ctx, "/tienda", "https://shop.example.com/", 302, false))
@@ -213,7 +215,41 @@ func checkRedirect(_ context.Context, _ *store.Store, _, src, dst string, status
 }
 
 func restoreOpts(o Options, actor int64, replace bool) RestoreOptions {
-	return RestoreOptions{Options: o, Replace: replace, ActorID: actor, CheckRedirect: checkRedirect}
+	return RestoreOptions{Options: o, Replace: replace, ActorID: actor, CheckRedirect: checkRedirect, Plugins: fakePlugins{}}
+}
+
+// fakePlugins stands for *plugin.Host (its RestoreSettings is tested in
+// plugin): greeter declares greeting (text of at most 20 characters), key
+// and api_token (secrets) and notify (an e-mail address), and has the
+// widget hello.
+type fakePlugins struct{}
+
+func (fakePlugins) RestoreSettings(id string, restored, current map[string]string) (map[string]string, []string, bool) {
+	if id != "greeter" {
+		return nil, nil, false
+	}
+	out := map[string]string{}
+	for _, k := range []string{"greeting", "key", "api_token", "notify", "@email:notify"} {
+		if v, ok := current[k]; ok {
+			out[k] = v
+		}
+	}
+	var refused []string
+	if v, ok := restored["greeting"]; ok && len(v) <= 20 {
+		out["greeting"] = v
+	} else if ok {
+		refused = append(refused, "Greeting")
+	}
+	return out, refused, true
+}
+
+func (fakePlugins) WidgetKnown(kind string) bool { return kind == "plugin:greeter:hello" }
+
+func (fakePlugins) CleanWidgetConfig(_ string, in map[string]string) (map[string]string, error) {
+	if in["style"] != "" && in["style"] != "plain" {
+		return nil, errors.New("Style: invalid choice")
+	}
+	return map[string]string{"style": "plain"}, nil
 }
 
 // members returns every member of a plain .zip.
@@ -406,6 +442,11 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("report: %+v", rep)
 	}
 	t.Logf("warnings: %q", rep.Warnings)
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, "not valid") || strings.Contains(w, "left out") {
+			t.Errorf("a valid backup restored with a change: %s", w)
+		}
+	}
 
 	after := snapshot(t, b)
 	for k, want := range before {
@@ -621,13 +662,13 @@ func TestFailedRestore(t *testing.T) {
 	}
 	before, files = snapshot(t, b), tree(t, upB)
 
-	// A failure inside the transaction (a menu location the schema
-	// refuses) rolls everything back.
-	rewrite(t, arch.Path, bad, nameMenus, true, func(b []byte) []byte {
-		return bytes.Replace(b, []byte(`"Location": "footer"`), []byte(`"Location": "NOT VALID"`), 1)
+	// A failure inside the transaction (settings that do not decode,
+	// read after the content is in) rolls everything back.
+	rewrite(t, arch.Path, bad, nameSettings, true, func(b []byte) []byte {
+		return bytes.Replace(b, []byte(`"posts_per_page": 10`), []byte(`"posts_per_page": "ten"`), 1)
 	})
-	if _, err := Restore(ctx, b, bad, restoreOpts(ob, sb.admin, true)); err == nil {
-		t.Error("an invalid menu location was restored")
+	if _, err := Restore(ctx, b, bad, restoreOpts(ob, sb.admin, true)); !errors.Is(err, backup.ErrCorrupt) {
+		t.Errorf("settings that do not decode: %v", err)
 	}
 	check("failed transaction")
 
@@ -824,5 +865,213 @@ func TestCheckWPBase(t *testing.T) {
 		if got, err := CheckWPBase(in); err == nil {
 			t.Errorf("CheckWPBase(%q) = %q, want an error", in, got)
 		}
+	}
+}
+
+// editJSON rewrites a JSON member of a backup through fn.
+func editJSON(t *testing.T, src, dst, name string, v any, fn func()) {
+	t.Helper()
+	rewrite(t, src, dst, name, true, func(b []byte) []byte {
+		if err := json.Unmarshal(b, v); err != nil {
+			t.Fatal(err)
+		}
+		fn()
+		out, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	})
+}
+
+// TestRestoreChecks: what a backup brings back passes the checks of the
+// pages that save it. A tampered archive restores with what fails reset
+// to the site's values (or the defaults) or left out, and the report
+// names it; secrets stay the site's.
+func TestRestoreChecks(t *testing.T) {
+	pool := testutil.Schemas(t)
+	ctx := context.Background()
+	a := testutil.SiteStore(t, pool, "site_1")
+	b := testutil.SiteStore(t, pool, "site_2")
+	base := t.TempDir()
+	upA, upB := filepath.Join(base, "a/uploads"), filepath.Join(base, "b/uploads")
+	seed(t, a, upA)
+	if err := a.AddWidget(ctx, "sidebar", "", "plugin:greeter:hello", "Hello", map[string]string{"style": "loud"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.AddWidget(ctx, "sidebar", "", "plugin:gone:widget", "Gone", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.AddWidget(ctx, "sidebar", "", "recent_posts", "Many", map[string]string{"count": "500", "extra": "x"}); err != nil {
+		t.Fatal(err)
+	}
+	oa, ob := siteOpts(filepath.Join(base, "ba"), upA, 1), siteOpts(filepath.Join(base, "bb"), upB, 2)
+	arch, _, err := Create(ctx, a, oa)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The target: an administrator, the greeter plugin, keys of its own
+	// and a local model it does not allow.
+	bob, err := b.CreateUser(ctx, store.NewUser{Username: "bob", Email: "bob@example.com", Role: "admin", PasswordHash: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.RecordPluginInstall(ctx, store.PluginInstall{ID: "greeter", Version: "1.2.0", Source: "cli"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.SavePluginSettings(ctx, "greeter", map[string]string{"greeting": "hi", "key": "enc1:target-secret"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.SaveAISettings(ctx, store.AISettings{Provider: "anthropic", MinRole: "editor", APIKeyEnc: []byte("target-ai-key"),
+		MonthlyRequests: 50}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.SaveAssistantSettings(ctx, store.AssistantSettings{EmbedProvider: "gemini", EmbedKeyEnc: []byte("target-embed-key"),
+		MCPTokenHash: "target-mcp"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The tampered backup.
+	tampered := filepath.Join(base, "tampered.zip")
+	step := filepath.Join(base, "step.zip")
+	var side map[string]any
+	editJSON(t, arch.Path, step, nameSettings, &side, func() {
+		site := side["site"].(map[string]any)
+		site["websub_hub"] = "http://127.0.0.1:8137/hub"
+		site["comment_moderation"] = "nobody"
+		site["default_role"] = "admin"
+		site["og_accent"] = "red; background:url(x)"
+		site["session_days"] = 100000
+		site["two_factor"] = "off"
+		site["languages"] = []string{"en", "xx", "es"}
+		site["active_theme"] = "../evil"
+		ai := side["ai"].(map[string]any)
+		ai["base_url"] = "http://127.0.0.1:8080/v1"
+		ai["allow_local"] = true
+		ai["provider"] = "evil"
+		ai["min_role"] = "subscriber"
+		as := side["assistant"].(map[string]any)
+		as["embed_provider"] = "gemini"
+		as["embed_base_url"] = "https://embed.example.org"
+		as["per_ip_hour"] = -1
+		as["suggestions"] = []string{"1", "2", "3", "4", "5", "6", "7"}
+		side["theme_options"].(map[string]any)["default"] = map[string]any{"layout": "wide", "bad key": "x", "long": strings.Repeat("x", 3000)}
+	})
+	var menus []map[string]any
+	editJSON(t, step, tampered, nameMenus, &menus, func() {
+		for _, it := range menus {
+			switch it["URL"] {
+			case "https://other.example.org/":
+				it["URL"] = "javascript:alert(document.cookie)"
+			case "/sobre":
+				it["URL"] = "//evil.example.org/"
+			}
+		}
+	})
+	var plugins []map[string]any
+	editJSON(t, tampered, step, namePlugins, &plugins, func() {
+		for _, p := range plugins {
+			p["settings"].(map[string]any)["greeting"] = strings.Repeat("hola ", 10)
+			p["settings"].(map[string]any)["key"] = "enc1:smuggled"
+		}
+	})
+	var users []map[string]any
+	editJSON(t, step, tampered, nameUsers, &users, func() {
+		for _, u := range users {
+			if u["username"] == "edith" {
+				u["website"] = "javascript:alert(1)"
+			}
+		}
+		users = append(users, map[string]any{"id": 999, "username": "../root", "email": "root@example.com", "role": "admin", "status": "active"})
+	})
+
+	rep, err := Restore(ctx, b, tampered, restoreOpts(ob, bob, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("warnings: %q", rep.Warnings)
+	warned := func(parts ...string) bool {
+		return slices.ContainsFunc(rep.Warnings, func(w string) bool {
+			for _, p := range parts {
+				if !strings.Contains(w, p) {
+					return false
+				}
+			}
+			return true
+		})
+	}
+	for _, want := range [][]string{
+		{"settings not valid", "websub_hub", "comment_moderation", "default_role", "og_accent", "session_days", "two_factor",
+			"languages", "active_theme"},
+		{"writing assistant settings not valid", "allow_local", "provider", "min_role", "base_url"},
+		{"site assistant settings not valid", "per_ip_hour", "suggestions"},
+		{"embedding API key was removed"},
+		{"options of theme default left out", "bad key", "long"},
+		{"menu item", "Fuera", "not allowed"},
+		{"menu item", "Sobre", "not allowed"},
+		{"settings of plugin greeter not valid", "Greeting"},
+		{"widget", "Hello", "invalid choice"},
+		{"widget", "Gone", "no plugin"},
+		{"user", "edith", "website"},
+		{"user", "../root", "left out"},
+	} {
+		if !warned(want...) {
+			t.Errorf("no warning with %q", want)
+		}
+	}
+
+	set, _ := b.LoadSettings(ctx)
+	def := store.DefaultSettings()
+	if set.WebSubHub != "" || set.CommentModeration != def.CommentModeration || set.DefaultRole != "subscriber" ||
+		set.OGAccent != "" || set.SessionDays != def.SessionDays || set.TwoFactor != "staff" || set.ActiveTheme != def.ActiveTheme ||
+		!slices.Equal(set.Languages, []string{"en"}) || set.SiteTitle != "Mi sitio" || set.FrontPage != "page" {
+		t.Errorf("settings: %+v", set)
+	}
+	aiSet, _ := b.AISettings(ctx)
+	if aiSet.Provider != "anthropic" || aiSet.MinRole != "editor" || aiSet.BaseURL != "" || aiSet.AllowLocal ||
+		string(aiSet.APIKeyEnc) != "target-ai-key" || aiSet.TextModel != "m1" {
+		t.Errorf("AI settings: %+v", aiSet)
+	}
+	as, _ := b.AssistantSettings(ctx)
+	if as.EmbedBaseURL != "https://embed.example.org" || len(as.EmbedKeyEnc) != 0 || as.PerIPHour != 0 ||
+		len(as.Suggestions) != 0 || as.MCPTokenHash != "target-mcp" || as.Greeting != "Hola" {
+		t.Errorf("assistant settings: %+v", as)
+	}
+	opts, _ := b.ThemeOptions(ctx, "default")
+	if !maps.Equal(opts, map[string]string{"layout": "wide"}) {
+		t.Errorf("theme options: %v", opts)
+	}
+	recs, _ := b.ListPluginRecords(ctx)
+	if g := recs["greeter"].Settings; g["greeting"] != "hi" || g["key"] != "enc1:target-secret" {
+		t.Errorf("plugin settings: %v", g)
+	}
+	all, _ := b.AllMenus(ctx)
+	for _, items := range all {
+		for _, it := range items {
+			if !strings.HasPrefix(it.URL, "/") || strings.HasPrefix(it.URL, "//") {
+				t.Errorf("menu item %q restored with %q", it.Label, it.URL)
+			}
+		}
+	}
+	widgets, _ := b.AllWidgets(ctx)
+	var kinds []string
+	for _, list := range widgets {
+		for _, w := range list {
+			kinds = append(kinds, w.Kind)
+			if w.Kind == "recent_posts" && w.Title == "Many" && !maps.Equal(w.Config, map[string]string{"count": "5"}) {
+				t.Errorf("recent posts widget: %v", w.Config)
+			}
+		}
+	}
+	if slices.Contains(kinds, "plugin:gone:widget") || slices.Contains(kinds, "plugin:greeter:hello") {
+		t.Errorf("widgets: %v", kinds)
+	}
+	edith, _ := b.UserByUsername(ctx, "edith")
+	if edith == nil || edith.Website != "" {
+		t.Errorf("edith: %+v", edith)
+	}
+	if _, err := b.UserByUsername(ctx, "../root"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a user with an invalid name was restored: %v", err)
 	}
 }
