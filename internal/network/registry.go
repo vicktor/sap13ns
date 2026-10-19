@@ -216,7 +216,7 @@ func (r *Registry) Start(ctx context.Context) error {
 	if r.closed {
 		return errClosed
 	}
-	r.wg.Add(6)
+	r.wg.Add(7)
 	if b := r.o.Billing; b != nil {
 		b.notify = r.billingNotice
 		r.wg.Go(func() { b.Run(r.ctx) })
@@ -230,6 +230,7 @@ func (r *Registry) Start(ctx context.Context) error {
 	go r.every(sweepEvery, sweepEvery, func(ctx context.Context) { r.Sweep(ctx) })
 	go r.every(announceEvery, announceEvery, func(ctx context.Context) { r.Announce(ctx) })
 	go r.every(cronEvery, cronEvery, func(ctx context.Context) { r.Cron(ctx) })
+	go r.every(maintainFirst, cronEvery, r.SweepExports)
 	go r.every(maintainFirst, maintainEvery, r.Maintain)
 	return nil
 }

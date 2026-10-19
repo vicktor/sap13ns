@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/export"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 )
@@ -272,6 +273,13 @@ func TestMaintain(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(e.n.Dir(a.ID), "uploads", "x.bin"), make([]byte, 5000), 0o640); err != nil {
 		t.Fatal(err)
 	}
+	// An export waiting for its download does not count.
+	if err := os.MkdirAll(export.Dir(e.n.Dir(a.ID)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(export.Dir(e.n.Dir(a.ID)), export.NewName(1, time.Now())), make([]byte, 1<<20), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.n.db.Exec(e.ctx, `INSERT INTO sso_codes (code_hash, site_id, account_id, challenge, redirect_uri, expires_at)
 		VALUES ('\x01', $1, $2, '\x02', 'https://alpha.sap13ns.site/sso', now() - interval '2 days'),
 		       ('\x03', $1, $2, '\x04', 'https://alpha.sap13ns.site/sso', now() + interval '1 minute')`, a.ID, e.owner); err != nil {
@@ -301,10 +309,40 @@ func TestMaintain(t *testing.T) {
 	if row.StorageCheckedAt == nil || row.StorageBytes < schema+5000 {
 		t.Fatalf("storage %d at %v, want at least %d", row.StorageBytes, row.StorageCheckedAt, schema+5000)
 	}
+	if row.StorageBytes >= schema+1<<20 {
+		t.Fatalf("storage %d counts the export", row.StorageBytes)
+	}
 	if portal := e.row(e.portalID()); portal.StorageCheckedAt == nil || portal.StorageBytes == 0 {
 		t.Fatalf("portal storage %d", portal.StorageBytes)
 	}
 	if n, err := dirBytes(filepath.Join(t.TempDir(), "none")); err != nil || n != 0 {
 		t.Fatalf("missing directory: %d %v", n, err)
+	}
+}
+
+func TestSweepExports(t *testing.T) {
+	e := newNetEnv(t, nil)
+	a, b := e.tenant("alpha", "pro"), e.tenant("bravo", "pro")
+	now := e.clock.now()
+	write := func(siteID int64, name string) string {
+		t.Helper()
+		dir := export.Dir(e.n.Dir(siteID))
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("zip"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	expiredA := write(a.ID, export.NewName(1, now.Add(-export.TTL-time.Minute)))
+	freshA := write(a.ID, export.NewName(1, now.Add(-time.Hour)))
+	expiredB := write(b.ID, export.NewName(2, now.Add(-25*time.Hour)))
+	e.reg.SweepExports(e.ctx)
+	for p, want := range map[string]bool{expiredA: false, freshA: true, expiredB: false} {
+		if _, err := os.Stat(p); (err == nil) != want {
+			t.Errorf("%s exists: %v, want %v", p, err == nil, want)
+		}
 	}
 }

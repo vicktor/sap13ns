@@ -10,7 +10,8 @@ package network
 //     announced once whoever claims it, since ClaimDueAnnouncements is
 //     atomic;
 //   - every hour, cron.hourly reaches every loaded site, and the unloaded
-//     ones whose plugins handle it (sites.wants_cron), two loads at once;
+//     ones whose plugins handle it (sites.wants_cron), two loads at once,
+//     and the expired exports of every site are removed;
 //   - every day, each schema is cleaned up as a single site does every 30
 //     minutes (sessions, audit log, analytics), without loading a server,
 //     its storage is measured, expired SSO codes are purged, and the
@@ -32,6 +33,7 @@ import (
 	"sync"
 
 	"sap13ns/internal/db"
+	"sap13ns/internal/export"
 	"sap13ns/internal/store"
 	"sap13ns/internal/web"
 )
@@ -152,6 +154,29 @@ func (r *Registry) Cron(ctx context.Context) []int64 {
 	wg.Wait()
 	slices.Sort(reached)
 	return reached
+}
+
+// SweepExports removes the expired exports of every site, loaded or not,
+// from the sites' directories (Tools → Export, internal/export). It runs
+// every hour, so a download link outlives its 24 hours by an hour at most
+// on disk; the link itself stops working on time.
+func (r *Registry) SweepExports(ctx context.Context) {
+	dirs, err := filepath.Glob(filepath.Join(r.net.dataDir, "sites", "*", export.DirName))
+	if err != nil {
+		r.log.Error("sweep exports", "err", err)
+		return
+	}
+	now := r.o.Now()
+	for _, dir := range dirs {
+		if ctx.Err() != nil {
+			return
+		}
+		if n, err := export.Sweep(dir, now); err != nil {
+			r.log.Error("sweep exports", "dir", dir, "err", err)
+		} else if n > 0 {
+			r.log.Info("expired exports removed", "dir", dir, "count", n)
+		}
+	}
 }
 
 // Maintain cleans up every site's schema and measures its storage, loaded
@@ -276,15 +301,21 @@ func (r *Registry) measure(ctx context.Context, s *Site) error {
 }
 
 // dirBytes adds up the sizes of the regular files under dir. Symbolic
-// links are not followed; a directory that does not exist is empty.
+// links are not followed; a directory that does not exist is empty. The
+// site's exports are left out: they are temporary, and an export of a
+// site at its quota must not push it over.
 func dirBytes(dir string) (int64, error) {
 	var n int64
-	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+	exports := export.Dir(dir)
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil // removed meanwhile
 			}
 			return err
+		}
+		if d.IsDir() && p == exports {
+			return fs.SkipDir
 		}
 		if d.Type().IsRegular() {
 			info, err := d.Info()

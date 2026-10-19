@@ -183,7 +183,7 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled or unpaid subscription holds the site, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
 
 **Limits.** A plan's limits apply to every site on it:
-- **Storage** counts uploads, their image variants and plugin packages. Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
+- **Storage** counts uploads, their image variants and plugin packages, but not exports waiting for their download. Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
 - **Custom domains** count verified and unverified ones.
 - **A downgrade** only blocks additions: files, domains and plugins over the new limits stay.
 
@@ -278,6 +278,8 @@ sap13ns site domain remove HOST
 sap13ns user create|reset-password -site S ...    -site network: a network account
 sap13ns plugin list|install -site S ...
 sap13ns assistant reindex|status -site S ...
+sap13ns export -site S -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media]
+        Export one site's content (see Backups).
 ```
 
 `site create` with a plan that needs approval (Personal) leaves the site pending. It is approved or rejected under **Network → Sites** in the portal.
@@ -296,6 +298,18 @@ sudo systemctl start sap13ns
 ```
 
 Keep `SAP13NS_SECRET_KEY` with the backups. It wraps every site's own secret, so without it no site can open its sessions, its stored keys or its passkeys.
+
+### Exporting one site
+
+Until per-site backups exist, **a site's way out of the network is its export**, the same one as on a single site ([README](../README.md#export)):
+- **The site's administrators** use **Tools → Export** on the site. This also works while the site is held for billing, because a held site keeps its admin.
+- **An operator** runs `sap13ns export -site S -o S.zip`. This also works for a suspended site, whose admin no longer answers.
+
+The `.zip` holds the WXR file, the site's uploads and a Markdown copy of each post and page. Any sap13ns site, in a network or not, and WordPress import the WXR. An export reads the site's own schema and directory, and nothing of another site's.
+
+An export is not a backup. It leaves out users (apart from the authors' names), settings, menus, themes, designs and plugins, and it cannot be restored over the site.
+
+A large `.zip` waits for its download in the site's `exports/` directory. It is not counted in the site's storage, and the hourly sweep deletes it after 24 hours.
 
 ## Limitations
 

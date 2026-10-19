@@ -324,6 +324,7 @@ func TestSingleSiteFlags(t *testing.T) {
 		{assistantCmd, []string{"status", "-site", "a"}},
 		{pluginCmd, []string{"list", "-site", "a"}},
 		{backupCmd, []string{"list", "-site", "a"}},
+		{exportCmd, []string{"-site", "a", "-o", "a.xml"}},
 		{migrate, []string{"-site", "a"}},
 		{siteCmd, []string{"list"}},
 		{networkCmd, []string{"init"}},

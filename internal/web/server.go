@@ -38,6 +38,7 @@ type siteState struct {
 type Server struct {
 	redirects redirectTable
 	imports   importJob
+	exports   exportJob
 	ai        aiState
 	cfg       *config.Config
 	log       *slog.Logger
@@ -320,10 +321,11 @@ func (s *Server) Background(ctx context.Context, opt BackgroundOptions) {
 	}
 }
 
-// Maintain purges expired sessions and prunes the audit log and old
-// analytics.
+// Maintain purges expired sessions, prunes the audit log and old
+// analytics, and removes expired exports.
 func (s *Server) Maintain(ctx context.Context) {
 	Maintain(ctx, s.store, s.settings(), s.log)
+	s.SweepExports(time.Now())
 }
 
 // Maintain is the periodic cleanup of one site's store, with its settings.
@@ -342,8 +344,8 @@ func Maintain(ctx context.Context, st *store.Store, set store.Settings, log *slo
 }
 
 // Busy reports whether a job started by a request still runs (an import,
-// an AI job, an index rebuild, a WebSub ping). A network does not unload
-// a busy site.
+// an export, an AI job, an index rebuild, a WebSub ping). A network does
+// not unload a busy site.
 func (s *Server) Busy() bool { return s.jobs.Load() > 0 }
 
 // goJob runs fn in the background as a job Busy reports.

@@ -89,7 +89,8 @@
           {{if .Can "users.manage"}}{{template "nav-item" (dict "URL" "/admin/users" "Icon" "users" "Label" (T "Users") "Current" (.Active "users"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings" "Icon" "settings" "Label" (T "Settings") "Current" (.Active "settings"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/tools/redirects" "Icon" "arrow-right-left" "Label" (T "Redirects") "Current" (.Active "redirects"))}}
-          {{template "nav-item" (dict "URL" "/admin/tools/import" "Icon" "file-input" "Label" (T "Import") "Current" (.Active "import"))}}{{end}}
+          {{template "nav-item" (dict "URL" "/admin/tools/import" "Icon" "file-input" "Label" (T "Import") "Current" (.Active "import"))}}
+          {{template "nav-item" (dict "URL" "/admin/tools/export" "Icon" "download" "Label" (T "Export") "Current" (.Active "export"))}}{{end}}
           {{if .Can "audit.view"}}{{template "nav-item" (dict "URL" "/admin/audit" "Icon" "history" "Label" (T "Audit log") "Current" (.Active "audit"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/system" "Icon" "server" "Label" (T "System") "Current" (.Active "system"))}}{{end}}
         </ul>

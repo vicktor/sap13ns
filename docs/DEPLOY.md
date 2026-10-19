@@ -82,6 +82,7 @@ Everything else (site title, languages, themes, comments, two-factor policy, AI,
 | Installation health | Admin → **System** (security, database, caches, updates) |
 | Back up now | `sudo systemctl start sap13ns-backup` |
 | List and verify backups | `sudo -u sap13ns sap13ns backup list -env /etc/sap13ns/sap13ns.env` |
+| Export the content | `sudo -u sap13ns sap13ns export -env /etc/sap13ns/sap13ns.env -o /var/lib/sap13ns/site.zip` |
 | Update | `sudo sap13ns update && sudo systemctl restart sap13ns` |
 | Reset a password | `sudo -u sap13ns sap13ns user reset-password -env /etc/sap13ns/sap13ns.env -username U` |
 
@@ -91,6 +92,14 @@ Everything else (site title, languages, themes, comments, two-factor policy, AI,
 - To encrypt the archives, set `SAP13NS_BACKUP_PASSPHRASE_FILE` to a file readable only by `sap13ns`, and keep a copy of the passphrase elsewhere.
 - To restore, stop the service, run `sap13ns backup restore ARCHIVE`, and start it again. Migrations run on start.
 - Copy the archives to another machine: a backup on the same disk doesn't protect against losing the disk.
+
+### Exports
+Administrators export the site's content from **Tools → Export**, and `sap13ns export -o FILE.xml|FILE.zip` does the same from the shell. The [README](../README.md#export) lists what an export holds.
+
+- **Streaming.** A WXR file, and a `.zip` whose uploads add up to less than 64 MiB, stream straight to the browser. The provided nginx configuration gives `/admin/tools/export` 600-second timeouts, and the response asks nginx not to buffer it (`X-Accel-Buffering: no`). Keep both.
+- **Larger `.zip` files** are written in the background to `$SAP13NS_DATA_DIR/exports/`, with mode 0600, one at a time. The directory is never served. The administrator who asked downloads the file once, from a signed link, within 24 hours. The file is deleted after the download, and the maintenance sweep removes expired ones. The data directory needs room for one copy of the uploads.
+- **Uploads in the data directory.** If `SAP13NS_UPLOADS_DIR` is the data directory itself, the exports directory would be public, so background exports are refused. Use the command line, or move the uploads to their default place (`$SAP13NS_DATA_DIR/uploads`).
+- **Personal data.** An export may hold e-mail and IP addresses when the administrator asks for them, and the command-line export does with `-pii`. Keep such files as safe as backups. The command writes them with mode 0600.
 
 ### Updates
 Administrators see a notice in the admin when a release is out. Take a backup, run `sudo sap13ns update`, then restart. The previous binary stays as `sap13ns.old` for rollback. Details are in [RELEASES.md](RELEASES.md).
@@ -214,7 +223,7 @@ SAP13NS_ACME_EMAIL=ops@example.com
 
 ### Backups of a network
 
-`sap13ns backup create` and `restore` refuse to run on a network: an archive holds one database and one uploads directory, not a network's sites. Back up with `pg_dump` and the data directory instead, as [MULTISITE.md](MULTISITE.md#backups) shows, and disable `sap13ns-backup.timer`.
+`sap13ns backup create` and `restore` refuse to run on a network: an archive holds one database and one uploads directory, not a network's sites. Back up with `pg_dump` and the data directory instead, as [MULTISITE.md](MULTISITE.md#backups) shows, and disable `sap13ns-backup.timer`. One site's content leaves with its export (`sap13ns export -site S`, or **Tools → Export** on the site).
 
 ## Hardening notes
 - The systemd unit runs sap13ns unprivileged with a read-only system, a private `/tmp`, no capabilities and a system-call filter. Check it with `systemd-analyze security sap13ns`.
@@ -230,4 +239,5 @@ SAP13NS_ACME_EMAIL=ops@example.com
 | **Uploads return 413** | Raise `client_max_body_size` in nginx and `SAP13NS_MAX_UPLOAD_MB` together. |
 | **Signed out after every request** | `SAP13NS_BASE_URL` is https but the site is opened over http, so the `Secure` cookie is dropped. |
 | **Site assistant search is keyword-only** | `pgvector` isn't installed or enabled: install the package, then run `CREATE EXTENSION vector` as a superuser in the `sap13ns` database. |
+| **An export download stops halfway** | A proxy timeout or buffering: keep the `/admin/tools/export` block of the provided nginx configuration, or export from the shell with `sap13ns export`. |
 | **AI requests time out behind nginx** | The provided configuration allows 360 s for `/admin/api/ai/`; keep it if you use slow local models. |

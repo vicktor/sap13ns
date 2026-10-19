@@ -107,6 +107,10 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
 - The instance secret (`SAP13NS_SECRET_KEY`) signs tokens and encrypts stored secrets, such as AI provider keys, with AES-256-GCM. Secrets are never shown again in the admin.
 - **Backups** can be encrypted with AES-256-GCM (STREAM construction, Argon2id key derivation). The passphrase is read from a file or the environment, never from a command-line flag.
 - **Updates** install only releases whose `SHA256SUMS` carries a valid Ed25519 signature from the key compiled into the binary.
+- **Content exports** (Tools → Export) need the settings capability, and each one is written to the audit log.
+  - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, AI keys or the instance and site secrets.
+  - E-mail and IP addresses are only included when the administrator asks for them.
+  - A `.zip` prepared in the background sits in a directory that is never served. It is downloaded once, by the administrator who asked, through a signed link valid for 24 hours, and then deleted.
 - **Analytics** store only daily aggregates. Visitors are counted with a salt that rotates daily and lives only in memory: no IP address, user agent or identifier is persisted.
 - **Public pages** make no third-party requests and set no tracking cookies.
 

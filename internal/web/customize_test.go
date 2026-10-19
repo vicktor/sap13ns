@@ -41,8 +41,13 @@ type customEnv struct {
 
 func newCustomEnv(t *testing.T) *customEnv {
 	t.Helper()
+	return newEnvOn(t, testutil.Store(t))
+}
+
+// newEnvOn is newCustomEnv over st, with its own data and uploads directories.
+func newEnvOn(t *testing.T, st *store.Store) *customEnv {
+	t.Helper()
 	ctx := context.Background()
-	st := testutil.Store(t)
 	base, _ := url.Parse("http://example.test")
 	cfg := &config.Config{BaseURL: base, SecretKey: []byte("0123456789abcdef0123456789abcdef"), DataDir: t.TempDir(),
 		UploadsDir: t.TempDir(), PluginsDir: t.TempDir(), ThemesDir: t.TempDir(), MaxUploadBytes: 10 << 20,

@@ -51,7 +51,19 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **Media library:** uploads are checked by content type, given image variants, and stored by hash so duplicates are detected. Uploaded files are served with a sandboxing CSP.
 - **Comments:** threaded, with moderation, per-post open/closed settings and rate limiting.
 - **Menus and widgets** per theme location and per language.
-- **WordPress importer:** reads a WXR export as it uploads. It brings in authors, categories, tags, posts, pages, comments and media, and creates redirects from the old URLs. It runs in the background, with a dry-run mode and a report.
+- **WordPress importer:** reads a WXR export as it uploads. It brings in authors, categories, tags, posts, pages, comments and media, and creates redirects from the old URLs. It runs in the background, with a dry-run mode and a report. It also reads sap13ns exports, and keeps what they add (see [Export](#export)).
+
+### Export
+**Tools → Export**, for the site's administrators, and `sap13ns export` take a site's content out: leaving should be as easy as arriving.
+- **A WordPress export file (WXR 1.2)** that WordPress and sap13ns both import. It holds:
+  - posts and pages, published and scheduled ones by default, with drafts, pending and private ones on request, narrowed by dates or an author if needed;
+  - categories and tags, the authors (username, display name), approved comments (pending ones on request);
+  - the featured images and the media library, as attachments with their URLs.
+- **What WordPress ignores, sap13ns keeps.** Extra fields carry the Markdown source, each post's language and its links to its translations, term translations, meta descriptions and redirects. A move between two sap13ns sites keeps all of them.
+- **A `.zip`** with that file, the uploads directory, and a Markdown copy of every post and page (YAML front matter, then the stored Markdown).
+- **No personal data by default.** Commenters' e-mail and IP addresses and authors' e-mail addresses are only exported with **Include commenters' personal data**. Passwords, two-factor secrets, passkeys, sessions, plugin secrets, API keys and the site secret are never exported.
+- **Any size:** exports stream, so a site is never held in memory. A large `.zip` is prepared in the background and downloaded from a link that works once, for the administrator who asked, within 24 hours. Every export is in the audit log.
+- **Not exported:** menus, widgets, settings, themes, designs (the customiser exports those), plugins and revisions.
 
 ### Multilingual
 - Each post can have linked translations, and every language lives under its own prefix (`/en/`, `/es/`…).
@@ -236,6 +248,7 @@ sap13ns keygen           Generate a secret key
 sap13ns user create      Create a user
 sap13ns user reset-password
 sap13ns backup create|list|verify|restore|prune
+sap13ns export -o FILE.xml|FILE.zip   Export the content (-drafts, -pii, -no-media)
 sap13ns update           Install the latest signed release (-check, -yes, -force)
 sap13ns plugin new|pack|check   Start, package and scan a plugin
 sap13ns plugin list|install     List or install the site's plugins
@@ -246,7 +259,7 @@ Networks of sites (SAP13NS_MULTISITE=true):
 sap13ns network init     Create the network and its portal, and an administrator
 sap13ns site create|list|suspend|resume|delete|purge
 sap13ns site domain add|verify|primary|remove
-sap13ns migrate|user|plugin|assistant -site S   Work on one site (-site network: the portal)
+sap13ns migrate|user|plugin|assistant|export -site S   Work on one site (-site network: the portal)
 ```
 
 ## Development
@@ -278,7 +291,7 @@ docs               operator and developer documentation
 
 Still missing on a network of sites:
 
-- **Per-site backups:** `sap13ns backup create` and `restore` refuse to run on a network for now; back it up with `pg_dump` and a copy of the data directory ([docs/MULTISITE.md](docs/MULTISITE.md#backups)).
+- **Per-site backups:** `sap13ns backup create` and `restore` refuse to run on a network for now; back it up with `pg_dump` and a copy of the data directory ([docs/MULTISITE.md](docs/MULTISITE.md#backups)). A single site's content leaves the network with its [export](#export).
 - **Conversion:** a single-site install cannot yet be turned into a network, or moved into one.
 - **Theme uploads** by the sites themselves, and member invitations by site owners.
 

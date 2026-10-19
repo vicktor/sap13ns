@@ -8,6 +8,7 @@
 //	sap13ns plugin new|pack|check create, package and scan plugins (plugin.go)
 //	sap13ns plugin list|install   list and install the plugins of a site
 //	sap13ns assistant reindex     rebuild the site assistant's search index
+//	sap13ns export -o FILE        export the content as WXR or a .zip (export.go)
 //	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
 //	sap13ns site ...              create, list and manage the sites of a network
 //	sap13ns version               print the version
@@ -74,6 +75,8 @@ func main() {
 		err = pluginCmd(args)
 	case "backup":
 		err = backupCmd(args)
+	case "export":
+		err = exportCmd(args)
 	case "assistant":
 		err = assistantCmd(args)
 	case "update":
@@ -121,6 +124,9 @@ Commands:
   backup create|list|verify|restore|prune
                                  Encrypted backups of the database and uploads
                                  (see docs/DEPLOY.md)
+  export -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media] [-pending-comments]
+                                 Export the content as a WordPress file (WXR),
+                                 or a .zip with the uploads and Markdown copies
   assistant reindex [-full] [-changed] | status
                                  Rebuild the site assistant's search index, or
                                  show its state (embeddings, pgvector, failures)
@@ -141,7 +147,7 @@ Networks (SAP13NS_MULTISITE=true):
   site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST
                                  Manage the sites; running servers follow
   migrate [-site S]              Migrate the network, then every site (or one)
-  user, plugin list|install, assistant -site S
+  user, plugin list|install, assistant, export -site S
                                  Work on one site; -site network is the portal
 `)
 }

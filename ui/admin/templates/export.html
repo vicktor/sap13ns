@@ -1,0 +1,80 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$f := $d.Form}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Export"}}</h1>
+    <p>{{T "Take your content with you: a WordPress export file (WXR) that WordPress and sap13ns can import, or a .zip that also holds your files and a Markdown copy of every post and page."}}</p>
+  </div>
+</div>
+{{if $d.Running}}
+<section class="card" data-poll="3000">
+  <header><h2>{{icon "timer"}} {{T "Export running"}}</h2><p>{{T "%s started an export %s. This page refreshes by itself." $d.User (ago $d.Started)}}</p></header>
+</section>
+{{end}}
+{{with $d.Failed}}<div class="alert" data-variant="destructive">{{icon "circle-alert"}}<h2>{{T "The last export did not finish"}}</h2><section>{{.}}</section></div>{{end}}
+{{if $d.Ready}}
+<section class="card">
+  <header><h2>{{icon "download"}} {{T "Ready to download"}}</h2><p>{{T "Each link works once, for you only, and expires after 24 hours. The file is deleted after the download."}}</p></header>
+  <section>
+    <table class="table">
+      <thead><tr><th>{{T "Created"}}</th><th>{{T "Size"}}</th><th>{{T "Expires"}}</th><th></th></tr></thead>
+      <tbody>{{range $d.Ready}}<tr><td>{{dateTime .Created}}</td><td class="tabular">{{filesize .Size}}</td><td>{{dateTime .Expires}}</td>
+        <td class="text-right"><a class="btn" data-size="sm" href="{{.URL}}" rel="nofollow">{{icon "download"}}{{T "Download"}}</a></td></tr>{{end}}</tbody>
+    </table>
+  </section>
+</section>
+{{end}}
+<div class="split">
+  <section class="card">
+    <header><h2>{{T "New export"}}</h2></header>
+    <section>
+      {{template "form-error" $d.Error}}
+      <form method="post" action="/admin/tools/export" class="form">
+        {{.CSRFField}}
+        <fieldset class="fieldset">
+          <legend>{{T "Content"}}</legend>
+          <label class="check"><input type="checkbox" class="input" name="posts" value="1"{{if $f.Posts}} checked{{end}}> {{T "Posts"}}</label>
+          <label class="check"><input type="checkbox" class="input" name="pages" value="1"{{if $f.Pages}} checked{{end}}> {{T "Pages"}}</label>
+          <label class="check"><input type="checkbox" class="input" name="media" value="1"{{if $f.Media}} checked{{end}}> {{T "Media library (otherwise only the featured images of the exported posts)"}}</label>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend>{{T "Status"}}</legend>
+          <label class="check"><input type="checkbox" class="input" name="published" value="1"{{if $f.Published}} checked{{end}}> {{T "Published and scheduled"}}</label>
+          <label class="check"><input type="checkbox" class="input" name="drafts" value="1"{{if $f.Drafts}} checked{{end}}> {{T "Drafts"}}</label>
+          <label class="check"><input type="checkbox" class="input" name="pending" value="1"{{if $f.Pending}} checked{{end}}> {{T "Pending review"}}</label>
+          <label class="check"><input type="checkbox" class="input" name="private" value="1"{{if $f.Private}} checked{{end}}> {{T "Private"}}</label>
+        </fieldset>
+        <div class="grid-2">
+          <div class="field"><label for="from">{{T "Start date"}}</label><input class="input" id="from" name="from" type="date" value="{{$f.From}}"></div>
+          <div class="field"><label for="to">{{T "End date"}}</label><input class="input" id="to" name="to" type="date" value="{{$f.To}}"></div>
+        </div>
+        <p class="hint">{{T "Dates are publication dates (creation dates for drafts), in the site's time zone. Leave them empty to export everything."}}</p>
+        <div class="field"><label for="author_id">{{T "Author"}}</label>
+          <select class="select w-full" id="author_id" name="author_id"><option value="0">{{T "All authors"}}</option>{{range $d.Authors}}<option value="{{.ID}}"{{if eq .ID $f.AuthorID}} selected{{end}}>{{.Name}} ({{roleLabel .Role}})</option>{{end}}</select></div>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="pending_comments" value="1"{{if $f.PendingComments}} checked{{end}}> {{T "Also export comments awaiting moderation (approved comments are always included)"}}</label>
+        <div class="field"><label class="check"><input type="checkbox" class="input" role="switch" name="personal_data" value="1"{{if $f.PersonalData}} checked{{end}}> {{T "Include commenters' personal data"}}</label>
+          <p class="hint">{{T "Adds the e-mail and IP addresses of commenters and the e-mail addresses of authors. Without it the file holds no e-mail or IP address. Only include them if you have a reason to, and keep the file safe."}}</p></div>
+        <fieldset class="fieldset">
+          <legend>{{T "Format"}}</legend>
+          <label class="check"><input type="radio" class="input" name="format" value="xml"{{if ne $f.Format "zip"}} checked{{end}}> {{T "WordPress export file (.xml)"}}</label>
+          <label class="check"><input type="radio" class="input" name="format" value="zip"{{if eq $f.Format "zip"}} checked{{end}}> {{T "Everything in a .zip: the export file, the uploaded files and a Markdown copy of each post and page"}}</label>
+        </fieldset>
+        <button class="btn" type="submit">{{icon "download"}}{{T "Export"}}</button>
+      </form>
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "What is included"}}</h2></header>
+    <section class="prose prose-sm">
+      <ul>
+        <li>{{T "Posts and pages with their categories, tags, comments, featured images and translations. sap13ns keeps the Markdown source, the language and the links between translations when it imports the file."}}</li>
+        <li>{{T "Authors with their username and display name. Passwords, two-factor settings, passkeys and sessions are never exported."}}</li>
+        <li>{{T "Redirects, which the sap13ns importer recreates. WordPress ignores them."}}</li>
+        <li>{{T "Not included: menus, widgets, settings, themes, designs and plugins. Export a design from the customiser."}}</li>
+        <li>{{T "Small exports download at once. A .zip with many files is prepared in the background, and its link appears on this page."}}</li>
+      </ul>
+    </section>
+  </section>
+</div>
+{{end}}
