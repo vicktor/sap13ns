@@ -438,6 +438,11 @@ type profileData struct {
 	Tab      string
 	Passkeys passkeySection
 	CanLink  bool // a local user of a network's site: link to a network account
+	// The admin languages to choose from, the one chosen ("" for the
+	// site's), and the name of the site's main language (uilang.go).
+	Langs    []LangLink
+	Lang     string
+	SiteLang string
 }
 
 func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status int, u *store.User, tab, msg string) {
@@ -456,7 +461,7 @@ func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status in
 		return
 	}
 	s.renderAdminStatus(w, r, status, "profile", s.t("Your profile"), "profile", profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks,
-		CanLink: s.sso != nil && !u.Linked()})
+		CanLink: s.sso != nil && !u.Linked(), Langs: s.uiLanguages(""), Lang: s.userLang(u), SiteLang: langName(s.lang())})
 }
 
 func (s *Server) adminProfile(w http.ResponseWriter, r *http.Request) {

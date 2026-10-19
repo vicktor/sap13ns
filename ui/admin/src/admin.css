@@ -146,6 +146,7 @@
 .user-meta strong { @apply truncate text-sm font-medium; }
 .user-meta small { @apply text-muted-foreground text-xs; }
 #user-menu [data-popover] { @apply min-w-56; }
+#lang-menu [data-popover] { @apply min-w-48; }
 
 .avatar-initials {
   @apply grid size-8 shrink-0 place-items-center rounded-full bg-accent text-[0.7rem] font-semibold text-accent-foreground;
@@ -541,6 +542,7 @@ body.auth {
 .auth-shell { @apply mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-10; }
 .auth-top { @apply flex items-center justify-between; }
 .auth-top .brand { @apply hover:bg-transparent; }
+.auth-top-actions { @apply flex items-center gap-1; }
 .auth-card { @apply gap-5 shadow-lg; }
 .auth-card > header h1 { @apply text-xl font-semibold tracking-tight; }
 .auth-card > header p { @apply text-muted-foreground mt-1 text-sm; }

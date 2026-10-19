@@ -138,7 +138,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
-		http.Redirect(w, r, s.auth().TwoFactor+"?next="+url.QueryEscape(next), http.StatusSeeOther)
+		to := s.auth().TwoFactor + "?next=" + url.QueryEscape(next)
+		if l := rctx(r).UILang; l != "" { // the language of the sign-in page (signInLang)
+			to += "&lang=" + url.QueryEscape(l)
+		}
+		http.Redirect(w, r, to, http.StatusSeeOther)
 		return
 	}
 	s.completeLogin(w, r, u, next, "password")
@@ -414,10 +418,15 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		link := s.cfg.AbsURL(s.auth().Reset + "?token=" + token)
-		body := s.t("Someone asked to reset the password of your account %s at %s.", u.Username, s.settings().SiteTitle) + "\n\n" +
-			s.t("Open this link to choose a new password (valid for one hour):") + "\n" + link + "\n\n" +
-			s.t("If it was not you, ignore this message: your password has not changed.")
-		if err := s.mailer.Send(u.Email, s.t("Password reset")+" · "+s.settings().SiteTitle, body); err != nil {
+		// In the admin language the user chose, else the site's.
+		lang := s.userLang(u)
+		if lang == "" {
+			lang = s.lang()
+		}
+		body := s.i18n.T(lang, "Someone asked to reset the password of your account %s at %s.", u.Username, s.settings().SiteTitle) + "\n\n" +
+			s.i18n.T(lang, "Open this link to choose a new password (valid for one hour):") + "\n" + link + "\n\n" +
+			s.i18n.T(lang, "If it was not you, ignore this message: your password has not changed.")
+		if err := s.mailer.Send(u.Email, s.i18n.T(lang, "Password reset")+" · "+s.settings().SiteTitle, body); err != nil {
 			s.log.Error("send reset e-mail", "err", err)
 		}
 		s.audit(r, u.ID, "password.reset_requested", u.Username, nil)

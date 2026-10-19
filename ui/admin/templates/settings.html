@@ -30,7 +30,7 @@
           <div class="field"><label for="language">{{T "Main language"}}</label>
             {{$o := list}}{{range $d.Languages}}{{$o = append $o (opt .Code .Name)}}{{end}}
             {{template "select" (selectbox "id" "language" "name" "language" "value" $s.Language "options" $o "search" true)}}
-            <p class="hint">{{T "Served at the root of the site. The administration uses it too."}}</p></div>
+            <p class="hint">{{T "Served at the root of the site. The administration uses it too, for the users who have not chosen another language."}}</p></div>
           <div class="field"><label for="timezone">{{T "Time zone"}}</label>
             <div class="combobox w-full" id="timezone-combobox" data-auto-highlight="true">
               <input type="text" role="combobox" id="timezone" name="timezone" value="{{$s.Timezone}}" required maxlength="64" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" aria-expanded="false" aria-controls="timezone-listbox">{{icon "chevron-down" "combobox-trigger-icon"}}

@@ -26,6 +26,9 @@ type reqCtx struct {
 	User    *store.User
 	Session *store.Session
 	Lang    string // content language from the URL prefix; "" = main language
+	// UILang is the admin language the signed-in user chose, set on admin
+	// routes only (requireCap); "" = main language. See uilang.go.
+	UILang string
 }
 
 type ctxKey struct{}
@@ -365,6 +368,7 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, r, s.auth().Login+"?next="+url.QueryEscape(safeNext(r.URL.RequestURI())), http.StatusSeeOther)
 			return
 		}
+		rctx(r).UILang = s.userLang(u)
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {

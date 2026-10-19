@@ -1,5 +1,5 @@
 {{define "auth"}}<!doctype html>
-<html lang="{{.Site.Language}}">
+<html lang="{{.Lang}}" dir="{{.Dir}}">
 <head>{{template "head" .}}</head>
 <body class="auth">
 <main id="main" class="auth-shell">
@@ -8,7 +8,20 @@
       <span class="brand-mark" aria-hidden="true">{{initials .Site.SiteTitle}}</span>
       <span class="brand-text"><strong>{{.Site.SiteTitle}}</strong></span>
     </a>
-    <button type="button" class="btn" data-variant="ghost" data-size="icon" data-theme-toggle aria-label="{{T "Toggle dark mode"}}">{{icon "sun" "theme-icon-light"}}{{icon "moon" "theme-icon-dark"}}</button>
+    <div class="auth-top-actions">
+      {{with .SignInLangs}}
+      <div id="lang-menu" class="dropdown-menu lang-menu">
+        <button type="button" id="lang-menu-trigger" class="btn" data-variant="ghost" data-size="icon" aria-haspopup="menu" aria-controls="lang-menu-menu" aria-expanded="false" aria-label="{{T "Language"}}" title="{{T "Language"}}">{{icon "languages"}}</button>
+        <div id="lang-menu-popover" data-popover aria-hidden="true" data-align="end">
+          <div role="menu" id="lang-menu-menu" aria-labelledby="lang-menu-trigger">
+            {{range .}}<a role="menuitemradio" aria-checked="{{if .Current}}true{{else}}false{{end}}" href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}">{{.Name}}<span data-indicator>{{icon "check"}}</span></a>
+            {{end}}
+          </div>
+        </div>
+      </div>
+      {{end}}
+      <button type="button" class="btn" data-variant="ghost" data-size="icon" data-theme-toggle aria-label="{{T "Toggle dark mode"}}">{{icon "sun" "theme-icon-light"}}{{icon "moon" "theme-icon-dark"}}</button>
+    </div>
   </div>
   <section class="card auth-card">
     {{template "content" .}}

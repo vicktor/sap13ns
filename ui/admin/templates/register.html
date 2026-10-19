@@ -3,7 +3,7 @@
 <header><h1>{{T "Create an account"}}</h1><p>{{T "Join to comment and follow the site."}}</p></header>
 <section>
   {{template "form-alerts" .D}}
-  <form method="post" action="/register" class="form auth-form">
+  <form method="post" action="/register{{with $.SignInLang}}?lang={{.}}{{end}}" class="form auth-form">
     <input type="hidden" name="token" value="{{.D.Token}}">
     <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
     <div class="field">
@@ -19,7 +19,7 @@
     <button class="btn w-full" type="submit">{{icon "user-plus"}}{{T "Create account"}}</button>
   </form>
 </section>
-<footer><p>{{T "Already registered?"}} <a href="{{.Auth.Login}}">{{T "Log in"}}</a></p></footer>
+<footer><p>{{T "Already registered?"}} <a href="{{.Auth.Login}}{{with $.SignInLang}}?lang={{.}}{{end}}">{{T "Log in"}}</a></p></footer>
 {{end}}
 {{define "password-pair"}}
 <div class="field">

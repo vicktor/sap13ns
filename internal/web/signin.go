@@ -106,10 +106,10 @@ func (s *Server) signInRoutes() *signInRouter {
 		_, path, _ := strings.Cut(pattern, " ")
 		rt.paths[path] = true
 	}
-	handle("GET "+p.Login, s.handleLoginForm)
-	handle("POST "+p.Login, s.handleLogin)
-	handle("GET "+p.TwoFactor, s.handleMFAForm)
-	handle("POST "+p.TwoFactor, s.handleMFA)
+	handle("GET "+p.Login, s.signInLang(s.handleLoginForm)) // ?lang= (uilang.go)
+	handle("POST "+p.Login, s.signInLang(s.handleLogin))
+	handle("GET "+p.TwoFactor, s.signInLang(s.handleMFAForm))
+	handle("POST "+p.TwoFactor, s.signInLang(s.handleMFA))
 	handle("POST "+p.PasskeyBegin, s.loginPasskeyBegin)
 	handle("POST "+p.PasskeyFinish, s.loginPasskeyFinish)
 	forgot, reset, setup := []string{p.Forgot}, []string{p.Reset}, []string{p.Setup}
@@ -117,8 +117,8 @@ func (s *Server) signInRoutes() *signInRouter {
 		forgot, reset, setup = append(forgot, legacyAuth[0]), append(reset, legacyAuth[1]), append(setup, legacyAuth[2])
 	}
 	for _, path := range forgot {
-		handle("GET "+path, s.handleForgotForm)
-		handle("POST "+path, s.handleForgot)
+		handle("GET "+path, s.signInLang(s.handleForgotForm))
+		handle("POST "+path, s.signInLang(s.handleForgot))
 	}
 	for _, path := range reset {
 		handle("GET "+path, s.handleResetForm)

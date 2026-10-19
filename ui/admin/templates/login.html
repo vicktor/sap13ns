@@ -7,14 +7,14 @@
   <a class="btn w-full" href="/sso/start?next={{.D.Next}}">{{icon "log-in"}}{{T "Sign in with your sap13ns account"}}</a>
   <div class="auth-divider"><span>{{T "or"}}</span></div>
   {{end}}
-  <form method="post" action="{{.Auth.Login}}" class="form auth-form">
+  <form method="post" action="{{.Auth.Login}}{{with $.SignInLang}}?lang={{.}}{{end}}" class="form auth-form">
     <input type="hidden" name="next" value="{{.D.Next}}">
     <div class="field">
       <label for="login">{{T "Username or e-mail"}}</label>
       <input class="input" id="login" name="login" type="text" value="{{index .D.Values "login"}}" autocomplete="{{if .D.Passkeys}}username webauthn{{else}}username{{end}}" autocapitalize="none" spellcheck="false" required autofocus maxlength="254">
     </div>
     <div class="field">
-      <div class="label-row"><label for="password">{{T "Password"}}</label>{{if .D.CanReset}}<a href="{{.Auth.Forgot}}">{{T "Forgot it?"}}</a>{{end}}</div>
+      <div class="label-row"><label for="password">{{T "Password"}}</label>{{if .D.CanReset}}<a href="{{.Auth.Forgot}}{{with $.SignInLang}}?lang={{.}}{{end}}">{{T "Forgot it?"}}</a>{{end}}</div>
       <div class="password-field">
         <input class="input" id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
         <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-password-toggle="password" aria-label="{{T "Show password"}}">{{icon "eye"}}</button>
@@ -24,5 +24,5 @@
   </form>
   {{if .D.Passkeys}}{{template "passkey-signin" (dict "Next" .D.Next "Mode" "" "Auth" .Auth)}}{{end}}
 </section>
-{{if .D.AllowRegistration}}<footer><p>{{T "No account yet?"}} <a href="/register">{{T "Create one"}}</a></p></footer>{{end}}
+{{if .D.AllowRegistration}}<footer><p>{{T "No account yet?"}} <a href="/register{{with $.SignInLang}}?lang={{.}}{{end}}">{{T "Create one"}}</a></p></footer>{{end}}
 {{end}}

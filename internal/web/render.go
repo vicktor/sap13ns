@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"path"
 	"strings"
@@ -153,43 +154,65 @@ func (s *Server) funcMap() template.FuncMap {
 	}
 	// Same names as langFuncs, but resolving the main language on each call so
 	// that admin templates follow a settings change without being re-parsed.
-	m["T"] = s.t
-	m["lang"] = s.lang
-	m["date"] = func(t time.Time) string { return i18n.FormatDate(s.lang(), t.In(s.loc())) }
-	m["shortDate"] = func(t time.Time) string { return i18n.FormatShortDate(s.lang(), t.In(s.loc())) }
-	m["dateTime"] = s.dateTime
-	m["ago"] = func(t time.Time) string { return s.i18n.Ago(s.lang(), t, time.Now()) }
-	m["monthName"] = func(n int) string { return i18n.MonthName(s.lang(), time.Month(n)) }
-	m["plural"] = func(n int, one, many string, args ...any) string {
-		if n == 1 {
-			return s.t(one, append([]any{n}, args...)...)
-		}
-		return s.t(many, append([]any{n}, args...)...)
-	}
-	// themeT translates a string of a theme's manifest (theme.json: its
-	// description, option labels and help, menus and widget areas) for the
-	// admin: the theme's own i18n/<lang>.json first, then the UI catalog.
-	m["themeT"] = s.themeText
-	m["roleLabel"] = func(role string) string { return s.t(roleLabels[role]) }
-	m["statusLabel"] = func(st string) string { return s.t(statusLabels[st]) }
+	maps.Copy(m, s.adminLangFuncs(s.lang))
 	m["link"] = func(p string) string { return p }
 	return m
 }
 
-// themeText translates a string of th's manifest into the admin language:
-// the theme's own catalog first, then the UI catalog (see themeT).
-func (s *Server) themeText(th *theme.Theme, key string) string {
+// adminFuncs are the functions of the admin templates in lang, an admin
+// language a user chose (uilang.go); "" is the site's main language,
+// followed as the settings change.
+func (s *Server) adminFuncs(lang string) template.FuncMap {
+	m := s.funcMap()
+	if lang != "" {
+		maps.Copy(m, s.adminLangFuncs(func() string { return lang }))
+	}
+	return m
+}
+
+// adminLangFuncs are the admin template functions that depend on the
+// language, which lang gives on each call.
+func (s *Server) adminLangFuncs(lang func() string) template.FuncMap {
+	t := func(key string, args ...any) string { return s.i18n.T(lang(), key, args...) }
+	return template.FuncMap{
+		"T":         t,
+		"lang":      lang,
+		"date":      func(tm time.Time) string { return i18n.FormatDate(lang(), tm.In(s.loc())) },
+		"shortDate": func(tm time.Time) string { return i18n.FormatShortDate(lang(), tm.In(s.loc())) },
+		"dateTime":  func(tm time.Time) string { return s.dateTimeIn(lang(), tm) },
+		"ago":       func(tm time.Time) string { return s.i18n.Ago(lang(), tm, time.Now()) },
+		"monthName": func(n int) string { return i18n.MonthName(lang(), time.Month(n)) },
+		"plural": func(n int, one, many string, args ...any) string {
+			if n == 1 {
+				return t(one, append([]any{n}, args...)...)
+			}
+			return t(many, append([]any{n}, args...)...)
+		},
+		// themeT translates a string of a theme's manifest (theme.json: its
+		// description, option labels and help, menus and widget areas) for
+		// the admin: the theme's own i18n/<lang>.json first, then the UI
+		// catalog.
+		"themeT":      func(th *theme.Theme, key string) string { return s.themeText(lang(), th, key) },
+		"roleLabel":   func(role string) string { return t(roleLabels[role]) },
+		"statusLabel": func(st string) string { return t(statusLabels[st]) },
+	}
+}
+
+// themeText translates a string of th's manifest into lang: the theme's
+// own catalog first, then the UI catalog (see themeT).
+func (s *Server) themeText(lang string, th *theme.Theme, key string) string {
 	if th != nil {
-		if v, ok := th.Text(s.lang(), key); ok {
+		if v, ok := th.Text(lang, key); ok {
 			return v
 		}
 	}
-	return s.t(key)
+	return s.i18n.T(lang, key)
 }
 
-func (s *Server) dateTime(t time.Time) string {
+// dateTimeIn renders a short date and a time in lang, in the site's zone.
+func (s *Server) dateTimeIn(lang string, t time.Time) string {
 	lt := t.In(s.loc())
-	return i18n.FormatShortDate(s.lang(), lt) + " " + lt.Format("15:04")
+	return i18n.FormatShortDate(lang, lt) + " " + lt.Format("15:04")
 }
 
 func upperFirst(s string) string {
@@ -248,31 +271,57 @@ func filesize(n int64) string {
 
 type adminTemplates struct {
 	fsys   fs.FS
-	funcs  template.FuncMap
+	funcs  func(lang string) template.FuncMap
 	reload bool
 	mu     sync.RWMutex
-	pages  map[string]*template.Template
+	// sets holds the pages of each admin language in use, parsed with that
+	// language's functions on first use; "" is the site's main language.
+	sets map[string]map[string]*template.Template
 }
 
 var adminBase = []string{"layout.html", "auth.html", "partials.html", "ai_panel.html", "site_switcher.html", "avatar.html"}
 
-func newAdminTemplates(ui fs.FS, funcs template.FuncMap, reload bool) (*adminTemplates, error) {
+// newAdminTemplates parses the admin templates in the site's main language;
+// funcs gives the template functions of a language (Server.adminFuncs).
+func newAdminTemplates(ui fs.FS, funcs func(lang string) template.FuncMap, reload bool) (*adminTemplates, error) {
 	sub, err := fs.Sub(ui, "admin/templates")
 	if err != nil {
 		return nil, err
 	}
-	a := &adminTemplates{fsys: sub, funcs: funcs, reload: reload}
-	return a, a.parse()
+	a := &adminTemplates{fsys: sub, funcs: funcs, reload: reload, sets: map[string]map[string]*template.Template{}}
+	_, err = a.pages("")
+	return a, err
 }
 
-func (a *adminTemplates) parse() error {
-	base, err := template.New("admin").Funcs(a.funcs).ParseFS(a.fsys, adminBase...)
+// pages returns the pages in lang, parsed on first use (on every use in
+// development, so that template edits show up).
+func (a *adminTemplates) pages(lang string) (map[string]*template.Template, error) {
+	if !a.reload {
+		a.mu.RLock()
+		pages := a.sets[lang]
+		a.mu.RUnlock()
+		if pages != nil {
+			return pages, nil
+		}
+	}
+	pages, err := a.parse(lang)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	a.mu.Lock()
+	a.sets[lang] = pages
+	a.mu.Unlock()
+	return pages, nil
+}
+
+func (a *adminTemplates) parse(lang string) (map[string]*template.Template, error) {
+	base, err := template.New("admin").Funcs(a.funcs(lang)).ParseFS(a.fsys, adminBase...)
+	if err != nil {
+		return nil, err
 	}
 	files, err := fs.Glob(a.fsys, "*.html")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	pages := map[string]*template.Template{}
 	for _, f := range files {
@@ -281,28 +330,23 @@ func (a *adminTemplates) parse() error {
 		}
 		set, err := base.Clone()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if _, err := set.ParseFS(a.fsys, f); err != nil {
-			return err
+			return nil, err
 		}
 		pages[strings.TrimSuffix(f, ".html")] = set
 	}
-	a.mu.Lock()
-	a.pages = pages
-	a.mu.Unlock()
-	return nil
+	return pages, nil
 }
 
-func (a *adminTemplates) render(w io.Writer, name string, data any) error {
-	if a.reload {
-		if err := a.parse(); err != nil {
-			return err
-		}
+// render executes the page name in lang ("" is the site's main language).
+func (a *adminTemplates) render(w io.Writer, lang, name string, data any) error {
+	pages, err := a.pages(lang)
+	if err != nil {
+		return err
 	}
-	a.mu.RLock()
-	set, ok := a.pages[name]
-	a.mu.RUnlock()
+	set, ok := pages[name]
 	if !ok {
 		return fmt.Errorf("admin template %q not found", name)
 	}
@@ -310,7 +354,7 @@ func (a *adminTemplates) render(w io.Writer, name string, data any) error {
 	if err := set.ExecuteTemplate(&buf, name+".html", data); err != nil {
 		return err
 	}
-	_, err := w.Write(buf.Bytes())
+	_, err = w.Write(buf.Bytes())
 	return err
 }
 
@@ -339,6 +383,17 @@ type adminPage struct {
 	Auth    AuthPaths     // the sign-in pages, at the site's sign-in address
 	D       any
 
+	// The language of the panel (uilang.go): its code and direction, the
+	// languages of the language menu, and where choosing one comes back to.
+	Lang     string
+	Dir      string
+	UILangs  []LangLink
+	LangNext string
+	// On a sign-in page: the language of its ?lang= ("" for the site's),
+	// which its forms and links carry, and the page in each language.
+	SignInLang  string
+	SignInLangs []LangLink
+
 	// On the network portal: every account has "My sites"; network admins
 	// also have the network admin area, with the sites waiting for them.
 	Portal       bool
@@ -366,6 +421,17 @@ func (p *adminPage) Active(section string) bool { return p.Section == section }
 func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, section string, d any) *adminPage {
 	p := &adminPage{Title: title, Section: section, User: currentUser(r), Site: s.settings(), Path: r.URL.Path,
 		Version: Version, SiteURL: s.cfg.BaseURL.String(), Auth: s.auth(), D: d, Flashes: s.takeFlashes(w, r)}
+	if p.Lang = s.uiLang(r); !s.i18n.Has(p.Lang) {
+		p.Lang = "en" // a site language without a catalog: the strings are the English source
+	}
+	p.Dir = langDir(p.Lang)
+	if langs := s.uiLanguages(p.Lang); len(langs) > 1 {
+		if p.User != nil {
+			p.UILangs, p.LangNext = langs, langNext(r)
+		} else if s.signInLangPage(r.URL.Path) {
+			p.SignInLang, p.SignInLangs = rctx(r).UILang, signInLangs(r, langs)
+		}
+	}
 	if sess := rctx(r).Session; sess != nil {
 		p.CSRF = sess.CSRFToken
 	}
@@ -406,8 +472,12 @@ func (s *Server) renderAdmin(w http.ResponseWriter, r *http.Request, name, title
 
 func (s *Server) renderAdminStatus(w http.ResponseWriter, r *http.Request, status int, name, title, section string, d any) {
 	page := s.newAdminPage(w, r, title, section, d)
+	lang := s.uiLang(r)
+	if lang == s.lang() {
+		lang = "" // the set that follows the site's language
+	}
 	var buf bytes.Buffer
-	if err := s.admin.render(&buf, name, page); err != nil {
+	if err := s.admin.render(&buf, lang, name, page); err != nil {
 		s.log.Error("render admin template", "template", name, "err", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return

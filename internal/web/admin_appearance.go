@@ -118,7 +118,7 @@ func (s *Server) adminThemeOptionsSave(w http.ResponseWriter, r *http.Request) {
 			v = strconv.FormatBool(v == "true")
 		}
 		if tooLong(v, 2000) {
-			s.redirect(w, r, r.URL.Path, "error", s.t("“%s” is too long.", s.themeText(th, o.Label)))
+			s.redirect(w, r, r.URL.Path, "error", s.t("“%s” is too long.", s.themeText(s.uiLang(r), th, o.Label)))
 			return
 		}
 		opts[o.Key] = v

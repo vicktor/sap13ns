@@ -39,6 +39,24 @@
       </form>
     </section>
   </section>
+  {{if gt (len $d.Langs) 1}}
+  <section class="card" id="language">
+    <header><h2>{{T "Language"}}</h2><p>{{T "The language of the administration panel, for you only. The site keeps its own languages."}}</p></header>
+    <section>
+      <form method="post" action="/admin/profile/language" class="form">
+        {{.CSRFField}}
+        <input type="hidden" name="next" value="/admin/profile#language">
+        <fieldset class="field">
+          <legend class="sr-only">{{T "Language of the panel"}}</legend>
+          <label class="check"><input type="radio" class="input" name="lang" value=""{{if not $d.Lang}} checked{{end}}> {{T "The site's language (%s)" $d.SiteLang}}</label>
+          {{range $d.Langs}}<label class="check" lang="{{.Code}}"><input type="radio" class="input" name="lang" value="{{.Code}}"{{if eq .Code $d.Lang}} checked{{end}}> {{.Name}}</label>
+          {{end}}
+        </fieldset>
+        <div class="form-actions"><button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button></div>
+      </form>
+    </section>
+  </section>
+  {{end}}
   </div>
 
   <div class="stack" id="security">

@@ -54,8 +54,8 @@ func (s *Server) routes() *http.ServeMux {
 	// passkeys, password resets and the installer) are at the site's
 	// sign-in address, which can change: withSignIn serves them (signin.go).
 	mux.HandleFunc("POST /logout", s.handleLogout)
-	mux.HandleFunc("GET /register", s.handleRegisterForm)
-	mux.HandleFunc("POST /register", s.handleRegister)
+	mux.HandleFunc("GET /register", s.signInLang(s.handleRegisterForm)) // ?lang= (uilang.go)
+	mux.HandleFunc("POST /register", s.signInLang(s.handleRegister))
 
 	// Single sign-on through the network portal (sso.go): a tenant site
 	// starts it and receives the code, the portal issues the code.
@@ -236,6 +236,7 @@ func (s *Server) routes() *http.ServeMux {
 
 	admin("GET /admin/profile", auth.CapAdminPanel, s.adminProfile)
 	admin("POST /admin/profile", auth.CapAdminPanel, s.adminProfileUpdate)
+	admin("POST /admin/profile/language", auth.CapAdminPanel, s.adminLanguage) // uilang.go
 	admin("POST /admin/profile/password", auth.CapAdminPanel, s.adminPasswordChange)
 	admin("POST /admin/profile/sessions/revoke", auth.CapAdminPanel, s.adminRevokeSessions)
 	admin("GET /admin/profile/2fa", auth.CapAdminPanel, s.admin2FA)

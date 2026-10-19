@@ -27,7 +27,7 @@
 {{define "nav-item"}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{icon .Icon}}<span>{{.Label}}</span>{{if .Badge}}<span class="badge ml-auto" data-variant="secondary">{{.Badge}}</span>{{end}}</a></li>{{end}}
 
 {{define "admin"}}<!doctype html>
-<html lang="{{.Site.Language}}">
+<html lang="{{.Lang}}" dir="{{.Dir}}">
 <head>{{template "head" .}}</head>
 <body class="admin">
 <a class="skip-link" href="#main">{{T "Skip to content"}}</a>
@@ -132,6 +132,7 @@
     <div class="topbar-actions">
       {{if .Can "posts.edit_own"}}<a class="btn max-sm:hidden" data-size="sm" href="/admin/posts/new">{{icon "plus"}}{{T "New post"}}</a>{{end}}
       <a class="btn" data-variant="ghost" data-size="icon" href="/" target="_blank" rel="noopener" aria-label="{{T "View site"}}" title="{{T "View site"}}">{{icon "globe"}}</a>
+      {{if .UILangs}}{{template "lang-menu" .}}{{end}}
       <button type="button" class="btn" data-variant="ghost" data-size="icon" data-theme-toggle aria-label="{{T "Toggle dark mode"}}" title="{{T "Toggle dark mode"}}">{{icon "sun" "theme-icon-light"}}{{icon "moon" "theme-icon-dark"}}</button>
     </div>
   </header>
@@ -145,6 +146,23 @@
 {{template "confirm-dialog" .}}
 </body>
 </html>{{end}}
+
+{{/* The language of the panel for this user (uilang.go). Each language is a
+submit button of one form, which the dropdown only shows; the profile has
+the same choice as a plain form. */}}
+{{define "lang-menu"}}
+<div id="lang-menu" class="dropdown-menu lang-menu">
+  <button type="button" id="lang-menu-trigger" class="btn" data-variant="ghost" data-size="icon" aria-haspopup="menu" aria-controls="lang-menu-menu" aria-expanded="false" aria-label="{{T "Language"}}" title="{{T "Language"}}">{{icon "languages"}}</button>
+  <div id="lang-menu-popover" data-popover aria-hidden="true" data-align="end">
+    <div role="menu" id="lang-menu-menu" aria-labelledby="lang-menu-trigger">
+      <div role="heading" aria-level="2">{{T "Language of the panel"}}</div>
+      {{range .UILangs}}<button type="submit" role="menuitemradio" aria-checked="{{if .Current}}true{{else}}false{{end}}" form="lang-form" name="lang" value="{{.Code}}" lang="{{.Code}}">{{.Name}}<span data-indicator>{{icon "check"}}</span></button>
+      {{end}}
+    </div>
+  </div>
+  <form id="lang-form" method="post" action="/admin/profile/language" hidden>{{.CSRFField}}<input type="hidden" name="next" value="{{.LangNext}}"></form>
+</div>
+{{end}}
 
 {{define "toaster"}}
 <div id="toaster" class="toaster" aria-live="polite">

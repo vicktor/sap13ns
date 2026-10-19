@@ -9,7 +9,7 @@
 <section>
   {{template "form-alerts" .D}}
   {{if .D.TOTP}}
-  <form method="post" action="{{.Auth.TwoFactor}}" class="form auth-form">
+  <form method="post" action="{{.Auth.TwoFactor}}{{with $.SignInLang}}?lang={{.}}{{end}}" class="form auth-form">
     {{.CSRFField}}
     <input type="hidden" name="next" value="{{.D.Next}}">
     <div class="field">

@@ -221,7 +221,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	if err := s.themes.Load(); err != nil {
 		return nil, err
 	}
-	if s.admin, err = newAdminTemplates(d.UI, funcs, d.Config.Dev); err != nil {
+	if s.admin, err = newAdminTemplates(d.UI, s.adminFuncs, d.Config.Dev); err != nil {
 		return nil, err
 	}
 	if s.network == nil {
