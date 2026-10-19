@@ -7,7 +7,7 @@
 </header>
 <section>
   {{template "form-alerts" .D}}
-  <form method="post" action="/setup" class="form auth-form">
+  <form method="post" action="{{.Auth.Setup}}" class="form auth-form">
     <input type="hidden" name="token" value="{{.D.Token}}">
     <div class="field">
       <label for="site_title">{{T "Site title"}}</label>

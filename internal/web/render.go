@@ -336,6 +336,7 @@ type adminPage struct {
 	Version string
 	SiteURL string
 	Update  *updateNotice // newer release, shown to administrators
+	Auth    AuthPaths     // the sign-in pages, at the site's sign-in address
 	D       any
 
 	// On the network portal: every account has "My sites"; network admins
@@ -364,7 +365,7 @@ func (p *adminPage) Active(section string) bool { return p.Section == section }
 
 func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, section string, d any) *adminPage {
 	p := &adminPage{Title: title, Section: section, User: currentUser(r), Site: s.settings(), Path: r.URL.Path,
-		Version: Version, SiteURL: s.cfg.BaseURL.String(), D: d, Flashes: s.takeFlashes(w, r)}
+		Version: Version, SiteURL: s.cfg.BaseURL.String(), Auth: s.auth(), D: d, Flashes: s.takeFlashes(w, r)}
 	if sess := rctx(r).Session; sess != nil {
 		p.CSRF = sess.CSRFToken
 	}

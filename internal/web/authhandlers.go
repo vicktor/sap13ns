@@ -138,7 +138,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
-		http.Redirect(w, r, "/login/2fa?next="+url.QueryEscape(next), http.StatusSeeOther)
+		http.Redirect(w, r, s.auth().TwoFactor+"?next="+url.QueryEscape(next), http.StatusSeeOther)
 		return
 	}
 	s.completeLogin(w, r, u, next, "password")
@@ -206,7 +206,7 @@ func (s *Server) pendingMFA(r *http.Request) (*store.User, bool) {
 func (s *Server) handleMFAForm(w http.ResponseWriter, r *http.Request) {
 	u, ok := s.pendingMFA(r)
 	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		http.Redirect(w, r, s.auth().Login, http.StatusSeeOther)
 		return
 	}
 	s.renderAuth(w, r, http.StatusOK, "login_2fa", s.t("Two-factor authentication"), s.mfaForm(u, safeNext(r.URL.Query().Get("next"))))
@@ -216,7 +216,7 @@ func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	u, ok := s.pendingMFA(r)
 	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		http.Redirect(w, r, s.auth().Login, http.StatusSeeOther)
 		return
 	}
 	next := safeNext(r.PostFormValue("next"))
@@ -277,7 +277,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// "Sign in again" (a fresh second factor) logs out with where to go
 	// once signed in.
 	if next := r.PostFormValue("next"); next != "" && sess != nil {
-		http.Redirect(w, r, "/login?next="+url.QueryEscape(safeNext(next)), http.StatusSeeOther)
+		http.Redirect(w, r, s.auth().Login+"?next="+url.QueryEscape(safeNext(next)), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -413,7 +413,7 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
-		link := s.cfg.AbsURL("/reset-password?token=" + token)
+		link := s.cfg.AbsURL(s.auth().Reset + "?token=" + token)
 		body := s.t("Someone asked to reset the password of your account %s at %s.", u.Username, s.settings().SiteTitle) + "\n\n" +
 			s.t("Open this link to choose a new password (valid for one hour):") + "\n" + link + "\n\n" +
 			s.t("If it was not you, ignore this message: your password has not changed.")
@@ -481,7 +481,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	s.store.SetPassword(r.Context(), userID, hash)
 	s.store.DeleteUserSessions(r.Context(), userID, nil)
 	s.audit(r, userID, "password.reset", u.Username, nil)
-	s.redirect(w, r, "/login", "success", s.t("Your password has been changed. You can log in now."))
+	s.redirect(w, r, s.auth().Login, "success", s.t("Your password has been changed. You can log in now."))
 }
 
 // ------------------------------------------------------------------ setup --

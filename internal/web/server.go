@@ -34,8 +34,9 @@ import (
 
 // siteState is an immutable snapshot of the settings, swapped atomically.
 type siteState struct {
-	S   store.Settings
-	Loc *time.Location
+	S     store.Settings
+	Loc   *time.Location
+	Stamp time.Time // when S was saved (store.SettingsStamp)
 }
 
 type Server struct {
@@ -78,6 +79,8 @@ type Server struct {
 	setupToken string
 
 	pk passkeyState // WebAuthn ceremonies (passkeys.go)
+
+	signIn atomic.Pointer[signInRouter] // the sign-in pages at the sign-in address (signin.go)
 
 	updates *update.Checker      // release checks (updates.go); nil in tests
 	stats   *analytics.Collector // cookie-less page views (stats.go)
@@ -274,6 +277,10 @@ func ThemeManager(cfg *config.Config, ui fs.FS, log *slog.Logger) (*theme.Manage
 
 // ReloadSettings refreshes the cached settings snapshot.
 func (s *Server) ReloadSettings(ctx context.Context) error {
+	stamp, err := s.store.SettingsStamp(ctx)
+	if err != nil {
+		return err
+	}
 	st, err := s.store.LoadSettings(ctx)
 	if err != nil {
 		return err
@@ -285,7 +292,7 @@ func (s *Server) ReloadSettings(ctx context.Context) error {
 	if err != nil {
 		loc = time.UTC
 	}
-	s.state.Store(&siteState{S: st, Loc: loc})
+	s.state.Store(&siteState{S: st, Loc: loc, Stamp: stamp})
 	s.stats.SetEnabled(!st.AnalyticsOff) // nil-safe: not created yet on the first load
 	s.stats.SetLocation(loc)
 	return nil
@@ -296,6 +303,27 @@ func (s *Server) loc() *time.Location      { return s.state.Load().Loc }
 func (s *Server) lang() string             { return s.state.Load().S.Language }
 
 func (s *Server) t(key string, args ...any) string { return s.i18n.T(s.lang(), key, args...) }
+
+// followSettings reloads the settings when they were saved outside this
+// server, by the command line (sap13ns settings) or another process, and
+// drops the pages that showed the old ones.
+func (s *Server) followSettings(ctx context.Context) {
+	stamp, err := s.store.SettingsStamp(ctx)
+	if err != nil {
+		if ctx.Err() == nil {
+			s.log.Error("settings stamp", "err", err)
+		}
+		return
+	}
+	if stamp.Equal(s.state.Load().Stamp) {
+		return
+	}
+	if err := s.ReloadSettings(ctx); err != nil {
+		s.log.Error("reload settings", "err", err)
+		return
+	}
+	s.contentChanged()
+}
 
 // contentChanged invalidates caches after any write that affects public pages.
 func (s *Server) contentChanged() {
@@ -332,7 +360,7 @@ func (s *Server) prepareSetup(ctx context.Context) error {
 	defer s.setupMu.Unlock()
 	if n == 0 {
 		s.setupToken = auth.NewToken(24)
-		s.log.Warn("no users yet: finish the installation at " + s.cfg.AbsURL("/setup?token="+s.setupToken))
+		s.log.Warn("no users yet: finish the installation at " + s.cfg.AbsURL(s.auth().Setup+"?token="+s.setupToken))
 	} else {
 		s.setupToken = ""
 	}
@@ -370,6 +398,7 @@ func (s *Server) Background(ctx context.Context, opt BackgroundOptions) {
 			case <-t.C:
 				s.flushRedirectHits(ctx)
 				s.AnnounceDue(ctx)
+				s.followSettings(ctx)
 			}
 		}
 	})

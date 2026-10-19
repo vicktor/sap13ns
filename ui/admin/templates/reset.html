@@ -3,13 +3,13 @@
 <header><h1>{{T "Choose a new password"}}</h1></header>
 <section>
   {{template "form-alerts" .D}}
-  <form method="post" action="/reset-password" class="form auth-form">
+  <form method="post" action="{{.Auth.Reset}}" class="form auth-form">
     <input type="hidden" name="token" value="{{.D.Token}}">
     {{template "password-pair" .}}
     <button class="btn w-full" type="submit">{{icon "key-round"}}{{T "Save password"}}</button>
   </form>
 </section>
-<footer><p><a href="/forgot-password">{{T "Request a new link"}}</a></p></footer>
+<footer><p><a href="{{.Auth.Forgot}}">{{T "Request a new link"}}</a></p></footer>
 {{end}}
 {{define "password-pair"}}
 <div class="field">

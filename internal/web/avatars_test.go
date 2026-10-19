@@ -173,9 +173,11 @@ func settingsForm(st store.Settings) url.Values {
 		"posts_per_page": {fmt.Sprint(st.PostsPerPage)}, "front_page": {st.FrontPage}, "comment_moderation": {st.CommentModeration},
 		"comments_close_days": {fmt.Sprint(st.CommentsCloseDays)}, "default_role": {st.DefaultRole},
 		"feed_items": {fmt.Sprint(st.FeedItems)}, "two_factor": {st.TwoFactor}, "og_cards": {st.OGCards}, "og_accent": {st.OGAccent},
-		"ai_access": {st.AIAccess}, "session_days": {fmt.Sprint(st.SessionDays)}, "idle_hours": {fmt.Sprint(st.IdleHours)}}
+		"ai_access": {st.AIAccess}, "session_days": {fmt.Sprint(st.SessionDays)}, "idle_hours": {fmt.Sprint(st.IdleHours)},
+		"login_path": {st.LoginPath}}
 	for k, v := range map[string]bool{"comments_enabled": st.CommentsEnabled, "analytics": !st.AnalyticsOff,
-		"gravatar_users": st.GravatarUsers, "gravatar_commenters": st.GravatarCommenters, "feed_full_text": st.FeedFullText} {
+		"gravatar_users": st.GravatarUsers, "gravatar_commenters": st.GravatarCommenters, "feed_full_text": st.FeedFullText,
+		"hide_admin": st.HideAdmin} {
 		if v {
 			f.Set(k, "1")
 		}

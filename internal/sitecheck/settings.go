@@ -1,6 +1,7 @@
 package sitecheck
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 
@@ -19,6 +20,39 @@ type Site struct {
 	// Theme reports whether a theme is installed. Nil checks the name
 	// only (an unknown theme falls back to the default when loaded).
 	Theme func(slug string) bool
+	// SignIn reports whether path, which has the form of LoginPath, is
+	// free to be the site's sign-in address: no address the site serves
+	// itself, and no page or redirect there (web.SignInPathFree). Nil
+	// accepts only DefaultLoginPath.
+	SignIn func(path string) bool
+}
+
+// DefaultLoginPath is the sign-in address of a site that never chose
+// another one.
+const DefaultLoginPath = "/login"
+
+// LoginPath matches the sign-in addresses an administrator can choose:
+// one or two segments of lowercase letters, digits and dashes, such as
+// /entrar or /equipo/acceso.
+var LoginPath = regexp.MustCompile(`^/[a-z0-9][a-z0-9-]{2,40}(/[a-z0-9][a-z0-9-]{2,40})?$`)
+
+// UnderSignIn reports whether the redirect source src, normalised as the
+// redirects page saves it, is the sign-in address loginPath or under it,
+// where the sign-in pages answer first: no redirect may start there.
+func UnderSignIn(loginPath, src string) bool {
+	p, _, _ := strings.Cut(src, "?")
+	if p = strings.ToLower(p); len(p) > 1 {
+		p = strings.TrimSuffix(p, "/")
+	}
+	return p == loginPath || strings.HasPrefix(p, loginPath+"/")
+}
+
+// signInOK is the rule of the sign-in address of s.
+func signInOK(s *store.Settings, c Site) bool {
+	if s.LoginPath == DefaultLoginPath {
+		return true
+	}
+	return LoginPath.MatchString(s.LoginPath) && c.SignIn != nil && c.SignIn(s.LoginPath)
 }
 
 // The fields of the settings page (Settings → General), in its order. The
@@ -62,6 +96,7 @@ func settingsFields(c Site) []field[store.Settings] {
 		// that sends anything to Gravatar at all.
 		{"gravatar_commenters", func(s *S) bool { return !s.GravatarCommenters || s.GravatarUsers },
 			func(d, s *S) { d.GravatarCommenters = s.GravatarCommenters }},
+		{"login_path", func(s *S) bool { return signInOK(s, c) }, func(d, s *S) { d.LoginPath = s.LoginPath }},
 		// Not on the page: set by activating a theme.
 		{"active_theme", func(s *S) bool { return Slug.MatchString(s.ActiveTheme) && (c.Theme == nil || c.Theme(s.ActiveTheme)) },
 			func(d, s *S) { d.ActiveTheme = s.ActiveTheme }},

@@ -946,6 +946,7 @@ func TestRestoreChecks(t *testing.T) {
 		site["two_factor"] = "off"
 		site["languages"] = []string{"en", "xx", "es"}
 		site["active_theme"] = "../evil"
+		site["login_path"] = "/entrar" // nobody checks it here (SignIn is nil): only /login passes
 		ai := side["ai"].(map[string]any)
 		ai["base_url"] = "http://127.0.0.1:8080/v1"
 		ai["allow_local"] = true
@@ -1003,7 +1004,7 @@ func TestRestoreChecks(t *testing.T) {
 	}
 	for _, want := range [][]string{
 		{"settings not valid", "websub_hub", "comment_moderation", "default_role", "og_accent", "session_days", "two_factor",
-			"languages", "active_theme"},
+			"languages", "login_path", "active_theme"},
 		{"writing assistant settings not valid", "allow_local", "provider", "min_role", "base_url"},
 		{"site assistant settings not valid", "per_ip_hour", "suggestions"},
 		{"embedding API key was removed"},
@@ -1025,6 +1026,7 @@ func TestRestoreChecks(t *testing.T) {
 	def := store.DefaultSettings()
 	if set.WebSubHub != "" || set.CommentModeration != def.CommentModeration || set.DefaultRole != "subscriber" ||
 		set.OGAccent != "" || set.SessionDays != def.SessionDays || set.TwoFactor != "staff" || set.ActiveTheme != def.ActiveTheme ||
+		set.LoginPath != "/login" ||
 		!slices.Equal(set.Languages, []string{"en"}) || set.SiteTitle != "Mi sitio" || set.FrontPage != "page" {
 		t.Errorf("settings: %+v", set)
 	}
@@ -1073,5 +1075,90 @@ func TestRestoreChecks(t *testing.T) {
 	}
 	if _, err := b.UserByUsername(ctx, "../root"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("a user with an invalid name was restored: %v", err)
+	}
+}
+
+// TestRestoreSignInAddress restores the sign-in address of a backup when
+// the site's check (web.CheckRestoredSignIn) lets it, and says so; never a
+// redirect where the sign-in pages are.
+func TestRestoreSignInAddress(t *testing.T) {
+	pool := testutil.Schemas(t)
+	ctx := context.Background()
+	a := testutil.SiteStore(t, pool, "site_1")
+	base := t.TempDir()
+	upA := filepath.Join(base, "a/uploads")
+	seed(t, a, upA)
+	set, err := a.LoadSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set.LoginPath = "/equipo/acceso"
+	if err := a.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	// From a tampered backup, or a site of before the check.
+	for _, src := range []string{"/equipo/acceso/viejo", "/equipo/acceso"} {
+		if err := a.SaveRedirect(ctx, src, "/blog/hola", 301, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	arch, _, err := Create(ctx, a, siteOpts(filepath.Join(base, "ba"), upA, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var asked []string
+	restore := func(schema string, id int64, free bool) (*store.Store, *RestoreReport) {
+		t.Helper()
+		b := testutil.SiteStore(t, pool, schema)
+		o := restoreOpts(siteOpts(filepath.Join(base, schema), filepath.Join(base, schema, "uploads"), id), 0, false)
+		o.SignIn = func(_ context.Context, st *store.Store, p string) bool {
+			if ok, err := st.SlugInUse(ctx, store.TypePost, "hola"); err != nil || !ok {
+				t.Errorf("the check does not see the restored posts: %v %v", ok, err)
+			}
+			asked = append(asked, p)
+			return free
+		}
+		rep, err := Restore(ctx, b, arch.Path, o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b, rep
+	}
+	has := func(rep *RestoreReport, part string) bool {
+		return slices.ContainsFunc(rep.Warnings, func(w string) bool { return strings.Contains(w, part) })
+	}
+
+	b, rep := restore("site_2", 2, true)
+	if got, _ := b.LoadSettings(ctx); got.LoginPath != "/equipo/acceso" {
+		t.Errorf("restored address %q", got.LoginPath)
+	}
+	if !has(rep, "the sign-in address is now /equipo/acceso (it was /login)") || has(rep, "login_path") {
+		t.Errorf("warnings: %q", rep.Warnings)
+	}
+	rules, err := b.Redirects(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rd := range rules {
+		if strings.HasPrefix(rd.Source, "/equipo/acceso") {
+			t.Errorf("redirect %s restored at the sign-in address", rd.Source)
+		}
+	}
+	if !has(rep, "redirect /equipo/acceso/viejo left out: the sign-in pages are at this address") ||
+		!has(rep, "redirect /equipo/acceso left out") || rep.RedirectsRefused < 2 {
+		t.Errorf("warnings: %q, %d refused", rep.Warnings, rep.RedirectsRefused)
+	}
+
+	// Taken on this site: it keeps its own.
+	c, rep := restore("site_3", 3, false)
+	if got, _ := c.LoadSettings(ctx); got.LoginPath != "/login" {
+		t.Errorf("taken address restored: %q", got.LoginPath)
+	}
+	if !has(rep, "login_path") || has(rep, "the sign-in address is now") {
+		t.Errorf("warnings: %q", rep.Warnings)
+	}
+	if !slices.Equal(asked, []string{"/equipo/acceso", "/equipo/acceso"}) {
+		t.Errorf("asked about %v", asked)
 	}
 }

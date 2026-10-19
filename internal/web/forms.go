@@ -79,6 +79,12 @@ var reservedSlugs = map[string]bool{
 	"wp-login-php": true, "xmlrpc-php": true, "ask": true, "mcp": true,
 }
 
+// pageSlugReserved reports whether a page cannot have slug: a route of the
+// site's, a language prefix, or the site's sign-in address.
+func (s *Server) pageSlugReserved(slug string) bool {
+	return reservedSlugs[slug] || validLang(slug) || "/"+slug == s.signInBase()
+}
+
 // uniqueSlug derives a slug and appends -2, -3, ... until it is free.
 func (s *Server) uniqueSlug(ctx context.Context, typ, lang, wanted, title string, exceptID int64) (string, error) {
 	base := content.Slugify(wanted)
@@ -96,7 +102,7 @@ func (s *Server) uniqueSlug(ctx context.Context, typ, lang, wanted, title string
 	}
 	slug := base
 	for i := 2; i < 1000; i++ {
-		if typ == store.TypePage && (reservedSlugs[slug] || validLang(slug)) {
+		if typ == store.TypePage && s.pageSlugReserved(slug) {
 			slug = fmt.Sprintf("%s-%d", base, i)
 			continue
 		}

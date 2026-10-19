@@ -132,7 +132,7 @@ func (s *Server) flushRedirectHits(ctx context.Context) {
 func (s *Server) withRedirects(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || strings.HasPrefix(r.URL.Path, "/admin") ||
-			strings.HasPrefix(r.URL.Path, "/static/") {
+			strings.HasPrefix(r.URL.Path, "/static/") || s.isSignIn(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -344,6 +344,9 @@ func (s *Server) adminRedirectSave(w http.ResponseWriter, r *http.Request) {
 	status, _ := strconv.Atoi(r.FormValue("status"))
 	form := store.Redirect{Source: r.FormValue("source"), Target: r.FormValue("target"), Status: status}
 	src, dst, err := checkRedirect(form.Source, form.Target, status)
+	if err == nil && s.underSignIn(src) {
+		err = errRedirectReserved // the sign-in pages answer there first
+	}
 	switch {
 	case errors.Is(err, errRedirectReserved):
 		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form,

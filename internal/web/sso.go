@@ -692,10 +692,12 @@ func (s *Server) handleSSOAuthorize(w http.ResponseWriter, r *http.Request) {
 		// emergency access opens it.
 		next := url.QueryEscape(safeNext(r.URL.RequestURI()))
 		if sess := rctx(r).Session; sess != nil && sess.MFAPending {
-			http.Redirect(w, r, "/login/2fa?next="+next, http.StatusSeeOther)
+			http.Redirect(w, r, s.auth().TwoFactor+"?next="+next, http.StatusSeeOther)
 			return
 		}
-		http.Redirect(w, r, "/login?next="+next, http.StatusSeeOther)
+		// The portal's own sign-in address, whatever it is: a sign-on
+		// started from a site needs it, hidden administration or not.
+		http.Redirect(w, r, s.auth().Login+"?next="+next, http.StatusSeeOther)
 		return
 	}
 	acc, err := s.portal.SSOAccess(ctx, siteID, u.ID)

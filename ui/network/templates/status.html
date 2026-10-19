@@ -17,10 +17,10 @@
       <p class="error-code">{{.Status}}</p>
       <h1>{{template "title" .}}</h1>
       {{if eq .Kind "pending"}}<p>{{T "It opens once the network approves it. Its administrators can already sign in."}}</p>
-      <a class="btn" data-variant="outline" href="/login">{{T "Log in"}}</a>
+      <a class="btn" data-variant="outline" href="/sso/start" rel="nofollow">{{T "Log in"}}</a>
       {{else if eq .Kind "suspended"}}<p>{{T "It is not available at the moment."}}</p>
       {{else if eq .Kind "billing"}}<p>{{T "It is not available at the moment."}}</p>
-      <a class="btn" data-variant="outline" href="/login">{{T "Log in"}}</a>
+      <a class="btn" data-variant="outline" href="/sso/start" rel="nofollow">{{T "Log in"}}</a>
       {{else if eq .Kind "busy"}}<p>{{T "Try again in a few seconds."}}</p>
       {{else}}<p>{{T "Check the address, or ask the site's owner whether it moved."}}</p>{{end}}
     </div>

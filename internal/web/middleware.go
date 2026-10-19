@@ -88,8 +88,10 @@ func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func (s *Server) Handler() http.Handler {
 	mux := s.routes()
 	var h http.Handler = mux
+	h = s.withSignIn(h) // the sign-in pages at the site's sign-in address, and the admin hidden (signin.go)
 	h = s.withLang(h)
 	h = s.withRedirects(h) // sees the path with its language prefix
+	h = s.signInGate(h)    // a site of a network that is not open: its sign-in and admin only
 	h = s.emergencyGate(h) // a suspended site served for an emergency access only
 	h = s.loadSession(h)
 	h = s.cop.Handler(h)
@@ -357,10 +359,10 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 		u := currentUser(r)
 		if u == nil {
 			if rctx(r).Session != nil && rctx(r).Session.MFAPending {
-				http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
+				http.Redirect(w, r, s.auth().TwoFactor, http.StatusSeeOther)
 				return
 			}
-			http.Redirect(w, r, "/login?next="+url.QueryEscape(safeNext(r.URL.RequestURI())), http.StatusSeeOther)
+			http.Redirect(w, r, s.auth().Login+"?next="+url.QueryEscape(safeNext(r.URL.RequestURI())), http.StatusSeeOther)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")

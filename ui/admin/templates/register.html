@@ -19,7 +19,7 @@
     <button class="btn w-full" type="submit">{{icon "user-plus"}}{{T "Create account"}}</button>
   </form>
 </section>
-<footer><p>{{T "Already registered?"}} <a href="/login">{{T "Log in"}}</a></p></footer>
+<footer><p>{{T "Already registered?"}} <a href="{{.Auth.Login}}">{{T "Log in"}}</a></p></footer>
 {{end}}
 {{define "password-pair"}}
 <div class="field">

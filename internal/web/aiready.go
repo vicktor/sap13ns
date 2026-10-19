@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"sap13ns/internal/content"
+	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
 )
 
@@ -51,7 +52,13 @@ func (s *Server) handleRobots(w http.ResponseWriter, r *http.Request) {
 	case "no-training":
 		block(aiTrainingBots)
 	}
-	b.WriteString("User-agent: *\nDisallow: /admin/\nDisallow: /login\nDisallow: /search\nAllow: /\n")
+	b.WriteString("User-agent: *\nDisallow: /admin/\n")
+	// An address of the site's own choosing is not written where anyone
+	// can read it: its pages say noindex instead.
+	if s.signInBase() == sitecheck.DefaultLoginPath {
+		b.WriteString("Disallow: /login\n")
+	}
+	b.WriteString("Disallow: /search\nAllow: /\n")
 	switch st.AIAccess {
 	case "no-training":
 		b.WriteString("Content-Signal: search=yes, ai-input=yes, ai-train=no\n")

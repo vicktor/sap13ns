@@ -369,7 +369,7 @@ func (s *Server) postFromForm(r *http.Request, typ string, existing *store.Post)
 		exceptID = existing.ID
 	}
 	slugIn := trimmed(r, "slug")
-	if typ == store.TypePage && reservedSlugs[content.Slugify(slugIn)] {
+	if typ == store.TypePage && s.pageSlugReserved(content.Slugify(slugIn)) {
 		errs = append(errs, s.t("That address is reserved by the system. Choose another one."))
 	}
 	in.Slug, err = s.uniqueSlug(ctx, typ, in.Lang, slugIn, in.Title, exceptID)

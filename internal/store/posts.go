@@ -522,6 +522,14 @@ func (s *Store) SlugExists(ctx context.Context, typ, lang, slug string, exceptID
 	return ok, err
 }
 
+// SlugInUse reports whether a post of type typ has slug, in any language
+// and status.
+func (s *Store) SlugInUse(ctx context.Context, typ, slug string) (bool, error) {
+	var ok bool
+	err := s.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM posts WHERE type = $1 AND slug = $2)`, typ, slug).Scan(&ok)
+	return ok, err
+}
+
 type StatusCount struct {
 	Status string
 	Count  int

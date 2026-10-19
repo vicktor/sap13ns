@@ -188,3 +188,63 @@ func TestGravatarSettings(t *testing.T) {
 		t.Errorf("both on: %v", bad)
 	}
 }
+
+func TestLoginPath(t *testing.T) {
+	for p, ok := range map[string]bool{
+		"/entrar": true, "/team/access": true, "/acceso-123": true, "/abc": true, "/" + strings.Repeat("a", 41): true,
+		"/ab": false, "/" + strings.Repeat("a", 42): false, "/Entrar": false, "entrar": false, "/entrar/": false, "/a/b/c": false,
+		"/abc/def/ghi": false, "/-abc": false, "/a_b": false, "/über": false, "/entrar.php": false, "/entrar?x=1": false,
+		"//entrar": false, "": false,
+	} {
+		if LoginPath.MatchString(p) != ok {
+			t.Errorf("LoginPath(%q) = %v", p, !ok)
+		}
+	}
+
+	// Without a check of the site, only the default passes.
+	st := store.DefaultSettings()
+	if bad := Settings(st, Site{}); len(bad) > 0 {
+		t.Errorf("/login: %v", bad)
+	}
+	st.LoginPath = "/entrar"
+	if bad := Settings(st, Site{}); !slices.Equal(bad, []string{"login_path"}) {
+		t.Errorf("/entrar without a check: %v", bad)
+	}
+	var asked []string
+	site := Site{SignIn: func(p string) bool { asked = append(asked, p); return p == "/entrar" }}
+	for p, ok := range map[string]bool{"/entrar": true, "/otra": false, "/Entrar": false, "": false, "/login": true} {
+		st.LoginPath = p
+		if bad := Settings(st, site); (len(bad) == 0) != ok {
+			t.Errorf("%q: %v", p, bad)
+		}
+	}
+	slices.Sort(asked)
+	if !slices.Equal(asked, []string{"/entrar", "/otra"}) {
+		t.Errorf("asked the site about %v", asked) // never about a bad form nor the default
+	}
+
+	// A restore keeps this site's address when the backup's is taken here.
+	in, cur := store.DefaultSettings(), store.DefaultSettings()
+	in.LoginPath, cur.LoginPath = "/otra", "/entrar"
+	if out, reset := CleanSettings(in, cur, site); out.LoginPath != "/entrar" || !slices.Equal(reset, []string{"login_path"}) {
+		t.Errorf("taken: %q %v", out.LoginPath, reset)
+	}
+	in.LoginPath = "/entrar"
+	if out, reset := CleanSettings(in, store.DefaultSettings(), site); out.LoginPath != "/entrar" || len(reset) > 0 {
+		t.Errorf("free: %q %v", out.LoginPath, reset)
+	}
+}
+
+func TestUnderSignIn(t *testing.T) {
+	for src, under := range map[string]bool{
+		"/entrar": true, "/entrar/": true, "/ENTRAR": true, "/entrar/forgot": true, "/entrar?x=1": true, "/entrar/x?y=1": true,
+		"/entrar-2": false, "/entrarx": false, "/": false, "/blog/entrar": false, "/e": false,
+	} {
+		if UnderSignIn("/entrar", src) != under {
+			t.Errorf("UnderSignIn(/entrar, %q) = %v", src, !under)
+		}
+	}
+	if !UnderSignIn("/team/access", "/team/access/reset") || UnderSignIn("/team/access", "/team") {
+		t.Error("two segments")
+	}
+}

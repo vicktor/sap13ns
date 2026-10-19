@@ -9,7 +9,7 @@
 <section>
   {{template "form-alerts" .D}}
   {{if .D.TOTP}}
-  <form method="post" action="/login/2fa" class="form auth-form">
+  <form method="post" action="{{.Auth.TwoFactor}}" class="form auth-form">
     {{.CSRFField}}
     <input type="hidden" name="next" value="{{.D.Next}}">
     <div class="field">
@@ -19,7 +19,7 @@
     <button class="btn w-full" type="submit">{{T "Verify"}}</button>
   </form>
   {{end}}
-  {{if and .D.Passkeys .D.HasPasskey}}{{template "passkey-signin" (dict "Next" .D.Next "Mode" "2fa" "Only" (not .D.TOTP))}}{{end}}
+  {{if and .D.Passkeys .D.HasPasskey}}{{template "passkey-signin" (dict "Next" .D.Next "Mode" "2fa" "Only" (not .D.TOTP) "Auth" .Auth)}}{{end}}
 </section>
 <footer><form method="post" action="/logout">{{.CSRFField}}<button type="submit" class="btn" data-variant="link">{{T "Use another account"}}</button></form></footer>
 {{end}}

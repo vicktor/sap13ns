@@ -63,12 +63,23 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		req = req.WithContext(web.EmergencyOnly(req.Context(), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			r.statusPage(w, req, web.StatusSuspended, http.StatusServiceUnavailable)
 		})))
-	case rt.Status == StatusPending && !pendingServed(req.URL.Path):
-		r.statusPage(w, req, web.StatusPending, http.StatusServiceUnavailable)
-		return
-	case rt.Held && !pendingServed(req.URL.Path):
-		r.statusPage(w, req, web.StatusBilling, http.StatusServiceUnavailable)
-		return
+	case rt.Status == StatusPending || rt.Held:
+		// Its sign-in pages and admin only. Its sign-in address is its own
+		// (Settings → Accounts & security): the site tells them apart, and
+		// answers the rest with the 503 page too (web.SignInOnly). An
+		// address no site could sign in at gets it without a load.
+		kind := web.StatusPending
+		if rt.Status != StatusPending {
+			kind = web.StatusBilling
+		}
+		closed := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			r.statusPage(w, req, kind, http.StatusServiceUnavailable)
+		})
+		if !web.NotOpenServes(req.URL.Path) {
+			closed(w, req)
+			return
+		}
+		req = req.WithContext(web.SignInOnly(req.Context(), closed))
 	}
 	e, err := r.acquire(req.Context(), rt, r.o.LoadWait)
 	if err != nil {
@@ -97,19 +108,6 @@ func (r *Registry) statusPage(w http.ResponseWriter, req *http.Request, kind str
 // when the primary is a custom domain.
 func aliasServed(path string) bool {
 	return strings.HasPrefix(path, "/.well-known/acme-challenge/") || path == "/.well-known/webauthn"
-}
-
-// pendingServed are the paths of a site waiting for approval (or held for
-// its billing) that work:
-// sign-in (also through the network, /sso) and the admin, with the assets
-// their pages use.
-func pendingServed(path string) bool {
-	for _, p := range []string{"/login", "/logout", "/sso", "/admin", "/forgot-password", "/reset-password"} {
-		if path == p || strings.HasPrefix(path, p+"/") {
-			return true
-		}
-	}
-	return strings.HasPrefix(path, "/static/")
 }
 
 // toPrimary redirects to the same path on the primary host, keeping the

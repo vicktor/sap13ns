@@ -423,7 +423,7 @@ func (s *Server) adminBackupRestore(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		res := &backupResult{UserID: u.ID, Restore: true}
 		rep, err := sitebackup.Restore(ctx, s.store, a.Path, sitebackup.RestoreOptions{Options: o, Replace: true, ActorID: u.ID,
-			CheckRedirect: CheckRestoredRedirect, Plugins: s.pluginRules(), Retention: &keep, Pace: restorePace,
+			CheckRedirect: CheckRestoredRedirect, SignIn: CheckRestoredSignIn, Plugins: s.pluginRules(), Retention: &keep, Pace: restorePace,
 			Theme: func(slug string) bool { _, ok := s.themes.Get(slug); return ok }})
 		details := map[string]string{}
 		if err != nil {

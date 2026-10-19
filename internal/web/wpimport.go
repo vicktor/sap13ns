@@ -284,7 +284,7 @@ func (k *wpSink) EnsureTerm(ctx context.Context, taxonomy string, t wpimport.Ter
 }
 
 func (k *wpSink) PostExists(ctx context.Context, typ, lang, slug string) (bool, error) {
-	if typ == store.TypePage && (reservedSlugs[slug] || validLang(slug)) {
+	if typ == store.TypePage && k.s.pageSlugReserved(slug) {
 		return true, nil
 	}
 	return k.s.store.SlugExists(ctx, typ, cmp.Or(lang, k.lang), slug, 0)
@@ -369,6 +369,9 @@ func (k *wpSink) CheckRedirect(ctx context.Context, from, to string, status int)
 // trailing slash).
 func (k *wpSink) checkRedirect(ctx context.Context, from, to string, status int) (string, string, error) {
 	src, dst, err := checkRedirect(from, to, status)
+	if err == nil && k.s.underSignIn(src) {
+		err = errRedirectReserved
+	}
 	switch {
 	case errors.Is(err, errRedirectReserved):
 		return "", "", wpimport.ErrRedirectReserved

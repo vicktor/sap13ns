@@ -282,11 +282,11 @@ func (s *Server) adminPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- sign-in --
 
 // loginPasskeyBegin starts a sign-in. Without a mode it is a discoverable
-// ("usernameless") login, also used by the conditional-UI autofill on
-// /login; mode "2fa" confirms a password login of an account that has
-// passkeys, restricted to that account's credentials.
+// ("usernameless") login, also used by the conditional-UI autofill on the
+// sign-in page; mode "2fa" confirms a password login of an account that
+// has passkeys, restricted to that account's credentials.
 //
-// Like POST /login these endpoints are protected against cross-site requests
+// Like the password sign-in these endpoints are protected against cross-site requests
 // by http.CrossOriginProtection (Sec-Fetch-Site / Origin), and the ceremony
 // cookie is SameSite=Strict.
 func (s *Server) loginPasskeyBegin(w http.ResponseWriter, r *http.Request) {
@@ -314,7 +314,7 @@ func (s *Server) loginPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 	if req.Mode == ceremonySecondFactor {
 		u, ok := s.pendingMFA(r)
 		if !ok || u.PasskeyCount == 0 {
-			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.t("Your session expired. Log in again."), Redirect: "/login"})
+			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.t("Your session expired. Log in again."), Redirect: s.auth().Login})
 			return
 		}
 		if !validCSRF(r) {
@@ -370,7 +370,7 @@ func (s *Server) loginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	if secondFactor {
 		sess := rctx(r).Session
 		if sess == nil || !sess.MFAPending || sess.UserID != c.UserID || !bytes.Equal(sess.TokenHash, c.SessionHash) {
-			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.t("Your session expired. Log in again."), Redirect: "/login"})
+			writeJSON(w, http.StatusUnauthorized, passkeyReply{Error: s.t("Your session expired. Log in again."), Redirect: s.auth().Login})
 			return
 		}
 	}

@@ -4,7 +4,7 @@
 <section>
   {{template "form-alerts" .D}}
   {{if not .D.Notice}}
-  <form method="post" action="/forgot-password" class="form auth-form">
+  <form method="post" action="{{.Auth.Forgot}}" class="form auth-form">
     <div class="field">
       <label for="email">{{T "E-mail"}}</label>
       <input class="input" id="email" name="email" type="email" autocomplete="email" required maxlength="254" autofocus>
@@ -13,5 +13,5 @@
   </form>
   {{end}}
 </section>
-<footer><p><a href="/login">{{icon "arrow-left" "size-3.5"}} {{T "Back to log in"}}</a></p></footer>
+<footer><p><a href="{{.Auth.Login}}">{{icon "arrow-left" "size-3.5"}} {{T "Back to log in"}}</a></p></footer>
 {{end}}

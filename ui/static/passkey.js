@@ -1,9 +1,10 @@
 // sap13ns passkeys (WebAuthn). Vanilla JS, no inline handlers (strict CSP).
 //
 //   form[data-passkey-register]  add a passkey (profile and 2FA pages)
-//   [data-passkey-login]         sign in on /login (with autofill, a.k.a.
+//   [data-passkey-login]         sign in on the sign-in page (with autofill, a.k.a.
 //                                conditional UI) or confirm a password login
-//                                on /login/2fa (data-mode="2fa")
+//                                on its second step (data-mode="2fa"), at
+//                                the addresses of data-begin and data-finish
 //
 // Every control is rendered hidden and only shown when the browser supports
 // WebAuthn. Translated messages come from data-msg-* attributes.
@@ -168,7 +169,7 @@
     const ctrl = new AbortController();
     let opts = null, cred = null, leaving = false;
     try {
-      const begin = post("/login/passkey/begin", { mode });
+      const begin = post(box.dataset.begin, { mode });
       if (conditional) { autofill = ctrl; autofillBegin = begin; }
       opts = await begin;
       if (conditional) autofillBegin = null;
@@ -178,7 +179,7 @@
       cred = await navigator.credentials.get(req);
       if (!cred) throw new DOMException("", "NotAllowedError");
       if (autofill === ctrl) autofill = null;
-      const res = await post("/login/passkey/finish", { next: box.dataset.next || "", credential: credentialJSON(cred) });
+      const res = await post(box.dataset.finish, { next: box.dataset.next || "", credential: credentialJSON(cred) });
       leaving = true;
       go(res.redirect || "/admin/");
       return;

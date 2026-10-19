@@ -54,6 +54,10 @@ type RestoreOptions struct {
 	// Theme reports whether a theme is installed here. Nil checks the
 	// active theme's name only.
 	Theme func(slug string) bool
+	// SignIn reports whether path is free to be the site's sign-in
+	// address, given the restored content in st
+	// (web.CheckRestoredSignIn). Nil keeps only the default /login.
+	SignIn func(ctx context.Context, st *store.Store, path string) bool
 	// Retention prunes the site's backups once the safety backup is made
 	// (Prune), never the archive being restored nor that safety backup.
 	// Nil prunes nothing.
@@ -840,6 +844,9 @@ func applySidecar(ctx context.Context, st *store.Store, side *sidecar, users map
 	}
 	for _, rd := range side.redirects {
 		src, dst, err := o.CheckRedirect(ctx, st, m.Site.Language, rd.Source, rd.Target, rd.Status)
+		if err == nil && sitecheck.UnderSignIn(set.LoginPath, src) {
+			err = errors.New("the sign-in pages are at this address")
+		}
 		if err != nil {
 			rep.RedirectsRefused++
 			rep.warn("redirect %s left out: %v", rd.Source, err)
@@ -918,9 +925,18 @@ func applySettings(ctx context.Context, st *store.Store, side *sidecar, o Restor
 		cur := set
 		cur.FrontPage, cur.FrontPageID = "posts", 0 // the pages of this site are gone
 		var reset []string
-		set, reset = sitecheck.CleanSettings(in, cur, sitecheck.Site{PublicPage: publicPage(ctx, st), Theme: o.Theme})
+		site := sitecheck.Site{PublicPage: publicPage(ctx, st), Theme: o.Theme}
+		if o.SignIn != nil {
+			site.SignIn = func(path string) bool { return o.SignIn(ctx, st, path) }
+		}
+		was := cur.LoginPath
+		set, reset = sitecheck.CleanSettings(in, cur, site)
 		if len(reset) > 0 {
 			rep.warn("settings not valid in the backup, kept as they were here or set to their defaults: %s", strings.Join(reset, ", "))
+		}
+		if set.LoginPath != was {
+			// The administrators' bookmark stops working: say so.
+			rep.warn("the sign-in address is now %s (it was %s)", set.LoginPath, was)
 		}
 		if err := st.SaveSettings(ctx, set); err != nil {
 			return set, err

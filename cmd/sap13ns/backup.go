@@ -362,7 +362,7 @@ func siteBackupCmd(ctx context.Context, cfg *config.Config, log *slog.Logger, su
 		}
 		defer host.Close(context.WithoutCancel(ctx))
 		rep, err := sitebackup.Restore(ctx, t.store, file, sitebackup.RestoreOptions{Options: o, Replace: a.replace,
-			CheckRedirect: web.CheckRestoredRedirect, Plugins: host, Theme: themeInstalled(t.cfg), Retention: &keep})
+			CheckRedirect: web.CheckRestoredRedirect, SignIn: web.CheckRestoredSignIn, Plugins: host, Theme: themeInstalled(t.cfg), Retention: &keep})
 		if errors.Is(err, sitebackup.ErrNotEmpty) {
 			return errors.New("the site has content: add -replace to replace it (a backup of it is taken first)")
 		}

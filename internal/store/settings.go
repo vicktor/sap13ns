@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 // Settings are the site-wide options edited from the admin panel.
@@ -54,6 +55,13 @@ type Settings struct {
 	// GravatarCommenters does the same for commenters (off by default);
 	// it needs GravatarUsers.
 	GravatarCommenters bool `json:"gravatar_commenters"`
+	// LoginPath is the sign-in address: /login, or one or two lowercase
+	// segments an administrator chose (sitecheck.LoginPath). The other
+	// sign-in pages live under it (internal/web/signin.go).
+	LoginPath string `json:"login_path"`
+	// HideAdmin answers visitors who open /admin with the page-not-found
+	// page instead of sending them to the sign-in address.
+	HideAdmin bool `json:"hide_admin"`
 }
 
 // SiteText is the translatable part of the settings.
@@ -102,6 +110,7 @@ func DefaultSettings() Settings {
 		OGCards:           "classic",
 		AIAccess:          "open",
 		GravatarUsers:     true,
+		LoginPath:         "/login",
 	}
 }
 
@@ -136,6 +145,18 @@ func (s *Store) LoadSettings(ctx context.Context) (Settings, error) {
 
 func (s *Store) SaveSettings(ctx context.Context, st Settings) error {
 	return s.SetJSON(ctx, "site", st)
+}
+
+// SettingsStamp returns when the settings were last saved, the zero time
+// when they never were. A server compares it to notice a change made
+// outside it (the command line, another process).
+func (s *Store) SettingsStamp(ctx context.Context) (time.Time, error) {
+	var at time.Time
+	err := s.DB.QueryRow(ctx, `SELECT updated_at FROM settings WHERE key = 'site'`).Scan(&at)
+	if errors.Is(mapErr(err), ErrNotFound) {
+		return time.Time{}, nil
+	}
+	return at, err
 }
 
 // ThemeOptions are per-theme values declared in each theme manifest.

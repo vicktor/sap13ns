@@ -137,10 +137,11 @@
 <p class="hint" data-passkey-unsupported hidden>{{T "This browser does not support passkeys."}}</p>
 {{end}}
 
-{{/* Passkey sign-in button for /login (Mode "") and the second step of a
-   password login (Mode "2fa"). Hidden until passkey.js confirms support. */}}
+{{/* Passkey sign-in button for the sign-in page (Mode "") and the second
+   step of a password login (Mode "2fa"). Auth: the sign-in pages
+   (AuthPaths). Hidden until passkey.js confirms support. */}}
 {{define "passkey-signin"}}
-<div class="passkey-signin" data-passkey-login data-mode="{{.Mode}}" data-next="{{.Next}}" hidden
+<div class="passkey-signin" data-passkey-login data-mode="{{.Mode}}" data-next="{{.Next}}" data-begin="{{.Auth.PasskeyBegin}}" data-finish="{{.Auth.PasskeyFinish}}" hidden
   data-msg-cancelled="{{T "The passkey request was cancelled or timed out."}}"
   data-msg-failed="{{T "Signing in with the passkey failed. Try again."}}"
   data-msg-insecure="{{T "Passkeys only work on the site's own address over HTTPS."}}">

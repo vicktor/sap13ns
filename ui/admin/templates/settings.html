@@ -5,6 +5,8 @@
   <div><h1>{{T "Settings"}}</h1><p>{{T "Site-wide options. Changes apply immediately."}}</p></div>
 </div>
 {{template "form-error" $d.Error}}
+{{with $d.Moved}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "The sign-in address is now %s" .URL}}</h2>
+  <section><p>{{T "Bookmark it: %s will stop working." .Old}}</p></section></div>{{end}}
 <form method="post" action="/admin/settings" class="settings" data-unsaved>
   {{.CSRFField}}
   <nav class="settings-nav" aria-label="{{T "Sections"}}">
@@ -140,6 +142,16 @@
         <div class="field"><label for="default_role">{{T "Role for new accounts"}}</label>
           {{$o := list}}{{range $d.Roles}}{{$o = append $o (opt . (roleLabel .))}}{{end}}
           {{template "select" (selectbox "id" "default_role" "name" "default_role" "value" $s.DefaultRole "options" $o)}}</div>
+        <div class="field"><label for="login_path">{{T "Sign-in address"}}</label>
+          <input class="input font-mono" id="login_path" name="login_path" value="{{$s.LoginPath}}" required maxlength="84" pattern="/?[a-zA-Z0-9][a-zA-Z0-9\-]{2,40}(/[a-zA-Z0-9][a-zA-Z0-9\-]{2,40})?/?" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="/login" aria-describedby="login_path-hint">
+          <div class="hint space-y-1" id="login_path-hint">
+            <p>{{T "You and your users sign in at"}} <a class="font-mono break-all" href="{{$d.SignInURL}}">{{$d.SignInURL}}</a></p>
+            <p>{{T "The default is /login. Choose one or two words of lowercase letters, numbers and dashes, such as /entrar or /team/access, that the site does not use already. The old address then answers like any page that does not exist."}}</p>
+            {{if $d.Recovery}}<p>{{T "Lost it? Run this on the server: it prints the address, and with -reset it puts back /login."}} <code class="break-all">{{$d.Recovery}}</code></p>
+            {{else if $d.Tenant}}<p>{{T "Lost it? The members of the site can always sign in with their sap13ns account from the network's portal, which does not use this address."}}</p>{{end}}
+          </div></div>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="hide_admin" value="1"{{if $s.HideAdmin}} checked{{end}} aria-describedby="hide_admin-hint"> {{T "Hide the administration from visitors"}}</label>
+        <p class="hint" id="hide_admin-hint">{{T "Visitors who open /admin get the page-not-found page instead of being sent to the sign-in address, and the footer has no Log in link. It only helps with an address of your own: anyone can try /login."}}</p>
         {{if $d.Portal}}
         <div class="field"><input type="hidden" name="two_factor" value="{{$s.TwoFactor}}">
           <p class="text-sm font-medium">{{T "Two-factor authentication"}}</p>

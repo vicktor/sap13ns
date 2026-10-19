@@ -272,6 +272,7 @@ type SiteView struct {
 	Stats             SiteStats
 	Viewer            *Viewer
 	AllowRegistration bool
+	LoginURL          string // the sign-in page; "" when the administration is hidden from visitors
 	FeedRSS           string
 	FeedAtom          string
 	FeedJSON          string
@@ -441,6 +442,7 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		Tags:              markCurrent(d.tags, here, func(t *TermView) *bool { return &t.Current }, func(t *TermView) string { return t.URL }),
 		Archives:          markCurrent(d.archives, here, func(a *ArchiveLink) *bool { return &a.Current }, func(a *ArchiveLink) string { return a.URL }),
 		AllowRegistration: st.AllowRegistration,
+		LoginURL:          s.visibleSignIn(),
 		FeedRSS:           s.langPath(lang, "/feed.xml"), FeedAtom: s.langPath(lang, "/feed.atom"), FeedJSON: s.langPath(lang, "/feed.json"),
 		Search:       s.langPath(lang, "/search"),
 		Blog:         s.langPath(lang, "/blog"),
@@ -594,6 +596,7 @@ type CommentForm struct {
 	LoggedIn     bool
 	ViewerName   string
 	RequireLogin bool
+	LoginURL     string // where to sign in when RequireLogin
 	CSRF         string
 	Notice       string // pending | approved | error | closed
 }

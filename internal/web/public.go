@@ -549,6 +549,10 @@ func (s *Server) loadComments(r *http.Request, p *store.Post, pd *PageData) erro
 		RequireLogin: st.CommentsRequireLogin,
 		Notice:       r.URL.Query().Get("comment"),
 	}
+	if form.RequireLogin {
+		// Commenters need it, hidden administration or not.
+		form.LoginURL = s.signInBase()
+	}
 	if u := currentUser(r); u != nil {
 		form.LoggedIn, form.ViewerName = true, u.Name()
 		if sess := rctx(r).Session; sess != nil {

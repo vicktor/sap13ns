@@ -50,22 +50,12 @@ func (s *Server) routes() *http.ServeMux {
 	}
 	mux.HandleFunc("GET /{slug}", c(s.handlePage))
 
-	// Authentication.
-	mux.HandleFunc("GET /login", s.handleLoginForm)
-	mux.HandleFunc("POST /login", s.handleLogin)
-	mux.HandleFunc("GET /login/2fa", s.handleMFAForm)
-	mux.HandleFunc("POST /login/2fa", s.handleMFA)
-	mux.HandleFunc("POST /login/passkey/begin", s.loginPasskeyBegin)
-	mux.HandleFunc("POST /login/passkey/finish", s.loginPasskeyFinish)
+	// Authentication. The sign-in pages (sign-in, the second step,
+	// passkeys, password resets and the installer) are at the site's
+	// sign-in address, which can change: withSignIn serves them (signin.go).
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /register", s.handleRegisterForm)
 	mux.HandleFunc("POST /register", s.handleRegister)
-	mux.HandleFunc("GET /forgot-password", s.handleForgotForm)
-	mux.HandleFunc("POST /forgot-password", s.handleForgot)
-	mux.HandleFunc("GET /reset-password", s.handleResetForm)
-	mux.HandleFunc("POST /reset-password", s.handleReset)
-	mux.HandleFunc("GET /setup", s.handleSetupForm)
-	mux.HandleFunc("POST /setup", s.handleSetup)
 
 	// Single sign-on through the network portal (sso.go): a tenant site
 	// starts it and receives the code, the portal issues the code.

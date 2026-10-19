@@ -114,10 +114,12 @@ func postPath(typ, slug string) string {
 	return "/blog/" + slug
 }
 
-// prefixOnly lists routes that never take a language prefix.
-var prefixOnly = []string{"/admin", "/login", "/logout", "/register", "/forgot-password", "/reset-password",
-	"/setup", "/static/", "/themes/", "/uploads/", "/healthz", "/robots.txt", "/sitemap.xml", "/og/",
-	"/api/", "/mcp", "/manifest.webmanifest", "/plugin-assets/", "/plugin-forms/"}
+// prefixOnly lists routes that never take a language prefix. The sign-in
+// pages do not either, but their address is the site's own: under a
+// prefix it is an address like any other the site does not serve
+// (withSignIn).
+var prefixOnly = []string{"/admin", "/logout", "/register", "/static/", "/themes/", "/uploads/", "/healthz",
+	"/robots.txt", "/sitemap.xml", "/og/", "/api/", "/mcp", "/manifest.webmanifest", "/plugin-assets/", "/plugin-forms/"}
 
 // withLang detects a /<lang>/ prefix for an extra language, records it and
 // strips it from the path before routing.

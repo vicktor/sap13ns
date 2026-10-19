@@ -28,6 +28,19 @@ type settingsData struct {
 	OGLayouts []LangLink // Code/Name pairs for the social image select
 	Error     string
 	Portal    bool // the network portal: every account needs a second factor
+	// SignInURL is the saved sign-in address, in full; Recovery the
+	// command that prints and resets it on the server, "" on a site of a
+	// network, whose members sign in through the portal anyway (Tenant).
+	SignInURL string
+	Recovery  string
+	Tenant    bool
+	Moved     *signInMove // the sign-in address just changed
+}
+
+// signInMove is the notice of a new sign-in address.
+type signInMove struct {
+	URL string // the new address, in full
+	Old string // the old one, a path
 }
 
 var commonZones = []string{"UTC", "Europe/Madrid", "Atlantic/Canary", "Europe/Lisbon", "Europe/London", "Europe/Paris", "Europe/Berlin",
@@ -35,6 +48,10 @@ var commonZones = []string{"UTC", "Europe/Madrid", "Atlantic/Canary", "Europe/Li
 	"America/Caracas", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Australia/Sydney"}
 
 func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status int, st store.Settings, msg string) {
+	s.renderSettingsPage(w, r, status, st, msg, nil)
+}
+
+func (s *Server) renderSettingsPage(w http.ResponseWriter, r *http.Request, status int, st store.Settings, msg string, moved *signInMove) {
 	pages, _, err := s.store.ListPosts(r.Context(), store.PostQuery{Type: store.TypePage, PublicOnly: true, Order: "title", Limit: 500})
 	if err != nil {
 		s.serverError(w, r, err)
@@ -46,7 +63,33 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 	}
 	s.renderAdminStatus(w, r, status, "settings", s.t("Settings"), "settings", settingsData{S: st, Pages: pages, Languages: languageOptions(), Extra: s.extraLangsOf(st),
 		OGLayouts: []LangLink{{Code: "classic", Name: s.t("Classic")}, {Code: "bold", Name: s.t("Bold")}, {Code: "minimal", Name: s.t("Minimal")}, {Code: "off", Name: s.t("Off")}},
-		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg, Portal: s.portal != nil})
+		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg, Portal: s.portal != nil,
+		SignInURL: s.SignInURL(), Recovery: s.signInRecovery(), Tenant: s.sso != nil, Moved: moved})
+}
+
+// signInRecovery is the command that prints and resets the sign-in
+// address on the server: with -site on a network (network for the
+// portal), "" on a tenant, whose administrators have no shell there.
+func (s *Server) signInRecovery() string {
+	switch {
+	case s.sso != nil:
+		return ""
+	case s.backupHooks != nil && s.portal != nil:
+		return "sap13ns settings login-path -site network"
+	case s.backupHooks != nil:
+		return "sap13ns settings login-path -site " + s.backupHooks.BackupIdentity().Label
+	}
+	return "sap13ns settings login-path"
+}
+
+// formLoginPath reads the sign-in address of the settings form, forgiving
+// a missing or a trailing slash and capitals: empty is the default.
+func formLoginPath(r *http.Request) string {
+	p := strings.Trim(strings.ToLower(trimmed(r, "login_path")), "/")
+	if p == "" {
+		return sitecheck.DefaultLoginPath
+	}
+	return "/" + p
 }
 
 func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
@@ -101,19 +144,29 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.GravatarUsers = on("gravatar_users")
 	st.GravatarCommenters = st.GravatarUsers && on("gravatar_commenters")
 	before := s.settings()
+	st.LoginPath, st.HideAdmin = formLoginPath(r), on("hide_admin")
 
 	// The rules are shared with restores (sitecheck). The active theme is
 	// not on this page: an uninstalled one must not block it.
-	if bad := sitecheck.Settings(st, sitecheck.Site{PublicPage: func(id int64) bool { return s.publicPage(r, id) }}); len(bad) > 0 {
+	if bad := sitecheck.Settings(st, sitecheck.Site{PublicPage: func(id int64) bool { return s.publicPage(r, id) },
+		SignIn: s.signInCheck(r.Context())}); len(bad) > 0 {
 		s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.settingsError(bad[0], st))
 		return
 	}
+	old := s.signInBase()
 	if err := s.saveSettings(r, st); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
 	s.gravatarSettingsChanged(r.Context(), before, st) // avatars.go
 	s.audit(r, uid(r), "settings.saved", "", nil)
+	if st.LoginPath != old {
+		// Shown on the page, not in a toast that fades: the old address
+		// stops working now.
+		s.audit(r, uid(r), "settings.login_path", st.LoginPath, map[string]string{"from": old})
+		s.renderSettingsPage(w, r, http.StatusOK, s.settings(), "", &signInMove{URL: s.SignInURL(), Old: old})
+		return
+	}
 	s.redirect(w, r, "/admin/settings", "success", s.t("Settings saved."))
 }
 
@@ -145,6 +198,11 @@ func (s *Server) settingsError(field string, st store.Settings) string {
 		return s.t("Session length must be between 1 and 90 days.")
 	case "idle_hours":
 		return s.t("Idle timeout must be between 1 and 2160 hours.")
+	case "login_path":
+		if !sitecheck.LoginPath.MatchString(st.LoginPath) {
+			return s.t("The sign-in address must be one or two words of lowercase letters, numbers and dashes, of 3 to 41 characters each, such as /entrar.")
+		}
+		return s.t("%s is taken: the site uses it for one of its own addresses, a page or a redirect. Choose another sign-in address.", st.LoginPath)
 	}
 	return s.t("Invalid request.")
 }
