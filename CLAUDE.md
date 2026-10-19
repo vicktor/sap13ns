@@ -51,6 +51,7 @@ make check                                   # vet + Go and JS tests + i18n + ev
   - Every theme must work in light and dark mode.
 - **i18n:**
   - **UI strings:** source strings are English. Translations go in `ui/i18n/<lang>.json` (English → translation). Call `{{T "..."}}` in templates and `s.t(...)` in Go. `scripts/i18ncheck` extracts every key (templates, Go calls, label tables) and `make i18n` fails when a translation is missing. Add the Spanish text to `es.json` (sorted, 2-space JSON; `internal/i18n/catalog_test.go` checks the format, placeholders and tags). A string the extractor cannot see goes in `scripts/i18ncheck/hand.go`.
+  - **Admin language:** each user can choose the admin panel's language (`users.ui_language`, `uilang.go`); the public site never follows it. In a handler, translate with `s.tu(r, ...)`, which uses that choice; `s.t(...)` is the site's main language, for what goes to other people (e-mails, stored names).
   - **Content:** posts, terms and menus have per-language translations in the database. Public URLs carry a language prefix for non-default languages (`lang.go`).
 - **Content pipeline:** `internal/content` renders Markdown with goldmark and sanitises it with bluemonday. Anything that reaches a page goes through this pipeline: posts, comments, plugin output, AI answers, WordPress imports.
 - **Plugins:** see `internal/plugin` and `pluginsdk`.
