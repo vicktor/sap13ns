@@ -43,29 +43,6 @@ func TestConfigFrom(t *testing.T) {
 	}
 }
 
-func TestLanguages(t *testing.T) {
-	tests := []struct {
-		lang    string
-		spanish bool
-		base    string
-	}{
-		{"es", true, "es"},
-		{"ES-mx", true, "es"},
-		{"es_AR", true, "es"},
-		{"est", false, "est"},
-		{"en", false, "en"},
-		{"pt-BR", false, "pt"},
-		{"", false, ""},
-		{"x", false, ""},
-		{"e1", false, ""},
-	}
-	for _, tt := range tests {
-		if isSpanish(tt.lang) != tt.spanish || baseLang(tt.lang) != tt.base {
-			t.Errorf("%q: spanish %v, base %q", tt.lang, isSpanish(tt.lang), baseLang(tt.lang))
-		}
-	}
-}
-
 func TestIdempotencyKey(t *testing.T) {
 	if got := idempotencyKey("https://blog.example.org/es", 7); got != "sap13ns-blog.example.org-7" {
 		t.Errorf("%q", got)

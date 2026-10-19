@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
+	"github.com/vicktor/sap13ns/pluginsdk/autopost"
 	"github.com/vicktor/sap13ns/pluginsdk/sdktest"
 )
 
@@ -141,10 +142,19 @@ func noSecrets(t *testing.T, env *sdktest.Env) {
 	}
 }
 
-func records(t *testing.T, env *sdktest.Env) map[string]Record {
+// record is how the stored record of one post looks: autopost keeps each
+// network's state under its key, "b" for Bluesky and "m" for Mastodon, as
+// the plugin did before it used autopost.
+type record struct {
+	T int64  `json:"t"`
+	B string `json:"b"`
+	M string `json:"m"`
+}
+
+func records(t *testing.T, env *sdktest.Env) map[string]record {
 	t.Helper()
-	recs := map[string]Record{}
-	if raw, ok := env.KV[keyRecords]; ok {
+	recs := map[string]record{}
+	if raw, ok := env.KV[autopost.KeyRecords]; ok {
 		if err := json.Unmarshal(raw, &recs); err != nil {
 			t.Fatal(err)
 		}
@@ -152,10 +162,10 @@ func records(t *testing.T, env *sdktest.Env) map[string]Record {
 	return recs
 }
 
-func queued(t *testing.T, env *sdktest.Env) []Item {
+func queued(t *testing.T, env *sdktest.Env) []autopost.Item {
 	t.Helper()
-	var q []Item
-	if raw, ok := env.KV[keyQueue]; ok {
+	var q []autopost.Item
+	if raw, ok := env.KV[autopost.KeyQueue]; ok {
 		if err := json.Unmarshal(raw, &q); err != nil {
 			t.Fatal(err)
 		}
@@ -253,7 +263,7 @@ func TestPublishedPostsToBothNetworks(t *testing.T) {
 	if len(queued(t, env)) != 0 {
 		t.Errorf("queue: %+v", queued(t, env))
 	}
-	if _, held := env.KV[keyLock]; held {
+	if _, held := env.KV[autopost.KeyLock]; held {
 		t.Error("the lock was not released")
 	}
 	wantLog(t, env,
@@ -362,7 +372,7 @@ func TestScheduledPost(t *testing.T) {
 	if len(queued(t, env)) != 0 {
 		t.Errorf("queue: %+v", queued(t, env))
 	}
-	if _, ok := env.KV[keyQueue]; ok {
+	if _, ok := env.KV[autopost.KeyQueue]; ok {
 		t.Error("an empty queue should delete its key")
 	}
 	wantLog(t, env, "posted to Mastodon")

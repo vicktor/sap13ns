@@ -54,6 +54,7 @@ plugins:
 	$(GO) run ./scripts/pluginbundle -o $(BUNDLE) $(addprefix plugins/,$(OFFICIAL))
 
 plugins-test:
+	cd pluginsdk && $(GO) test ./...
 	@for p in $(PLUGINS); do $(MAKE) -C $$p test || exit 1; done
 
 dev: build

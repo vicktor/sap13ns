@@ -1,4 +1,4 @@
-package main
+package autopost
 
 import (
 	"regexp"
@@ -7,13 +7,8 @@ import (
 	"unicode/utf8"
 )
 
-// Text limits of the networks.
-const (
-	blueskyLimit   = 300 // graphemes; runes are a safe upper bound
-	mastodonLimit  = 500 // characters, every URL counting as mastodonURLLen
-	mastodonURLLen = 23
-	maxTagRunes    = 64 // Bluesky's limit for one hashtag
-)
+// MaxTagRunes is the longest hashtag kept (Bluesky's limit for one tag).
+const MaxTagRunes = 64
 
 // Hashtags turns tag names into hashtags: characters other than letters,
 // digits, combining marks and "_" are removed, multi-word tags are
@@ -39,13 +34,19 @@ func Hashtags(tags []string, limit int) []string {
 		}
 		tag := b.String()
 		key := strings.ToLower(tag)
-		if tag == "" || allDigits(tag) || utf8.RuneCountInString(tag) > maxTagRunes || seen[key] {
+		if !ValidTag(tag) || seen[key] {
 			continue
 		}
 		seen[key] = true
 		out = append(out, "#"+tag)
 	}
 	return out
+}
+
+// ValidTag reports whether a hashtag without its "#" is one the networks
+// link: not empty, not only digits, at most MaxTagRunes long.
+func ValidTag(tag string) bool {
+	return tag != "" && !allDigits(tag) && utf8.RuneCountInString(tag) <= MaxTagRunes
 }
 
 func tagRune(r rune) bool {
@@ -67,40 +68,41 @@ type Fields struct {
 	Hashtags                  []string
 }
 
-// Network is a text limit: the maximum length and how text is measured.
-type Network struct {
-	Name  string
-	Limit int
-	Len   func(string) int
+// Limit is a network's text limit: the maximum length and how the network
+// measures text.
+type Limit struct {
+	Max int
+	Len func(string) int
 }
 
-var (
-	blueskyNet  = Network{Name: "Bluesky", Limit: blueskyLimit, Len: utf8.RuneCountInString}
-	mastodonNet = Network{Name: "Mastodon", Limit: mastodonLimit, Len: mastodonLen}
-)
+// Runes measures text in Unicode code points, a safe upper bound for
+// networks that count graphemes.
+func Runes(s string) int { return utf8.RuneCountInString(s) }
 
-var urlRe = regexp.MustCompile(`https?://[^\s]+`)
+// URLs matches the links in a text.
+var URLs = regexp.MustCompile(`https?://[^\s]+`)
 
-// mastodonLen counts characters the way Mastodon does: every link counts
-// as 23 characters, whatever its length.
-func mastodonLen(s string) int {
-	n := utf8.RuneCountInString(s)
-	for _, u := range urlRe.FindAllString(s, -1) {
-		n += mastodonURLLen - utf8.RuneCountInString(u)
+// URLsCountAs returns a length function for networks that count every link
+// as n characters, whatever its length (Mastodon and X: 23).
+func URLsCountAs(n int, count func(string) int) func(string) int {
+	return func(s string) int {
+		total := count(s)
+		for _, u := range URLs.FindAllString(s, -1) {
+			total += n - count(u)
+		}
+		return total
 	}
-	return n
 }
 
-// Compose renders the template and fits it into the network's limit:
-// the excerpt is shortened first, then the title (both with "…"), then
-// trailing hashtags are dropped. The URL and the hashtags are never cut in
-// half.
-func Compose(tpl string, f Fields, net Network) string {
-	fits := func(s string) bool { return net.Len(s) <= net.Limit }
+// Compose renders the template and fits it into the limit: the excerpt is
+// shortened first, then the title (both with "…"), then trailing hashtags
+// are dropped. The URL and the hashtags are never cut in half.
+func Compose(tpl string, f Fields, l Limit) string {
+	fits := func(s string) bool { return l.Len(s) <= l.Max }
 	render := func(title, excerpt string, tags []string) string {
-		return renderTemplate(tpl, Fields{Title: title, URL: f.URL, Excerpt: excerpt, Site: f.Site, Hashtags: tags})
+		return RenderTemplate(tpl, Fields{Title: title, URL: f.URL, Excerpt: excerpt, Site: f.Site, Hashtags: tags})
 	}
-	title, excerpt, tags := oneLine(f.Title), oneLine(f.Excerpt), f.Hashtags
+	title, excerpt, tags := OneLine(f.Title), OneLine(f.Excerpt), f.Hashtags
 	text := render(title, excerpt, tags)
 	if fits(text) {
 		return text
@@ -166,10 +168,11 @@ func cut(r []rune, n int) string {
 
 var manyNewlines = regexp.MustCompile(`\n{3,}`)
 
-// renderTemplate replaces the placeholders and tidies the whitespace: the
-// lines of an empty placeholder disappear and at most one blank line is
-// kept between paragraphs.
-func renderTemplate(tpl string, f Fields) string {
+// RenderTemplate replaces the placeholders {title} {url} {excerpt} {site}
+// and {hashtags} and tidies the whitespace: the lines of an empty
+// placeholder disappear and at most one blank line is kept between
+// paragraphs.
+func RenderTemplate(tpl string, f Fields) string {
 	text := strings.NewReplacer(
 		"{title}", f.Title,
 		"{url}", f.URL,
@@ -185,13 +188,13 @@ func renderTemplate(tpl string, f Fields) string {
 	return strings.TrimSpace(text)
 }
 
-// oneLine collapses whitespace, so a title or excerpt cannot break the
+// OneLine collapses whitespace, so a title or excerpt cannot break the
 // layout of the template.
-func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+func OneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // Truncate shortens s to at most n runes, with "…".
 func Truncate(s string, n int) string {
-	s = oneLine(s)
+	s = OneLine(s)
 	if utf8.RuneCountInString(s) <= n {
 		return s
 	}

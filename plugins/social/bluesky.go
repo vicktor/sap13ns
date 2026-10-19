@@ -2,13 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
+	"github.com/vicktor/sap13ns/pluginsdk/autopost"
 )
 
 // Facet is a Bluesky rich-text annotation. Offsets are UTF-8 bytes.
@@ -34,7 +33,7 @@ var hashtagRe = regexp.MustCompile(`(?:^|\s)(#[\p{L}\p{M}\p{N}_]+)`)
 // without facets they would show as plain text.
 func Facets(text string) []Facet {
 	var out []Facet
-	for _, m := range urlRe.FindAllStringIndex(text, -1) {
+	for _, m := range autopost.URLs.FindAllStringIndex(text, -1) {
 		start, end := m[0], m[1]
 		end = start + len(trimURL(text[start:end]))
 		out = append(out, Facet{Index: FacetIndex{start, end},
@@ -43,7 +42,7 @@ func Facets(text string) []Facet {
 	for _, m := range hashtagRe.FindAllStringSubmatchIndex(text, -1) {
 		start, end := m[2], m[3]
 		tag := text[start+1 : end]
-		if allDigits(tag) || len([]rune(tag)) > maxTagRunes {
+		if !autopost.ValidTag(tag) {
 			continue
 		}
 		out = append(out, Facet{Index: FacetIndex{start, end},
@@ -104,29 +103,20 @@ func BlueskyRecord(text string, p pluginsdk.Post, at time.Time) BlueskyPost {
 	}
 	if p.URL != "" {
 		rec.Embed = &BlueskyEmbed{Type: "app.bsky.embed.external", External: BlueskyExternal{
-			URI: p.URL, Title: Truncate(p.Title, 300), Description: Truncate(p.Excerpt, 300)}}
+			URI: p.URL, Title: autopost.Truncate(p.Title, 300), Description: autopost.Truncate(p.Excerpt, 300)}}
 	}
 	return rec
 }
 
-// sendResult is the outcome of one network's delivery.
-type sendResult struct {
-	// done: posted, with url. failed: the server refused or the request
-	// never left (safe to retry). Otherwise the outcome is unknown.
-	done, failed bool
-	url, link    string // link: a web address for people, when url is not one
-	detail       string // why it failed, for the log
-}
-
 // postBluesky signs in with the app password and creates the post.
-func postBluesky(c Config, text string, p pluginsdk.Post, at time.Time) sendResult {
+func postBluesky(c Config, text string, p pluginsdk.Post, at time.Time) autopost.Result {
 	body, _ := json.Marshal(map[string]string{"identifier": c.BlueskyHandle, "password": c.BlueskyPassword})
 	resp, err := pluginsdk.Fetch(pluginsdk.HTTPRequest{Method: "POST", URL: c.BlueskyService + "/xrpc/com.atproto.server.createSession",
 		Headers: map[string]string{"Content-Type": "application/json", "Accept": "application/json"}, Body: string(body)})
 	if r, bad := fetchProblem(resp, err, c.BlueskyService); bad {
 		// No post can exist without a session, so this is always safe to
 		// retry.
-		r.failed, r.detail = true, "signing in: "+r.detail
+		r.Failed, r.Detail = true, "signing in: "+r.Detail
 		return r
 	}
 	var session struct {
@@ -134,7 +124,7 @@ func postBluesky(c Config, text string, p pluginsdk.Post, at time.Time) sendResu
 		DID       string `json:"did"`
 	}
 	if json.Unmarshal([]byte(resp.Body), &session) != nil || session.AccessJwt == "" || session.DID == "" {
-		return sendResult{failed: true, detail: "signing in: unexpected answer from the server"}
+		return autopost.Result{Failed: true, Detail: "signing in: unexpected answer from the server"}
 	}
 
 	body, _ = json.Marshal(map[string]any{"repo": session.DID, "collection": "app.bsky.feed.post", "record": BlueskyRecord(text, p, at)})
@@ -148,7 +138,7 @@ func postBluesky(c Config, text string, p pluginsdk.Post, at time.Time) sendResu
 		URI string `json:"uri"`
 	}
 	json.Unmarshal([]byte(resp.Body), &created)
-	return sendResult{done: true, url: created.URI, link: blueskyLink(created.URI)}
+	return autopost.Result{Done: true, URL: created.URI, Link: blueskyLink(created.URI)}
 }
 
 // blueskyLink turns at://did/app.bsky.feed.post/rkey into the address of
@@ -166,67 +156,8 @@ func blueskyLink(uri string) string {
 	return "bsky.app/profile/" + parts[0] + "/post/" + parts[2]
 }
 
-// fetchProblem classifies a failed request. A response with an error
-// status, or an error raised before anything was sent, is safe to retry
-// (failed); any other error leaves the outcome unknown.
-func fetchProblem(resp *pluginsdk.HTTPResponse, err error, base string) (sendResult, bool) {
-	switch {
-	case errors.Is(err, pluginsdk.ErrDenied):
-		return sendResult{failed: true, detail: "the host " + hostOf(base) + " is not in this plugin's permissions (http:" + hostOf(base) +
-			"); see “Adding a Mastodon instance or a Bluesky server” in the plugin's README"}, true
-	case errors.Is(err, pluginsdk.ErrLimit), errors.Is(err, pluginsdk.ErrInvalid), errors.Is(err, pluginsdk.ErrUnavailable):
-		return sendResult{failed: true, detail: err.Error()}, true
-	case err != nil:
-		msg := err.Error()
-		if notSent(msg) {
-			return sendResult{failed: true, detail: shorten(msg, 160)}, true
-		}
-		return sendResult{detail: "no answer (" + shorten(msg, 120) + ")"}, true
-	case resp.Status < 200 || resp.Status > 299:
-		return sendResult{failed: true, detail: "HTTP " + itoa(resp.Status) + errorText(resp.Body)}, true
-	}
-	return sendResult{}, false
-}
-
-// notSent recognizes errors raised before the request reached the server.
-func notSent(msg string) bool {
-	for _, s := range []string{"no such host", "connection refused", "destination address is not allowed",
-		"only absolute https://", "redirect to a host", "method not allowed", "request body too large", "network is unreachable"} {
-		if strings.Contains(msg, s) {
-			return true
-		}
-	}
-	return false
-}
-
-// errorText extracts the error message of a Bluesky or Mastodon error
-// answer ({"error": "...", "message": "..."}), never the whole body.
-func errorText(body string) string {
-	var e struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-	}
-	if json.Unmarshal([]byte(body), &e) != nil || e.Error == "" && e.Message == "" {
-		return ""
-	}
-	parts := []string{}
-	for _, s := range []string{e.Error, e.Message} {
-		if s = strings.TrimSpace(s); s != "" {
-			parts = append(parts, s)
-		}
-	}
-	return ": " + shorten(strings.Join(parts, ": "), 200)
-}
-
-func shorten(s string, n int) string {
-	s = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, s)
-	if r := []rune(s); len(r) > n {
-		return string(r[:n]) + "…"
-	}
-	return s
+// fetchProblem classifies a failed request (autopost.FetchProblem), with
+// the README section that explains how to add a server.
+func fetchProblem(resp *pluginsdk.HTTPResponse, err error, base string) (autopost.Result, bool) {
+	return autopost.FetchProblem(resp, err, base, "; see “Adding a Mastodon instance or a Bluesky server” in the plugin's README")
 }

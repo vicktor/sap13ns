@@ -1,6 +1,7 @@
-package main
+package autopost
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -13,50 +14,43 @@ import (
 	"github.com/vicktor/sap13ns/pluginsdk"
 )
 
-// The plugin keeps three keys in its private store (the host allows 1000
-// keys and 1 MiB per plugin, 256 KiB per value):
+// The poster keeps three keys in the plugin's private store (the host
+// allows 1000 keys and 1 MiB per plugin, 256 KiB per value):
 //
-//	posted  what was sent where, for every post: {"<id>": {"t": unix, "b": "d1", "m": "f2"}}
+//	posted  what was sent where, for every post: {"<id>": {"t": unix, "<network key>": "d1", …}}
 //	queue   posts waiting to go out: scheduled ones and retries
 //	lock    "<token> <unix ms>" while an event updates the other two
 const (
-	keyRecords = "posted"
-	keyQueue   = "queue"
-	keyLock    = "lock"
+	KeyRecords = "posted"
+	KeyQueue   = "queue"
+	KeyLock    = "lock"
 
-	maxRecords     = 3000
-	maxRecordBytes = 200 << 10
-	maxQueue       = 100
-	maxAttempts    = 3
+	MaxRecords     = 3000
+	MaxRecordBytes = 200 << 10
+	MaxQueue       = 100
+	MaxAttempts    = 3
 	lockTTL        = 30 * time.Second
-	queueGrace     = 48 * time.Hour // how long a queued post may stay invisible
+	QueueGrace     = 48 * time.Hour // how long a queued post may stay invisible
 )
 
 // Delivery states, one letter followed by the number of attempts ("d1").
 const (
-	stateSending = 's' // request sent, outcome unknown: never retried
-	stateDone    = 'd'
-	stateFailed  = 'f' // the server refused, or nothing was sent: retried
+	StateSending = 's' // request sent, outcome unknown: never retried
+	StateDone    = 'd'
+	StateFailed  = 'f' // the server refused, or nothing was sent: retried
 )
 
-// Record is what was sent for one post.
+// Record is what was sent for one post: the time of the last change and
+// one state per network, stored under the network's key.
 type Record struct {
-	T int64  `json:"t"`           // last change, unix seconds
-	B string `json:"b,omitempty"` // Bluesky state
-	M string `json:"m,omitempty"` // Mastodon state
-}
-
-func (r *Record) slot(net string) *string {
-	if net == netBluesky {
-		return &r.B
-	}
-	return &r.M
+	T int64             // last change, unix seconds
+	S map[string]string // network key → state ("d1")
 }
 
 // Get returns the state of one network (0 when never tried) and the
 // number of attempts.
 func (r Record) Get(net string) (byte, int) {
-	s := *r.slot(net)
+	s := r.S[net]
 	if s == "" {
 		return 0, 0
 	}
@@ -66,7 +60,58 @@ func (r Record) Get(net string) (byte, int) {
 
 // Set records the state of one network.
 func (r *Record) Set(net string, state byte, attempts int) {
-	*r.slot(net) = string(state) + strconv.Itoa(attempts)
+	if r.S == nil {
+		r.S = map[string]string{}
+	}
+	r.S[net] = string(state) + strconv.Itoa(attempts)
+}
+
+// MarshalJSON writes {"t": unix, "<key>": "<state>", …}, keys sorted.
+func (r Record) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteString(`{"t":` + strconv.FormatInt(r.T, 10))
+	keys := make([]string, 0, len(r.S))
+	for k := range r.S {
+		if k != "t" && r.S[k] != "" {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		kb, _ := json.Marshal(k)
+		vb, _ := json.Marshal(r.S[k])
+		b.WriteByte(',')
+		b.Write(kb)
+		b.WriteByte(':')
+		b.Write(vb)
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
+}
+
+// UnmarshalJSON reads what MarshalJSON writes.
+func (r *Record) UnmarshalJSON(data []byte) error {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	*r = Record{}
+	for k, v := range m {
+		if k == "t" {
+			if err := json.Unmarshal(v, &r.T); err != nil {
+				return err
+			}
+			continue
+		}
+		var s string
+		if json.Unmarshal(v, &s) == nil && s != "" {
+			if r.S == nil {
+				r.S = map[string]string{}
+			}
+			r.S[k] = s
+		}
+	}
+	return nil
 }
 
 // Item is a post waiting in the queue.
@@ -79,15 +124,10 @@ type Item struct {
 	Since int64  `json:"since"` // queued at
 }
 
-// Test hooks.
-var (
-	now   = time.Now
-	sleep = time.Sleep
-)
-
-func loadRecords() (map[string]Record, error) {
+// LoadRecords reads what was sent where.
+func LoadRecords() (map[string]Record, error) {
 	recs := map[string]Record{}
-	raw, err := pluginsdk.KVGet(keyRecords)
+	raw, err := pluginsdk.KVGet(KeyRecords)
 	switch {
 	case errors.Is(err, pluginsdk.ErrNotFound):
 		return recs, nil
@@ -104,14 +144,14 @@ func loadRecords() (map[string]Record, error) {
 // saveRecords keeps the newest records within the size caps.
 func saveRecords(recs map[string]Record) error {
 	b, _ := json.Marshal(recs)
-	if len(recs) > maxRecords || len(b) > maxRecordBytes {
+	if len(recs) > MaxRecords || len(b) > MaxRecordBytes {
 		ids := make([]string, 0, len(recs))
 		for id := range recs {
 			ids = append(ids, id)
 		}
 		sort.Slice(ids, func(i, j int) bool { return recs[ids[i]].T < recs[ids[j]].T })
 		for _, id := range ids {
-			if len(recs) <= maxRecords && len(b) <= maxRecordBytes {
+			if len(recs) <= MaxRecords && len(b) <= MaxRecordBytes {
 				break
 			}
 			delete(recs, id)
@@ -121,12 +161,13 @@ func saveRecords(recs map[string]Record) error {
 		}
 		b, _ = json.Marshal(recs)
 	}
-	return pluginsdk.KVSet(keyRecords, b)
+	return pluginsdk.KVSet(KeyRecords, b)
 }
 
-func loadQueue() ([]Item, error) {
+// LoadQueue reads the queue.
+func LoadQueue() ([]Item, error) {
 	var q []Item
-	raw, err := pluginsdk.KVGet(keyQueue)
+	raw, err := pluginsdk.KVGet(KeyQueue)
 	switch {
 	case errors.Is(err, pluginsdk.ErrNotFound):
 		return nil, nil
@@ -142,10 +183,10 @@ func loadQueue() ([]Item, error) {
 
 func saveQueue(q []Item) error {
 	if len(q) == 0 {
-		return pluginsdk.KVDelete(keyQueue)
+		return pluginsdk.KVDelete(KeyQueue)
 	}
 	b, _ := json.Marshal(q)
-	return pluginsdk.KVSet(keyQueue, b)
+	return pluginsdk.KVSet(KeyQueue, b)
 }
 
 // enqueue adds or replaces the item for a post. It reports an item that
@@ -158,7 +199,7 @@ func enqueue(q *[]Item, it Item) (dropped *Item) {
 			return nil
 		}
 	}
-	if len(*q) >= maxQueue {
+	if len(*q) >= MaxQueue {
 		sort.Slice(*q, func(i, j int) bool { return (*q)[i].Since < (*q)[j].Since })
 		d := (*q)[0]
 		*q = (*q)[1:]
@@ -179,7 +220,8 @@ func dequeue(q *[]Item, id int64) bool {
 	return false
 }
 
-func findItem(q []Item, id int64) *Item {
+// FindItem returns the queued item of a post, or nil.
+func FindItem(q []Item, id int64) *Item {
 	for i := range q {
 		if q[i].ID == id {
 			return &q[i]
@@ -188,22 +230,23 @@ func findItem(q []Item, id int64) *Item {
 	return nil
 }
 
-var errBusy = errors.New("another event is updating the plugin's records")
+// ErrBusy is returned when the lock stays taken.
+var ErrBusy = errors.New("another event is updating the plugin's records")
 
 // update runs fn on the records and the queue while holding the lock, and
 // saves both. Two event workers may run at once; without the lock, one
 // could overwrite what the other wrote and a post could go out twice.
-func update(fn func(recs map[string]Record, q *[]Item)) error {
-	token, err := acquireLock()
+func (p *Poster) update(fn func(recs map[string]Record, q *[]Item)) error {
+	token, err := p.acquireLock()
 	if err != nil {
 		return err
 	}
-	defer releaseLock(token)
-	recs, err := loadRecords()
+	defer p.releaseLock(token)
+	recs, err := LoadRecords()
 	if err != nil {
 		return err
 	}
-	q, err := loadQueue()
+	q, err := LoadQueue()
 	if err != nil {
 		return err
 	}
@@ -219,23 +262,23 @@ func update(fn func(recs map[string]Record, q *[]Item)) error {
 // workers race, both writes land before either reads, and only the last
 // writer still finds its token. A lock older than lockTTL is stale (the
 // host stops an event call after 15 seconds).
-func acquireLock() (string, error) {
+func (p *Poster) acquireLock() (string, error) {
 	token := newToken()
 	for range 20 {
-		v, err := pluginsdk.KVGet(keyLock)
+		v, err := pluginsdk.KVGet(KeyLock)
 		switch {
 		case errors.Is(err, pluginsdk.ErrNotFound):
 		case err != nil:
 			return "", err
-		case lockHeld(string(v)):
-			sleep(150 * time.Millisecond)
+		case p.lockHeld(string(v)):
+			p.sleep(150 * time.Millisecond)
 			continue
 		}
-		if err := pluginsdk.KVSet(keyLock, []byte(token+" "+strconv.FormatInt(now().UnixMilli(), 10))); err != nil {
+		if err := pluginsdk.KVSet(KeyLock, []byte(token+" "+strconv.FormatInt(p.now().UnixMilli(), 10))); err != nil {
 			return "", err
 		}
-		sleep(250 * time.Millisecond)
-		v, err = pluginsdk.KVGet(keyLock)
+		p.sleep(250 * time.Millisecond)
+		v, err = pluginsdk.KVGet(KeyLock)
 		if err == nil && strings.HasPrefix(string(v), token+" ") {
 			return token, nil
 		}
@@ -243,22 +286,22 @@ func acquireLock() (string, error) {
 			return "", err
 		}
 	}
-	return "", errBusy
+	return "", ErrBusy
 }
 
-func lockHeld(v string) bool {
+func (p *Poster) lockHeld(v string) bool {
 	_, ms, ok := strings.Cut(v, " ")
 	t, err := strconv.ParseInt(ms, 10, 64)
-	return ok && err == nil && now().Sub(time.UnixMilli(t)) < lockTTL
+	return ok && err == nil && p.now().Sub(time.UnixMilli(t)) < lockTTL
 }
 
-func releaseLock(token string) {
-	if v, err := pluginsdk.KVGet(keyLock); err == nil && strings.HasPrefix(string(v), token+" ") {
-		pluginsdk.KVDelete(keyLock)
+func (p *Poster) releaseLock(token string) {
+	if v, err := pluginsdk.KVGet(KeyLock); err == nil && strings.HasPrefix(string(v), token+" ") {
+		pluginsdk.KVDelete(KeyLock)
 	}
 }
 
-var newToken = func() string {
+func newToken() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)

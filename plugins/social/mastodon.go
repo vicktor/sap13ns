@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
+	"github.com/vicktor/sap13ns/pluginsdk/autopost"
 )
 
 // MastodonStatus is the body of POST /api/v1/statuses.
@@ -27,7 +28,7 @@ func idempotencyKey(siteURL string, postID int64) string {
 
 // MastodonRequest builds the request that publishes a status.
 func MastodonRequest(c Config, siteURL, text string, p pluginsdk.Post) pluginsdk.HTTPRequest {
-	body, _ := json.Marshal(MastodonStatus{Status: text, Language: baseLang(p.Lang), Visibility: c.MastodonVisibility})
+	body, _ := json.Marshal(MastodonStatus{Status: text, Language: autopost.BaseLang(p.Lang), Visibility: c.MastodonVisibility})
 	return pluginsdk.HTTPRequest{Method: "POST", URL: c.MastodonInstance + "/api/v1/statuses", Body: string(body),
 		Headers: map[string]string{
 			"Content-Type":    "application/json",
@@ -38,7 +39,7 @@ func MastodonRequest(c Config, siteURL, text string, p pluginsdk.Post) pluginsdk
 }
 
 // postMastodon publishes the status.
-func postMastodon(c Config, siteURL, text string, p pluginsdk.Post) sendResult {
+func postMastodon(c Config, siteURL, text string, p pluginsdk.Post) autopost.Result {
 	resp, err := pluginsdk.Fetch(MastodonRequest(c, siteURL, text, p))
 	if r, bad := fetchProblem(resp, err, c.MastodonInstance); bad {
 		return r
@@ -51,5 +52,5 @@ func postMastodon(c Config, siteURL, text string, p pluginsdk.Post) sendResult {
 	if st.URL == "" {
 		st.URL = st.URI
 	}
-	return sendResult{done: true, url: st.URL}
+	return autopost.Result{Done: true, URL: st.URL}
 }

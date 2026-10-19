@@ -243,6 +243,13 @@ Uninstalling with **Delete its data** removes all of it.
 
 ## Build and install
 
+The events, the queue, the records and the text fitting live in
+[`pluginsdk/autopost`](../../pluginsdk/autopost), which the `x-autopost`,
+`linkedin` and `instagram` plugins share. This plugin describes Bluesky and
+Mastodon to it (`handler.go`) and builds their requests (`bluesky.go`,
+`mastodon.go`). The records keep the format of earlier versions, so an
+update never posts an article again.
+
 ```sh
 make build                               # plugin.wasm (GOOS=wasip1 GOARCH=wasm)
 make test vet                            # native unit tests and vet
