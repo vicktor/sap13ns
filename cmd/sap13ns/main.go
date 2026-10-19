@@ -5,6 +5,7 @@
 //	sap13ns keygen                print a new SAP13NS_SECRET_KEY
 //	sap13ns user create ...       create a user from the command line
 //	sap13ns user reset-password   set a new password for a user
+//	sap13ns settings login-path   print or reset the sign-in address (settings.go)
 //	sap13ns plugin new|pack|check create, package and scan plugins (plugin.go)
 //	sap13ns plugin list|install   list and install the plugins of a site
 //	sap13ns theme list|install|remove  the themes of a site (theme.go)
@@ -72,6 +73,8 @@ func main() {
 		}
 	case "user":
 		err = userCmd(args)
+	case "settings":
+		err = settingsCmd(args)
 	case "plugin":
 		err = pluginCmd(args)
 	case "theme":
@@ -117,6 +120,9 @@ Commands:
                                  when piped, otherwise a strong one is generated.
   user reset-password -username U
                                  Set a new password (same rules as above)
+  settings login-path [-reset | -set /PATH]
+                                 Print the sign-in address (Settings → Accounts
+                                 & security), put back /login, or choose another
   plugin new <id> [-dir D] [-hooks shortcode,widget,...] [-sdk PATH]
                                  Start a plugin project from the skeleton
   plugin pack <dir>              Build, scan and write <id>-<version>.zip
@@ -168,7 +174,7 @@ Networks (SAP13NS_MULTISITE=true):
   site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST
                                  Manage the sites; running servers follow
   migrate [-site S]              Migrate the network, then every site (or one)
-  user, plugin list|install, theme, content, assistant, export -site S
+  user, settings, plugin list|install, theme, content, assistant, export -site S
                                  Work on one site; -site network is the portal
   backup create|list|prune|restore -site S
                                  The site's own backups (the whole network:
@@ -448,6 +454,7 @@ func userCmd(args []string) error {
 		if generated {
 			fmt.Fprintf(out, "password: %s\n", pw)
 		}
+		fmt.Fprint(out, signInLine(ctx, t))
 	case "reset-password":
 		u, err := st.UserByUsername(ctx, username)
 		if err != nil {
@@ -473,6 +480,7 @@ func userCmd(args []string) error {
 		if generated {
 			fmt.Printf("password: %s\n", pw)
 		}
+		fmt.Print(signInLine(ctx, t))
 	default:
 		return fmt.Errorf("unknown user command %q", sub)
 	}
