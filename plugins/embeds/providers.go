@@ -22,12 +22,14 @@ type provider struct {
 type video struct {
 	provider *provider
 	player   string // privacy-friendly player URL loaded after the click
-	portrait bool   // 9:16 (YouTube Shorts)
+	portrait bool   // 9:16 (YouTube Shorts, TikTok)
+	author   string // "@name" when the URL names the author (TikTok)
 }
 
 var providers = []*provider{
 	{id: "youtube", name: "YouTube", parse: parseYouTube},
 	{id: "vimeo", name: "Vimeo", parse: parseVimeo},
+	{id: "tiktok", name: "TikTok", parse: parseTikTok},
 }
 
 // match returns the video behind href for an enabled provider.
@@ -52,6 +54,10 @@ var (
 	youtubeID = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 	vimeoID   = regexp.MustCompile(`^[0-9]{1,12}$`)
 	vimeoHash = regexp.MustCompile(`^[0-9a-f]{6,20}$`)
+	// TikTok post ids are 19 digits today; usernames are letters, digits,
+	// "_" and "." (at most 24).
+	tiktokID   = regexp.MustCompile(`^[0-9]{15,22}$`)
+	tiktokUser = regexp.MustCompile(`^@[A-Za-z0-9_.]{1,24}$`)
 	// 90, 90s, 1m30s, 1h2m3s
 	timeRe = regexp.MustCompile(`^(?:(\d{1,2})h)?(?:(\d{1,4})m)?(?:(\d{1,6})s?)?$`)
 )
@@ -174,4 +180,37 @@ func parseVimeo(u *url.URL) (video, bool) {
 		}
 	}
 	return video{player: player.String()}, true
+}
+
+// parseTikTok recognises the page and embed URLs of one post. Short links
+// (vm.tiktok.com/…, vt.tiktok.com/…, tiktok.com/t/…) hide the post id behind
+// a redirect, which a render hook cannot follow, so they stay links.
+//
+// The player is TikTok's embed player (developers.tiktok.com/doc/embed-player):
+// www.tiktok.com/player/v1/<id>. TikTok has no privacy-enhanced mode, so
+// the click-to-load placeholder is what keeps the page free of TikTok until
+// the visitor asks for the video. rel=0 suggests the author's own videos at
+// the end instead of TikTok's recommendations; description=1 shows the
+// caption, which the page cannot know without asking TikTok.
+func parseTikTok(u *url.URL) (video, bool) {
+	var id, author string
+	seg := segments(u)
+	if host(u, "www.", "m.") == "tiktok.com" {
+		switch {
+		case len(seg) == 3 && (seg[1] == "video" || seg[1] == "photo") && tiktokUser.MatchString(seg[0]):
+			id, author = seg[2], seg[0]
+		case len(seg) == 2 && seg[0] == "v": // m.tiktok.com/v/<id>.html
+			id = strings.TrimSuffix(seg[1], ".html")
+		case len(seg) == 2 && seg[0] == "embed":
+			id = seg[1]
+		case len(seg) == 3 && (seg[0] == "embed" && seg[1] == "v2" || seg[0] == "player" && seg[1] == "v1"):
+			id = seg[2]
+		}
+	}
+	if !tiktokID.MatchString(id) {
+		return video{}, false
+	}
+	q := url.Values{"autoplay": {"1"}, "description": {"1"}, "rel": {"0"}}
+	player := url.URL{Scheme: "https", Host: "www.tiktok.com", Path: "/player/v1/" + id, RawQuery: q.Encode()}
+	return video{player: player.String(), portrait: true, author: author}, true
 }

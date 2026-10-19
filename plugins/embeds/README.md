@@ -1,7 +1,7 @@
 # Privacy-friendly embeds
 
-A `content.filter` plugin that turns standalone YouTube and Vimeo links into
-click-to-load video players.
+A `content.filter` plugin that turns standalone YouTube, Vimeo and TikTok
+links into click-to-load video players.
 
 - Write the link on a line of its own, either as a bare URL
   (`https://youtu.be/dQw4w9WgXcQ`) or as a titled link
@@ -12,8 +12,9 @@ click-to-load video players.
   no third-party CSS is used. The play button and the placeholder are drawn
   with the theme's own colours.
 - After the click the player loads from **youtube-nocookie.com** (YouTube's
-  privacy-enhanced mode) or from **player.vimeo.com with `dnt=1`** (Vimeo's
-  Do Not Track mode).
+  privacy-enhanced mode), from **player.vimeo.com with `dnt=1`** (Vimeo's
+  Do Not Track mode), or from **TikTok's embed player** on www.tiktok.com,
+  which has no privacy mode (see [Privacy](#privacy)).
 - **Without JavaScript the embed is a plain link** to the video page, styled
   as a card with a play icon, the title and "Watch on YouTube".
 - English and Spanish texts follow the post's language.
@@ -29,11 +30,23 @@ stays a normal link. A link that wraps an image is left alone too.
 | --- | --- | --- |
 | YouTube | `youtube.com/watch?v=ID` (also `www.`, `m.`, `music.`), `youtu.be/ID`, `youtube.com/shorts/ID` (shown in portrait, 9:16), `youtube.com/embed/ID`, `youtube.com/live/ID`, `youtube-nocookie.com/embed/ID` | `www.youtube-nocookie.com/embed/ID?autoplay=1` |
 | Vimeo | `vimeo.com/ID`, `vimeo.com/ID/HASH` and `?h=HASH` (unlisted videos), `vimeo.com/channels/NAME/ID`, `player.vimeo.com/video/ID` | `player.vimeo.com/video/ID?autoplay=1&dnt=1` |
+| TikTok | `tiktok.com/@NAME/video/ID` (also `www.`, `m.`, with any query such as `?is_from_webapp=1`), `tiktok.com/@NAME/photo/ID` (photo posts), `m.tiktok.com/v/ID.html`, `tiktok.com/embed/v2/ID`, `tiktok.com/embed/ID`, `tiktok.com/player/v1/ID` (shown in portrait, 9:16) | `www.tiktok.com/player/v1/ID?autoplay=1&description=1&rel=0` |
 
 - Start times are kept: `t=90`, `t=90s`, `t=1m30s`, `t=1h2m3s` or `start=90`
   on YouTube become `start=90`; `#t=1m30s` on Vimeo becomes `#t=90s`.
-- Anything else (channels, playlists, malformed ids, look-alike domains such
-  as `youtube.com.evil.test`, URLs with credentials) stays a link.
+- Anything else (channels, playlists, profiles, malformed ids, look-alike
+  domains such as `youtube.com.evil.test`, URLs with credentials) stays a
+  link.
+- **TikTok short links stay links.** `vm.tiktok.com/…`, `vt.tiktok.com/…` and
+  `tiktok.com/t/…` hide the post id behind a redirect. A content filter runs
+  while the page is rendered, without network access, so it cannot follow it.
+  Open the short link in a browser and paste the full
+  `tiktok.com/@name/video/…` address instead.
+- TikTok's player options (from [TikTok's embed player
+  documentation](https://developers.tiktok.com/doc/embed-player)):
+  `description=1` shows the caption, which the page does not know without
+  asking TikTok, and `rel=0` suggests more videos by the same author instead
+  of TikTok's recommendations.
 - `autoplay=1` only means the video starts when the player has loaded after
   the visitor pressed play, so one click is enough.
 
@@ -44,7 +57,8 @@ stays a normal link. A link that wraps an image is left alone too.
    in Markdown).
 3. Otherwise "YouTube video" / "Vídeo de YouTube" ("Vimeo video" / "Vídeo de
    Vimeo"), numbered "YouTube video 2", "YouTube video 3" when a post has
-   several untitled videos.
+   several untitled videos. A TikTok address names its author, so an untitled
+   TikTok is "TikTok video by @name" / "Vídeo de TikTok de @name".
 
 ## Permissions
 
@@ -53,15 +67,26 @@ stays a normal link. A link that wraps an image is left alone too.
 | `assets:js` | high | `assets/embeds.js` adds the play button and creates the player iframe after the click. Plugins cannot output `<button>` or `<iframe>` (the host sanitizer removes them), so this needs a script. |
 | `csp:frame-src:https://www.youtube-nocookie.com` | high | Lets the page frame YouTube's privacy-enhanced player (declared under `"csp"`). |
 | `csp:frame-src:https://player.vimeo.com` | high | Lets the page frame Vimeo's player. |
+| `csp:frame-src:https://www.tiktok.com` | high | Lets the page frame TikTok's embed player. |
 
 The CSP sources are added to public pages only, never to the admin panel, and
 only while the plugin is enabled. They are pinned when the plugin is approved:
 a package that asks for another source stops until it is approved again.
-`assets/embeds.css` needs no permission.
+`assets/embeds.css` and `assets/tiktok.svg` need no permission.
 
-`sap13ns plugin pack` reports the package as **CLEAN** with three
+`sap13ns plugin pack` reports the package as **CLEAN** with four
 `perm.high-risk` medium findings (one per permission above). Enabling the
-plugin asks for the high-risk confirmation.
+plugin asks for the high-risk confirmation. Version 1.1.0 adds the TikTok
+source to `frame-src`, so a site that approved 1.0.0 must approve the update
+again.
+
+**No oEmbed.** TikTok's [oEmbed endpoint](https://developers.tiktok.com/doc/embed-videos)
+would give the caption and a thumbnail, but it would need three more
+permissions (`kv`, `http:www.tiktok.com` and the `event` hook): a content
+filter has no network, the events do not carry a post's text, and a
+rendered body is cached by the host for up to a day, so a caption fetched
+later would show up late. The address already names the author, the link
+text can give the title, and the player shows the caption once it loads.
 
 ## Settings
 
@@ -69,7 +94,8 @@ plugin asks for the high-risk confirmation.
 | --- | --- | --- | --- |
 | `youtube` | bool | `true` | Embed YouTube links. Off leaves them as links. |
 | `vimeo` | bool | `true` | Embed Vimeo links. |
-| `notice` | text | empty | Privacy note under every embed; `{provider}` becomes YouTube or Vimeo. Empty uses the built-in note in the post's language. |
+| `tiktok` | bool | `true` | Embed TikTok links. |
+| `notice` | text | empty | Privacy note under every embed; `{provider}` becomes YouTube, Vimeo or TikTok. Empty uses the built-in note in the post's language. |
 | `notice_es` | text | empty | Note for Spanish posts. |
 | `notice_en` | text | empty | Note for English posts. |
 | `privacy_url` | text | empty | `https://…`, `http://…` or a site path such as `/privacy`. Adds a "Privacy policy" ("Política de privacidad") link after the note. Anything else is ignored and logged once. |
@@ -92,8 +118,9 @@ Built-in notes:
 ## Privacy
 
 - **Before the click** the page only loads the site's own files:
-  `embeds.css` and `embeds.js` from `/plugin-assets/embeds/…`. The browser
-  makes no request to YouTube, Google or Vimeo.
+  `embeds.css`, `embeds.js` and, for a TikTok placeholder, `tiktok.svg` from
+  `/plugin-assets/embeds/…`. The browser makes no request to YouTube,
+  Google, Vimeo or TikTok.
 - **After the click** the browser loads the player from the provider, which
   then sees the visitor's IP address, browser and the site's origin
   (`referrerpolicy="strict-origin-when-cross-origin"`: the origin, not the
@@ -104,6 +131,12 @@ Built-in notes:
   collect viewing data like on youtube.com.
 - **`dnt=1`** asks Vimeo's player not to track the session (no analytics or
   session cookies). Vimeo still serves the video and sees the request.
+- **TikTok has no privacy-enhanced mode.** After the click the player loads
+  from www.tiktok.com, which sees the visitor like any visit to TikTok and
+  may set cookies or use the browser's storage. TikTok's embed documentation
+  says nothing about cookies or data collection, so the click is the only
+  protection: before it, nothing is requested from TikTok. TikTok also says
+  it "may apply usage limits to embedded players on a per-domain basis".
 - The plugin stores nothing and sets no cookies. Each video needs its own
   click; the choice is not remembered.
 - Add your privacy policy with `privacy_url` so visitors can read how the site
@@ -150,7 +183,13 @@ and label. Once the script has run, the figure gets `is-enhanced` and starts
 with:
 
 ```html
-<div class="embed-frame"><button type="button" class="embed-play" aria-label="Play video: Our keynote (YouTube)"><span class="embed-play-icon" aria-hidden="true"><svg …></svg></span><span class="embed-play-text"><span class="embed-play-title">Our keynote</span><span class="embed-play-provider">YouTube</span></span></button></div>
+<div class="embed-frame"><button type="button" class="embed-play" aria-label="Play video: Our keynote (YouTube)"><span class="embed-play-mark" aria-hidden="true"></span><span class="embed-play-icon" aria-hidden="true"><svg …></svg></span><span class="embed-play-text"><span class="embed-play-title">Our keynote</span><span class="embed-play-provider">YouTube</span></span></button></div>
+```
+
+A bare TikTok URL in an English post:
+
+```html
+<figure class="card embed embed-tiktok embed-portrait" data-category="tiktok"><a class="embed-link" href="https://www.tiktok.com/@scout2015/video/6718335390845095173"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">TikTok video by @scout2015</strong><small class="embed-source">Watch on TikTok</small></span></a><a class="embed-player" href="https://www.tiktok.com/player/v1/6718335390845095173?autoplay=1&amp;description=1&amp;rel=0" aria-label="Play TikTok video by @scout2015"><span class="embed-provider">TikTok</span></a><figcaption class="embed-notice">Nothing is loaded from TikTok until you press play. Playing the video connects to TikTok, which may collect data about your visit.</figcaption></figure>
 ```
 
 and after the click the button is replaced by
@@ -165,14 +204,32 @@ The embed is a Basecoat `card`, which every theme styles in light and dark
 mode. `embeds.css` only uses theme tokens (`--primary`, `--ring`,
 `--muted-foreground`, `--radius`) for the play badge, the note and the focus
 ring. The video placeholder is dark in both modes, like a player. It keeps
-its 16:9 ratio at any width (9:16 and at most 22rem wide for Shorts).
+its 16:9 ratio at any width (9:16 and at most 22rem wide for Shorts and
+TikTok).
+
+A TikTok placeholder has no thumbnail, since that would need a request to
+TikTok. It shows TikTok's cyan and red glow and the TikTok note in the
+corner instead, from `assets/tiktok.svg` (the glyph of
+[Simple Icons](https://simpleicons.org), CC0 1.0), so the visitor knows
+where the video comes from before pressing play.
 
 ## Adding a provider
 
 Add an entry to `providers` in `providers.go` (id, name, URL parser that
 returns the player URL), a bool setting with the same id, and the player's
-origin under `"csp"` → `"frame-src"` in `plugin.json`. Prefer providers with a
-privacy mode; Dailymotion was left out because it has none.
+origin under `"csp"` → `"frame-src"` in `plugin.json` (`TestManifestCoversProviders`
+checks both). Prefer providers with a privacy mode; Dailymotion was left
+out because it has none. TikTok has none either, but it was asked for and
+it is embedded only after the click, like the others.
+
+## References
+
+- YouTube: [Embed videos and playlists](https://support.google.com/youtube/answer/171780)
+  (privacy-enhanced mode) and [player parameters](https://developers.google.com/youtube/player_parameters).
+- Vimeo: [Player parameters overview](https://help.vimeo.com/hc/en-us/articles/12426260232977-Player-parameters-overview) (`dnt`).
+- TikTok: [Embed Player](https://developers.tiktok.com/doc/embed-player)
+  (URL, parameters, postMessage events, per-domain limits) and
+  [Embed videos](https://developers.tiktok.com/doc/embed-videos) (oEmbed).
 
 ## Host compatibility
 

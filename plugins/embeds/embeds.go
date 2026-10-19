@@ -1,4 +1,4 @@
-// The embeds plugin turns standalone YouTube and Vimeo links into
+// The embeds plugin turns standalone YouTube, Vimeo and TikTok links into
 // click-to-load video players.
 //
 // Filter looks for top-level paragraphs that contain nothing but one link to
@@ -6,9 +6,9 @@
 // [My talk](https://youtu.be/…)) and replaces them with a <figure class="card
 // embed">. Without JavaScript the figure is a plain link to the video page;
 // assets/embeds.js turns it into a real play button and only creates the
-// player iframe (youtube-nocookie.com, or Vimeo with dnt=1) after the
-// visitor clicks. Nothing is requested from the video site before that: no
-// thumbnails, no scripts, no iframes.
+// player iframe (youtube-nocookie.com, Vimeo with dnt=1, or TikTok's embed
+// player) after the visitor clicks. Nothing is requested from the video
+// site before that: no thumbnails, no scripts, no iframes.
 //
 // This file and providers.go are plain Go so they can be tested natively;
 // handler.go adapts the SDK and main.go registers it (wasip1 only).
@@ -61,7 +61,7 @@ func Filter(src string, o Options) (string, bool) {
 		name, play := label(text, href, title), ""
 		if name == "" {
 			untitled[v.provider.id]++
-			name, play = untitledName(v.provider.name, o.Spanish, untitled[v.provider.id])
+			name, play = untitledName(v.provider.name, v.author, o.Spanish, untitled[v.provider.id])
 		}
 		fig := figure(v, strings.TrimSpace(href), name, play, o)
 		root.InsertBefore(fig, c)
@@ -156,16 +156,24 @@ func sameURL(text, href string) bool {
 }
 
 // untitledName names the n-th untitled video of a provider ("YouTube video
-// 2") and returns the matching play label ("Play YouTube video 2").
-func untitledName(provider string, spanish bool, n int) (name, play string) {
+// 2", "TikTok video by @name") and returns the matching play label ("Play
+// YouTube video 2"). author is the "@name" the URL gives, or "".
+func untitledName(provider, author string, spanish bool, n int) (name, play string) {
 	num := ""
 	if n > 1 {
 		num = " " + strconv.Itoa(n)
 	}
+	by := ""
 	if spanish {
-		return "Vídeo de " + provider + num, "Reproducir vídeo de " + provider + num
+		if author != "" {
+			by = " de " + author
+		}
+		return "Vídeo de " + provider + num + by, "Reproducir vídeo de " + provider + num + by
 	}
-	return provider + " video" + num, "Play " + provider + " video" + num
+	if author != "" {
+		by = " by " + author
+	}
+	return provider + " video" + num + by, "Play " + provider + " video" + num + by
 }
 
 // figure builds the embed. Structure (see assets/embeds.css and .js):

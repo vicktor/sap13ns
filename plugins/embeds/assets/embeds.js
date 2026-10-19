@@ -1,4 +1,4 @@
-/* Privacy-friendly embeds: click-to-load video players.
+/* Privacy-friendly embeds: click-to-load YouTube, Vimeo and TikTok players.
  *
  * The server renders every embed as a plain link (figure.embed > a.embed-link)
  * plus a hidden link to the privacy-friendly player (a.embed-player) whose
@@ -69,6 +69,13 @@
     label.appendChild(name);
     label.appendChild(source);
 
+    // The provider's mark, drawn by embeds.css from a file of this plugin
+    // (only TikTok has one: its placeholder has no thumbnail).
+    var mark = document.createElement("span");
+    mark.className = "embed-play-mark";
+    mark.setAttribute("aria-hidden", "true");
+
+    button.appendChild(mark);
     button.appendChild(badge);
     button.appendChild(label);
     frame.appendChild(button);

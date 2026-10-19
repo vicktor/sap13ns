@@ -25,4 +25,4 @@ clean:
 install: build
 	mkdir -p $(PLUGINS_DIR)/embeds/assets
 	cp plugin.json $(WASM) $(PLUGINS_DIR)/embeds/
-	cp assets/embeds.css assets/embeds.js $(PLUGINS_DIR)/embeds/assets/
+	cp assets/embeds.css assets/embeds.js assets/tiktok.svg $(PLUGINS_DIR)/embeds/assets/

@@ -8,7 +8,10 @@ import (
 	"github.com/vicktor/sap13ns/pluginsdk/sdktest"
 )
 
-const yt = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+const (
+	yt = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+	tt = "https://www.tiktok.com/@scout2015/video/6718335390845095173"
+)
 
 var english = Options{Enabled: all, Notice: "Note about {provider}."}
 
@@ -61,6 +64,15 @@ func TestFilter(t *testing.T) {
 			want: []string{`Note about YouTube. <a href="/privacy?a=1&amp;b=2">Privacy policy</a></figcaption>`}},
 		{name: "shorts are portrait", in: `<p>https://www.youtube.com/shorts/aBcDeFgHiJk</p>`, opt: english, embeds: 1,
 			want: []string{`class="card embed embed-youtube embed-portrait"`}},
+		{name: "tiktok names its author", in: `<p>` + tt + `</p><p>` + tt + `</p><p>https://www.tiktok.com/embed/v2/6718335390845095173</p>`, opt: english, embeds: 3,
+			want: []string{`class="card embed embed-tiktok embed-portrait" data-category="tiktok"`, `>TikTok video by @scout2015<`, `>TikTok video 2 by @scout2015<`,
+				`aria-label="Play TikTok video by @scout2015"`, `>TikTok video 3<`, `>Watch on TikTok<`,
+				`href="https://www.tiktok.com/player/v1/6718335390845095173?autoplay=1&amp;description=1&amp;rel=0"`, `Note about TikTok.`}},
+		{name: "tiktok in spanish", in: `<p>` + tt + `</p>`, opt: spanish, embeds: 1,
+			want: []string{`>Vídeo de TikTok de @scout2015<`, `aria-label="Reproducir vídeo de TikTok de @scout2015"`, `>Ver en TikTok<`}},
+		{name: "titled tiktok", in: `<p><a href="` + tt + `">Scout &amp; Suki</a></p>`, opt: english, embeds: 1,
+			want: []string{`<strong class="embed-title">Scout &amp; Suki</strong>`, `aria-label="Play video: Scout &amp; Suki (TikTok)"`}},
+		{name: "tiktok short link stays a link", in: `<p>https://vm.tiktok.com/ZMabc123/</p>`, opt: english},
 		{name: "title is escaped and cleaned for aria-label", in: `<p><a href="` + yt + `">&lt;b&gt;"Hi" &amp; bye</a></p>`, opt: english, embeds: 1,
 			want: []string{`<strong class="embed-title">&lt;b&gt;&#34;Hi&#34; &amp; bye</strong>`, `aria-label="Play video: bHi &amp; bye (YouTube)"`}},
 		{name: "disabled provider stays a link", in: `<p>` + yt + `</p>`, opt: onlyVimeo},
@@ -123,13 +135,13 @@ func TestOptionsFrom(t *testing.T) {
 		warns    int
 	}{
 		{"defaults", map[string]string{}, "en", func(o Options) bool {
-			return o.Enabled["youtube"] && o.Enabled["vimeo"] && !o.Spanish && strings.HasPrefix(o.Notice, "Nothing is loaded from {provider}") && o.PrivacyURL == ""
+			return o.Enabled["youtube"] && o.Enabled["vimeo"] && o.Enabled["tiktok"] && !o.Spanish && strings.HasPrefix(o.Notice, "Nothing is loaded from {provider}") && o.PrivacyURL == ""
 		}, 0},
 		{"spanish default note", map[string]string{}, "es-MX", func(o Options) bool {
 			return o.Spanish && strings.HasPrefix(o.Notice, "No se carga nada de {provider}")
 		}, 0},
-		{"providers off", map[string]string{"youtube": "false", "vimeo": "false"}, "en", func(o Options) bool {
-			return !o.Enabled["youtube"] && !o.Enabled["vimeo"]
+		{"providers off", map[string]string{"youtube": "false", "vimeo": "false", "tiktok": "false"}, "en", func(o Options) bool {
+			return !o.Enabled["youtube"] && !o.Enabled["vimeo"] && !o.Enabled["tiktok"]
 		}, 0},
 		{"per-language overrides", map[string]string{"notice": "N", "notice_es": "NE", "privacy_url": "/p", "privacy_url_es": "https://e.test/es"}, "es", func(o Options) bool {
 			return o.Notice == "NE" && o.PrivacyURL == "https://e.test/es"
