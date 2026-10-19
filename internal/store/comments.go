@@ -25,13 +25,21 @@ type Comment struct {
 	HeldReason  string     `db:"held_reason"` // its reason
 	PostTitle   string     `db:"post_title"`
 	PostSlug    string     `db:"post_slug"`
+	// The photo and the Gravatar copy of the user who wrote it, if a
+	// user did (User.Avatar, User.Gravatar).
+	UserAvatar   string `db:"user_avatar"`
+	UserGravatar string `db:"user_gravatar"`
 
 	Replies []*Comment `db:"-"`
+	// Gravatar is the copy of a commenter's Gravatar, which the web layer
+	// fills in when the site shows them (CommenterGravatars).
+	Gravatar string `db:"-"`
 }
 
 const commentSelect = `SELECT c.id, c.post_id, c.parent_id, c.user_id, c.author_name, c.author_email, c.author_url, c.content,
-	c.status, coalesce(c.ip, '0.0.0.0'::inet) AS ip, c.user_agent, c.created_at, c.held_by, c.held_reason, p.title AS post_title, p.slug AS post_slug
-	FROM comments c JOIN posts p ON p.id = c.post_id`
+	c.status, coalesce(c.ip, '0.0.0.0'::inet) AS ip, c.user_agent, c.created_at, c.held_by, c.held_reason, p.title AS post_title, p.slug AS post_slug,
+	coalesce(cu.avatar, '') AS user_avatar, coalesce(cu.gravatar, '') AS user_gravatar
+	FROM comments c JOIN posts p ON p.id = c.post_id LEFT JOIN users cu ON cu.id = c.user_id`
 
 type NewComment struct {
 	PostID      int64

@@ -40,7 +40,10 @@ type Post struct {
 	UpdatedAt       time.Time  `db:"updated_at"`
 	AuthorUsername  string     `db:"author_username"`
 	AuthorName      string     `db:"author_name"`
-	CommentCount    int        `db:"comment_count"`
+	// The author's photo and Gravatar copy (User.Avatar, User.Gravatar).
+	AuthorAvatar   string `db:"author_avatar"`
+	AuthorGravatar string `db:"author_gravatar"`
+	CommentCount   int    `db:"comment_count"`
 	// AssistantExclude keeps the post out of the site assistant and MCP.
 	AssistantExclude bool `db:"assistant_exclude"`
 
@@ -77,6 +80,7 @@ const postSelect = `SELECT p.id, p.type, p.status, p.title, p.slug, p.lang, p.tg
 	p.assistant_exclude,
 	coalesce(u.username, '') AS author_username,
 	coalesce(nullif(u.display_name, ''), u.username, '') AS author_name,
+	coalesce(u.avatar, '') AS author_avatar, coalesce(u.gravatar, '') AS author_gravatar,
 	(SELECT count(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'approved')::int AS comment_count
 	FROM posts p LEFT JOIN users u ON u.id = p.author_id`
 

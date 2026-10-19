@@ -46,6 +46,14 @@ type Settings struct {
 	AnalyticsOff bool   `json:"analytics_off"`
 	SessionDays  int    `json:"session_days"`
 	IdleHours    int    `json:"idle_hours"`
+	// GravatarUsers shows the Gravatar of users without a photo of their
+	// own (on by default). The server looks it up with the SHA-256 of the
+	// e-mail address and serves a copy; off, nothing is sent to Gravatar
+	// and the copies are deleted.
+	GravatarUsers bool `json:"gravatar_users"`
+	// GravatarCommenters does the same for commenters (off by default);
+	// it needs GravatarUsers.
+	GravatarCommenters bool `json:"gravatar_commenters"`
 }
 
 // SiteText is the translatable part of the settings.
@@ -93,6 +101,7 @@ func DefaultSettings() Settings {
 		TwoFactor:         "staff",
 		OGCards:           "classic",
 		AIAccess:          "open",
+		GravatarUsers:     true,
 	}
 }
 

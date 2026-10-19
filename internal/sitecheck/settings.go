@@ -58,6 +58,10 @@ func settingsFields(c Site) []field[store.Settings] {
 		{"ai_access", func(s *S) bool { return in(s.AIAccess, "open", "no-training", "block") }, func(d, s *S) { d.AIAccess = s.AIAccess }},
 		{"session_days", func(s *S) bool { return between(s.SessionDays, 1, 90) }, func(d, s *S) { d.SessionDays = s.SessionDays }},
 		{"idle_hours", func(s *S) bool { return between(s.IdleHours, 1, 24*90) }, func(d, s *S) { d.IdleHours = s.IdleHours }},
+		// Commenters' Gravatars need the users' setting, which is the one
+		// that sends anything to Gravatar at all.
+		{"gravatar_commenters", func(s *S) bool { return !s.GravatarCommenters || s.GravatarUsers },
+			func(d, s *S) { d.GravatarCommenters = s.GravatarCommenters }},
 		// Not on the page: set by activating a theme.
 		{"active_theme", func(s *S) bool { return Slug.MatchString(s.ActiveTheme) && (c.Theme == nil || c.Theme(s.ActiveTheme)) },
 			func(d, s *S) { d.ActiveTheme = s.ActiveTheme }},

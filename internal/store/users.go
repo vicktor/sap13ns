@@ -33,6 +33,10 @@ type User struct {
 	// NetworkOperator marks the user a network admin signs in as when they
 	// open a site they are not a member of.
 	NetworkOperator bool `db:"network_operator"`
+	// Avatar is the photo the user uploaded, Gravatar the copy of their
+	// Gravatar: avatar keys (media.AvatarFile), "" for none.
+	Avatar   string `db:"avatar"`
+	Gravatar string `db:"gravatar"`
 }
 
 // SSOPasswordHash is the password hash of users created by single sign-on.
@@ -59,7 +63,7 @@ const userCols = `id, username, email, display_name, bio, website, role, status,
 	totp_secret, totp_enabled, totp_last_step, recovery_codes, failed_logins, locked_until,
 	created_at, updated_at, last_login_at,
 	(SELECT count(*)::int FROM passkeys k WHERE k.user_id = users.id) AS passkey_count,
-	network_account_id, network_operator`
+	network_account_id, network_operator, avatar, gravatar`
 
 func (s *Store) userBy(ctx context.Context, where string, arg any) (*User, error) {
 	rows, err := s.DB.Query(ctx, `SELECT `+userCols+` FROM users WHERE `+where, arg)
@@ -200,8 +204,8 @@ func (s *Store) SyncNetworkUser(ctx context.Context, id int64, p NetworkProfile)
 		if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 AND network_account_id IS NOT NULL FOR UPDATE`, id).Scan(&old); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE users SET role = $2, email = $3, display_name = $4, status = 'active', updated_at = now()
-			WHERE id = $1`, id, p.Role, p.Email, p.DisplayName); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE users SET role = $3, email = $2, display_name = $4, status = 'active', updated_at = now(),
+			`+gravatarOnEmail+` WHERE id = $1`, id, p.Email, p.Role, p.DisplayName); err != nil {
 			return err
 		}
 		if old == p.Role {
@@ -289,11 +293,21 @@ type UserProfile struct {
 	Website     string
 }
 
+// UpdateUserProfile saves a user's profile. A new e-mail address drops
+// the copy of the old address's Gravatar at once (the caller deletes its
+// files) and has the new one looked up.
 func (s *Store) UpdateUserProfile(ctx context.Context, id int64, p UserProfile) error {
-	_, err := s.DB.Exec(ctx, `UPDATE users SET email = $2, display_name = $3, bio = $4, website = $5, updated_at = now() WHERE id = $1`,
+	_, err := s.DB.Exec(ctx, `UPDATE users SET email = $2, display_name = $3, bio = $4, website = $5, updated_at = now(),
+		`+gravatarOnEmail+` WHERE id = $1`,
 		id, p.Email, p.DisplayName, p.Bio, p.Website)
 	return mapErr(err)
 }
+
+// gravatarOnEmail is the SET clause that forgets the Gravatar of a user
+// whose e-mail address ($2) changes: the right-hand side reads the row as
+// it was.
+const gravatarOnEmail = `gravatar = CASE WHEN lower(btrim(email)) = lower(btrim($2)) THEN gravatar ELSE '' END,
+		gravatar_checked_at = CASE WHEN lower(btrim(email)) = lower(btrim($2)) THEN gravatar_checked_at END`
 
 func (s *Store) UpdateUserRoleStatus(ctx context.Context, id int64, role, status string) error {
 	_, err := s.DB.Exec(ctx, `UPDATE users SET role = $2, status = $3, updated_at = now() WHERE id = $1`, id, role, status)
