@@ -24,7 +24,7 @@
         <div role="tabpanel" id="panel-link" aria-labelledby="tab-link" tabindex="-1" aria-selected="true">
           <form method="post" action="/admin/appearance/menus" class="form">
             {{.CSRFField}}
-            {{template "menu-location" $d}}
+            {{template "menu-location" (dict "D" $d "ID" "loc-link")}}
             <div class="field"><label for="m-label">{{T "Label"}}</label><input class="input" id="m-label" name="label" required maxlength="100"></div>
             <div class="field"><label for="m-url">{{T "Link"}}</label><input class="input" id="m-url" name="url" required maxlength="1000" placeholder="/contacto · https://…"></div>
             <button class="btn" type="submit">{{icon "plus"}}{{T "Add"}}</button>
@@ -33,7 +33,7 @@
         <div role="tabpanel" id="panel-pages" aria-labelledby="tab-pages" tabindex="-1" aria-selected="false" hidden>
           <form method="post" action="/admin/appearance/menus" class="form">
             {{.CSRFField}}<input type="hidden" name="source" value="pages">
-            {{template "menu-location" $d}}
+            {{template "menu-location" (dict "D" $d "ID" "loc-pages")}}
             <div class="check-list scrollbar">{{range $d.Pages}}<label class="check"><input type="checkbox" class="input" name="page_ids" value="{{.ID}}"> {{.Title}}</label>{{else}}<p class="muted text-sm">{{T "No published pages."}}</p>{{end}}</div>
             <button class="btn" type="submit">{{icon "plus"}}{{T "Add"}}</button>
           </form>
@@ -41,7 +41,7 @@
         <div role="tabpanel" id="panel-cats" aria-labelledby="tab-cats" tabindex="-1" aria-selected="false" hidden>
           <form method="post" action="/admin/appearance/menus" class="form">
             {{.CSRFField}}<input type="hidden" name="source" value="categories">
-            {{template "menu-location" $d}}
+            {{template "menu-location" (dict "D" $d "ID" "loc-cats")}}
             <div class="check-list scrollbar">{{range $d.Categories}}<label class="check"><input type="checkbox" class="input" name="term_ids" value="{{.ID}}"> {{.Name}}</label>{{else}}<p class="muted text-sm">{{T "No categories yet."}}</p>{{end}}</div>
             <button class="btn" type="submit">{{icon "plus"}}{{T "Add"}}</button>
           </form>
@@ -82,10 +82,12 @@
   </div>
 </div>
 {{end}}
-{{define "menu-location"}}
-{{if .Lang}}<input type="hidden" name="lang" value="{{.Lang}}">{{end}}
+{{/* dict: D (the page data), ID (unique per form). */}}
+{{define "menu-location"}}{{$th := .D.Theme}}
+{{if .D.Lang}}<input type="hidden" name="lang" value="{{.D.Lang}}">{{end}}
 <div class="field">
-  <label>{{T "Location"}}</label>
-  <select class="select w-full" name="location">{{range .Theme.Menus}}<option value="{{.ID}}">{{themeT $.Theme .Label}}</option>{{end}}</select>
+  <label for="{{.ID}}">{{T "Location"}}</label>
+  {{$o := list}}{{range $th.Menus}}{{$o = append $o (opt .ID (themeT $th .Label))}}{{end}}
+  {{template "select" (selectbox "id" .ID "name" "location" "options" $o)}}
 </div>
 {{end}}

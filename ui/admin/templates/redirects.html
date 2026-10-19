@@ -17,7 +17,12 @@
         <div class="field"><label for="source">{{T "From"}}</label><input class="input mono" id="source" name="source" value="{{$d.Form.Source}}" required maxlength="1000" placeholder="/2019/05/old-post/" spellcheck="false" autocapitalize="none"></div>
         <div class="field"><label for="target">{{T "To"}}</label><input class="input mono" id="target" name="target" value="{{$d.Form.Target}}" maxlength="2000" placeholder="/blog/new-post · https://…" spellcheck="false" autocapitalize="none"><p class="hint">{{T "Leave empty for “Gone”."}}</p></div>
         <div class="field"><label for="status">{{T "Type"}}</label>
-          <select class="select w-full" id="status" name="status">{{template "redirect-status" $d.Form.Status}}</select></div>
+          {{template "select" (selectbox "id" "status" "name" "status" "value" $d.Form.Status "options" (list
+            (list 301 (printf "301 · %s" (T "Moved permanently")))
+            (list 302 (printf "302 · %s" (T "Temporary")))
+            (list 307 (printf "307 · %s" (T "Temporary (keep method)")))
+            (list 308 (printf "308 · %s" (T "Permanent (keep method)")))
+            (list 410 (printf "410 · %s" (T "Gone")))))}}</div>
         <button class="btn" type="submit">{{icon "plus"}}{{T "Add"}}</button>
       </form>
     </section>
@@ -45,10 +50,4 @@
   </section>
 </div>
 {{end}}
-{{define "redirect-status"}}{{$cur := .}}
-<option value="301"{{if eq $cur 301}} selected{{end}}>301 · {{T "Moved permanently"}}</option>
-<option value="302"{{if eq $cur 302}} selected{{end}}>302 · {{T "Temporary"}}</option>
-<option value="307"{{if eq $cur 307}} selected{{end}}>307 · {{T "Temporary (keep method)"}}</option>
-<option value="308"{{if eq $cur 308}} selected{{end}}>308 · {{T "Permanent (keep method)"}}</option>
-<option value="410"{{if eq $cur 410}} selected{{end}}>410 · {{T "Gone"}}</option>
-{{end}}
+

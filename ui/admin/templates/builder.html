@@ -62,7 +62,7 @@
     <div class="bl-bar">
       <div class="field bl-region-field">
         <label for="bl-region">{{T "Editing"}}</label>
-        <select class="select w-full" id="bl-region"></select>
+        {{template "select" (selectbox "id" "bl-region" "class" "w-full")}}
       </div>
       <div class="bl-history" role="group" aria-label="{{T "History"}}">
         <button type="button" class="btn" data-variant="outline" data-size="icon" data-undo disabled aria-label="{{T "Undo"}} (Ctrl+Z)" title="{{T "Undo"}} (Ctrl+Z)">{{icon "undo-2"}}</button>

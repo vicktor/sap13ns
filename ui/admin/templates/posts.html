@@ -16,10 +16,8 @@
   <form method="get" action="{{$d.ListPath}}" class="search-inline" role="search">
     {{if $d.Status}}<input type="hidden" name="status" value="{{$d.Status}}">{{end}}
     {{with $d.Langs}}<label class="sr-only" for="lang-filter">{{T "Language"}}</label>
-    <select class="select" id="lang-filter" name="lang" data-size="sm" data-autosubmit>
-      <option value="">{{T "All languages"}}</option>
-      {{range .}}<option value="{{.Code}}"{{if eq .Code $d.Lang}} selected{{end}}>{{.Name}}</option>{{end}}
-    </select>{{end}}
+    {{$o := list (opt "" (T "All languages"))}}{{range .}}{{$o = append $o (opt .Code .Name)}}{{end}}
+    {{template "select" (selectbox "id" "lang-filter" "name" "lang" "value" $d.Lang "options" $o "data" (dict "autosubmit" ""))}}{{end}}
     <label class="sr-only" for="q">{{T "Search"}}</label>
     <div class="input-icon">{{icon "search"}}<input class="input" type="search" id="q" name="q" value="{{$d.Query}}" placeholder="{{T "Search…"}}"></div>
   </form>
@@ -31,16 +29,8 @@
   <input type="hidden" name="status" value="{{$d.Status}}">
   <div class="bulk-bar">
     <label class="sr-only" for="bulk-action">{{T "Bulk action"}}</label>
-    <select class="select" id="bulk-action" name="action" data-size="sm">
-      <option value="">{{T "Bulk actions"}}</option>
-      {{if eq $d.Status "trash"}}
-      <option value="restore">{{T "Restore"}}</option>
-      <option value="delete">{{T "Delete permanently"}}</option>
-      {{else}}
-      <option value="publish">{{T "Publish"}}</option>
-      <option value="trash">{{T "Move to trash"}}</option>
-      {{end}}
-    </select>
+    {{$o := list (list "publish" (T "Publish")) (list "trash" (T "Move to trash"))}}{{if eq $d.Status "trash"}}{{$o = list (list "restore" (T "Restore")) (list "delete" (T "Delete permanently"))}}{{end}}
+    {{template "select" (selectbox "id" "bulk-action" "name" "action" "placeholder" (T "Bulk actions") "options" $o "size" "sm")}}
     <button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Apply this action to the selected items?"}}">{{T "Apply"}}</button>
     <span class="muted" data-selected-count></span>
     {{if eq $d.Status "trash"}}

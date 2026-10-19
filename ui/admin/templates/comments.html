@@ -11,14 +11,8 @@
   <input type="hidden" name="status" value="{{$d.Status}}">
   <div class="bulk-bar">
     <label class="check"><input type="checkbox" class="input" data-select-all="ids"> <span class="sr-only">{{T "Select all"}}</span></label>
-    <select class="select" name="action" data-size="sm" aria-label="{{T "Bulk action"}}">
-      <option value="">{{T "Bulk actions"}}</option>
-      <option value="approve">{{T "Approve"}}</option>
-      <option value="unapprove">{{T "Unapprove"}}</option>
-      <option value="spam">{{T "Mark as spam"}}</option>
-      <option value="trash">{{T "Move to trash"}}</option>
-      {{if or (eq $d.Status "spam") (eq $d.Status "trash")}}<option value="delete">{{T "Delete permanently"}}</option>{{end}}
-    </select>
+    {{$o := list (list "approve" (T "Approve")) (list "unapprove" (T "Unapprove")) (list "spam" (T "Mark as spam")) (list "trash" (T "Move to trash"))}}{{if or (eq $d.Status "spam") (eq $d.Status "trash")}}{{$o = append $o (list "delete" (T "Delete permanently"))}}{{end}}
+    {{template "select" (selectbox "id" "bulk-action" "name" "action" "placeholder" (T "Bulk actions") "ariaLabel" (T "Bulk action") "options" $o "size" "sm")}}
     <button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Apply"}}</button>
     <span class="muted" data-selected-count></span>
     {{if or (eq $d.Status "spam") (eq $d.Status "trash")}}

@@ -26,11 +26,19 @@
         <div class="field"><label for="tagline">{{T "Tagline"}}</label><input class="input" id="tagline" name="tagline" value="{{$s.Tagline}}" maxlength="250"><p class="hint">{{T "In a few words, explain what this site is about."}}</p></div>
         <div class="grid-2">
           <div class="field"><label for="language">{{T "Main language"}}</label>
-            <select class="select w-full" id="language" name="language">{{range $d.Languages}}<option value="{{.Code}}"{{if eq .Code $s.Language}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+            {{$o := list}}{{range $d.Languages}}{{$o = append $o (opt .Code .Name)}}{{end}}
+            {{template "select" (selectbox "id" "language" "name" "language" "value" $s.Language "options" $o "search" true)}}
             <p class="hint">{{T "Served at the root of the site. The administration uses it too."}}</p></div>
           <div class="field"><label for="timezone">{{T "Time zone"}}</label>
-            <input class="input" id="timezone" name="timezone" value="{{$s.Timezone}}" list="zones" required maxlength="64">
-            <datalist id="zones">{{range $d.Zones}}<option value="{{.}}">{{end}}</datalist></div>
+            <div class="combobox w-full" id="timezone-combobox" data-auto-highlight="true">
+              <input type="text" role="combobox" id="timezone" name="timezone" value="{{$s.Timezone}}" required maxlength="64" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" aria-expanded="false" aria-controls="timezone-listbox">{{icon "chevron-down" "combobox-trigger-icon"}}
+              <div id="timezone-popover" data-popover aria-hidden="true">
+                <div role="listbox" id="timezone-listbox" aria-orientation="vertical" data-empty="{{T "Not in the list; any IANA time zone works"}}">{{range $d.Zones}}
+                  <div role="option" data-value="{{.}}"{{if eq . $s.Timezone}} aria-selected="true"{{end}}>{{.}}</div>{{end}}
+                </div>
+              </div>
+              <input type="hidden" value="{{$s.Timezone}}">
+            </div></div>
         </div>
         <div class="field"><label for="footer_text">{{T "Footer text"}}</label><textarea class="textarea" id="footer_text" name="footer_text" rows="2" maxlength="1000">{{$s.FooterText}}</textarea></div>
       </section>
@@ -66,10 +74,8 @@
           <label class="check"><input type="radio" class="input" name="front_page" value="theme"{{if eq $s.FrontPage "theme"}} checked{{end}} aria-describedby="front-theme-hint"> {{T "The theme's front page"}}</label>
           <p class="hint" id="front-theme-hint">{{T "A landing or a one-page site: the active theme's own front page, or the one built in Appearance → Page builder. Without either, your latest posts."}}</p>
           <label class="check"><input type="radio" class="input" name="front_page" value="page"{{if eq $s.FrontPage "page"}} checked{{end}}> {{T "A static page"}}</label>
-          <select class="select w-full" name="front_page_id" aria-label="{{T "Front page"}}">
-            <option value="">{{T "— Choose a page —"}}</option>
-            {{range $d.Pages}}<option value="{{.ID}}"{{if eq .ID $s.FrontPageID}} selected{{end}}>{{.Title}}</option>{{end}}
-          </select>
+          {{$o := list (opt "" (T "— Choose a page —"))}}{{range $d.Pages}}{{$o = append $o (opt .ID .Title)}}{{end}}
+          {{template "select" (selectbox "id" "front_page_id" "name" "front_page_id" "value" $s.FrontPageID "options" $o "search" true "ariaLabel" (T "Front page") "class" "w-full")}}
           <p class="hint">{{T "With a static page or the theme's front page, posts are listed at /blog."}}</p>
         </fieldset>
         <div class="field"><label for="posts_per_page">{{T "Posts per page"}}</label><input class="input w-32" id="posts_per_page" name="posts_per_page" type="number" min="1" max="100" value="{{$s.PostsPerPage}}"></div>
@@ -83,11 +89,10 @@
         <label class="check"><input type="checkbox" class="input" role="switch" name="comments_enabled" value="1"{{if $s.CommentsEnabled}} checked{{end}}> {{T "Allow comments on posts"}}</label>
         <label class="check"><input type="checkbox" class="input" role="switch" name="comments_require_login" value="1"{{if $s.CommentsRequireLogin}} checked{{end}}> {{T "Only registered users can comment"}}</label>
         <div class="field"><label for="comment_moderation">{{T "Before a comment appears"}}</label>
-          <select class="select w-full" id="comment_moderation" name="comment_moderation">
-            <option value="all"{{if eq $s.CommentModeration "all"}} selected{{end}}>{{T "Always hold it for moderation"}}</option>
-            <option value="returning"{{if eq $s.CommentModeration "returning"}} selected{{end}}>{{T "Hold it unless the author has an approved comment"}}</option>
-            <option value="none"{{if eq $s.CommentModeration "none"}} selected{{end}}>{{T "Publish immediately"}}</option>
-          </select></div>
+          {{template "select" (selectbox "id" "comment_moderation" "name" "comment_moderation" "value" $s.CommentModeration "options" (list
+            (list "all" (T "Always hold it for moderation"))
+            (list "returning" (T "Hold it unless the author has an approved comment"))
+            (list "none" (T "Publish immediately"))))}}</div>
         <div class="field"><label for="comments_close_days">{{T "Close comments on posts older than (days)"}}</label><input class="input w-32" id="comments_close_days" name="comments_close_days" type="number" min="0" max="3650" value="{{$s.CommentsCloseDays}}"><p class="hint">{{T "0 keeps them open forever."}}</p></div>
       </section>
     </section>
@@ -106,9 +111,8 @@
       <section class="form">
         <div class="grid-2">
           <div class="field"><label for="og_cards">{{T "Social images"}}</label>
-            <select class="select w-full" id="og_cards" name="og_cards">
-              {{range $d.OGLayouts}}<option value="{{.Code}}"{{if eq .Code $s.OGCards}} selected{{end}}>{{.Name}}</option>{{end}}
-            </select>
+            {{$o := list}}{{range $d.OGLayouts}}{{$o = append $o (opt .Code .Name)}}{{end}}
+            {{template "select" (selectbox "id" "og_cards" "name" "og_cards" "value" $s.OGCards "options" $o)}}
             <p class="hint">{{T "Posts without a featured image get a generated card when shared."}}</p></div>
           <div class="field"><label for="og_accent">{{T "Card colour"}}</label><input class="input w-24" id="og_accent" name="og_accent" type="color" value="{{or $s.OGAccent "#3f068b"}}"></div>
         </div>
@@ -128,17 +132,17 @@
       <section class="form">
         <label class="check"><input type="checkbox" class="input" role="switch" name="allow_registration" value="1"{{if $s.AllowRegistration}} checked{{end}}> {{T "Anyone can register"}}</label>
         <div class="field"><label for="default_role">{{T "Role for new accounts"}}</label>
-          <select class="select w-full" id="default_role" name="default_role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $s.DefaultRole}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+          {{$o := list}}{{range $d.Roles}}{{$o = append $o (opt . (roleLabel .))}}{{end}}
+          {{template "select" (selectbox "id" "default_role" "name" "default_role" "value" $s.DefaultRole "options" $o)}}</div>
         {{if $d.Portal}}
         <div class="field"><input type="hidden" name="two_factor" value="{{$s.TwoFactor}}">
           <p class="text-sm font-medium">{{T "Two-factor authentication"}}</p>
           <p class="hint">{{T "Every account of the network portal needs a second factor, an authenticator app code or a passkey, because it opens the account's sites."}}</p></div>
         {{else}}
         <div class="field"><label for="two_factor">{{T "Two-factor authentication is required for"}}</label>
-          <select class="select w-full" id="two_factor" name="two_factor">
-            <option value="staff"{{if eq $s.TwoFactor "staff"}} selected{{end}}>{{T "Everyone with access to the administration (recommended)"}}</option>
-            <option value="editors"{{if eq $s.TwoFactor "editors"}} selected{{end}}>{{T "Administrators and editors"}}</option>
-          </select>
+          {{template "select" (selectbox "id" "two_factor" "name" "two_factor" "value" $s.TwoFactor "options" (list
+            (list "staff" (T "Everyone with access to the administration (recommended)"))
+            (list "editors" (T "Administrators and editors"))))}}
           <p class="hint">{{T "An authenticator app code or a passkey."}}</p></div>
         {{end}}
         <div class="grid-2">

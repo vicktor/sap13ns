@@ -37,9 +37,11 @@
         {{$.CSRFField}}
         <input type="hidden" name="area" value="{{$area}}">
         <label class="sr-only" for="add-{{$area}}">{{T "Widget type"}}</label>
-        <select class="select grow" id="add-{{$area}}" name="kind">{{range $d.Kinds}}<option value="{{.Kind}}">{{.Label}}</option>{{end}}</select>
+        {{$o := list}}{{range $d.Kinds}}{{$o = append $o (opt .Kind .Label)}}{{end}}
+        {{template "select" (selectbox "id" (printf "add-%v" $area) "name" "kind" "options" $o "class" "grow" "size" "sm")}}
         {{if $d.Langs}}<label class="sr-only" for="add-lang-{{$area}}">{{T "Language"}}</label>
-        <select class="select" id="add-lang-{{$area}}" name="lang"><option value="">{{T "All languages"}}</option>{{range $d.Langs}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</select>{{end}}
+        {{$o := list (opt "" (T "All languages"))}}{{range $d.Langs}}{{$o = append $o (opt .Code .Name)}}{{end}}
+        {{template "select" (selectbox "id" (printf "add-lang-%v" $area) "name" "lang" "options" $o "size" "sm" "align" "end")}}{{end}}
         <button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "plus"}}{{T "Add"}}</button>
       </form>
     </section>
@@ -50,7 +52,8 @@
 {{end}}
 {{define "widget-lang"}}{{if .D.Langs}}{{$cur := .Lang}}
 <div class="field"><label for="w-lang-{{.ID}}">{{T "Language"}}</label>
-  <select class="select w-full" id="w-lang-{{.ID}}" name="lang"><option value="">{{T "All languages"}}</option>{{range .D.Langs}}<option value="{{.Code}}"{{if eq .Code $cur}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+  {{$o := list (opt "" (T "All languages"))}}{{range .D.Langs}}{{$o = append $o (opt .Code .Name)}}{{end}}
+  {{template "select" (selectbox "id" (printf "w-lang-%v" .ID) "name" "lang" "value" $cur "options" $o)}}
 </div>{{end}}{{end}}
 {{define "widget-config"}}
 {{if eq .Kind "recent_posts"}}

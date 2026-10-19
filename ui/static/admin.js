@@ -96,7 +96,8 @@
     }
     if (el.hasAttribute?.("data-autosubmit")) {
       if (el.files?.length) uploadForm(el.form, el.files);
-      else if (el.tagName === "SELECT") el.form?.requestSubmit();
+      // A native select, or the hidden input of a Basecoat select (selects.js).
+      else if (el.tagName === "SELECT" || el.type === "hidden") el.form?.requestSubmit();
     }
   });
 
@@ -110,7 +111,7 @@
   document.addEventListener("submit", (e) => {
     const form = e.target;
     if (form.hasAttribute("data-bulk") && !e.submitter?.hasAttribute("formaction")) {
-      const action = $('select[name="action"]', form);
+      const action = $('select[name="action"], input[name="action"]', form);
       if (action && !action.value) { e.preventDefault(); toast("warning", t("Choose an action")); return; }
       if (!$$('input[name="ids"]:checked', form).length) { e.preventDefault(); toast("warning", t("Nothing selected")); return; }
     }

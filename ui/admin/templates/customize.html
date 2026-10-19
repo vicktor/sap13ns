@@ -8,9 +8,8 @@
 {{define "cz-select"}}
 <div class="field"{{with .ShowIf}} data-show-if="{{.}}"{{end}}>
   <label for="{{.ID}}">{{.Label}}</label>
-  <select class="select w-full" id="{{.ID}}" name="{{.Name}}"{{with .Type}} data-type="{{.}}"{{end}}{{with .Help}} aria-describedby="{{$.ID}}-help"{{end}}>
-    {{$v := .Value}}{{range .Choices}}<option value="{{index . 0}}"{{if eq (index . 0) $v}} selected{{end}}>{{index . 1}}</option>{{end}}
-  </select>
+  {{$data := dict}}{{with .Type}}{{$data = dict "type" .}}{{end}}{{$help := ""}}{{if .Help}}{{$help = printf "%s-help" .ID}}{{end}}
+  {{template "select" (selectbox "id" .ID "name" .Name "value" .Value "options" .Choices "data" $data "describedby" $help)}}
   {{with .Help}}<p class="hint" id="{{$.ID}}-help">{{.}}</p>{{end}}
 </div>
 {{end}}
@@ -20,26 +19,16 @@
 {{$id := printf "cz-font-%s" .Role}}
 <div class="field cz-font">
   <label for="{{$id}}">{{.Label}}</label>
-  <select class="select w-full" id="{{$id}}" name="fonts.{{.Role}}.stack" data-font-sample="{{$id}}-sample">
-    {{$v := .Font.Stack}}
-    <option value=""{{if eq $v ""}} selected{{end}}>{{T "Theme default"}}</option>
-    {{with .Extra}}<option value="{{index . 0}}"{{if eq $v (index . 0)}} selected{{end}}>{{index . 1}}</option>{{end}}
-    {{if ne .Role "mono"}}
-    <option value="system"{{if eq $v "system"}} selected{{end}}>{{T "System UI"}}</option>
-    <option value="humanist"{{if eq $v "humanist"}} selected{{end}}>{{T "Humanist sans-serif"}}</option>
-    <option value="geometric"{{if eq $v "geometric"}} selected{{end}}>{{T "Geometric sans-serif"}}</option>
-    <option value="serif"{{if eq $v "serif"}} selected{{end}}>{{T "Serif"}}</option>
-    {{end}}
-    <option value="mono"{{if eq $v "mono"}} selected{{end}}>{{T "Monospace"}}</option>
-    {{if or .Fonts (eq $v "media")}}<option value="media"{{if eq $v "media"}} selected{{end}}>{{T "A font from the media library"}}</option>{{end}}
-  </select>
+  {{$v := .Font.Stack}}
+  {{$o := list (list "" (T "Theme default"))}}{{with .Extra}}{{$o = append $o .}}{{end}}
+  {{if ne .Role "mono"}}{{$o = append $o (list "system" (T "System UI")) (list "humanist" (T "Humanist sans-serif")) (list "geometric" (T "Geometric sans-serif")) (list "serif" (T "Serif"))}}{{end}}
+  {{$o = append $o (list "mono" (T "Monospace"))}}{{if or .Fonts (eq $v "media")}}{{$o = append $o (list "media" (T "A font from the media library"))}}{{end}}
+  {{template "select" (selectbox "id" $id "name" (printf "fonts.%s.stack" .Role) "value" $v "options" $o "data" (dict "font-sample" (printf "%s-sample" $id)))}}
   {{if .Fonts}}
   <div class="cz-sub" data-show-if="fonts.{{.Role}}.stack=media">
     <label class="sr-only" for="{{$id}}-media">{{T "Font file for %s" .Label}}</label>
-    <select class="select w-full" id="{{$id}}-media" name="fonts.{{.Role}}.media" data-type="int">
-      {{$m := .Font.Media}}<option value="0">{{T "Choose a WOFF2 file…"}}</option>
-      {{range .Fonts}}<option value="{{.ID}}"{{if eq .ID $m}} selected{{end}}>{{.OriginalName}}</option>{{end}}
-    </select>
+    {{$o := list (opt 0 (T "Choose a WOFF2 file…"))}}{{range .Fonts}}{{$o = append $o (opt .ID .OriginalName)}}{{end}}
+    {{template "select" (selectbox "id" (printf "%s-media" $id) "name" (printf "fonts.%s.media" .Role) "value" .Font.Media "options" $o "data" (dict "type" "int"))}}
   </div>
   {{end}}
   <p class="cz-sample" id="{{$id}}-sample" aria-hidden="true">{{T "Sphinx of black quartz, judge my vow."}}</p>
@@ -200,9 +189,8 @@
           {{else}}
           <label for="cz-opt-{{.Key}}">{{themeT $th .Label}}</label>
           {{if eq .Type "select"}}
-          <select class="select w-full" id="cz-opt-{{.Key}}" name="options.{{.Key}}">
-            {{$cur := index $v .Key}}{{range .Choices}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{themeT $th .Label}}</option>{{end}}
-          </select>
+          {{$o := list}}{{range .Choices}}{{$o = append $o (opt .Value (themeT $th .Label))}}{{end}}
+          {{template "select" (selectbox "id" (printf "cz-opt-%s" .Key) "name" (printf "options.%s" .Key) "value" (index $v .Key) "options" $o)}}
           {{else if eq .Type "textarea"}}
           <textarea class="textarea" id="cz-opt-{{.Key}}" name="options.{{.Key}}" rows="3" maxlength="2000">{{index $v .Key}}</textarea>
           {{else}}

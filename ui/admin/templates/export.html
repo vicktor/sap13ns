@@ -51,7 +51,8 @@
         </div>
         <p class="hint">{{T "Dates are publication dates (creation dates for drafts), in the site's time zone. Leave them empty to export everything."}}</p>
         <div class="field"><label for="author_id">{{T "Author"}}</label>
-          <select class="select w-full" id="author_id" name="author_id"><option value="0">{{T "All authors"}}</option>{{range $d.Authors}}<option value="{{.ID}}"{{if eq .ID $f.AuthorID}} selected{{end}}>{{.Name}} ({{roleLabel .Role}})</option>{{end}}</select></div>
+          {{$o := list (opt 0 (T "All authors"))}}{{range $d.Authors}}{{$o = append $o (opt .ID (printf "%s (%s)" .Name (roleLabel .Role)))}}{{end}}
+          {{template "select" (selectbox "id" "author_id" "name" "author_id" "value" $f.AuthorID "options" $o "search" true)}}</div>
         <label class="check"><input type="checkbox" class="input" role="switch" name="pending_comments" value="1"{{if $f.PendingComments}} checked{{end}}> {{T "Also export comments awaiting moderation (approved comments are always included)"}}</label>
         <div class="field"><label class="check"><input type="checkbox" class="input" role="switch" name="personal_data" value="1"{{if $f.PersonalData}} checked{{end}}> {{T "Include commenters' personal data"}}</label>
           <p class="hint">{{T "Adds the e-mail and IP addresses of commenters and the e-mail addresses of authors. Without it the file holds no e-mail or IP address. Only include them if you have a reason to, and keep the file safe."}}</p></div>

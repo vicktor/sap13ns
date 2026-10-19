@@ -75,7 +75,7 @@
     <form method="post" action="/admin/tools/backups/restore" class="form">
       {{.CSRFField}}
       <div class="field"><label for="restore-name">{{T "Backup"}}</label>
-        <select class="select w-full" id="restore-name" name="name" required>{{range $d.List}}<option value="{{.Name}}">{{dateTime .Created}}{{if .PreRestore}} ({{T "Before a restore"}}){{end}}</option>{{end}}</select></div>
+        {{$o := list}}{{range $d.List}}{{$l := dateTime .Created}}{{if .PreRestore}}{{$l = printf "%s (%s)" $l (T "Before a restore")}}{{end}}{{$o = append $o (opt .Name $l)}}{{end}}{{template "select" (selectbox "id" "restore-name" "name" "name" "options" $o)}}</div>
       <div class="field"><label for="restore-confirm">{{T "Type %s to confirm" $d.Label}}</label>
         <input class="input" id="restore-confirm" name="confirm" type="text" autocomplete="off" spellcheck="false" required></div>
       {{if $d.NeedPassword}}<div class="field"><label for="restore-password">{{T "Your current password"}}</label>

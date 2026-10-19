@@ -12,7 +12,7 @@
 }
 .bl-bar { @apply flex items-end gap-2; }
 .bl-region-field { @apply flex min-w-0 flex-1 flex-col; }
-.bl-region-field select { @apply min-w-0; }
+.bl-region-field > .select { @apply w-full; }
 .bl-history { @apply flex gap-1; }
 
 .bl-intro { @apply flex flex-col items-start gap-2.5 rounded-xl border border-dashed bg-card p-3.5 text-sm; }

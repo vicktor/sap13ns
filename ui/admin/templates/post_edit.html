@@ -173,12 +173,11 @@
         {{if $d.CanPublish}}
         <div class="field">
           <label for="status">{{T "Visibility"}}</label>
-          <select class="select w-full" id="status" name="status">
-            <option value="draft"{{if eq $p.Status "draft"}} selected{{end}}>{{T "Draft"}}</option>
-            <option value="pending"{{if eq $p.Status "pending"}} selected{{end}}>{{T "Pending review"}}</option>
-            <option value="published"{{if eq $p.Status "published"}} selected{{end}}>{{T "Public"}}</option>
-            <option value="private"{{if eq $p.Status "private"}} selected{{end}}>{{T "Private (logged-in editors only)"}}</option>
-          </select>
+          {{template "select" (selectbox "id" "status" "name" "status" "value" $p.Status "options" (list
+            (list "draft" (T "Draft"))
+            (list "pending" (T "Pending review"))
+            (list "published" (T "Public"))
+            (list "private" (T "Private (logged-in editors only)"))))}}
         </div>
         <div class="field">
           <label for="published_at">{{T "Publication date"}}</label>
@@ -228,9 +227,8 @@
       <section class="form">
         <div class="field">
           <label for="lang" class="sr-only">{{T "Language"}}</label>
-          <select class="select w-full" id="lang" name="lang">
-            {{range .}}<option value="{{.Code}}"{{if eq .Code $p.Lang}} selected{{end}}>{{.Name}}</option>{{end}}
-          </select>
+          {{$o := list}}{{range .}}{{$o = append $o (opt .Code .Name)}}{{end}}
+          {{template "select" (selectbox "id" "lang" "name" "lang" "value" $p.Lang "options" $o "ariaLabel" (T "Language"))}}
         </div>
         {{if not $d.New}}
         {{if $d.Translations}}
@@ -296,10 +294,8 @@
       <section class="form">
         <div class="field">
           <label for="parent_id">{{T "Parent page"}}</label>
-          <select class="select w-full" id="parent_id" name="parent_id">
-            <option value="">{{T "(none)"}}</option>
-            {{range $d.Pages}}<option value="{{.ID}}"{{if eq (derefInt $p.ParentID) .ID}} selected{{end}}>{{.Title}}</option>{{end}}
-          </select>
+          {{$o := list (opt "" (T "(none)"))}}{{range $d.Pages}}{{$o = append $o (opt .ID .Title)}}{{end}}
+          {{template "select" (selectbox "id" "parent_id" "name" "parent_id" "value" (derefInt $p.ParentID) "options" $o "search" true)}}
         </div>
         <div class="field">
           <label for="menu_order">{{T "Order"}}</label>
@@ -317,9 +313,8 @@
         {{if $d.CanAuthor}}
         <div class="field">
           <label for="author_id">{{T "Author"}}</label>
-          <select class="select w-full" id="author_id" name="author_id">
-            {{range $d.Authors}}<option value="{{.ID}}"{{if eq (derefInt $p.AuthorID) .ID}} selected{{end}}>{{.Name}} ({{.Username}})</option>{{end}}
-          </select>
+          {{$o := list}}{{range $d.Authors}}{{$o = append $o (opt .ID (printf "%s (%s)" .Name .Username))}}{{end}}
+          {{template "select" (selectbox "id" "author_id" "name" "author_id" "value" (derefInt $p.AuthorID) "options" $o "search" true)}}
         </div>
         {{end}}
       </section>

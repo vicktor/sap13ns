@@ -41,18 +41,16 @@
         <div class="grid-2">
           <div class="field">
             <label for="role">{{T "Role"}}</label>
-            <select class="select w-full" id="role" name="role"{{if or $d.Self $u.Linked}} disabled{{end}}>
-              {{range $d.Roles}}<option value="{{.}}"{{if eq . $u.Role}} selected{{end}}>{{roleLabel .}}</option>{{end}}
-            </select>
+            {{$o := list}}{{range $d.Roles}}{{$o = append $o (opt . (roleLabel .))}}{{end}}
+            {{template "select" (selectbox "id" "role" "name" "role" "value" $u.Role "options" $o "disabled" (or $d.Self $u.Linked))}}
             {{if $u.Linked}}<p class="hint">{{T "Managed by the network."}}</p>{{else if $d.Self}}<p class="hint">{{T "You cannot change your own role."}}</p>{{end}}
           </div>
           {{if not $d.New}}
           <div class="field">
             <label for="status">{{T "Account"}}</label>
-            <select class="select w-full" id="status" name="status"{{if or $d.Self $u.Linked}} disabled{{end}}>
-              <option value="active"{{if eq $u.Status "active"}} selected{{end}}>{{T "Active"}}</option>
-              <option value="disabled"{{if eq $u.Status "disabled"}} selected{{end}}>{{T "Disabled (cannot log in)"}}</option>
-            </select>
+            {{template "select" (selectbox "id" "status" "name" "status" "value" $u.Status "disabled" (or $d.Self $u.Linked) "options" (list
+              (list "active" (T "Active"))
+              (list "disabled" (T "Disabled (cannot log in)"))))}}
           </div>
           {{end}}
         </div>
@@ -112,10 +110,8 @@
           {{.CSRFField}}
           <div class="field">
             <label for="reassign_to">{{T "Give their posts to"}}</label>
-            <select class="select w-full" id="reassign_to" name="reassign_to">
-              <option value="">{{T "Nobody (posts lose their author)"}}</option>
-              {{range $d.Others}}<option value="{{.ID}}">{{.Name}} (@{{.Username}})</option>{{end}}
-            </select>
+            {{$o := list (opt "" (T "Nobody (posts lose their author)"))}}{{range $d.Others}}{{$o = append $o (opt .ID (printf "%s (@%s)" .Name .Username))}}{{end}}
+            {{template "select" (selectbox "id" "reassign_to" "name" "reassign_to" "options" $o "search" true)}}
           </div>
           <button class="btn" data-variant="destructive" type="submit" data-confirm="{{T "Delete @%s permanently?" $u.Username}}">{{icon "trash-2"}}{{T "Delete user"}}</button>
         </form>

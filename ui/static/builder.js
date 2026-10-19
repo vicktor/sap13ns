@@ -434,6 +434,16 @@ export function parseErrorPath(path) {
   return out;
 }
 
+/** chooseOption picks the option a select shows, as a native select does:
+ * the one with the value, else the first. Returns its index (-1 when there
+ * are no options), value and label. */
+export function chooseOption(options, value) {
+  let i = options.findIndex((o) => String(o.value) === String(value ?? ""));
+  if (i < 0 && options.length) i = 0;
+  const o = options[i];
+  return { index: i, value: o ? String(o.value) : "", label: o ? String(o.label) : "" };
+}
+
 /** History keeps snapshots for undo and redo. Pushes with the same key
  * within a short time (typing in one field) are merged into one step. */
 export class History {
@@ -500,6 +510,26 @@ function init(root) {
     for (const k of kids.flat()) if (k != null && k !== false) el.append(k);
     return el;
   };
+  // A Basecoat select (the admin's "select" partial, built here): the
+  // trigger has the id for <label for>, onchange gets the chosen value from
+  // the hidden input's change event (ui/static/selects.js).
+  const optionEls = (id, options, value) => {
+    const c = chooseOption(options, value);
+    return options.map((o, i) => h("div", { role: "option", id: `${id}-opt-${i}`, "data-value": String(o.value), "aria-selected": i === c.index ? "true" : null, text: o.label }));
+  };
+  const selectBox = (id, options, value, onchange, attrs = {}) => {
+    const c = chooseOption(options, value);
+    const hidden = h("input", { type: "hidden", value: c.value });
+    hidden.addEventListener("change", () => onchange(hidden.value));
+    return h("div", { class: "select w-full", id: `${id}-select` },
+      h("button", { type: "button", id, role: "combobox", "aria-haspopup": "listbox", "aria-expanded": "false", "aria-controls": `${id}-listbox`, ...attrs },
+        h("span", { class: "truncate", text: c.label }), icon("chevron-down")),
+      h("div", { id: `${id}-popover`, "data-popover": true, "aria-hidden": "true" },
+        h("div", { role: "listbox", id: `${id}-listbox`, "aria-orientation": "vertical", "aria-labelledby": id }, optionEls(id, options, value))),
+      hidden);
+  };
+  // The first control of a settings panel, to focus it.
+  const FOCUSABLE = "input:not([type=hidden]), textarea, .select > button";
   const say = (text) => { live.textContent = ""; setTimeout(() => { live.textContent = text; }, 30); };
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const toast = (category, title) => document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
@@ -537,10 +567,13 @@ function init(root) {
   }
 
   function renderRegionSelect() {
-    const sel = $("#bl-region");
+    const root = $("#bl-region-select");
     // ● built with blocks, ⚠ has refused values.
-    sel.replaceChildren(...regions.map((r) => h("option", { value: r.name, selected: r.name === region },
-      `${r.label}${getRegion(layout(), r.name) ? " ●" : ""}${errors.some((e) => e.region === r.name) ? " ⚠" : ""}`)));
+    const opts = regions.map((r) => ({ value: r.name, label: `${r.label}${getRegion(layout(), r.name) ? " ●" : ""}${errors.some((e) => e.region === r.name) ? " ⚠" : ""}` }));
+    root.querySelector('[role="listbox"]').replaceChildren(...optionEls("bl-region", opts, region));
+    root.querySelector(":scope > input[type=hidden]").value = chooseOption(opts, region).value;
+    root.querySelector(":scope > button > span").textContent = chooseOption(opts, region).label;
+    root.refresh?.();
   }
 
   function renderIntro() {
@@ -680,7 +713,7 @@ function init(root) {
     renderStructure();
     renderSettings();
     settings.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    settings.querySelector("input, select, textarea")?.focus({ preventScroll: true });
+    settings.querySelector(FOCUSABLE)?.focus({ preventScroll: true });
   }
 
   // ----------------------------------------------------------- settings --
@@ -721,8 +754,8 @@ function init(root) {
     const fields = styles.map((st) => {
       const id = `bl-style-${st.key}`;
       return h("div", { class: "field" }, h("label", { for: id, text: st.label }),
-        h("select", { class: "select w-full", id, onchange: (e) => commit(setStyle(layout(), region, pos.s, st.key, e.target.value, st.choices[0]?.value), "", { keepSettings: true }) },
-          st.choices.map((c) => h("option", { value: c.value, selected: (sec.style?.[st.key] || st.choices[0]?.value) === c.value }, c.label))));
+        selectBox(id, st.choices, sec.style?.[st.key] || st.choices[0]?.value,
+          (v) => commit(setStyle(layout(), region, pos.s, st.key, v, st.choices[0]?.value), "", { keepSettings: true })));
     });
     const up = () => { commit(moveSection(layout(), region, pos.s, pos.s - 1)); say(fmt(msg.msgMoved, label)); };
     const down = () => { commit(moveSection(layout(), region, pos.s, pos.s + 1)); say(fmt(msg.msgMoved, label)); };
@@ -800,8 +833,7 @@ function init(root) {
         const opts = f.type === "menu" ? state.menus.map((m) => ({ value: m.id, label: m.label }))
           : f.type === "area" ? state.areas.map((a) => ({ value: a.id, label: a.label })) : f.choices;
         const cur = stored || f.default || opts[0]?.value || "";
-        input = h("select", { class: "select w-full", ...common, onchange: (e) => set(e.target.value) },
-          opts.map((o) => h("option", { value: o.value, selected: o.value === cur }, o.label)));
+        input = selectBox(id, opts, cur, set, common);
         break;
       }
       case "image": {
@@ -809,9 +841,7 @@ function init(root) {
         const img = state.images.find((m) => String(m.id) === cur);
         input = h("div", { class: "bl-image" },
           img ? h("img", { src: img.thumb, alt: "", class: "bl-thumb" }) : h("span", { class: "bl-thumb bl-thumb-empty" }, icon("image")),
-          h("select", { class: "select w-full", ...common, onchange: (e) => set(e.target.value) },
-            h("option", { value: "", selected: !cur }, msg.msgNoImage),
-            state.images.map((m) => h("option", { value: String(m.id), selected: String(m.id) === cur }, m.name || `#${m.id}`))));
+          selectBox(id, [{ value: "", label: msg.msgNoImage }, ...state.images.map((m) => ({ value: String(m.id), label: m.name || `#${m.id}` }))], cur, set, common));
         if (!state.images.length) help.push(msg.msgNoImages);
         break;
       }
@@ -920,7 +950,7 @@ function init(root) {
     const add = h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", disabled: full || null, onclick: () => {
       openItems.add(`${b.id}:${its.length}`);
       commit(addItem(layout(), region, at(), {}));
-      settings.querySelector(`#bl-item-${its.length} :is(input, textarea, select)`)?.focus();
+      settings.querySelector(`#bl-item-${its.length} :is(${FOCUSABLE})`)?.focus();
     } }, icon("plus"), sch.add);
     const listErr = errors.filter((e) => sameBlock(e, pos) && e.item === -1).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
     return h("div", { class: "bl-items-field", role: "group", "aria-labelledby": "bl-items-title" },
@@ -1124,7 +1154,7 @@ function init(root) {
   });
 
   // ------------------------------------------------------------- regions --
-  $("#bl-region").addEventListener("change", (e) => {
+  $("#bl-region-select").addEventListener("change", (e) => {
     region = e.target.value;
     try { localStorage.setItem("sap-builder-region", region); } catch (_) {}
     selected = null;

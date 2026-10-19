@@ -78,6 +78,37 @@
 {{if .}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "Please review the form"}}</h2><section>{{if eq (printf "%T" .) "[]string"}}<ul>{{range .}}<li>{{.}}</li>{{end}}</ul>{{else}}<p>{{.}}</p>{{end}}</section></div>{{end}}
 {{end}}
 
+{{/* A Basecoat select for a single choice, or with Search a combobox with
+   a search field for long lists. Built with selectbox (internal/web/
+   selectbox.go): the trigger carries the id for <label for>, the hidden
+   input carries the name and value the form submits. */}}
+{{define "select"}}{{if .Search}}{{template "select-search" .}}{{else}}
+<div class="select{{with .Class}} {{.}}{{end}}" id="{{.ID}}-select"{{with .Placeholder}} data-placeholder="{{.}}"{{end}}>
+  <button type="button" id="{{.ID}}" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="{{.ID}}-listbox"{{with .Size}} data-size="{{.}}"{{end}}{{with .AriaLabel}} aria-label="{{.}}"{{end}}{{with .Describedby}} aria-describedby="{{.}}"{{end}}{{if .Invalid}} aria-invalid="true"{{end}}{{if .Disabled}} disabled{{end}}>
+    <span class="truncate{{if not .Chosen}} text-muted-foreground{{end}}">{{.Label}}</span>{{icon "chevron-down"}}
+  </button>
+  <div id="{{.ID}}-popover" data-popover aria-hidden="true"{{with .Align}} data-align="{{.}}"{{end}}>
+    <div role="listbox" id="{{.ID}}-listbox" aria-orientation="vertical" aria-labelledby="{{.ID}}">{{$b := .}}{{range $i, $o := .Options}}
+      <div role="option" id="{{$b.ID}}-opt-{{$i}}" data-value="{{$o.Value}}"{{if $b.Selected $o}} aria-selected="true"{{end}}>{{$o.Label}}</div>{{end}}
+    </div>
+  </div>
+  <input type="hidden"{{with .Name}} name="{{.}}"{{end}} value="{{.Value}}"{{.Data}}{{if .Disabled}} disabled{{end}}>
+</div>{{end}}{{end}}
+
+{{define "select-search"}}
+<div class="combobox{{with .Class}} {{.}}{{end}}" id="{{.ID}}-combobox" data-auto-highlight="true">
+  <button type="button" id="{{.ID}}" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="{{.ID}}-listbox"{{with .Size}} data-size="{{.}}"{{end}}{{with .AriaLabel}} aria-label="{{.}}"{{end}}{{with .Describedby}} aria-describedby="{{.}}"{{end}}{{if .Invalid}} aria-invalid="true"{{end}}{{if .Disabled}} disabled{{end}}>
+    <span class="truncate{{if not .Chosen}} text-muted-foreground{{end}}" data-value data-placeholder="{{.Placeholder}}">{{.Label}}</span>{{icon "chevron-down"}}
+  </button>
+  <div id="{{.ID}}-popover" data-popover aria-hidden="true"{{with .Align}} data-align="{{.}}"{{end}}>
+    <div class="input-group"><span data-align="inline-start">{{icon "search"}}</span><input type="text" role="combobox" aria-label="{{T "Search"}}" placeholder="{{T "Search…"}}" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" aria-expanded="false" aria-controls="{{.ID}}-listbox"></div>
+    <div role="listbox" id="{{.ID}}-listbox" aria-orientation="vertical" aria-labelledby="{{.ID}}" data-empty="{{T "No results"}}">{{$b := .}}{{range $i, $o := .Options}}
+      <div role="option" id="{{$b.ID}}-opt-{{$i}}" data-value="{{$o.Value}}"{{if $b.Selected $o}} aria-selected="true"{{end}}>{{$o.Label}}</div>{{end}}
+    </div>
+  </div>
+  <input type="hidden"{{with .Name}} name="{{.}}"{{end}} value="{{.Value}}"{{.Data}}{{if .Disabled}} disabled{{end}}>
+</div>{{end}}
+
 {{define "filter-tabs"}}
 <nav class="filter-tabs" aria-label="{{T "Filter"}}">
   {{range .}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}{{if ge .Count 0}} <span>{{.Count}}</span>{{end}}</a>{{end}}
@@ -129,7 +160,7 @@
   {{else}}
   <label for="{{.ID}}">{{$s.Label}}{{if $s.Required}} *{{end}}</label>
   {{if eq $s.Type "select"}}
-  <select class="select w-full" id="{{.ID}}" name="{{.Name}}">{{$cur := .Value}}{{range $s.Choices}}<option{{if eq . $cur}} selected{{end}}>{{.}}</option>{{end}}</select>
+  {{template "select" (selectbox "id" .ID "name" .Name "value" .Value "options" $s.Choices)}}
   {{else if eq $s.Type "textarea"}}
   <textarea class="textarea" id="{{.ID}}" name="{{.Name}}" rows="4" maxlength="4000"{{if $s.Required}} required{{end}}>{{.Value}}</textarea>
   {{else if eq $s.Type "secret"}}

@@ -30,7 +30,7 @@ function buildIcons() {
 function copyBasecoatJS() {
   const out = join(root, "ui/static/vendor/basecoat");
   mkdirSync(out, { recursive: true });
-  for (const f of ["basecoat.min.js", "dropdown-menu.min.js", "tabs.min.js", "toast.min.js", "sidebar.min.js", "popover.min.js"]) {
+  for (const f of ["basecoat.min.js", "dropdown-menu.min.js", "tabs.min.js", "toast.min.js", "sidebar.min.js", "popover.min.js", "select.min.js", "combobox.min.js"]) {
     copyFileSync(join(root, "node_modules/basecoat-css/dist/js", f), join(out, f));
   }
   copyFileSync(join(root, "node_modules/basecoat-css/LICENSE.md"), join(out, "LICENSE.md"));

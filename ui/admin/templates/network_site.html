@@ -68,7 +68,8 @@
               <form method="post" action="/admin/network/sites/{{$s.ID}}/members" class="flex flex-wrap items-center gap-2">
                 {{$.CSRFField}}<input type="hidden" name="account" value="{{.AccountID}}">
                 <label class="sr-only" for="role-{{.AccountID}}">{{T "Role of @%s" .Username}}</label>
-                {{$cur := .Role}}<select class="select" id="role-{{.AccountID}}" name="role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $cur}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select>
+                {{$o := list}}{{range $d.Roles}}{{$o = append $o (opt . (roleLabel .))}}{{end}}
+                {{template "select" (selectbox "id" (printf "role-%d" .AccountID) "name" "role" "value" .Role "options" $o "size" "sm")}}
                 <button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Change"}}</button>
               </form>
               {{end}}
@@ -85,7 +86,7 @@
           {{.CSRFField}}
           <div class="grid-2">
             <div class="field"><label for="login">{{T "Username or e-mail"}}</label><input class="input" id="login" name="login" required maxlength="254" autocapitalize="none" spellcheck="false" autocomplete="off"></div>
-            <div class="field"><label for="role">{{T "Role"}}</label><select class="select w-full" id="role" name="role">{{range $d.Roles}}<option value="{{.}}"{{if eq . "author"}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+            <div class="field"><label for="role">{{T "Role"}}</label>{{$o := list}}{{range $d.Roles}}{{$o = append $o (opt . (roleLabel .))}}{{end}}{{template "select" (selectbox "id" "role" "name" "role" "value" "author" "options" $o)}}</div>
           </div>
           <div><button class="btn" type="submit">{{icon "user-plus"}}{{T "Add member"}}</button></div>
         </form>

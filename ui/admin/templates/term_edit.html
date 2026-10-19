@@ -35,11 +35,9 @@
 {{if eq .D.Taxonomy "category"}}
 <div class="field">
   <label for="parent_id">{{T "Parent"}}</label>
-  <select class="select w-full" id="parent_id" name="parent_id">
-    <option value="">{{T "(none)"}}</option>
-    {{$cur := .T}}{{$self := .Self}}
-    {{range .D.Terms}}{{if ne .ID $self}}<option value="{{.ID}}"{{if eq (derefInt (index $cur "ParentID")) .ID}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
-  </select>
+  {{$cur := .T}}{{$self := .Self}}
+  {{$o := list (opt "" (T "(none)"))}}{{range .D.Terms}}{{if ne .ID $self}}{{$o = append $o (opt .ID .Name)}}{{end}}{{end}}
+  {{template "select" (selectbox "id" "parent_id" "name" "parent_id" "value" (derefInt (index $cur "ParentID")) "options" $o "search" true)}}
 </div>
 {{end}}
 <div class="field">

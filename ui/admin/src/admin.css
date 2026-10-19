@@ -206,6 +206,31 @@
 .otp-input { @apply text-center font-mono text-lg tracking-[0.4em]; }
 .hp { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 
+/* Basecoat select and combobox (the "select" partial). They fill their field
+   like the inputs do, the list scrolls and wraps long labels, and the
+   combobox's popup trigger looks like the select's. A card or a table that
+   holds one lets the list overflow it instead of clipping it. */
+.select:not(select), .combobox { @apply min-w-0 max-w-full; }
+.field > :is(.select:not(select), .combobox) { @apply flex w-full; }
+.select:not(select) > button { @apply w-full min-w-0; }
+/* A select that fills its field must not widen it to its longest label (a
+   native select shrinks): the label takes the room left, and truncates. */
+:is(.field > *, .w-full, .grow):is(.select:not(select), .combobox) > button > span { flex: 1 1 0%; width: 0; }
+:is(.select:not(select), .combobox) [data-popover] { max-width: min(28rem, calc(100vw - 2rem)); }
+.select:not(select) [role="listbox"] { @apply max-h-72 overflow-y-auto; }
+:is(.select:not(select), .combobox) [role="option"] { @apply whitespace-normal; overflow-wrap: anywhere; }
+.combobox > button[aria-haspopup="listbox"] {
+  @apply flex h-9 w-full min-w-0 items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 ps-2.5 pe-2 text-start text-sm font-normal whitespace-nowrap shadow-xs outline-hidden transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=sm]:h-8 dark:bg-input/30 dark:hover:bg-input/50;
+}
+.combobox > button[aria-haspopup="listbox"] > span { @apply min-w-0 flex-1 truncate; }
+.combobox > button[aria-haspopup="listbox"] > svg { @apply pointer-events-none size-4 shrink-0 text-muted-foreground; }
+.combobox > input[role="combobox"] { @apply w-full; }
+.card:has(.select:not(select), .combobox) { overflow: visible; }
+/* A closed list takes no room (it would widen the page on a phone); one in a
+   scrolling box is placed fixed by selects.js. */
+:is(.select:not(select), .combobox) > [data-popover][aria-hidden="true"] { display: none; }
+.popover-fixed { position: fixed; margin: 0; right: auto; bottom: auto; transition: none; }
+
 /* Badge and alert variants missing from the style pack. */
 .badge { @apply gap-1; }
 .badge[data-variant="success"] { @apply border-transparent; background: color-mix(in oklch, var(--success) 15%, transparent); color: var(--success); }

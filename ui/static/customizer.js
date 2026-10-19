@@ -148,7 +148,7 @@ function init(root) {
   }
 
   function updateSamples() {
-    for (const sel of $$("select[data-font-sample]", form)) {
+    for (const sel of $$("[data-font-sample]", form)) {
       const sample = document.getElementById(sel.dataset.fontSample);
       if (!sample) continue;
       const stack = sel.value === "body" ? state.fonts?.[field("fonts.body.stack")?.value] : state.fonts?.[sel.value];
@@ -190,6 +190,8 @@ function init(root) {
       if (el instanceof RadioNodeList) el = el[0];
       // fonts.body → its select; header.logo → the logo grid.
       el ??= field(e.field + ".stack") || $(`[name^="${e.field}."]`, form);
+      // A select's hidden input: mark and focus its trigger instead.
+      if (el?.type === "hidden") el = el.parentElement?.querySelector(":scope > button") || null;
       if (!el) continue;
       el.setAttribute("aria-invalid", "true");
       const p = document.createElement("p");

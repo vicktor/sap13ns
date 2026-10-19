@@ -21,7 +21,7 @@
     <section class="form">
       <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Turn on the AI provider"}}</label>
       <div class="field"><label for="provider">{{T "Provider"}}</label>
-        <select class="select w-full" id="provider" name="provider">{{range $d.Providers}}<option value="{{.Code}}"{{if eq .Code $s.Provider}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        {{$o := list}}{{range $d.Providers}}{{$o = append $o (opt .Code .Name)}}{{end}}{{template "select" (selectbox "id" "provider" "name" "provider" "value" $s.Provider "options" $o)}}</div>
       <div class="field"><label for="api_key">{{T "API key"}}</label>
         <input class="input mono" id="api_key" name="api_key" type="password" autocomplete="off" maxlength="500" placeholder="{{if $d.HasKey}}{{T "Saved (leave empty to keep it)"}}{{end}}">
         <p class="hint">{{T "Stored encrypted. Local servers (Ollama, llama.cpp) may not need one."}}</p>
@@ -45,7 +45,7 @@
     <header><h2>{{T "Who and how much"}}</h2></header>
     <section class="form">
       <div class="field"><label for="min_role">{{T "Available from the role"}}</label>
-        <select class="select w-full" id="min_role" name="min_role">{{range $d.Roles}}<option value="{{.}}"{{if eq . $s.MinRole}} selected{{end}}>{{roleLabel .}}</option>{{end}}</select></div>
+        {{$o := list}}{{range $d.Roles}}{{$o = append $o (opt . (roleLabel .))}}{{end}}{{template "select" (selectbox "id" "min_role" "name" "min_role" "value" $s.MinRole "options" $o)}}</div>
       <div class="grid-2">
         <div class="field"><label for="monthly_requests">{{T "Requests per person and month"}}</label><input class="input" id="monthly_requests" name="monthly_requests" type="number" min="0" value="{{$s.MonthlyRequests}}"><p class="hint">{{T "0 means no limit."}}</p></div>
         <div class="field"><label for="monthly_images">{{T "Images per person and month"}}</label><input class="input" id="monthly_images" name="monthly_images" type="number" min="0" value="{{$s.MonthlyImages}}"></div>

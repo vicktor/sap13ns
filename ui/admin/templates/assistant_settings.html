@@ -98,7 +98,7 @@
     <header><h2>{{T "Embeddings"}}</h2><p>{{T "Semantic search finds passages by meaning, across languages. Claude has no embeddings API: with Claude for answers, choose another provider here or use full-text search."}}</p></header>
     <section class="form">
       <div class="field"><label for="embed_provider">{{T "Provider"}}</label>
-        <select class="select w-full" id="embed_provider" name="embed_provider">{{range $d.Providers}}<option value="{{.Code}}"{{if eq .Code $s.EmbedProvider}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+        {{$o := list}}{{range $d.Providers}}{{$o = append $o (opt .Code .Name)}}{{end}}{{template "select" (selectbox "id" "embed_provider" "name" "embed_provider" "value" $s.EmbedProvider "options" $o)}}
         {{if eq $s.EmbedProvider "same"}}<p class="hint">{{T "Now: %s, with the key and address of Settings › AI provider." $d.AIProvider}}</p>{{end}}</div>
       <div class="field"><label for="embed_base_url">{{T "API address (optional)"}}</label>
         <input class="input mono" id="embed_base_url" name="embed_base_url" value="{{$s.EmbedBaseURL}}" maxlength="300" placeholder="http://127.0.0.1:1234/v1" spellcheck="false" autocapitalize="none">

@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -589,7 +590,10 @@ func TestSSOMembershipAndRoles(t *testing.T) {
 	admin := e.browser()
 	csrf := admin.siteSignIn(a, local)
 	page := admin.get("https://alpha.sap13ns.site/admin/users/" + strconv.FormatInt(u.ID, 10))
-	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `id="role" name="role" disabled`) {
+	// The role is a Basecoat select: its trigger and its hidden input are both disabled.
+	if body := page.Body.String(); page.Code != http.StatusOK ||
+		!regexp.MustCompile(`<button type="button" id="role" role="combobox"[^>]* disabled>`).MatchString(body) ||
+		!strings.Contains(body, `<input type="hidden" name="role" value="author" disabled>`) {
 		t.Fatalf("user page: %d", page.Code)
 	}
 	if users := admin.get("https://alpha.sap13ns.site/admin/users"); !strings.Contains(users.Body.String(), "Cuenta de sap13ns") {

@@ -103,6 +103,9 @@ func (s *Server) funcMap() template.FuncMap {
 			return m, nil
 		},
 		"list":      func(v ...any) []any { return v },
+		"append":    appendAny,
+		"opt":       opt,
+		"selectbox": selectbox,
 		"join":      strings.Join,
 		"lower":     strings.ToLower,
 		"upper":     strings.ToUpper,

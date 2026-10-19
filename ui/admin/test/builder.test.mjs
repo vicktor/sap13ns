@@ -5,7 +5,7 @@ import {
   getRegion, setRegion, ids, newID, addSection, removeSection, moveSection, duplicateSection, fitColumns, setPreset,
   setStyle, insertBlock, removeBlock, moveBlock, dropIndex, duplicateBlock, setValue, find, step, count, allowed,
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
-  addItem, removeItem, moveItem, setItemValue, newBlock, reid,
+  addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
 } from "../../static/builder.js";
 
 // A seeded random source, so ids are reproducible.
@@ -308,4 +308,14 @@ test("history: undo, redo and merged typing", () => {
   const small = new History(0, 3);
   for (let i = 1; i <= 5; i++) small.push(i);
   assert.deepEqual(small.stack, [3, 4, 5]);
+});
+
+test("chooseOption picks what a native select would show", () => {
+  const opts = [{ value: "", label: "No image" }, { value: "3", label: "Logo" }, { value: 7, label: "Hero" }];
+  assert.deepEqual(chooseOption(opts, "3"), { index: 1, value: "3", label: "Logo" });
+  assert.deepEqual(chooseOption(opts, "7"), { index: 2, value: "7", label: "Hero" }, "numbers compare as strings");
+  assert.deepEqual(chooseOption(opts, ""), { index: 0, value: "", label: "No image" });
+  assert.deepEqual(chooseOption(opts, undefined), { index: 0, value: "", label: "No image" });
+  assert.deepEqual(chooseOption(opts.slice(1), "gone"), { index: 0, value: "3", label: "Logo" }, "unknown: the first");
+  assert.deepEqual(chooseOption([], "x"), { index: -1, value: "", label: "" });
 });

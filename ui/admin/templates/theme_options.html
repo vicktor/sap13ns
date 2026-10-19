@@ -20,9 +20,8 @@
         {{else}}
         <label for="opt_{{.Key}}">{{themeT $th .Label}}</label>
         {{if eq .Type "select"}}
-        <select class="select w-full" id="opt_{{.Key}}" name="opt_{{.Key}}">
-          {{$cur := index $v .Key}}{{range .Choices}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{themeT $th .Label}}</option>{{end}}
-        </select>
+        {{$o := list}}{{range .Choices}}{{$o = append $o (opt .Value (themeT $th .Label))}}{{end}}
+        {{template "select" (selectbox "id" (printf "opt_%s" .Key) "name" (printf "opt_%s" .Key) "value" (index $v .Key) "options" $o)}}
         {{else if eq .Type "textarea"}}
         <textarea class="textarea" id="opt_{{.Key}}" name="opt_{{.Key}}" rows="3" maxlength="2000">{{index $v .Key}}</textarea>
         {{else}}
