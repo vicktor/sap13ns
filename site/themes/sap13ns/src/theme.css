@@ -481,6 +481,13 @@
 
 /* -------------------------------------------------------------- pricing */
 .pricing { background: var(--surface); border-block: 1px solid var(--border); }
+.plans-box { display: flex; flex-direction: column; gap: 1.5rem; }
+.plan-interval { align-self: center; display: inline-flex; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--border); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-sm); }
+.plan-interval[hidden] { display: none; }
+.plan-interval button { min-height: 2.5rem; padding: 0.45rem 1.2rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 0.92rem; font-weight: 650; cursor: pointer; }
+.plan-interval button:hover { color: var(--foreground); background: var(--accent); }
+.plan-interval button[aria-checked="true"] { background: var(--foreground); color: var(--background); }
+.plan-interval button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 999px; }
 .plans { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr)); align-items: stretch; }
 .plan { position: relative; display: flex; flex-direction: column; padding: 1.75rem; border: 1px solid var(--border); border-radius: 1.25rem; background: var(--card); box-shadow: var(--shadow-sm); }
 .plan.is-highlight { border-color: transparent; background: linear-gradient(var(--card), var(--card)) padding-box, linear-gradient(140deg, #6a24d8, #10e8dc) border-box; border: 1.5px solid transparent; box-shadow: var(--shadow-lg); }
@@ -488,11 +495,15 @@
 .plan-head h3 { font-size: 1.2rem; font-weight: 700; }
 .plan-flag { padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--teal); color: var(--ink-on-teal); font-size: 0.72rem; font-weight: 700; }
 .plan-desc { margin-top: 0.4rem; color: var(--muted-foreground); font-size: 0.92rem; }
-.plan-price { margin-top: 1.4rem; display: flex; align-items: baseline; gap: 0.35rem; }
+.plan-price { margin-top: 1.4rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; }
+.plan-price-year { display: none; }
+.plans-box.is-yearly .plan-price-year { display: flex; }
+.plans-box.is-yearly .plan-price-month, .plans-box.has-switch .plan-yearly { display: none; }
+.plan-price .plan-save { align-self: center; margin-left: 0.25rem; }
 .plan-price strong { font-size: 2.4rem; font-weight: 750; letter-spacing: -0.04em; line-height: 1; }
 .plan-price span { color: var(--muted-foreground); font-size: 0.9rem; }
 .plan-yearly { margin-top: 0.55rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--muted-foreground); font-size: 0.9rem; }
-.plan-save { padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--accent); color: var(--accent-foreground); font-size: 0.75rem; font-weight: 650; white-space: nowrap; }
+.plan .plan-save { padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--accent); color: var(--accent-foreground); font-size: 0.75rem; font-weight: 650; white-space: nowrap; }
 .plan-tax { margin-top: 0.4rem; color: var(--muted-foreground); font-size: 0.8rem; }
 .plan-use { margin-top: 0.9rem; display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted-foreground); font-size: 0.85rem; }
 .plan-use svg { width: 1rem; height: 1rem; color: var(--icon); }

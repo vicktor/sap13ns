@@ -33,10 +33,10 @@ var samplePlans = []PlanView{
 	{Slug: "personal", Name: "Personal", Description: "For your blog, portfolio or CV.", Free: true, SignupURL: "/register",
 		Features: []PlanFeature{{Text: "1 site"}, {Text: "sap13ns.site subdomain"}, {Text: "1 GB storage"}, {Text: "All themes"}}},
 	{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "9\u00a0€", Interval: "month",
-		YearlyPrice: "99\u00a0€", FreeMonths: 1, Tax: "included", Commercial: true, Highlight: true, SignupURL: "/register",
+		YearlyPrice: "99\u00a0€", YearlySaving: "9\u00a0€", FreeMonths: 1, Tax: "included", Commercial: true, Highlight: true, SignupURL: "/register",
 		Features: []PlanFeature{{Text: "Custom domain with HTTPS"}, {Text: "10 GB storage"}, {Text: "Your own themes and plugins"}, {Text: "Daily backups"}}},
 	{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "30\u00a0€", Interval: "month",
-		YearlyPrice: "330\u00a0€", FreeMonths: 1, Tax: "added", Commercial: true, SignupURL: "/register",
+		YearlyPrice: "330\u00a0€", YearlySaving: "30\u00a0€", FreeMonths: 1, Tax: "added", Commercial: true, SignupURL: "/register",
 		Features: []PlanFeature{{Text: "Everything in Pro"}, {Text: "50 GB storage"}, {Text: "AI assistant credits"}, {Text: "Priority support"}}},
 }
 
@@ -141,8 +141,11 @@ func setPrices(v *PlanView, month, year *PlanOffer) {
 	}
 	v.YearlyPrice = year.Display()
 	if strings.EqualFold(year.Currency, month.Currency) && month.Amount > 0 {
-		if saved := 12*month.Amount - year.Amount; saved > 0 && saved%month.Amount == 0 {
-			v.FreeMonths = int(saved / month.Amount)
+		if saved := 12*month.Amount - year.Amount; saved > 0 {
+			v.YearlySaving = PlanOffer{Amount: saved, Currency: year.Currency}.Display()
+			if saved%month.Amount == 0 {
+				v.FreeMonths = int(saved / month.Amount)
+			}
 		}
 	}
 }

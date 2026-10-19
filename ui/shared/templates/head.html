@@ -34,7 +34,7 @@
 {{end}}{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
 {{end}}{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
 {{end}}{{/* The site's scripts in one file (npm run build, scripts/js-bundles.mjs):
-site.js, consent.js, onepage.js, video.js and assistant.js. Each part looks
+site.js, consent.js, onepage.js, video.js, assistant.js and plans.js. Each part looks
 for its elements first; onepage.js runs only with data-sap-onepage (not data-onepage, which
 html/template would read as an event handler, on*). Plugin
 scripts come after it, so window.sapConsent is ready for them. */}}<script src="{{.Site.Static "site.min.js"}}" defer{{if .OnePage}} data-sap-onepage{{end}}></script>

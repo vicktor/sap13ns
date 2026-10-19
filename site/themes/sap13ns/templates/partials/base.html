@@ -59,31 +59,49 @@
 {{define "sap/grid"}}{{if .}}<div class="post-grid">{{range .}}{{template "sap/card" .}}{{end}}</div>{{end}}{{end}}
 
 {{/* sap/plans: hosting plans from {{plans}}. Data: []PlanView. A plan
-     sold by the month and by the year shows both prices at once, the
-     yearly one on a second line with the months it saves, then whether
+     sold by the month and by the year shows its monthly price and, on a
+     line below, the yearly one with what it saves. When some plan has a
+     yearly price, a Monthly/Yearly radio group (monthly by default) is
+     shown by /static/plans.js, which then shows one price at a time and
+     makes the buttons carry the yearly choice; without JavaScript the
+     group stays hidden and both prices are read. Each plan says whether
      VAT is included or added. */}}
 {{define "sap/plans"}}
-<div class="plans">
-  {{range .}}{{$p := .}}
-  <article class="plan{{if .Highlight}} is-highlight{{end}}">
-    <header class="plan-head">
-      <h3>{{T .Name}}</h3>
-      {{if .Highlight}}<span class="plan-flag">{{T "Recommended"}}</span>{{end}}
-    </header>
-    {{with .Description}}<p class="plan-desc">{{T .}}</p>{{end}}
-    <p class="plan-price">{{if .Free}}<strong>{{T "Free"}}</strong>{{else}}<strong>{{.Price}}</strong>{{with .Interval}}<span>/ {{if eq . "month"}}{{T "month"}}{{else if eq . "year"}}{{T "year"}}{{else}}{{.}}{{end}}</span>{{end}}{{end}}</p>
-    {{- with .YearlyPrice}}{{$free := $p.FreeMonths}}
-    <p class="plan-yearly"><span>{{T "or %s a year" .}}</span>{{if eq $free 1}}<span class="plan-save">{{T "1 month free"}}</span>{{else if $free}}<span class="plan-save">{{T "%d months free" $free}}</span>{{end}}</p>
-    {{- end}}
-    {{- if eq .Tax "included"}}
-    <p class="plan-tax">{{T "VAT included"}}</p>
-    {{- else if eq .Tax "added"}}
-    <p class="plan-tax">{{T "+ VAT"}}</p>
-    {{- end}}
-    <p class="plan-use">{{if .Commercial}}{{icon "badge-check"}} {{T "Commercial use allowed"}}{{else}}{{icon "user-round-check"}} {{T "Personal, non-commercial sites"}}{{end}}</p>
-    <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{template "plan-feature" .}}</span></li>{{end}}</ul>
-    {{$hl := .Highlight}}{{with .SignupURL}}<a class="button {{if $hl}}button-primary{{else}}button-outline{{end}} plan-cta" href="{{.}}">{{T "Choose plan"}}</a>{{end}}
-  </article>
-  {{end}}
+{{- $yearly := false}}{{range .}}{{if .YearlyPrice}}{{$yearly = true}}{{end}}{{end}}
+<div class="plans-box" data-plans>
+  {{- if $yearly}}
+  <div class="plan-interval" role="radiogroup" aria-label="{{T "Billing period"}}" data-plan-switch hidden>
+    <button type="button" role="radio" aria-checked="true" data-interval="month">{{T "Monthly"}}</button>
+    <button type="button" role="radio" aria-checked="false" tabindex="-1" data-interval="year">{{T "Yearly"}}</button>
+  </div>
+  {{- end}}
+  <div class="plans">
+    {{range .}}{{$p := .}}
+    <article class="plan{{if .Highlight}} is-highlight{{end}}">
+      <header class="plan-head">
+        <h3>{{T .Name}}</h3>
+        {{if .Highlight}}<span class="plan-flag">{{T "Recommended"}}</span>{{end}}
+      </header>
+      {{with .Description}}<p class="plan-desc">{{T .}}</p>{{end}}
+      <p class="plan-price{{if .YearlyPrice}} plan-price-month{{end}}">{{if .Free}}<strong>{{T "Free"}}</strong>{{else}}<strong>{{.Price}}</strong>{{with .Interval}}<span>/ {{if eq . "month"}}{{T "month"}}{{else if eq . "year"}}{{T "year"}}{{else}}{{.}}{{end}}</span>{{end}}{{end}}</p>
+      {{- with .YearlyPrice}}
+      <p class="plan-price plan-price-year"><strong>{{.}}</strong><span>/ {{T "year"}}</span>{{template "sap/plan-save" $p}}</p>
+      <p class="plan-yearly"><span>{{T "or %s a year" .}}</span>{{template "sap/plan-save" $p}}</p>
+      {{- end}}
+      {{- if eq .Tax "included"}}
+      <p class="plan-tax">{{T "VAT included"}}</p>
+      {{- else if eq .Tax "added"}}
+      <p class="plan-tax">{{T "+ VAT"}}</p>
+      {{- end}}
+      <p class="plan-use">{{if .Commercial}}{{icon "badge-check"}} {{T "Commercial use allowed"}}{{else}}{{icon "user-round-check"}} {{T "Personal, non-commercial sites"}}{{end}}</p>
+      <ul class="plan-features">{{range .Features}}<li>{{icon "check"}}<span>{{template "plan-feature" .}}</span></li>{{end}}</ul>
+      {{$hl := .Highlight}}{{with .SignupURL}}<a class="button {{if $hl}}button-primary{{else}}button-outline{{end}} plan-cta" href="{{.}}"{{if $p.YearlyPrice}} data-href-year="{{.}}?plan={{$p.Slug}}&amp;interval=year"{{end}}>{{T "Choose plan"}}</a>{{end}}
+    </article>
+    {{end}}
+  </div>
 </div>
 {{end}}
+
+{{/* sap/plan-save: what a plan's yearly price saves, as a badge: the
+     months free when they are whole, else the amount. Data: PlanView. */}}
+{{define "sap/plan-save"}}{{if eq .FreeMonths 1}}<span class="plan-save">{{T "1 month free"}}</span>{{else if .FreeMonths}}<span class="plan-save">{{T "%d months free" .FreeMonths}}</span>{{else if .YearlySaving}}<span class="plan-save">{{T "Save %s" .YearlySaving}}</span>{{end}}{{end}}

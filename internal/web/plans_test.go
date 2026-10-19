@@ -124,26 +124,70 @@ func TestPortalPlanPrices(t *testing.T) {
 		t.Fatal(err)
 	}
 	type row struct {
-		price, interval, yearly string
-		free                    int
-		tax                     string
+		price, interval, yearly, saving string
+		free                            int
+		tax                             string
 	}
 	want := []row{
-		{"9\u00a0€", "month", "99\u00a0€", 1, "included"},
-		{"30\u00a0€", "month", "330\u00a0€", 1, "added"},
-		{"$12.50", "month", "$105", 0, ""}, // saves 45 dollars: not a whole month
-		{"50\u00a0CHF", "month", "", 0, ""},
+		{"9\u00a0€", "month", "99\u00a0€", "9\u00a0€", 1, "included"},
+		{"30\u00a0€", "month", "330\u00a0€", "30\u00a0€", 1, "added"},
+		{"$12.50", "month", "$105", "$45", 0, ""}, // not a whole month
+		{"50\u00a0CHF", "month", "", "", 0, ""},
 	}
 	if len(views) != len(want) {
 		t.Fatalf("%d plans: %+v", len(views), views)
 	}
 	for i, v := range views {
-		if got := (row{v.Price, v.Interval, v.YearlyPrice, v.FreeMonths, v.Tax}); got != want[i] {
+		if got := (row{v.Price, v.Interval, v.YearlyPrice, v.YearlySaving, v.FreeMonths, v.Tax}); got != want[i] {
 			t.Errorf("%s: %+v, want %+v", v.Slug, got, want[i])
 		}
 	}
 	if !views[0].Highlight || views[1].Highlight {
 		t.Error("the first paid plan is the highlighted one")
+	}
+}
+
+// TestChosenOffer: the pricing table's buttons ask My sites for a plan
+// and an interval; the upgrade picker starts on the closest offer.
+func TestChosenOffer(t *testing.T) {
+	offers := []PlanOffer{{Plan: "pro"}, {Plan: "pro", Yearly: true}, {Plan: "business"}, {Plan: "agency", Yearly: true}}
+	for _, c := range []struct{ plan, interval, want string }{
+		{"pro", "year", "pro:year"},
+		{"pro", "month", "pro:month"},
+		{"business", "year", "pro:year"}, // no yearly Business: the first yearly offer
+		{"agency", "month", "pro:month"}, // the interval first
+		{"agency", "", "agency:year"},    // no interval: the plan
+		{"", "year", "pro:year"},
+		{"", "", ""},                   // the picker's first
+		{"pro", "decade", "pro:month"}, // an unknown interval is none
+		{"nope", "month", "pro:month"},
+	} {
+		if got := chosenOffer(offers, c.plan, c.interval); got != c.want {
+			t.Errorf("chosenOffer(%q, %q) = %q, want %q", c.plan, c.interval, got, c.want)
+		}
+	}
+}
+
+// TestPlansTemplate renders the sap13ns theme's pricing table: without
+// JavaScript both prices are there, the switch is hidden until plans.js
+// shows it, and the yearly buttons carry the interval.
+func TestPlansTemplate(t *testing.T) {
+	b, err := os.ReadFile("../../site/themes/sap13ns/templates/partials/base.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`role="radiogroup"`, `data-plan-switch hidden`, `role="radio" aria-checked="true" data-interval="month"`,
+		`data-href-year="{{.}}?plan={{$p.Slug}}&amp;interval=year"`, `{{T "or %s a year" .}}`, `{{T "Save %s" .YearlySaving}}`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("the plans partial has no %s", want)
+		}
+	}
+	bundles, err := os.ReadFile("../../scripts/js-bundles.mjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(bundles), `"plans.js"`) {
+		t.Error("the site bundle does not include plans.js")
 	}
 }
 

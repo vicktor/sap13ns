@@ -691,16 +691,18 @@ type PlanView struct {
 	Price       string // formatted, e.g. "9 €"; empty when free
 	Interval    string // of Price: "month" | "year" | ""
 	// YearlyPrice is the yearly price of a plan that is also sold by the
-	// month (Price), e.g. "99 €"; FreeMonths is how many months of the
-	// year it saves, when that is a whole number (99 € for 9 € a month: 1).
-	YearlyPrice string
-	FreeMonths  int
-	Tax         string // "included" (VAT included), "added" (VAT on top) or "" (not said)
-	Free        bool
-	Commercial  bool // allowed for commercial sites
-	Highlight   bool
-	Features    []PlanFeature
-	SignupURL   string
+	// month (Price), e.g. "99 €"; YearlySaving is what it saves over twelve
+	// months ("9 €"), and FreeMonths how many months that is, when it is a
+	// whole number (99 € for 9 € a month: 1).
+	YearlyPrice  string
+	YearlySaving string
+	FreeMonths   int
+	Tax          string // "included" (VAT included), "added" (VAT on top) or "" (not said)
+	Free         bool
+	Commercial   bool // allowed for commercial sites
+	Highlight    bool
+	Features     []PlanFeature
+	SignupURL    string
 }
 
 // Area returns the widgets placed in a theme area.

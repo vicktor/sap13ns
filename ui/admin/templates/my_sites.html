@@ -52,7 +52,7 @@
           <div class="field">
             <label for="offer-{{.ID}}">{{T "Plan for %s" .Slug}}</label>
             {{$o := list}}{{range $d.Offers}}{{$per := T "per month"}}{{if .Yearly}}{{$per = T "per year"}}{{end}}{{$tax := ""}}{{if eq .Tax "included"}}{{$tax = printf " · %s" (T "VAT included")}}{{else if eq .Tax "added"}}{{$tax = printf " · %s" (T "+ VAT")}}{{end}}{{$o = append $o (opt .Value (printf "%v · %v %s%s" .Name .Display $per $tax))}}{{end}}
-            {{template "select" (selectbox "id" (printf "offer-%v" .ID) "name" "offer" "options" $o)}}
+            {{template "select" (selectbox "id" (printf "offer-%v" .ID) "name" "offer" "value" $d.Offer "options" $o)}}
           </div>
           <div><button class="btn" type="submit">{{icon "zap"}}{{T "Upgrade %s" $site.Slug}}</button></div>
         </form>

@@ -557,6 +557,7 @@ type mySitesData struct {
 	Billing    bool
 	Upgradable []NetSite
 	Offers     []PlanOffer
+	Offer      string // the offer chosen first: ?plan= and ?interval= (the pricing table's choice), or the first
 	Returned   string
 }
 
@@ -584,7 +585,31 @@ func (s *Server) mySitesData(r *http.Request) (mySitesData, error) {
 	if v := r.URL.Query().Get("billing"); v == "success" || v == "canceled" {
 		d.Returned = v
 	}
+	d.Offer = chosenOffer(d.Offers, r.URL.Query().Get("plan"), r.URL.Query().Get("interval"))
 	return d, nil
+}
+
+// chosenOffer is the value of the offer that matches a plan and an
+// interval ("month" or "year"), as the pricing table's buttons ask for:
+// the plan at that interval, else the first offer at that interval, else
+// the plan's first offer, else "" (the picker starts on its first).
+func chosenOffer(offers []PlanOffer, plan, interval string) string {
+	if interval != "month" && interval != "year" {
+		interval = ""
+	}
+	at := func(o PlanOffer) bool { return interval != "" && o.Yearly == (interval == "year") }
+	for _, match := range []func(PlanOffer) bool{
+		func(o PlanOffer) bool { return o.Plan == plan && at(o) },
+		at,
+		func(o PlanOffer) bool { return plan != "" && o.Plan == plan },
+	} {
+		for _, o := range offers {
+			if match(o) {
+				return o.Value()
+			}
+		}
+	}
+	return ""
 }
 
 func (s *Server) adminMySites(w http.ResponseWriter, r *http.Request) {

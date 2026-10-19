@@ -472,6 +472,13 @@ func TestBillingCheckout(t *testing.T) {
 	if strings.Contains(body, "price_") {
 		t.Fatal("My sites shows a Stripe price ID")
 	}
+	// The pricing table's yearly button: the picker starts on that offer.
+	if body := b.page("/admin/sites?plan=pro&interval=year"); !strings.Contains(body, `name="offer" value="pro:year"`) {
+		t.Fatalf("My sites does not start on the yearly offer:\n%s", body)
+	}
+	if body := b.page("/admin/sites"); !strings.Contains(body, `name="offer" value="pro:month"`) {
+		t.Fatal("My sites does not start on the first offer")
+	}
 	if csp := b.get(portalURL + "/admin/sites").Header().Get("Content-Security-Policy"); !strings.Contains(csp, "form-action 'self' https://checkout.stripe.com https://billing.stripe.com") {
 		t.Fatalf("the CSP of My sites: %s", csp)
 	}

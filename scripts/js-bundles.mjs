@@ -17,11 +17,11 @@ export const bundles = [
     // Every public page (shared/head): the toggles and menus, the cookie
     // consent (only with its dialog on the page; window.sapConsent is ready
     // before the plugins' scripts run), the one-page menu (only with
-    // data-sap-onepage on the bundle's script tag), the video players and the
-    // site assistant.
+    // data-sap-onepage on the bundle's script tag), the video players, the
+    // site assistant and the pricing table's monthly/yearly switch.
     name: "site",
     out: "ui/static/site.min.js",
-    sources: ["site.js", "consent.js", "onepage.js", "video.js", "assistant.js"],
+    sources: ["site.js", "consent.js", "onepage.js", "video.js", "assistant.js", "plans.js"],
   },
   {
     // The chrome of every admin page (ui/admin/templates/layout.html), after
