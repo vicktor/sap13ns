@@ -174,7 +174,7 @@ func settingsForm(st store.Settings) url.Values {
 		"comments_close_days": {fmt.Sprint(st.CommentsCloseDays)}, "default_role": {st.DefaultRole},
 		"feed_items": {fmt.Sprint(st.FeedItems)}, "two_factor": {st.TwoFactor}, "og_cards": {st.OGCards}, "og_accent": {st.OGAccent},
 		"ai_access": {st.AIAccess}, "session_days": {fmt.Sprint(st.SessionDays)}, "idle_hours": {fmt.Sprint(st.IdleHours)},
-		"login_path": {st.LoginPath}}
+		"login_path": {st.LoginPath}, "video_embeds": {st.VideoEmbeds}}
 	for k, v := range map[string]bool{"comments_enabled": st.CommentsEnabled, "analytics": !st.AnalyticsOff,
 		"gravatar_users": st.GravatarUsers, "gravatar_commenters": st.GravatarCommenters, "feed_full_text": st.FeedFullText,
 		"hide_admin": st.HideAdmin} {

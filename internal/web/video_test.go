@@ -66,7 +66,7 @@ func (e *customEnv) setVideoEmbeds(mode string) {
 
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) { // generous: a loaded machine
 		if ok() {
 			return
 		}

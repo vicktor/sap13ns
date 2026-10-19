@@ -149,7 +149,7 @@ func (s *Server) handleVideoThumb(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiVideo(w http.ResponseWriter, r *http.Request) {
 	v, ok := content.ParseVideoURL(r.URL.Query().Get("url"))
 	if !ok {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": s.tr(r, "Enter a YouTube or Vimeo address.")})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": s.tu(r, "Enter a YouTube or Vimeo address.")})
 		return
 	}
 	mode := s.settings().VideoEmbeds
