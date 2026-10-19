@@ -250,6 +250,7 @@ type SiteView struct {
 	URL               string // absolute home URL in the current language
 	Home              string // home path in the current language ("/" or "/en/")
 	Search            string // search path in the current language
+	Blog              string // the posts list in the current language ("/blog", "/en/blog")
 	Lang              string
 	FooterText        string
 	Year              int
@@ -270,8 +271,11 @@ type SiteView struct {
 	// PreviewTheme is the theme slug of an administrator's ?preview_theme=
 	// preview (empty otherwise), kept in pagination and internal links.
 	PreviewTheme string
-	theme        *theme.Theme
-	server       *Server
+	// atHome: this page is the front page (/ or /en/), where the anchors
+	// of a one-page site are (Link).
+	atHome bool
+	theme  *theme.Theme
+	server *Server
 }
 
 // Asset returns the cache-busted URL of a file in the active theme's static/.
@@ -431,7 +435,9 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		AllowRegistration: st.AllowRegistration,
 		FeedRSS:           s.langPath(lang, "/feed.xml"), FeedAtom: s.langPath(lang, "/feed.atom"), FeedJSON: s.langPath(lang, "/feed.json"),
 		Search:       s.langPath(lang, "/search"),
+		Blog:         s.langPath(lang, "/blog"),
 		PreviewTheme: s.previewing(r, th),
+		atHome:       here == s.langPath(lang, "/"),
 		theme:        th, server: s,
 	}
 	// A language's own menu replaces the shared one for the same location.
@@ -447,7 +453,7 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		}
 		links := make([]MenuLink, 0, len(items))
 		for _, it := range items {
-			links = append(links, MenuLink{Label: it.Label, URL: it.URL, External: isExternal(it.URL)})
+			links = append(links, MenuLink{Label: it.Label, URL: sv.Link(it.URL), External: isExternal(it.URL)})
 		}
 		sv.Menus[loc] = markActive(links, here)
 	}
@@ -598,7 +604,7 @@ type WidgetView struct {
 
 type PageData struct {
 	Site        *SiteView
-	Kind        string // home | single | page | archive | search | 404
+	Kind        string // front | home | single | page | archive | search | 404 | ask
 	Title       string
 	Heading     string
 	Description string

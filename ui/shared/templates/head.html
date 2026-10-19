@@ -33,6 +33,8 @@
 {{end}}{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
 {{end}}{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
 {{end}}<script src="{{.Site.Static "site.js"}}" defer></script>
+{{if .OnePage}}<script src="{{.Site.Static "onepage.js"}}" defer></script>
+{{end}}
 {{range .PluginJS}}<script src="{{.}}" defer></script>
 {{end}}{{end}}
 

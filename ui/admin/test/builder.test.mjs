@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   getRegion, setRegion, ids, newID, addSection, removeSection, moveSection, duplicateSection, fitColumns, setPreset,
   setStyle, insertBlock, removeBlock, moveBlock, dropIndex, duplicateBlock, setValue, find, step, count, allowed,
-  required, starter, summary, parseErrorPath, History,
+  required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
+  addItem, removeItem, moveItem, setItemValue, newBlock, reid,
 } from "../../static/builder.js";
 
 // A seeded random source, so ids are reproducible.
@@ -173,7 +174,7 @@ test("starters are valid for their regions", () => {
     "post-meta": { type: "post-meta", where: ["single", "page"] }, pagination: { type: "pagination", where: ["home", "archive", "search", "single"], once: true },
     comments: { type: "comments", where: ["single", "page"], once: true }, search: { type: "search", where: ["*"] },
   };
-  for (const name of ["header", "footer", "home", "single", "page", "archive", "search", "404"]) {
+  for (const name of ["header", "footer", "front", "home", "single", "page", "archive", "search", "404"]) {
     const r = starter(name, { title404: "No está" }, {}, seeded());
     assert.ok(r.sections.length > 0, name);
     const seen = {};
@@ -204,12 +205,88 @@ test("summary", () => {
 });
 
 test("server error paths", () => {
-  assert.deepEqual(parseErrorPath("pages.home.sections[1].columns[0][2].settings.url"), { region: "home", s: 1, c: 0, b: 2, key: "url", lang: "" });
-  assert.deepEqual(parseErrorPath("footer.sections[0].columns[1][0].i18n.en.title"), { region: "footer", s: 0, c: 1, b: 0, key: "title", lang: "en" });
-  assert.deepEqual(parseErrorPath("pages.single"), { region: "single", s: null, c: null, b: null, key: "", lang: "" });
-  assert.deepEqual(parseErrorPath("header.sections[0].style.background"), { region: "header", s: 0, c: null, b: null, key: "", lang: "" });
-  assert.deepEqual(parseErrorPath("pages.404.sections[0].columns[0][0].type"), { region: "404", s: 0, c: 0, b: 0, key: "", lang: "" });
+  assert.deepEqual(parseErrorPath("pages.home.sections[1].columns[0][2].settings.url"), { region: "home", s: 1, c: 0, b: 2, item: null, key: "url", lang: "" });
+  assert.deepEqual(parseErrorPath("footer.sections[0].columns[1][0].i18n.en.title"), { region: "footer", s: 0, c: 1, b: 0, item: null, key: "title", lang: "en" });
+  assert.deepEqual(parseErrorPath("pages.single"), { region: "single", s: null, c: null, b: null, item: null, key: "", lang: "" });
+  assert.deepEqual(parseErrorPath("header.sections[0].style.background"), { region: "header", s: 0, c: null, b: null, item: null, key: "", lang: "" });
+  assert.deepEqual(parseErrorPath("pages.404.sections[0].columns[0][0].type"), { region: "404", s: 0, c: 0, b: 0, item: null, key: "", lang: "" });
   assert.equal(parseErrorPath("version"), null);
+  // Landing blocks: an item's setting or translation, the item list, and
+  // a section's anchor.
+  assert.deepEqual(parseErrorPath("pages.front.sections[2].columns[0][1].items[3].settings.title"), { region: "front", s: 2, c: 0, b: 1, item: 3, key: "title", lang: "" });
+  assert.deepEqual(parseErrorPath("pages.front.sections[0].columns[1][0].items[0].i18n.en.answer"), { region: "front", s: 0, c: 1, b: 0, item: 0, key: "answer", lang: "en" });
+  assert.deepEqual(parseErrorPath("pages.front.sections[0].columns[0][0].items"), { region: "front", s: 0, c: 0, b: 0, item: -1, key: "", lang: "" });
+  assert.deepEqual(parseErrorPath("pages.front.sections[4].anchor"), { region: "front", s: 4, c: null, b: null, item: null, key: "", lang: "", anchor: true });
+});
+
+test("anchors: validity, uniqueness on a page, set and remove", () => {
+  for (const ok of ["features", "a", "pricing-2", "x".repeat(40)]) assert.ok(validAnchor(ok), ok);
+  for (const bad of ["", "Features", "1x", "-x", "main", "comments", "search", "sap-x", "a b", "x".repeat(41), "é"]) assert.ok(!validAnchor(bad), bad);
+  const l = {
+    header: { sections: [{ id: "h", anchor: "top", layout: "1", columns: [[]] }] },
+    pages: {
+      front: { sections: [{ id: "a", anchor: "features", layout: "1", columns: [[]] }, { id: "b", layout: "1", columns: [[]] }] },
+      home: { sections: [{ id: "c", anchor: "pricing", layout: "1", columns: [[]] }] },
+    },
+  };
+  assert.deepEqual([...anchorsTaken(l, "front", 1)].sort(), ["features", "top"]);
+  assert.deepEqual([...anchorsTaken(l, "front", 0)].sort(), ["top"], "its own anchor is not taken");
+  assert.deepEqual([...anchorsTaken(l, "header", 0)].sort(), ["features", "pricing"], "the header shares every page");
+  const set = setAnchor(l, "front", 1, "faq");
+  assert.equal(set.pages.front.sections[1].anchor, "faq");
+  assert.equal(l.pages.front.sections[1].anchor, undefined, "input changed");
+  assert.ok(!("anchor" in setAnchor(set, "front", 1, "").pages.front.sections[1]));
+});
+
+test("items: add, move, remove, values and one-only settings", () => {
+  const p = { s: 0, c: 0, b: 0 };
+  let l = { pages: { front: { sections: [{ id: "s", layout: "1", columns: [[{ id: "pr", type: "pricing" }]] }] } } };
+  const items = (x) => x.pages.front.sections[0].columns[0][0].items;
+  l = addItem(l, "front", p, { settings: { name: "A" } });
+  l = addItem(l, "front", p, { settings: { name: "B" } });
+  l = addItem(l, "front", p, { settings: { name: "Z" } }, 0);
+  assert.deepEqual(items(l).map((i) => i.settings.name), ["Z", "A", "B"]);
+  l = moveItem(l, "front", p, 0, 2);
+  assert.deepEqual(items(l).map((i) => i.settings.name), ["A", "B", "Z"]);
+  assert.deepEqual(moveItem(l, "front", p, 0, -1), l, "no move past the edge");
+  l = setItemValue(l, "front", p, 0, "highlight", "true", "", "false", true);
+  l = setItemValue(l, "front", p, 1, "highlight", "true", "", "false", true);
+  assert.deepEqual(items(l).map((i) => i.settings.highlight), [undefined, "true", undefined], "one highlighted plan");
+  l = setItemValue(l, "front", p, 1, "highlight", "false", "", "false", true);
+  assert.equal(items(l)[1].settings.highlight, undefined, "the default is not stored");
+  l = setItemValue(l, "front", p, 2, "name", "Zeta", "en");
+  assert.deepEqual(items(l)[2].i18n, { en: { name: "Zeta" } });
+  l = setItemValue(l, "front", p, 2, "name", "", "en");
+  assert.equal(items(l)[2].i18n, undefined);
+  l = removeItem(l, "front", p, 0);
+  l = removeItem(l, "front", p, 0);
+  l = removeItem(l, "front", p, 0);
+  assert.equal(items(l), undefined, "an empty list is dropped");
+});
+
+test("new blocks start from their starter; presets get fresh ids", () => {
+  const starters = { features: { type: "features", items: [{ settings: { title: "Rápido" } }], i18n: { en: { title: "Why" } } } };
+  const l = base();
+  const b = newBlock(l, { type: "features" }, starters, { columns: "4" }, seeded());
+  assert.equal(b.type, "features");
+  assert.ok(!ids(l).has(b.id));
+  assert.deepEqual(b.settings, { columns: "4" });
+  assert.deepEqual(b.items, [{ settings: { title: "Rápido" } }]);
+  b.items[0].settings.title = "x";
+  assert.equal(starters.features.items[0].settings.title, "Rápido", "the starter is copied");
+  assert.deepEqual(newBlock(l, { type: "hero" }, starters, {}, seeded()).items, undefined);
+
+  const preset = { sections: [{ id: "s-1", anchor: "intro", layout: "1", columns: [[{ id: "b-2", type: "hero" }]] }, { id: "s-3", layout: "1", columns: [[{ id: "b-4", type: "cta" }]] }] };
+  const r = reid(preset, l, seeded());
+  const all = new Set([...ids(l)]);
+  for (const s of r.sections) {
+    assert.ok(!all.has(s.id)); all.add(s.id);
+    for (const x of s.columns.flat()) { assert.ok(!all.has(x.id)); all.add(x.id); }
+  }
+  assert.equal(r.sections[0].anchor, "intro");
+  assert.equal(preset.sections[0].id, "s-1", "input changed");
+  assert.ok(PAGE_REGIONS.includes("front"));
+  assert.equal(starter("front", {}, {}, seeded()).sections[0].columns[0][0].type, "hero");
 });
 
 test("history: undo, redo and merged typing", () => {

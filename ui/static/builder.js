@@ -8,9 +8,12 @@
 // Pure functions are exported for node --test (ui/admin/test/builder.test.mjs).
 
 export const PRESETS = { "1": 1, "1-1": 2, "2-1": 2, "1-2": 2, "1-1-1": 3 };
-export const PAGE_REGIONS = ["home", "single", "page", "archive", "search", "404"];
+export const PAGE_REGIONS = ["front", "home", "single", "page", "archive", "search", "404"];
 const META = "footer-meta";
 const CONTENT = "single-content";
+// Ids the core's own markup uses, which a section anchor may not take
+// (internal/builder: reservedAnchors).
+const RESERVED_ANCHORS = new Set(["main", "menu", "primary-menu", "comments", "respond", "search"]);
 
 const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
 
@@ -132,6 +135,33 @@ export function setPreset(l, name, s, preset) {
   });
 }
 
+/** validAnchor reports whether a can be a section's anchor (#pricing), as
+ * the server checks it. */
+export function validAnchor(a) {
+  return /^[a-z][a-z0-9-]{0,39}$/.test(a) && !a.startsWith("sap-") && !RESERVED_ANCHORS.has(a);
+}
+
+/** anchorsTaken lists the anchors on the page of region name other than
+ * section s's: the header's and the footer's show on every page. */
+export function anchorsTaken(l, name, s) {
+  const out = new Set();
+  const add = (r, skip) => (r?.sections || []).forEach((sec, i) => { if (sec.anchor && i !== skip) out.add(sec.anchor); });
+  const global = name === "header" || name === "footer";
+  add(l.header, name === "header" ? s : -1);
+  add(l.footer, name === "footer" ? s : -1);
+  if (global) for (const r of Object.values(l.pages || {})) add(r, -1);
+  else add(getRegion(l, name), s);
+  return out;
+}
+
+/** setAnchor sets section s's anchor; an empty one is removed. */
+export function setAnchor(l, name, s, anchor) {
+  return edit(l, name, (r) => {
+    const sec = r.sections[s];
+    if (anchor) sec.anchor = anchor; else delete sec.anchor;
+  });
+}
+
 /** setStyle sets a section appearance option; the default is not stored. */
 export function setStyle(l, name, s, key, value, def) {
   return edit(l, name, (r) => {
@@ -198,6 +228,92 @@ export function setValue(l, name, p, key, value, lang = "", def = "") {
     if (Object.keys(t).length) all[lang] = t; else delete all[lang];
     if (Object.keys(all).length) b.i18n = all; else delete b.i18n;
   });
+}
+
+// ------------------------------------------------------------- items --
+// A landing block (features, plans, questions…) repeats items, each with
+// its settings and translations as a block has them.
+
+const itemsOf = (r, p) => {
+  const b = col(r, p)[p.b];
+  b.items = b.items || [];
+  return b;
+};
+const tidy = (b) => { if (!b.items.length) delete b.items; };
+
+/** addItem inserts item into the block at p (at the end by default). */
+export function addItem(l, name, p, item = {}, at = Infinity) {
+  return edit(l, name, (r) => {
+    const b = itemsOf(r, p);
+    b.items.splice(Math.max(0, Math.min(at, b.items.length)), 0, clone(item));
+  });
+}
+
+export function removeItem(l, name, p, i) {
+  return edit(l, name, (r) => { const b = itemsOf(r, p); b.items.splice(i, 1); tidy(b); });
+}
+
+/** moveItem moves item from to index to. */
+export function moveItem(l, name, p, from, to) {
+  return edit(l, name, (r) => {
+    const b = itemsOf(r, p);
+    if (to < 0 || to >= b.items.length) return;
+    const [it] = b.items.splice(from, 1);
+    b.items.splice(to, 0, it);
+  });
+}
+
+/** setItemValue sets a setting of item i (lang "") or its translation, as
+ * setValue does a block's. With one, turning the setting on turns it off
+ * in the other items (one highlighted plan). */
+export function setItemValue(l, name, p, i, key, value, lang = "", def = "", one = false) {
+  return edit(l, name, (r) => {
+    const b = itemsOf(r, p);
+    const it = b.items[i];
+    if (!it) return;
+    if (!lang) {
+      const s = { ...(it.settings || {}) };
+      if (value === "" || value == null || value === def) delete s[key]; else s[key] = String(value);
+      if (Object.keys(s).length) it.settings = s; else delete it.settings;
+      if (one && String(value) === "true") {
+        b.items.forEach((x, j) => {
+          if (j === i || !x.settings?.[key]) return;
+          delete x.settings[key];
+          if (!Object.keys(x.settings).length) delete x.settings;
+        });
+      }
+      return;
+    }
+    const all = { ...(it.i18n || {}) };
+    const t = { ...(all[lang] || {}) };
+    if (value === "" || value == null) delete t[key]; else t[key] = String(value);
+    if (Object.keys(t).length) all[lang] = t; else delete all[lang];
+    if (Object.keys(all).length) it.i18n = all; else delete it.i18n;
+  });
+}
+
+/** newBlock is a block of type t as the editor adds it: the type's starter
+ * (sample items) when it has one. */
+export function newBlock(l, t, starters = {}, settings = {}, rand) {
+  const s = starters[t.type] || {};
+  const b = { id: newID(l, t.type, new Set(), rand), type: t.type };
+  const set = { ...(s.settings || {}), ...settings };
+  if (Object.keys(set).length) b.settings = set;
+  if (s.items?.length) b.items = clone(s.items);
+  if (s.i18n) b.i18n = clone(s.i18n);
+  return b;
+}
+
+/** reid returns a copy of region with new ids for its sections and blocks,
+ * none of them used in the layouts l (a preset's ids are placeholders). */
+export function reid(region, l = {}, rand) {
+  const taken = new Set();
+  const out = clone(region) || { sections: [] };
+  for (const s of out.sections || []) {
+    s.id = newID(l, "s", taken, rand);
+    for (const c of s.columns || []) for (const b of c) b.id = newID(l, b.type, taken, rand);
+  }
+  return out;
 }
 
 /** find locates a section or block by id in a region. */
@@ -273,6 +389,7 @@ export function starter(name, msg = {}, l = {}, rand) {
         sec("1", [[b(META)]], { padding: "small" }),
       ],
     };
+    case "front": return { sections: [sec("1", [[b("hero", { size: "large" })]], { padding: "large" })] };
     case "home": return { sections: [sec("1", [[b("hero", { size: "large" })]]), sec("1", [[b("post-list")]])] };
     case "single": return {
       sections: [sec("1", [[b("breadcrumbs"), b("featured-image"), b(CONTENT), b("post-meta"), b("pagination"), b("comments")]], { width: "narrow" })],
@@ -303,14 +420,17 @@ export function summary(block, t, menus = [], areas = []) {
 
 /** parseErrorPath maps a server error field to its region and position:
  * "pages.home.sections[1].columns[0][2].settings.url" →
- * {region: "home", s: 1, c: 0, b: 2, key: "url", lang: ""}. */
+ * {region: "home", s: 1, c: 0, b: 2, item: null, key: "url", lang: ""}.
+ * item is the index of a block's item (….items[3].settings.title), or -1
+ * for the list itself (….items); anchor marks a section's anchor. */
 export function parseErrorPath(path) {
-  const m = /^(header|footer|pages\.([a-z0-9]+))(?:\.sections\[(\d+)\](?:\.columns(?:\[(\d+)\](?:\[(\d+)\](?:\.(settings|i18n)\.([a-z0-9_-]+)(?:\.([a-z0-9_]+))?)?)?)?)?)?/i.exec(path || "");
+  const m = /^(header|footer|pages\.([a-z0-9]+))(?:\.sections\[(\d+)\](?:(\.anchor)|\.columns(?:\[(\d+)\](?:\[(\d+)\](?:(\.items)(?:\[(\d+)\])?)?(?:\.(settings|i18n)\.([a-z0-9_-]+)(?:\.([a-z0-9_]+))?)?)?)?)?)?/i.exec(path || "");
   if (!m) return null;
   const n = (v) => (v == null ? null : Number(v));
-  const out = { region: m[2] || m[1], s: n(m[3]), c: n(m[4]), b: n(m[5]), key: "", lang: "" };
-  if (m[6] === "settings") out.key = m[7];
-  if (m[6] === "i18n") { out.lang = m[7]; out.key = m[8] || ""; }
+  const out = { region: m[2] || m[1], s: n(m[3]), c: n(m[5]), b: n(m[6]), item: m[7] ? (m[8] == null ? -1 : Number(m[8])) : null, key: "", lang: "" };
+  if (m[4]) out.anchor = true;
+  if (m[9] === "settings") out.key = m[10];
+  if (m[9] === "i18n") { out.lang = m[10]; out.key = m[11] || ""; }
   return out;
 }
 
@@ -431,7 +551,22 @@ function init(root) {
         selected = start.sections[0]?.id || null;
         commit(setRegion(layout(), region, start));
       } }, icon("plus"), msg.msgBuild));
+      // The front page can start from a whole ready-made page.
+      const presets = region === "front" ? state.front_presets || [] : [];
+      if (presets.length) {
+        kids.push(h("p", { class: "bl-intro-or", text: msg.msgPresetsIntro }),
+          h("ul", { class: "bl-front-presets" }, presets.map((p) => h("li", {}, h("button", { type: "button", class: "bl-front-preset", onclick: () => {
+            const start = reid(p.region, layout());
+            selected = null;
+            commit(setRegion(layout(), region, start));
+            say(fmt(msg.msgPresetApplied, p.label));
+          } }, h("strong", { text: p.label }), h("span", { text: p.help }))))));
+      }
     } else {
+      if (r.sections.some((s) => s.anchor)) {
+        kids.push(h("p", { class: "hint bl-intro-hint" }, msg.msgAnchorsHint, " ",
+          state.menus_url ? h("a", { href: state.menus_url, target: "_blank", rel: "noopener", text: msg.msgEditMenus }) : null));
+      }
       if (region === "header") {
         const id = "bl-top-bar";
         kids.push(h("label", { class: "check", for: id },
@@ -454,8 +589,12 @@ function init(root) {
 
   // The server's messages are in English; the ones typing can cause are
   // shown in the admin's language.
-  const errText = (f, e) => (f?.type === "url" ? msg.msgBadUrl : f?.type === "email" ? msg.msgBadEmail
+  const errText = (f, e) => (e.anchor ? (/already the anchor/.test(e.message) ? fmt(msg.msgAnchorTaken, /^"([^"]*)"/.exec(e.message)?.[1] || "") : msg.msgBadAnchor)
+    : f?.type === "url" ? msg.msgBadUrl : f?.type === "email" ? msg.msgBadEmail
     : /^at most \d+ characters$/.test(e.message) ? fmt(msg.msgTooLong, f?.max || "") : e.message);
+  // fid is the id of a field's input: a block's, or an item's (item i).
+  const fid = (key, lang, item) => `bl-f-${item != null && item >= 0 ? `i${item}-` : ""}${key}${lang ? "-" + lang : ""}`;
+  const sameBlock = (e, pos) => e.region === region && e.s === pos.s && e.c === pos.c && e.b === pos.b;
   const errorsAt = (p) => errors.filter((e) => e.region === region && e.s === p.s && (p.c == null || (e.c === p.c && e.b === p.b)));
 
   function iconButton(name, label, onclick, extra = {}) {
@@ -470,7 +609,7 @@ function init(root) {
     const list = h("ol", { class: "bl-sections", "data-drop-sections": "" });
     r.sections.forEach((sec, s) => {
       const n = PRESETS[sec.layout] || 1;
-      const meta = [n > 1 ? fmt(msg.msgColumns, n) : "", ...styles.map((st) => sec.style?.[st.key] && st.choices.find((c) => c.value === sec.style[st.key])?.label).filter(Boolean)].filter(Boolean).join(" · ");
+      const meta = [sec.anchor ? `#${sec.anchor}` : "", n > 1 ? fmt(msg.msgColumns, n) : "", ...styles.map((st) => sec.style?.[st.key] && st.choices.find((c) => c.value === sec.style[st.key])?.label).filter(Boolean)].filter(Boolean).join(" · ");
       const label = fmt(msg.msgSection, s + 1);
       const secErr = errors.some((e) => e.region === region && e.s === s);
       const li = h("li", { class: "bl-section", "data-id": sec.id, "aria-current": selected === sec.id ? "true" : null, "data-invalid": secErr ? "" : null },
@@ -515,7 +654,7 @@ function init(root) {
   function blockRow(b, p) {
     const t = types[b.type];
     const label = t?.label || b.type;
-    const sum = summary(b, t, state.menus, state.areas);
+    const sum = summary(b, t, state.menus, state.areas) || (b.items?.length ? fmt(msg.msgItemCount, b.items.length) : "");
     const bad = errorsAt(p).length > 0;
     const req = required(b.type, region);
     return h("li", { class: "bl-block", "data-id": b.id, "aria-current": selected === b.id ? "true" : null, "data-invalid": bad ? "" : null },
@@ -583,28 +722,76 @@ function init(root) {
     });
     const up = () => { commit(moveSection(layout(), region, pos.s, pos.s - 1)); say(fmt(msg.msgMoved, label)); };
     const down = () => { commit(moveSection(layout(), region, pos.s, pos.s + 1)); say(fmt(msg.msgMoved, label)); };
-    const errs = errors.filter((e) => e.region === region && e.s === pos.s && e.c == null).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
+    const errs = errors.filter((e) => e.region === region && e.s === pos.s && e.c == null && !e.anchor).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
     settings.replaceChildren(header("columns-2", `${label} · ${msg.msgSectionSettings}`),
-      h("section", { class: "bl-form" }, ...errs, presets, ...fields, moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
+      h("section", { class: "bl-form" }, ...errs, presets, anchorField(sec, pos), ...fields, moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
   }
 
-  function fieldInput(f, b, pos, lang) {
-    const id = `bl-f-${f.key}${lang ? "-" + lang : ""}`;
-    const stored = lang ? b.i18n?.[lang]?.[f.key] || "" : b.settings?.[f.key] || "";
-    const set = (v) => commit(setValue(layout(), region, find(layout(), region, b.id), f.key, v, lang, lang ? "" : f.default || ""), `${b.id}.${f.key}.${lang}`, { keepSettings: true });
-    const err = errors.find((e) => e.region === region && e.s === pos.s && e.c === pos.c && e.b === pos.b && e.key === f.key && e.lang === lang);
+  // anchorField edits a section's anchor (#pricing): checked as it is
+  // typed, and only saved once it is valid and free on this page.
+  function anchorField(sec, pos) {
+    const id = "bl-anchor";
+    const err = errors.find((e) => e.region === region && e.s === pos.s && e.anchor);
+    const note = h("p", { class: err ? "cz-field-error" : "hint", id: `${id}-help`, text: err ? errText(null, err) : msg.msgAnchorHint });
+    const input = h("input", {
+      class: "input w-full", type: "text", id, maxlength: 40, autocomplete: "off", spellcheck: "false", autocapitalize: "off",
+      "aria-describedby": `${id}-help`, "aria-invalid": err ? "true" : null,
+      oninput: (e) => {
+        const v = e.target.value.trim();
+        const problem = !v ? "" : !validAnchor(v) ? msg.msgBadAnchor
+          : anchorsTaken(layout(), region, pos.s).has(v) ? fmt(msg.msgAnchorTaken, v) : "";
+        note.textContent = problem || msg.msgAnchorHint;
+        note.className = problem ? "cz-field-error" : "hint";
+        if (problem) { e.target.setAttribute("aria-invalid", "true"); return; }
+        e.target.removeAttribute("aria-invalid");
+        commit(setAnchor(layout(), region, pos.s, v), `${sec.id}.anchor`, { keepSettings: true });
+      },
+    });
+    input.value = sec.anchor || "";
+    return h("div", { class: "field" }, h("label", { for: id, text: msg.msgAnchor }),
+      h("div", { class: "bl-anchor" }, h("span", { class: "bl-anchor-hash", "aria-hidden": "true", text: "#" }), input), note);
+  }
+
+  // fieldInput is the input of field f of block b, or of its item number
+  // item, in the main language (lang "") or a translation.
+  function fieldInput(f, b, pos, lang, item = null) {
+    const id = fid(f.key, lang, item);
+    const obj = item == null ? b : b.items?.[item] || {};
+    const stored = lang ? obj.i18n?.[lang]?.[f.key] || "" : obj.settings?.[f.key] || "";
+    const set = (v) => {
+      const p = find(layout(), region, b.id);
+      const def = lang ? "" : f.default || "";
+      const next = item == null ? setValue(layout(), region, p, f.key, v, lang, def)
+        : setItemValue(layout(), region, p, item, f.key, v, lang, def, Boolean(f.one));
+      // Turning on a one-only setting turns it off elsewhere: redraw.
+      commit(next, `${b.id}.${item ?? ""}.${f.key}.${lang}`, { keepSettings: !(f.one && v === "true") });
+    };
+    const err = errors.find((e) => sameBlock(e, pos) && (e.item ?? null) === item && e.key === f.key && e.lang === lang);
     const help = [];
     if (f.help && !lang) help.push(f.help);
     if (f.type === "url" && !lang) help.push(msg.msgUrlHint);
     const describedBy = help.length || err ? `${id}-help` : null;
     const common = { id, "aria-describedby": describedBy, "aria-invalid": err ? "true" : null };
     let input;
-    const main = lang ? b.settings?.[f.key] || "" : "";
+    const main = lang ? obj.settings?.[f.key] || "" : "";
     switch (f.type) {
       case "bool":
         return h("div", { class: "field" }, h("label", { class: "check", for: id },
           h("input", { type: "checkbox", class: "input", role: "switch", ...common, checked: (stored || f.default || "false") === "true", onchange: (e) => set(e.target.checked ? "true" : "false") }), f.label),
         describedBy ? h("p", { class: err ? "cz-field-error" : "hint", id: `${id}-help`, text: err ? errText(f, err) : help.join(" ") }) : null);
+      case "icon": {
+        // A grid of the icons on offer, as radio buttons.
+        const cur = stored || f.default || "";
+        return h("fieldset", { class: "field bl-icon-field", id, "aria-describedby": describedBy, "aria-invalid": err ? "true" : null },
+          h("legend", { text: f.label }),
+          h("div", { class: "bl-icon-grid" }, (f.choices || []).map((c) => {
+            const cid = `${id}-${c.value}`;
+            return h("label", { class: "bl-icon-choice", for: cid, title: c.label },
+              h("input", { type: "radio", class: "sr-only", name: `${id}-icon`, id: cid, value: c.value, checked: c.value === cur, onchange: () => set(c.value) }),
+              icon(c.value), h("span", { class: "sr-only", text: c.label }));
+          })),
+          describedBy ? h("p", { class: err ? "cz-field-error" : "hint", id: `${id}-help`, text: err ? errText(f, err) : help.join(" ") }) : null);
+      }
       case "select": case "menu": case "area": {
         const opts = f.type === "menu" ? state.menus.map((m) => ({ value: m.id, label: m.label }))
           : f.type === "area" ? state.areas.map((a) => ({ value: a.id, label: a.label })) : f.choices;
@@ -648,23 +835,94 @@ function init(root) {
     const parts = [header(t.icon || "box", t.label, t.help)];
     const form = h("section", { class: "bl-form" });
     for (const f of t.fields) form.append(fieldInput(f, b, pos, ""));
-    const tr = t.fields.filter((f) => f.i18n);
-    if (tr.length && langs.length) {
-      for (const lg of langs) {
-        const open = errors.some((e) => e.lang === lg.code && e.region === region && e.s === pos.s && e.c === pos.c && e.b === pos.b) || Boolean(b.i18n?.[lg.code]);
-        form.append(h("details", { class: "bl-i18n", open: open || null },
-          h("summary", {}, icon("languages"), h("span", { text: `${msg.msgTranslations}: ${lg.name}` })),
-          h("p", { class: "hint", text: msg.msgTranslationHint }),
-          tr.map((f) => fieldInput(f, b, pos, lg.code))));
-      }
-    }
-    const blockErr = errors.find((e) => e.region === region && e.s === pos.s && e.c === pos.c && e.b === pos.b && !e.key);
+    form.append(...translations(t.fields, b, pos, null));
+    if (t.items) form.append(itemsEditor(t, b, pos));
+    const blockErr = errors.find((e) => sameBlock(e, pos) && !e.key && e.item == null);
     if (blockErr) form.prepend(h("p", { class: "cz-field-error", role: "alert", text: blockErr.message }));
     const up = step(layout(), region, pos, "up");
     const down = step(layout(), region, pos, "down");
     form.append(moveButtons(() => moveTo(pos, up, t.label), () => moveTo(pos, down, t.label), Boolean(up), Boolean(down)));
     parts.push(form);
     settings.replaceChildren(...parts);
+  }
+
+  // translations are the fields of a block (item null) or of one of its
+  // items in each of the site's other languages, folded away until used.
+  function translations(fields, b, pos, item) {
+    const tr = fields.filter((f) => f.i18n);
+    if (!tr.length || !langs.length) return [];
+    const obj = item == null ? b : b.items?.[item] || {};
+    return langs.map((lg) => {
+      const open = errors.some((e) => e.lang === lg.code && sameBlock(e, pos) && (e.item ?? null) === item) || Boolean(obj.i18n?.[lg.code]);
+      return h("details", { class: "bl-i18n", open: open || null },
+        h("summary", {}, icon("languages"), h("span", { text: `${msg.msgTranslations}: ${lg.name}` })),
+        h("p", { class: "hint", text: msg.msgTranslationHint }),
+        tr.map((f) => fieldInput(f, b, pos, lg.code, item)));
+    });
+  }
+
+  // The items editor of a landing block: one folding row per item, with
+  // its fields and translations, buttons to reorder and remove it, and one
+  // to add another up to the type's limit. Open rows stay open across
+  // redraws (keyed by block id and position).
+  const openItems = new Set();
+  const remapOpen = (bid, map) => {
+    const keep = [...openItems].filter((k) => k.startsWith(bid + ":"));
+    for (const k of keep) openItems.delete(k);
+    for (const k of keep) { const j = map(Number(k.slice(bid.length + 1))); if (j >= 0) openItems.add(`${bid}:${j}`); }
+  };
+  function itemsEditor(t, b, pos) {
+    const sch = t.items;
+    const its = b.items || [];
+    const at = () => find(layout(), region, b.id);
+    const preview = (it) => {
+      const s = it.settings || {};
+      const f = sch.fields.find((x) => (x.type === "text" || x.type === "textarea") && s[x.key]);
+      const text = f ? String(s[f.key]).replace(/\s+/g, " ").trim() : "";
+      return text.length > 42 ? text.slice(0, 41) + "…" : text;
+    };
+    const list = h("ol", { class: "bl-items" }, its.map((it, i) => {
+      const key = `${b.id}:${i}`;
+      const bad = errors.some((e) => sameBlock(e, pos) && e.item === i);
+      const open = openItems.has(key) || bad;
+      const title = `${sch.label} ${i + 1}`;
+      const bodyId = `bl-item-${i}`;
+      const body = h("div", { class: "bl-item-body", id: bodyId, hidden: !open || null },
+        sch.fields.map((f) => fieldInput(f, b, pos, "", i)), ...translations(sch.fields, b, pos, i));
+      const toggle = h("button", { type: "button", class: "bl-select bl-item-toggle", "aria-expanded": String(open), "aria-controls": bodyId, onclick: (e) => {
+        const show = body.hidden;
+        body.hidden = !show;
+        e.currentTarget.setAttribute("aria-expanded", String(show));
+        if (show) openItems.add(key); else openItems.delete(key);
+      } }, icon("chevron-down"), h("span", { class: "bl-name", text: title }), h("span", { class: "bl-meta", text: preview(it) }),
+      bad ? h("span", { class: "bl-flag", "aria-hidden": "true" }, icon("circle-alert")) : null);
+      const move = (to) => {
+        remapOpen(b.id, (j) => (j === i ? to : j === to ? i : j));
+        commit(moveItem(layout(), region, at(), i, to));
+        say(fmt(msg.msgMoved, title));
+      };
+      return h("li", { class: "bl-item", "data-invalid": bad ? "" : null },
+        h("div", { class: "bl-row" }, toggle,
+          iconButton("chevron-up", `${title}: ${msg.msgMoveUp}`, () => move(i - 1), { disabled: i === 0 || null }),
+          iconButton("chevron-down", `${title}: ${msg.msgMoveDown}`, () => move(i + 1), { disabled: i === its.length - 1 || null }),
+          iconButton("trash-2", `${title}: ${msg.msgDelete}`, () => {
+            remapOpen(b.id, (j) => (j === i ? -1 : j > i ? j - 1 : j));
+            commit(removeItem(layout(), region, at(), i));
+            say(msg.msgDeleted);
+          })),
+        body);
+    }));
+    const full = its.length >= sch.max;
+    const add = h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", disabled: full || null, onclick: () => {
+      openItems.add(`${b.id}:${its.length}`);
+      commit(addItem(layout(), region, at(), {}));
+      settings.querySelector(`#bl-item-${its.length} :is(input, textarea, select)`)?.focus();
+    } }, icon("plus"), sch.add);
+    const listErr = errors.filter((e) => sameBlock(e, pos) && e.item === -1).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
+    return h("div", { class: "bl-items-field", role: "group", "aria-labelledby": "bl-items-title" },
+      h("p", { class: "bl-items-title", id: "bl-items-title", text: fmt(msg.msgItems, its.length, sch.max) }),
+      ...listErr, its.length ? list : h("p", { class: "hint", text: msg.msgNoItems }),
+      h("div", { class: "bl-items-add" }, add, full ? h("span", { class: "hint", text: fmt(msg.msgMaxItems, sch.max) }) : null));
   }
 
   function moveTo(from, to, label) {
@@ -698,7 +956,7 @@ function init(root) {
       const area = areas.includes("sidebar") ? "sidebar" : areas.find((a) => a !== "top") || areas[0];
       if (area && area !== "sidebar") settings0.area = area;
     }
-    const b = { id: newID(layout(), t.type), type: t.type, ...(Object.keys(settings0).length ? { settings: settings0 } : {}) };
+    const b = newBlock(layout(), t, state.starters || {}, settings0);
     commit(insertBlock(layout(), region, pickAt, b));
     select(b.id);
   }
@@ -1006,12 +1264,13 @@ function init(root) {
     for (const el of $$("[aria-invalid]", settings)) el.removeAttribute("aria-invalid");
     for (const p of $$(".cz-field-error", settings)) p.remove();
     if (!pos || pos.kind !== "block") return;
-    for (const e of errors.filter((x) => x.region === region && x.s === pos.s && x.c === pos.c && x.b === pos.b && x.key)) {
-      const el = settings.querySelector(`#bl-f-${CSS.escape(e.key)}${e.lang ? "-" + CSS.escape(e.lang) : ""}`);
+    for (const e of errors.filter((x) => sameBlock(x, pos) && x.key)) {
+      const el = settings.querySelector(`#${CSS.escape(fid(e.key, e.lang, e.item))}`);
       if (!el) continue;
       el.setAttribute("aria-invalid", "true");
       const t = types[getRegion(layout(), region).sections[pos.s].columns[pos.c][pos.b].type];
-      el.closest(".field")?.append(h("p", { class: "cz-field-error", text: errText(t?.fields.find((f) => f.key === e.key), e) }));
+      const fields = e.item != null && e.item >= 0 ? t?.items?.fields : t?.fields;
+      el.closest(".field")?.append(h("p", { class: "cz-field-error", text: errText(fields?.find((f) => f.key === e.key), e) }));
     }
   }
 

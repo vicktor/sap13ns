@@ -1,10 +1,10 @@
 {{/* blocks/hero: a large introduction; empty texts use the site title and
-     tagline. It is the page's h1 on the home page. Data: *BlockView. */}}
+     tagline. It is the page's h1 on the front and home pages. Data: *BlockView. */}}
 {{define "blocks/hero"}}{{$p := .Page}}
 <section class="sap-b sap-b-hero sap-hero-{{.S.size}} sap-align-{{.S.align}}{{if .Image}} has-image{{end}}">
   <div class="sap-hero-text">
     {{$title := or .S.title $p.Site.Title}}
-    {{if eq $p.Kind "home" "404"}}<h1 class="sap-hero-title">{{$title}}</h1>{{else}}<h2 class="sap-hero-title">{{$title}}</h2>{{end}}
+    {{if eq $p.Kind "front" "home" "404"}}<h1 class="sap-hero-title">{{$title}}</h1>{{else}}<h2 class="sap-hero-title">{{$title}}</h2>{{end}}
     {{with or .S.text $p.Site.Tagline}}<p class="sap-hero-lead">{{.}}</p>{{end}}
     {{if and .S.button_label .S.button_url}}<p class="sap-hero-actions"><a class="btn" data-size="lg" href="{{.S.button_url}}">{{.S.button_label}}</a></p>{{end}}
   </div>

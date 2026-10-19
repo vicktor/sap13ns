@@ -27,7 +27,7 @@
 {{/* shared/blocks-main: a page's main area. Data: PageData. */}}
 {{define "shared/blocks-main"}}{{with .Blocks}}{{with .Main}}
 <div class="sap-region sap-region-main sap-region-{{.Name}}">
-  {{if .NeedsH1}}<h1 class="sr-only">{{if eq .Name "home"}}{{.Page.Site.Title}}{{else if eq .Name "404"}}{{T "Page not found"}}{{else}}{{or .Page.Heading .Page.Title .Page.Site.Title}}{{end}}</h1>{{end}}
+  {{if .NeedsH1}}<h1 class="sr-only">{{if eq .Name "front" "home"}}{{.Page.Site.Title}}{{else if eq .Name "404"}}{{T "Page not found"}}{{else}}{{or .Page.Heading .Page.Title .Page.Site.Title}}{{end}}</h1>{{end}}
   {{template "shared/blocks-sections" .}}
 </div>
 {{end}}{{end}}{{end}}
@@ -35,7 +35,7 @@
 {{/* shared/blocks-sections: the sections of a region. Data: *RegionView. */}}
 {{define "shared/blocks-sections"}}
 {{range .Sections}}
-<div class="{{.Class}}" id="sap-{{.ID}}">
+<div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}">
   <div class="sap-section-inner sap-cols sap-cols-{{.Layout}}">
     {{range .Columns}}<div class="sap-col">{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
   </div>
@@ -62,6 +62,13 @@
 {{else if eq .Type "button"}}{{template "blocks/button" .}}
 {{else if eq .Type "spacer"}}{{template "blocks/spacer" .}}
 {{else if eq .Type "social-links"}}{{template "blocks/social-links" .}}
+{{else if eq .Type "features"}}{{template "blocks/features" .}}
+{{else if eq .Type "stats"}}{{template "blocks/stats" .}}
+{{else if eq .Type "testimonials"}}{{template "blocks/testimonials" .}}
+{{else if eq .Type "pricing"}}{{template "blocks/pricing" .}}
+{{else if eq .Type "faq"}}{{template "blocks/faq" .}}
+{{else if eq .Type "logos"}}{{template "blocks/logos" .}}
+{{else if eq .Type "cta"}}{{template "blocks/cta" .}}
 {{else if eq .Type "footer-meta"}}{{template "blocks/footer-meta" .}}
 {{end}}
 {{end}}

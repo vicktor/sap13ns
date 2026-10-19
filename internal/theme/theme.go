@@ -102,8 +102,11 @@ var pageNames = []string{"front", "home", "single", "page", "archive", "search",
 
 // fallback: a page the theme lacks renders with another of its pages, when
 // the theme has that one (a blog theme without page.html shows pages with
-// single.html). Without it, the server's shared page is used.
-var fallback = map[string]string{"page": "single", "archive": "home", "search": "home"}
+// single.html). Without it, the server's shared page is used. The front
+// page is only rendered when the theme has one (internal/web): a theme
+// without front.html shows the latest posts at /, so its fallback to home
+// is a last resort.
+var fallback = map[string]string{"page": "single", "archive": "home", "search": "home", "front": "home"}
 
 // serverPages are the pages the server adds to a theme that lacks them:
 // plain fallbacks from the shared templates (ui/shared/templates/fallback.html)
@@ -342,8 +345,7 @@ func (m *Manager) parse(t *Theme) error {
 	// The shared fallbacks of the pages the theme lacks (unless another of
 	// its pages stands in, see fallback), the not-found and assistant pages
 	// of a theme without its own, and the pages laid out with the block
-	// builder. The front page has no fallback: without front.html, the
-	// server shows the latest posts at / (internal/web).
+	// builder. The front page has none of its own (see fallback).
 	for _, name := range []string{"home", "single", "page", "archive", "search", "404", "ask", "blocks"} {
 		if t.pages[name] != nil || t.own[fallback[name]] {
 			continue

@@ -62,13 +62,15 @@
       <section class="form">
         <fieldset class="fieldset">
           <legend>{{T "Your homepage displays"}}</legend>
-          <label class="check"><input type="radio" class="input" name="front_page" value="posts"{{if ne $s.FrontPage "page"}} checked{{end}}> {{T "Your latest posts"}}</label>
+          <label class="check"><input type="radio" class="input" name="front_page" value="posts"{{if and (ne $s.FrontPage "page") (ne $s.FrontPage "theme")}} checked{{end}}> {{T "Your latest posts"}}</label>
+          <label class="check"><input type="radio" class="input" name="front_page" value="theme"{{if eq $s.FrontPage "theme"}} checked{{end}} aria-describedby="front-theme-hint"> {{T "The theme's front page"}}</label>
+          <p class="hint" id="front-theme-hint">{{T "A landing or a one-page site: the active theme's own front page, or the one built in Appearance → Page builder. Without either, your latest posts."}}</p>
           <label class="check"><input type="radio" class="input" name="front_page" value="page"{{if eq $s.FrontPage "page"}} checked{{end}}> {{T "A static page"}}</label>
           <select class="select w-full" name="front_page_id" aria-label="{{T "Front page"}}">
             <option value="">{{T "— Choose a page —"}}</option>
             {{range $d.Pages}}<option value="{{.ID}}"{{if eq .ID $s.FrontPageID}} selected{{end}}>{{.Title}}</option>{{end}}
           </select>
-          <p class="hint">{{T "With a static homepage, posts are listed at /blog."}}</p>
+          <p class="hint">{{T "With a static page or the theme's front page, posts are listed at /blog."}}</p>
         </fieldset>
         <div class="field"><label for="posts_per_page">{{T "Posts per page"}}</label><input class="input w-32" id="posts_per_page" name="posts_per_page" type="number" min="1" max="100" value="{{$s.PostsPerPage}}"></div>
         <label class="check"><input type="checkbox" class="input" role="switch" name="discourage_search" value="1"{{if $s.DiscourageSearch}} checked{{end}}> {{T "Ask search engines not to index this site"}}</label>

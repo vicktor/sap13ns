@@ -322,10 +322,15 @@ func (s *Server) listing(w http.ResponseWriter, r *http.Request, kind string, q 
 
 // ----------------------------------------------------------------- pages --
 
+// handleHome renders / as Settings → Reading says (front.go).
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	st := s.settings()
 	lang := s.reqLang(r)
-	if st.FrontPage == "page" && st.FrontPageID > 0 && r.URL.Query().Get("page") == "" {
+	if th := s.activeTheme(r); th != nil && s.showsFront(r, th) {
+		s.renderFront(w, r)
+		return
+	}
+	if st.FrontPage == FrontPage && st.FrontPageID > 0 && r.URL.Query().Get("page") == "" {
 		if p := s.frontPage(r.Context(), lang); p != nil {
 			s.single(w, r, p, true)
 			return
@@ -337,9 +342,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pd.IsFront = true
-	pd.JSONLD = map[string]any{"@context": "https://schema.org", "@type": "WebSite", "name": pd.Site.Title,
-		"url": pd.Site.URL, "description": pd.Site.Tagline, "inLanguage": lang,
-		"potentialAction": map[string]any{"@type": "SearchAction", "target": s.cfg.AbsURL(pd.Site.Search + "?q={q}"), "query-input": "required name=q"}}
+	pd.JSONLD = s.websiteLD(pd, lang)
 	s.listing(w, r, "home", store.PostQuery{}, pd, th)
 }
 
@@ -939,6 +942,16 @@ func (s *Server) handleSitemap(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, l := range langs {
 		write(homes[l], last, homes)
+	}
+	// The posts list has its own address when / shows something else.
+	if !s.frontShowsPosts(r) {
+		blogs := map[string]string{}
+		for _, l := range langs {
+			blogs[l] = s.cfg.AbsURL(s.langPath(l, "/blog"))
+		}
+		for _, l := range langs {
+			write(blogs[l], last, blogs)
+		}
 	}
 	front := s.frontPageIDs(ctx)
 	for _, e := range entries {

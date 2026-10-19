@@ -112,7 +112,7 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 		fail(s.t("Unknown time zone."))
 	case st.PostsPerPage < 1 || st.PostsPerPage > 100:
 		fail(s.t("Posts per page must be between 1 and 100."))
-	case st.FrontPage != "posts" && st.FrontPage != "page":
+	case st.FrontPage != FrontPosts && st.FrontPage != FrontPage && st.FrontPage != FrontTheme:
 		fail(s.t("Invalid request."))
 	case st.FrontPage == "page" && !s.publicPage(r, st.FrontPageID):
 		fail(s.t("Choose a published page for the front page."))

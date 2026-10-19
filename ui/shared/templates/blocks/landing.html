@@ -1,0 +1,112 @@
+{{/* Landing blocks: the sections of a landing page or a one-page site
+     (features, stats, testimonials, pricing, questions, logos and a call to
+     action). Their items are resolved for the page language by
+     internal/web/builder.go (ItemView); items without their main text are
+     left out. Styles in ui/shared/src/blocks.css. Data: *BlockView. */}}
+
+{{/* blocks/landing-head: a block's heading and introduction. */}}
+{{define "blocks/landing-head"}}{{if or .S.title .S.intro}}
+<header class="sap-lb-head">
+  {{with .S.title}}<h2 class="sap-b-heading">{{.}}</h2>{{end}}
+  {{with .S.intro}}<p class="sap-lb-intro">{{.}}</p>{{end}}
+</header>{{end}}{{end}}
+
+{{/* blocks/features: a grid of features, each an icon, a title and a text. */}}
+{{define "blocks/features"}}{{if or .Items .S.title}}
+<section class="sap-b sap-lb sap-b-features sap-align-{{.S.align}}">
+  {{template "blocks/landing-head" .}}
+  {{with .Items}}<ul class="sap-lb-grid sap-grid-{{$.S.columns}} sap-features sap-features-{{$.S.style}}" role="list">
+    {{range .}}<li class="sap-feature">
+      <span class="sap-feature-icon">{{icon .S.icon}}</span>
+      {{with .S.title}}<h3 class="sap-feature-title">{{.}}</h3>{{end}}
+      {{with .S.text}}<p class="sap-feature-text">{{.}}</p>{{end}}
+    </li>{{end}}
+  </ul>{{end}}
+</section>
+{{end}}{{end}}
+
+{{/* blocks/stats: key figures. Each is a <dt> label and a <dd> value, so a
+     screen reader says "Happy customers: 10k+"; CSS shows the value first. */}}
+{{define "blocks/stats"}}{{if or .Items .S.title}}
+<section class="sap-b sap-lb sap-b-stats sap-align-{{.S.align}}">
+  {{template "blocks/landing-head" .}}
+  {{with .Items}}<dl class="sap-stats sap-stats-{{len .}}">
+    {{range .}}<div class="sap-stat"><dt class="sap-stat-label">{{.S.label}}</dt><dd class="sap-stat-value">{{.S.value}}</dd></div>{{end}}
+  </dl>{{end}}
+</section>
+{{end}}{{end}}
+
+{{/* blocks/testimonials: quotes with their author's name, role and photo. */}}
+{{define "blocks/testimonials"}}{{if or .Items .S.title}}
+<section class="sap-b sap-lb sap-b-testimonials">
+  {{template "blocks/landing-head" .}}
+  {{with .Items}}<ul class="sap-lb-grid sap-grid-{{$.S.columns}} sap-quotes" role="list">
+    {{range .}}<li><figure class="sap-quote">
+      <blockquote class="sap-quote-text"><p>{{.S.quote}}</p></blockquote>
+      {{if or .S.name .S.role}}<figcaption class="sap-quote-by">
+        {{with .Image}}{{template "shared/image" (dict "Image" . "Sizes" "3rem" "Class" "sap-quote-photo")}}{{else}}{{with .S.name}}<span class="sap-quote-initial" aria-hidden="true">{{initials .}}</span>{{end}}{{end}}
+        <span class="sap-quote-who">{{with .S.name}}<strong>{{.}}</strong>{{end}}{{with .S.role}}<span>{{.}}</span>{{end}}</span>
+      </figcaption>{{end}}
+    </figure></li>{{end}}
+  </ul>{{end}}
+</section>
+{{end}}{{end}}
+
+{{/* blocks/pricing: plans written by hand (not the network's plans); one
+     can be highlighted with the block's badge. */}}
+{{define "blocks/pricing"}}{{if or .Items .S.title}}
+<section class="sap-b sap-lb sap-b-pricing">
+  {{template "blocks/landing-head" .}}
+  {{with .Items}}<ul class="sap-plans sap-plans-{{len .}}" role="list">
+    {{range .}}<li class="sap-plan{{if .On "highlight"}} is-highlighted{{end}}">
+      <div class="sap-plan-head">
+        <h3 class="sap-plan-name">{{.S.name}}</h3>
+        {{if .On "highlight"}}{{with $.S.badge}}<span class="sap-plan-badge">{{.}}</span>{{end}}{{end}}
+      </div>
+      {{if .S.price}}<p class="sap-plan-price"><span class="sap-plan-amount">{{.S.price}}</span>{{with .S.period}} <span class="sap-plan-period">{{.}}</span>{{end}}</p>{{end}}
+      {{with .S.description}}<p class="sap-plan-text">{{.}}</p>{{end}}
+      {{with .Lines}}<ul class="sap-plan-features" role="list">{{range .}}<li>{{icon "check"}}<span>{{.}}</span></li>{{end}}</ul>{{end}}
+      {{if and .S.button_label .S.button_url}}<p class="sap-plan-action"><a class="btn sap-plan-btn"{{if not (.On "highlight")}} data-variant="outline"{{end}} href="{{.S.button_url}}">{{.S.button_label}}</a></p>{{end}}
+    </li>{{end}}
+  </ul>{{end}}
+</section>
+{{end}}{{end}}
+
+{{/* blocks/faq: questions whose answers open beneath them (<details>, no
+     JavaScript). Answers are Markdown, through the content pipeline. */}}
+{{define "blocks/faq"}}{{if or .Items .S.title}}
+<section class="sap-b sap-lb sap-b-faq">
+  {{template "blocks/landing-head" .}}
+  {{with .Items}}<div class="sap-faq">
+    {{range .}}<details class="sap-faq-item"{{if and (eq .Index 0) ($.On "first_open")}} open{{end}}>
+      <summary><span>{{.S.question}}</span>{{icon "chevron-down" "sap-faq-chevron"}}</summary>
+      {{with .HTML}}<div class="sap-faq-answer prose">{{.}}</div>{{end}}
+    </details>{{end}}
+  </div>{{end}}
+</section>
+{{end}}{{end}}
+
+{{/* blocks/logos: a row of logos from the media library. */}}
+{{define "blocks/logos"}}{{with .Items}}
+<section class="sap-b sap-lb sap-b-logos sap-logos-{{$.S.size}}{{if $.On "muted"}} is-muted{{end}}">
+  {{with $.S.title}}<h2 class="sap-logos-title">{{.}}</h2>{{end}}
+  <ul class="sap-logos" role="list">
+    {{range .}}<li class="sap-logo-item">{{if .S.link}}<a href="{{.S.link}}"{{if hasPrefix .S.link "http"}} rel="noopener"{{end}}>{{end}}{{template "shared/image" (dict "Image" .Image "Sizes" "12rem")}}{{if .S.link}}</a>{{end}}</li>{{end}}
+  </ul>
+</section>
+{{end}}{{end}}
+
+{{/* blocks/cta: a heading, a text and one or two buttons. */}}
+{{define "blocks/cta"}}
+<section class="sap-b sap-lb sap-b-cta sap-cta-{{.S.style}} sap-align-{{.S.align}}">
+  <div class="sap-cta-text">
+    {{with .S.title}}<h2 class="sap-cta-title">{{.}}</h2>{{end}}
+    {{with .S.text}}<p class="sap-cta-lead">{{.}}</p>{{end}}
+  </div>
+  {{$one := and .S.primary_label .S.primary_url}}{{$two := and .S.secondary_label .S.secondary_url}}
+  {{if or $one $two}}<p class="sap-cta-actions">
+    {{if $one}}<a class="btn" data-size="lg" href="{{.S.primary_url}}">{{.S.primary_label}}</a>{{end}}
+    {{if $two}}<a class="btn" data-variant="outline" data-size="lg" href="{{.S.secondary_url}}">{{.S.secondary_label}}</a>{{end}}
+  </p>{{end}}
+</section>
+{{end}}

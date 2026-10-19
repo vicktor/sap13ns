@@ -17,7 +17,7 @@ type Settings struct {
 	SiteText             map[string]SiteText `json:"site_text"`
 	Timezone             string              `json:"timezone"`
 	PostsPerPage         int                 `json:"posts_per_page"`
-	FrontPage            string              `json:"front_page"` // "posts" | "page"
+	FrontPage            string              `json:"front_page"` // "posts" | "page" | "theme" (internal/web/front.go)
 	FrontPageID          int64               `json:"front_page_id"`
 	ActiveTheme          string              `json:"active_theme"`
 	FooterText           string              `json:"footer_text"`

@@ -100,6 +100,38 @@
 .bl-i18n > :not(summary) { @apply mx-3 my-3; }
 .bl-move { @apply flex flex-wrap gap-2 border-t pt-4; }
 
+/* Front page presets (Landing, One-page) offered before building. */
+.bl-intro-or { @apply mt-1 text-xs font-medium text-muted-foreground; }
+.bl-front-presets { @apply grid w-full gap-2; }
+.bl-front-preset { @apply flex w-full flex-col items-start gap-0.5 rounded-lg border bg-background p-3 text-left hover:border-primary hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring; }
+.bl-front-preset > span { @apply text-xs text-muted-foreground; }
+.bl-intro-hint a { @apply font-medium text-foreground underline underline-offset-2; }
+
+/* Section anchor: "#" then the name. */
+.bl-anchor { @apply flex items-center gap-1.5; }
+.bl-anchor-hash { @apply font-mono text-sm text-muted-foreground; }
+
+/* Icon picker: a grid of radio buttons. */
+.bl-icon-field { @apply flex flex-col gap-2 border-0 p-0; }
+.bl-icon-field legend { @apply mb-2 text-sm font-medium; }
+.bl-icon-grid { @apply grid grid-cols-7 gap-1; }
+.bl-icon-choice { @apply inline-grid aspect-square cursor-pointer place-items-center rounded-md border bg-background text-muted-foreground hover:border-primary hover:text-foreground; }
+.bl-icon-choice svg { @apply size-4; }
+.bl-icon-choice:has(> input:checked) { @apply border-primary bg-accent text-foreground; box-shadow: 0 0 0 1px var(--primary); }
+.bl-icon-choice:has(> input:focus-visible) { @apply outline-2 outline-offset-1 outline-ring; }
+
+/* Items of a landing block. */
+.bl-items-field { @apply flex flex-col gap-2 border-t pt-4; }
+.bl-items-title { @apply text-sm font-medium; }
+.bl-items { @apply flex flex-col gap-1.5; }
+.bl-item { @apply rounded-lg border bg-background; }
+.bl-item[data-invalid] { border-color: var(--destructive); }
+.bl-item-toggle > svg:first-child { @apply transition-transform; }
+.bl-item-toggle[aria-expanded="true"] > svg:first-child { @apply rotate-180; }
+.bl-item-body { @apply flex flex-col gap-4 border-t px-3 py-3; }
+.bl-item-body[hidden] { display: none; }
+.bl-items-add { @apply flex flex-wrap items-center gap-2; }
+
 /* ---------------------------------------------------------------- picker */
 .bl-picker > div { @apply w-[min(40rem,calc(100vw-2rem))] max-w-none; }
 .bl-types { @apply grid gap-1.5 sm:grid-cols-2; }

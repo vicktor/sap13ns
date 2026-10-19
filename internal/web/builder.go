@@ -48,9 +48,18 @@ type RegionView struct {
 
 type SectionView struct {
 	ID      string
+	Anchor  string // the section's id on the page (#pricing); empty uses sap-<ID>
 	Class   string // enumerated appearance classes
 	Layout  string // column preset, e.g. "2-1"
 	Columns [][]*BlockView
+}
+
+// DOMID is the section's id attribute.
+func (s *SectionView) DOMID() string {
+	if s.Anchor != "" {
+		return s.Anchor
+	}
+	return "sap-" + s.ID
 }
 
 // BlockView is one block with its settings resolved for the page language
@@ -62,11 +71,29 @@ type BlockView struct {
 	HTML  template.HTML // rich text
 	Image *ImageView
 	Links []SocialLink
+	Items []*ItemView // the entries of a landing block (features, plans…)
 	Page  *PageData
 }
 
 // On reports whether a bool setting is on.
 func (b *BlockView) On(key string) bool { return b.S[key] == "true" }
+
+// ItemView is one entry of a block, resolved like the block itself.
+type ItemView struct {
+	S     map[string]string
+	HTML  template.HTML // a question's answer (Markdown)
+	Image *ImageView
+	Lines []string // a plan's features, one per line
+	Index int
+}
+
+// On reports whether a bool setting of the item is on.
+func (it *ItemView) On(key string) bool { return it.S[key] == "true" }
+
+// itemKeys is the setting without which an item shows nothing and is left
+// out (an empty feature the editor just added).
+var itemKeys = map[string][]string{"features": {"title", "text"}, "stats": {"value"}, "testimonials": {"quote"},
+	"pricing": {"name"}, "faq": {"question"}, "logos": {"image"}}
 
 type SocialLink struct {
 	Key, Label, URL, Icon string
@@ -187,6 +214,7 @@ func (s *Server) applyLayout(r *http.Request, th *theme.Theme, page string, pd *
 	bv.Footer = s.regionView(l.Footer, "footer", pd, media)
 	if page != "ask" {
 		if main := s.regionView(l.Region(page), page, pd, media); main != nil {
+			main.NeedsH1 = !rendersH1(main)
 			bv.Main = main
 			page = "blocks"
 		}
@@ -203,8 +231,9 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 	}
 	lang := pd.Site.Lang
 	rv := &RegionView{Name: name, Page: pd, TopBar: name == "header" && r.TopBar != "off"}
+	global := name == "header" || name == "footer"
 	for _, sec := range r.Sections {
-		sv := &SectionView{ID: sec.ID, Layout: sec.Layout, Class: sectionClass(sec)}
+		sv := &SectionView{ID: sec.ID, Anchor: sec.Anchor, Layout: sec.Layout, Class: sectionClass(sec)}
 		for _, col := range sec.Columns {
 			views := make([]*BlockView, 0, len(col))
 			for i := range col {
@@ -212,7 +241,18 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 				if b.Type == builder.MetaType {
 					rv.HasMeta = true
 				}
-				views = append(views, s.blockView(b, lang, pd, media))
+				v := s.blockView(b, lang, pd, media)
+				if global {
+					// The header and footer show on every page; their
+					// links to a section (#pricing) go to the front page.
+					t, _ := builder.TypeOf(b.Type)
+					for _, f := range t.Fields {
+						if f.Type == "url" {
+							v.S[f.Key] = pd.Site.Link(v.S[f.Key])
+						}
+					}
+				}
+				views = append(views, v)
 			}
 			sv.Columns = append(sv.Columns, views)
 		}
@@ -228,8 +268,8 @@ func rendersH1(rv *RegionView) bool {
 		for _, col := range sec.Columns {
 			for _, b := range col {
 				switch {
-				case b.Type == "hero" && (rv.Name == "home" || rv.Name == "404"),
-					b.Type == "post-list" && rv.Name != "home",
+				case b.Type == "hero" && (rv.Name == "front" || rv.Name == "home" || rv.Name == "404"),
+					b.Type == "post-list" && rv.Name != "home" && rv.Name != "front",
 					b.Type == "single-content" && b.On("title"):
 					return true
 				}
@@ -271,6 +311,9 @@ func (s *Server) blockView(b *builder.Block, lang string, pd *PageData, media fu
 		}
 		return nil
 	}
+	if t.Items != nil {
+		v.Items = s.itemViews(b, t, lang, media)
+	}
 	switch b.Type {
 	case "rich-text":
 		v.HTML = content.RenderPlain(v.S["text"])
@@ -302,6 +345,54 @@ func (s *Server) blockView(b *builder.Block, lang string, pd *PageData, media fu
 		}
 	}
 	return v
+}
+
+// itemViews resolves the items of a block for lang: values with their
+// defaults, images from the media library, a question's answer through the
+// Markdown pipeline, a plan's features one per line. Items without their
+// main text (itemKeys) are left out.
+func (s *Server) itemViews(b *builder.Block, t *builder.Type, lang string, media func(int64) *store.Media) []*ItemView {
+	out := make([]*ItemView, 0, len(b.Items))
+	for i := range b.Items {
+		it := &b.Items[i]
+		v := &ItemView{S: map[string]string{}, Index: len(out)}
+		for fi := range t.Items.Fields {
+			f := &t.Items.Fields[fi]
+			v.S[f.Key] = it.Value(f, lang)
+			if f.Type == "image" {
+				if id, err := strconv.ParseInt(v.S[f.Key], 10, 64); err == nil && id > 0 {
+					if m := media(id); m != nil && m.IsImage() {
+						v.Image = imageView(m)
+					}
+				}
+			}
+		}
+		keep := false
+		for _, k := range itemKeys[b.Type] {
+			keep = keep || v.S[k] != "" && (k != "image" || v.Image != nil)
+		}
+		if !keep {
+			continue
+		}
+		switch b.Type {
+		case "faq":
+			v.HTML = content.RenderPlain(v.S["answer"])
+		case "pricing":
+			for _, line := range strings.Split(v.S["features"], "\n") {
+				if line = strings.TrimSpace(strings.TrimLeft(line, "-*• ")); line != "" {
+					v.Lines = append(v.Lines, line)
+				}
+			}
+		case "logos", "testimonials":
+			if v.Image != nil && v.S["alt"] != "" {
+				v.Image.Alt = v.S["alt"]
+			} else if v.Image != nil && b.Type == "testimonials" {
+				v.Image.Alt = "" // the name is next to the photo
+			}
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // tr2 translates an English label into lang.
@@ -338,6 +429,21 @@ type builderState struct {
 	MainLang  string               `json:"main_lang"`
 	Images    []mediaOption        `json:"images"`
 	DesignURL string               `json:"design_url"`
+	// Starters: the sample items a new landing block starts with; Front:
+	// the ready-made front pages (Landing, One-page). Their texts are in
+	// the site's main language, with translations into the others.
+	Starters map[string]builder.Block `json:"starters"`
+	Front    []frontPreset            `json:"front_presets"`
+	// MenusURL is where the menus are edited (for the #links of a one-page
+	// site).
+	MenusURL string `json:"menus_url"`
+}
+
+type frontPreset struct {
+	Name   string          `json:"name"`
+	Label  string          `json:"label"`
+	Help   string          `json:"help"`
+	Region *builder.Region `json:"region"`
 }
 
 type styleField struct {
@@ -397,22 +503,16 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	// The schema with its labels in the admin's language.
 	for _, t := range builder.Types {
 		t.Label, t.Help = s.t(t.Label), s.tOpt(t.Help)
-		fields := make([]builder.Field, len(t.Fields))
-		for i, f := range t.Fields {
-			f.Label, f.Help = s.t(f.Label), s.tOpt(f.Help)
-			if f.Default != "" && f.I18n {
-				f.Default = s.t(f.Default)
-			}
-			chs := make([]builder.Choice, len(f.Choices))
-			for j, c := range f.Choices {
-				chs[j] = builder.Choice{Value: c.Value, Label: s.t(c.Label)}
-			}
-			f.Choices = chs
-			fields[i] = f
+		t.Fields = s.builderFields(t.Fields)
+		if t.Items != nil {
+			items := builder.ItemSchema{Label: s.t(t.Items.Label), Add: s.t(t.Items.Add), Max: t.Items.Max,
+				Fields: s.builderFields(t.Items.Fields)}
+			t.Items = &items
 		}
-		t.Fields = fields
 		st.Types = append(st.Types, t)
 	}
+	st.Starters, st.Front = s.builderSamples()
+	st.MenusURL = "/admin/appearance/menus"
 	styleLabels := map[string]string{"background": s.t("Background"), "padding": s.t("Spacing"), "width": s.t("Width"), "align": s.t("Alignment")}
 	valueLabels := map[string]string{"none": s.t("None"), "muted": s.t("Muted"), "card": s.t("Card"), "primary": s.t("Primary colour"),
 		"accent": s.t("Accent colour"), "inverse": s.t("Inverted"), "small": s.t("Small"), "medium": s.t("Medium"), "large": s.t("Large"),
@@ -438,8 +538,61 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	for _, t := range builder.Types {
 		data.Icons = append(data.Icons, t.Icon)
 	}
+	for _, c := range builder.Icons { // the icon picker of a feature
+		data.Icons = append(data.Icons, c.Value)
+	}
 	w.Header().Set("Content-Security-Policy", setCSPDirective(w.Header().Get("Content-Security-Policy"), "frame-src", "'self'"))
 	s.renderAdmin(w, r, "builder", s.t("Page builder · %s", th.Name), "builder", data)
+}
+
+// builderFields returns fields with their labels, help and choices in the
+// admin's language, and their translatable defaults too.
+func (s *Server) builderFields(in []builder.Field) []builder.Field {
+	fields := make([]builder.Field, len(in))
+	for i, f := range in {
+		f.Label, f.Help = s.t(f.Label), s.tOpt(f.Help)
+		if f.Default != "" && f.I18n {
+			f.Default = s.t(f.Default)
+		}
+		chs := make([]builder.Choice, len(f.Choices))
+		for j, c := range f.Choices {
+			chs[j] = builder.Choice{Value: c.Value, Label: s.t(c.Label)}
+		}
+		f.Choices = chs
+		fields[i] = f
+	}
+	return fields
+}
+
+// builderSamples returns the starters of the landing blocks and the front
+// page presets, with their texts in the site's main language and their
+// translations into its other languages.
+func (s *Server) builderSamples() (map[string]builder.Block, []frontPreset) {
+	in := func(lang string) func(string, ...any) string {
+		return func(key string, args ...any) string { return s.i18n.T(lang, key, args...) }
+	}
+	main, extra := in(s.mainLang()), s.extraLangs()
+	starters := builder.Starters(main)
+	for typ, b := range starters {
+		for _, l := range extra {
+			other := builder.Starters(in(l.Code))[typ]
+			builder.LocalizeBlock(&b, &other, l.Code)
+		}
+		starters[typ] = b
+	}
+	labels := map[string][2]string{
+		"landing":  {s.t("Landing page"), s.t("A hero, features, testimonials, pricing and a call to action.")},
+		"one-page": {s.t("One-page site"), s.t("Every section with an anchor (#about, #services…), for a menu that scrolls to them.")},
+	}
+	var presets []frontPreset
+	for _, name := range builder.PresetNames {
+		r := builder.Preset(name, main)
+		for _, l := range extra {
+			builder.Localize(r, builder.Preset(name, in(l.Code)), l.Code)
+		}
+		presets = append(presets, frontPreset{Name: name, Label: labels[name][0], Help: labels[name][1], Region: r})
+	}
+	return starters, presets
 }
 
 // tOpt translates s unless it is empty.
@@ -463,9 +616,16 @@ func firstNonEmpty(vals ...string) string {
 func (s *Server) builderRegions(ctx context.Context, th *theme.Theme) []regionInfo {
 	q := "&preview_theme=" + url.QueryEscape(th.Slug) + "&customize=draft"
 	home := "/?" + strings.TrimPrefix(q, "&")
+	// The posts list is at / unless the front page is something else (or
+	// this theme has a front page its preview shows), then at /blog.
+	posts := home
+	if s.settings().FrontPage != FrontPosts || th.Has("front") {
+		posts = "/blog" + home[1:]
+	}
 	out := []regionInfo{
 		{Name: "header", Label: s.t("Header (all pages)"), Preview: home},
-		{Name: "home", Label: s.t("Home page"), Preview: home},
+		{Name: "front", Label: s.t("Front page (landing)"), Preview: "/?front=1" + q},
+		{Name: "home", Label: s.t("Latest posts"), Preview: posts},
 	}
 	single, page, archive := "", "", ""
 	if posts, _, err := s.store.ListPosts(ctx, store.PostQuery{Type: store.TypePost, Lang: s.mainLang(), PublicOnly: true, Limit: 1}); err == nil && len(posts) > 0 {

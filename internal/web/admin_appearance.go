@@ -48,12 +48,23 @@ func (s *Server) adminThemeActivate(w http.ResponseWriter, r *http.Request) {
 	}
 	st := s.settings()
 	st.ActiveTheme = th.Slug
+	// A theme with its own front page (a landing, a one-page site) shows it
+	// at / instead of the latest posts, which move to /blog. A static front
+	// page the owner chose stays.
+	front := st.FrontPage == FrontPosts && th.Has("front")
+	if front {
+		st.FrontPage = FrontTheme
+	}
 	if err := s.saveSettings(r, st); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
 	s.audit(r, uid(r), "theme.activated", th.Slug, nil)
-	s.redirect(w, r, "/admin/appearance/themes", "success", s.t("“%s” is now the active theme.", th.Name))
+	msg := s.t("“%s” is now the active theme.", th.Name)
+	if front {
+		msg += " " + s.t("Its front page now shows at / and the posts at /blog; Settings → Reading changes that.")
+	}
+	s.redirect(w, r, "/admin/appearance/themes", "success", msg)
 }
 
 // saveSettings stores settings and refreshes the in-memory snapshot.
