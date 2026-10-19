@@ -161,7 +161,8 @@ Plugins are WebAssembly modules run by [wazero](https://wazero.io) inside a sand
 
 Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the standard toolchain (`GOOS=wasip1 GOARCH=wasm`). `sap13ns plugin new` starts a project from the [skeleton](plugins/skeleton), and `sap13ns plugin pack` builds, scans and packages it. See [docs/PLUGINS.md](docs/PLUGINS.md) for the full contract.
 
-**Official plugins:**
+**Official plugins** ship inside the binary (`make build` packs them). Install them from Admin → Plugins → **Official plugins**, or with `sap13ns plugin install -official <id>`. They go through the same steps as an upload, and an **Update** button appears when a newer binary carries a newer version.
+
 
 | Plugin | What it does |
 |---|---|
@@ -186,7 +187,7 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
   - a site whose payment lapses is held (its public pages answer 503) and never deleted.
 - **Custom domains:** proven with a DNS TXT record and checked again every day. TLS comes from nginx with a wildcard certificate, from Caddy's on-demand TLS, or from the built-in ACME client.
 - **Nightly backups:** every site is backed up each night, a few at a time and within a time budget, without loading it. Its administrators download and restore them under **Tools → Backups**. Backups are bounded by the plan's storage and the free disk, and the network's sites page shows the latest one of each site ([docs/MULTISITE.md](docs/MULTISITE.md#backups)).
-- **Plugin catalogue and review:** sites install the plugins the operator offers. Uploads, on the plans that allow them, wait for the operator to review that exact build ([docs/PLUGINS.md](docs/PLUGINS.md#networks-of-sites)).
+- **Plugin catalogue and review:** sites install the plugins the operator offers, and the official plugins the operator does not hide. Uploads, on the plans that allow them, wait for the operator to review that exact build ([docs/PLUGINS.md](docs/PLUGINS.md#networks-of-sites)).
 - **Theme uploads:** on Pro and Business, sites upload their own themes, checked automatically with no operator review. Their files count against the plan's storage ([docs/MULTISITE.md](docs/MULTISITE.md#plugins-and-themes)).
 
 ### Operations
@@ -205,9 +206,9 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
 Requirements: Go 1.27+, Node.js (only to build the CSS), PostgreSQL 16+ (18 recommended).
 
 ```sh
-# Build the front-end assets and the binary
+# Build the front-end assets and the binary, with the official plugins inside
 npm ci && npm run build
-go build -o bin/sap13ns ./cmd/sap13ns
+make build                        # or: go build -o bin/sap13ns ./cmd/sap13ns (no official plugins)
 
 # Create a database and a configuration file
 createdb sap13ns
@@ -267,7 +268,7 @@ sap13ns backup create|list|prune|restore -format site      The site's own backup
 sap13ns export -o FILE.xml|FILE.zip   Export the content (-drafts, -pii, -no-media)
 sap13ns update           Install the latest signed release (-check, -yes, -force)
 sap13ns plugin new|pack|check   Start, package and scan a plugin
-sap13ns plugin list|install     List or install the site's plugins
+sap13ns plugin list|install     List or install the site's plugins (-official: the bundled ones)
 sap13ns theme list|install|remove   List, install (checked as an upload) or remove the site's themes
 sap13ns assistant reindex|status
 sap13ns version
@@ -283,6 +284,7 @@ sap13ns migrate|user|plugin|theme|assistant|export|backup -site S   Work on one 
 
 ```sh
 npm run build                     # CSS (Tailwind v4 + Basecoat) and icons
+make plugins                      # build, scan and pack the official plugins the binary embeds
 go test ./...                     # unit tests
 go vet ./...
 ```

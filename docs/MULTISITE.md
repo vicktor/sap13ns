@@ -218,7 +218,7 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 
 | Plan | Price | Approval | Storage | Custom domains | Plugin uploads | Theme uploads |
 |---|---|---|---|---|---|---|
-| Personal | free, non-commercial | by a network administrator | 1 GB | 0 | no (the catalogue only) | no |
+| Personal | free, non-commercial | by a network administrator | 1 GB | 0 | no (the catalogue and the official plugins) | no |
 | Pro | Stripe subscription | none | 10 GB | 2 | yes, reviewed | yes, checked, not reviewed |
 | Business | Stripe subscription | none | 50 GB | 2 | yes, reviewed | yes, checked, not reviewed |
 
@@ -239,6 +239,7 @@ A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then 
 ## Plugins and themes
 
 - **The catalogue.** The plugins installed on the portal (valid, and not blocked by the scanner) form the network's catalogue. Every site sees them under **Plugins → From the network** and installs them from there, disabled. The site's administrator then reviews their permissions and enables them, as on any site.
+- **The official plugins.** The plugins that ship inside the binary ([PLUGINS.md](PLUGINS.md#official-plugins)) are offered to every site, on every plan, under **Plugins → Official plugins**. Like the catalogue's, they come from the operator's own binary, so they are not held for review. An install goes through the same checks and scanner as an upload, is installed disabled, and its files count against the plan's storage. A network administrator can hide any of them under **Network → Plugins → Official plugins**: the sites then neither see nor install it. Copies already installed stay, and the operator can still install it with `sap13ns plugin install -site <slug> -official <id>`.
 - **Uploads.** Personal sites cannot upload plugins. On Pro and Business, an uploaded plugin is installed disabled and **held for review**: a network administrator approves or rejects it under **Network → Plugin reviews**, which shows its permissions, its scan report and its hashes. Only then can the site's administrator enable it.
 - **The review pin.** The approval is pinned to the reviewed build: the module, the assets and the permissions it asks for. The same module uploaded again with a manifest that asks for more is a new build and waits again. A build approved before is approved again at once. [PLUGINS.md](PLUGINS.md#networks-of-sites) has the details.
 - **Themes.** A site can use the built-in themes, the themes in the network's `SAP13NS_THEMES_DIR`, and the themes in its own directory (`$SAP13NS_DATA_DIR/sites/<id>/themes`). A site on a plan with `theme_uploads` (Pro and Business) can upload its own under **Appearance → Themes**. On Personal the form is not shown and an upload is refused with 403.

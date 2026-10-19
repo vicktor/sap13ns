@@ -3,7 +3,7 @@
 This is the full contract between sap13ns and its plugins: the package format, the manifest, the hooks and their payloads, the host functions, the permissions and limits, the scanner, and the install and approval flow.
 
 - **Writing your first plugin?** Start with the skeleton: `sap13ns plugin new my-id` creates a working project, and its README walks through building, testing and packaging it. This document is the reference behind it.
-- **Running a site?** Read [Installing and approving](#installing-and-approving) and [Security model](#security-model).
+- **Running a site?** Read [Installing and approving](#installing-and-approving) and [Security model](#security-model). The [official plugins](#official-plugins) ship inside the binary, under **Plugins → Official plugins**.
 - **Licence.** The Go SDK (`pluginsdk/`), the skeleton and the official plugins are MIT-licensed, unlike the CPAL-1.0 core, so your plugin can use any licence.
 
 ## Contents
@@ -526,7 +526,7 @@ The scanner checks, in order:
 
 **Installing.**
 
-1. **Upload.** In **Plugins → Upload a plugin**, or with `sap13ns plugin install`. The package is extracted, scanned, and installed **disabled**. The uploader, the source (`upload` or `cli`) and the time are recorded.
+1. **Upload.** In **Plugins → Upload a plugin**, or with `sap13ns plugin install`. The package is extracted, scanned, and installed **disabled**. The uploader, the source (`upload` or `cli`; `official` and `catalog` for the [official plugins](#official-plugins) and a [network's catalogue](#networks-of-sites)) and the time are recorded.
 2. **Refusal.** A blocked package is refused with its report (HTTP 422), and nothing is written.
 3. **Review.** The plugin page shows the requested permissions with their risk, the assets, the SHA-256 of the module and the assets, and the scan report.
 4. **Enable.** The form carries a pin of what the administrator saw: the module and asset hashes, the permissions, and the hooks, events, shortcodes, widgets and form fields (names, types and limits). If any of them changed in the meantime, enabling is refused. High-risk permissions or high findings need the confirmation box. Enabling pins all of them.
@@ -549,6 +549,17 @@ The scanner checks, in order:
 
 **Audit.** Every step is written to the audit log with the hashes, versions, verdicts and permissions: `plugin.installed`, `plugin.updated`, `plugin.refused`, `plugin.scanned`, `plugin.approved`, `plugin.disabled`, `plugin.settings_saved` and `plugin.uninstalled`.
 
+### Official plugins
+
+The plugins the sap13ns team maintains (`plugins/` in the repository, MIT-licensed) ship inside the binary, so they arrive with every release and with `sap13ns update`. **Plugins → Official plugins** lists each one the site has not installed, with its version, author, licence and the permissions it will ask for in plain words, and an **Install** button. `sap13ns plugin list -official` and `sap13ns plugin install -official <id>` do the same from the command line.
+
+- **Same pipeline as an upload.** Installing (`POST /admin/plugins/official/{id}/install`, with the `plugins` capability and the CSRF token) unpacks the package under the archive limits, scans it like any upload, and installs it **disabled**, with source `official`. Enabling it is the usual approval pinned to its build, with the confirmation box for high-risk permissions (`embeds` and `antispam` ask for some).
+- **Updates.** When the binary carries a newer version of a plugin installed from there, the section shows **Update available** and an **Update** button. An update is an install of the new package: it is scanned again, keeps the settings and data, and stops the plugin until it is approved again if its module, assets, permissions or capabilities changed. An older version in the binary (after a rollback) is not offered and does not downgrade.
+- **Uninstalling** puts the plugin back in the list. Installing it again over kept data works as for any package (`manifest.retained-data`).
+- **Another plugin with the same id**, uploaded or copied by hand, is not replaced: the section leaves it out, and an install asks you to uninstall it first.
+- **How the bundle is made.** `make plugins` (which `make build` and the release workflow run first) builds every official plugin, packs it with the packer of `sap13ns plugin pack`, scans it, and writes `internal/plugin/bundled/packs/<id>.zip`, which the binary embeds. The packages are generated and ignored by git. A plain `go build` from a fresh clone embeds none, and the section does not show. In development mode (`SAP13NS_DEV=true`), a server run from a checkout reads that directory from disk, so `make plugins` shows without a rebuild.
+- **Size.** The official modules are built with `-ldflags="-s -w"`, which only drops the WebAssembly `name` section (function names in trap traces): about 1.7% smaller. The ten packages add about 16 MB to the binary.
+
 ## Networks of sites
 
 On a network ([MULTISITE.md](MULTISITE.md)), each site has its own plugins, settings and key-value data, and runs them in its own host. The network adds a catalogue and a review by its operator. The site's administrator still approves the permissions and enables each plugin, as described above.
@@ -558,11 +569,16 @@ On a network ([MULTISITE.md](MULTISITE.md)), each site has its own plugins, sett
 - **Installing:** every site lists them under **Plugins → From the network**. **Install** (`POST /admin/plugins/catalog/{id}/install`, with the `plugins` capability) packs the plugin on the portal and installs it on the site, **disabled**, with source `catalog`.
 - **No review:** catalogue installs need no operator review, because the operator chose them. A catalogue install also clears the review that an earlier upload of the same id was waiting for.
 
+**The official plugins.**
+- **On every plan.** Every site, Personal included, lists the [official plugins](#official-plugins) under **Plugins → Official plugins** and installs them from there, disabled, with source `official`. Like the catalogue's, they need no operator review: they are the core team's code, in the binary the operator chose to run. They are scanned like any upload, and the site's administrator still approves their permissions.
+- **Hiding one.** **Network → Plugin reviews → Official plugins** lists them, and **Hide from the sites** takes one off the sites' lists: they can no longer install or update it (404). The copies they installed stay and keep running, as a downgrade keeps what is over a plan's limits. The portal and `sap13ns plugin install -official -site S` are the operator's and ignore it. Both changes are audited, as `network.official_plugin_hidden` and `network.official_plugin_offered`.
+- **Storage.** Their files count against the site's storage exactly as a catalogue install's: what the package adds is reserved before it is written, and an install that does not fit is refused with 413.
+
 **Uploads, by plan.**
 
 | Plan | Uploads |
 |---|---|
-| Personal | None. The upload form is hidden and an upload is refused with 403. Sites use the catalogue. |
+| Personal | None. The upload form is hidden and an upload is refused with 403. Sites use the catalogue and the official plugins. |
 | Pro, Business | Allowed. An upload is installed disabled and **held for review**: enabling it fails with "The network operator must review this plugin before it can be enabled." |
 
 A plugin an operator installs with `sap13ns plugin install -site S` is not held.
@@ -588,7 +604,9 @@ sap13ns plugin new <id> [-dir D] [-hooks shortcode,widget,...] [-sdk PATH] [-mod
 sap13ns plugin pack [-o DIR] [-no-build] <dir>      # build, pack and scan; writes <id>-<version>.zip and .zip.sha256
 sap13ns plugin check [-json] [-skip-dry-run] <dir|file.zip>   # exit status 1 when blocked
 sap13ns plugin list [-env FILE] [-site S]           # installed plugins of a site
+sap13ns plugin list [-env FILE] [-site S] -official # official plugins in the binary, and the site's copies
 sap13ns plugin install [-env FILE] [-site S] [-allow-downgrade] <file.zip>   # installs disabled
+sap13ns plugin install [-env FILE] [-site S] -official <id>                 # an official plugin, disabled
 sap13ns plugin hash <dir>                           # SHA-256 of the module and assets
 ```
 
@@ -606,6 +624,7 @@ sap13ns plugin hash <dir>                           # SHA-256 of the module and 
   - **Results:** `env.KV`, `env.Mails` and `env.Logs`.
   - **It enforces the server's rules:** missing permissions (`env.Denied`), unknown recipients, non-https URLs, hosts outside `env.HTTPHosts` and the per-request limits (200 KV operations, 10 post queries, 4 HTTP requests, 5 e-mails) fail as they would in production. `posts_query` searches whole words, with `-word` and `or`, like the server; it looks in `Title` and `Excerpt` only, since the fake posts have no content.
 - **The skeleton** (`plugins/skeleton`) has one example per hook, tests for each, and a `Makefile` with `build`, `test`, `vet`, `check` and `pack`.
+- **The official plugins** are built, packed and scanned into the binary's bundle with `make plugins` at the root, and tested with `make plugins-test` ([Official plugins](#official-plugins)).
 
 ## Versioning
 

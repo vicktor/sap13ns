@@ -10,6 +10,8 @@ sap13ns is a lightweight WordPress-style CMS. It ships as one Go binary (CGO off
 npm ci && npm run build      # Tailwind CSS (admin + every theme), Basecoat JS, Lucide icons
 npm test                     # admin JS tests (node --test ui/admin/test/*.test.mjs)
 go build -o bin/sap13ns ./cmd/sap13ns
+make plugins                 # build, scan and pack the official plugins into internal/plugin/bundled/packs
+make build                   # make plugins, then the binary with them embedded
 go vet ./... && go test ./...
 go test ./internal/web -run TestSafeNext     # a single test
 go run ./scripts/devseed -env data/dev.env   # sample content; creates admin / dev-password-123
@@ -53,6 +55,7 @@ make check                                   # vet + Go and JS tests + i18n + ev
 - **Content pipeline:** `internal/content` renders Markdown with goldmark and sanitises it with bluemonday. Anything that reaches a page goes through this pipeline: posts, comments, plugin output, AI answers, WordPress imports.
 - **Plugins:** see `internal/plugin` and `pluginsdk`.
   - Plugins are WebAssembly modules (wasip1) run in-process by wazero, with explicit permissions and approval pinned to the module's SHA-256.
+  - **Official plugins** (every `plugins/<id>` but the skeleton) ship inside the binary: `make plugins` packs them into `internal/plugin/bundled/packs/*.zip`, which is generated and gitignored, so a plain `go build` embeds none. `official.go` loads the bundle; the admin installs from it through the same `Host.Install` pipeline as an upload, with source `official`. In dev mode the CLI and server read the packs from disk.
   - Host functions are in `hostfuncs.go`; the upload-time scanner is in `scan.go`. Plugin fetches, imported media and AI image downloads go through the shared SSRF guard (`internal/netguard`); never write another address list.
 - **Other subsystems:**
 
