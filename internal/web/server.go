@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 	"sap13ns/internal/update"
+	"sap13ns/internal/videothumb"
 )
 
 // siteState is an immutable snapshot of the settings, swapped atomically.
@@ -111,8 +113,9 @@ type Server struct {
 	checkout    *auth.Limiter  // Checkout and Customer Portal sessions, per account
 	// DNS checks and additions of custom domains, per account
 	domainChecks *auth.Limiter
-	hosts        []string     // other host names of this site (multisite aliases)
-	jobs         atomic.Int32 // background jobs started by requests (Busy)
+	hosts        []string          // other host names of this site (multisite aliases)
+	jobs         atomic.Int32      // background jobs started by requests (Busy)
+	videos       *videothumb.Cache // posters and titles of embedded videos (video.go)
 }
 
 type Deps struct {
@@ -131,6 +134,9 @@ type Deps struct {
 	Network    NetworkHooks
 	Hosts      []string // other routed host names of the site, for analytics referrers
 	CacheSizes CacheSizes
+	// Videos is the poster cache of embedded videos; nil keeps one in
+	// DataDir/cache/video-thumbs that fetches from YouTube and Vimeo.
+	Videos *videothumb.Cache
 }
 
 // NetworkHooks connect the server of one site to the network that runs it
@@ -181,6 +187,14 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		// DNS checks and additions of custom domains, per account.
 		domainChecks: auth.NewLimiter(30, time.Hour),
 		backupNow:    auth.NewLimiter(6, time.Hour),
+	}
+	s.videos = d.Videos
+	if s.videos == nil && d.Config.DataDir != "" {
+		s.videos = videothumb.New(videothumb.Options{Dir: filepath.Join(d.Config.DataDir, "cache", "video-thumbs"), Log: d.Log})
+	}
+	if s.videos != nil {
+		// A new poster or title changes the pages that show the video.
+		s.videos.OnChange(func(string) { s.pages.Invalidate(); s.content.Invalidate() })
 	}
 	s.sso, _ = d.Network.(SSOClient)
 	s.portal, _ = d.Network.(Portal)

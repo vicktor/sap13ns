@@ -90,6 +90,7 @@ func settingsFields(c Site) []field[store.Settings] {
 		{"og_cards", func(s *S) bool { return in(s.OGCards, "classic", "bold", "minimal", "off") }, func(d, s *S) { d.OGCards = s.OGCards }},
 		{"og_accent", func(s *S) bool { return s.OGAccent == "" || HexColor.MatchString(s.OGAccent) }, func(d, s *S) { d.OGAccent = s.OGAccent }},
 		{"ai_access", func(s *S) bool { return in(s.AIAccess, "open", "no-training", "block") }, func(d, s *S) { d.AIAccess = s.AIAccess }},
+		{"video_embeds", func(s *S) bool { return in(s.VideoEmbeds, "on", "plain", "off") }, func(d, s *S) { d.VideoEmbeds = s.VideoEmbeds }},
 		{"session_days", func(s *S) bool { return between(s.SessionDays, 1, 90) }, func(d, s *S) { d.SessionDays = s.SessionDays }},
 		{"idle_hours", func(s *S) bool { return between(s.IdleHours, 1, 24*90) }, func(d, s *S) { d.IdleHours = s.IdleHours }},
 		// Commenters' Gravatars need the users' setting, which is the one

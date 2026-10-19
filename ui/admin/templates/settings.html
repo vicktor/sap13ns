@@ -15,6 +15,7 @@
     <a href="#reading">{{icon "book-open"}}{{T "Reading"}}</a>
     <a href="#discussion">{{icon "message-square"}}{{T "Discussion"}}</a>
     <a href="#feeds">{{icon "rss"}}{{T "Feeds"}}</a>
+    <a href="#videos">{{icon "square-play"}}{{T "Videos"}}</a>
     <a href="#discovery">{{icon "bot"}}{{T "Sharing, AI & stats"}}</a>
     <a href="#accounts">{{icon "shield-check"}}{{T "Accounts & security"}}</a>
     <a href="/admin/settings/ai">{{icon "sparkles"}}{{T "AI provider"}}</a>
@@ -111,6 +112,19 @@
         <div class="field"><label for="feed_items">{{T "Items in each feed"}}</label><input class="input w-32" id="feed_items" name="feed_items" type="number" min="1" max="100" value="{{$s.FeedItems}}"></div>
         <label class="check"><input type="checkbox" class="input" role="switch" name="feed_full_text" value="1"{{if $s.FeedFullText}} checked{{end}}> {{T "Include the full text (otherwise, a summary)"}}</label>
         <div class="field"><label for="websub_hub">{{T "WebSub hub"}}</label><input class="input" id="websub_hub" name="websub_hub" type="url" value="{{$s.WebSubHub}}" placeholder="https://pubsubhubbub.appspot.com/" maxlength="300"><p class="hint">{{T "Optional. Readers that support WebSub get new posts instantly."}}</p></div>
+      </section>
+    </section>
+
+    <section class="card" id="videos">
+      <header><h2>{{T "Videos"}}</h2><p>{{T "A YouTube or Vimeo link alone on a line, or the [video] shortcode, becomes a video player in posts and pages."}}</p></header>
+      <section class="form">
+        <fieldset class="fieldset">
+          <legend>{{T "Video embeds"}}</legend>
+          <label class="check"><input type="radio" class="input" name="video_embeds" value="on"{{if eq $s.VideoEmbeds "on"}} checked{{end}}> {{T "Player with a preview: this server fetches each video's image and title from YouTube or Vimeo"}}</label>
+          <label class="check"><input type="radio" class="input" name="video_embeds" value="plain"{{if eq $s.VideoEmbeds "plain"}} checked{{end}}> {{T "Player without a preview: this server never contacts YouTube or Vimeo"}}</label>
+          <label class="check"><input type="radio" class="input" name="video_embeds" value="off"{{if eq $s.VideoEmbeds "off"}} checked{{end}}> {{T "Off: video links stay links"}}</label>
+          <p class="hint">{{T "Visitors' browsers only connect to YouTube (privacy-enhanced mode) or Vimeo (do not track) when they press play. Mention embedded videos in your privacy policy."}}</p>
+        </fieldset>
       </section>
     </section>
 

@@ -14,6 +14,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/content"
 	"sap13ns/internal/icons"
+	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 )
 
@@ -533,6 +534,7 @@ func (s *Server) afterPostSave(r *http.Request, id int64, oldStatus, newStatus s
 	if err != nil {
 		return
 	}
+	s.prefetchVideos(p.Content)
 	pending := func(on bool) {
 		if err := s.store.SetAnnouncePending(ctx, id, on); err != nil {
 			s.log.Error("post announcement", "post", id, "err", err)
@@ -881,9 +883,16 @@ func (s *Server) apiPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	iconFn := func(name string) string { return icons.SVG(name, "") }
-	html := content.Render(req.Content, s.plugins.HasShortcode, func(sc content.Shortcode) (string, error) {
-		return s.plugins.Shortcode(r.Context(), sc.Name, sc.Attrs, sc.Inner, nil)
-	}, iconFn)
+	s.awaitVideos(r.Context(), req.Content, 4*time.Second)
+	html := content.RenderWith(req.Content, content.Options{
+		IsShortcode: s.plugins.HasShortcode,
+		Shortcode: func(sc content.Shortcode) (string, error) {
+			return s.plugins.Shortcode(r.Context(), sc.Name, sc.Attrs, sc.Inner, nil)
+		},
+		Icons:  iconFn,
+		Video:  s.videoOptions(s.reqLang(r), plugin.FilterPage),
+		Images: s.imageLookup(r.Context(), req.Content),
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"html": html, "words": content.WordCount(content.PlainText(html)),
 		"minutes": content.ReadingMinutes(req.Content)})
 }

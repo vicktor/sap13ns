@@ -202,10 +202,7 @@ func sameHost(hostport, host string) bool {
 }
 
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
-	policy := csp
-	if s.cfg.BaseURL.Scheme == "https" {
-		policy += "; upgrade-insecure-requests"
-	}
+	policy := s.basePolicy()
 	hsts := "max-age=63072000; includeSubDomains"
 	if s.cfg.HSTSNoSubdomains {
 		// A site on a customer's domain must not force HTTPS on the

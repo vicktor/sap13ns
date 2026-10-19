@@ -45,8 +45,13 @@ type Settings struct {
 	// "block" (every AI agent is disallowed and the endpoints are off).
 	AIAccess     string `json:"ai_access"`
 	AnalyticsOff bool   `json:"analytics_off"`
-	SessionDays  int    `json:"session_days"`
-	IdleHours    int    `json:"idle_hours"`
+	// VideoEmbeds is what a YouTube or Vimeo link alone on a line becomes:
+	// "on" (default) a click-to-load player with the poster and title the
+	// server fetches, "plain" the same player without them (the server
+	// never contacts the providers) or "off" (the link stays a link).
+	VideoEmbeds string `json:"video_embeds"`
+	SessionDays int    `json:"session_days"`
+	IdleHours   int    `json:"idle_hours"`
 	// GravatarUsers shows the Gravatar of users without a photo of their
 	// own (on by default). The server looks it up with the SHA-256 of the
 	// e-mail address and serves a copy; off, nothing is sent to Gravatar
@@ -111,6 +116,7 @@ func DefaultSettings() Settings {
 		AIAccess:          "open",
 		GravatarUsers:     true,
 		LoginPath:         "/login",
+		VideoEmbeds:       "on",
 	}
 }
 

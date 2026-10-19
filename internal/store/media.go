@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"path"
 	"strings"
 	"time"
 
@@ -102,6 +103,61 @@ func (s *Store) MediaByIDs(ctx context.Context, ids []int64) (map[int64]*Media, 
 	out := make(map[int64]*Media, len(list))
 	for _, m := range list {
 		out[m.ID] = m
+	}
+	return out, nil
+}
+
+// OriginalPath is the path of the original file behind a variant's path
+// (base-medium.jpg → base.jpg); other paths are returned as they are.
+func OriginalPath(p string) string {
+	ext := path.Ext(p)
+	stem := strings.TrimSuffix(p, ext)
+	for _, v := range []string{"-thumb", "-medium", "-large"} {
+		if s, ok := strings.CutSuffix(stem, v); ok {
+			return s + ext
+		}
+	}
+	return p
+}
+
+// MediaByPaths finds media items by the path of their original or of one
+// of their variants (below /uploads/), keyed by the path asked for.
+func (s *Store) MediaByPaths(ctx context.Context, paths []string) (map[string]*Media, error) {
+	if len(paths) == 0 {
+		return map[string]*Media{}, nil
+	}
+	originals := make([]string, 0, len(paths))
+	for _, p := range paths {
+		originals = append(originals, OriginalPath(p))
+	}
+	rows, err := s.DB.Query(ctx, `SELECT `+mediaCols+` FROM media WHERE path = ANY($1)`, originals)
+	if err != nil {
+		return nil, err
+	}
+	list, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[Media])
+	if err != nil {
+		return nil, err
+	}
+	byPath := make(map[string]*Media, len(list))
+	for _, m := range list {
+		byPath[m.Path] = m
+	}
+	out := make(map[string]*Media, len(paths))
+	for _, p := range paths {
+		m := byPath[OriginalPath(p)]
+		if m == nil {
+			continue
+		}
+		if p == m.Path {
+			out[p] = m
+			continue
+		}
+		for _, v := range m.Variants {
+			if v.Path == p {
+				out[p] = m
+				break
+			}
+		}
 	}
 	return out, nil
 }

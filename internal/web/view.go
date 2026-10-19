@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"html/template"
@@ -203,16 +204,25 @@ func (s *Server) renderBody(ctx context.Context, p *store.Post, where string) te
 	var maxAge time.Duration
 	// Icon placeholders stay as they are until every filter has run: each
 	// filter's output is sanitised again, and <svg> would not survive that.
-	html := content.Render(p.Content, s.plugins.HasShortcode, func(sc content.Shortcode) (string, error) {
-		out, age, err := s.plugins.ShortcodeMaxAge(ctx, sc.Name, sc.Attrs, sc.Inner, &info)
-		if age > 0 && (maxAge == 0 || age < maxAge) {
-			maxAge = age
-		}
-		return out, err
-	}, nil)
-	filtered := s.plugins.FilterContent(ctx, string(html), &info, where, func(h string) string {
+	html := content.RenderWith(p.Content, content.Options{
+		IsShortcode: s.plugins.HasShortcode,
+		Shortcode: func(sc content.Shortcode) (string, error) {
+			out, age, err := s.plugins.ShortcodeMaxAge(ctx, sc.Name, sc.Attrs, sc.Inner, &info)
+			if age > 0 && (maxAge == 0 || age < maxAge) {
+				maxAge = age
+			}
+			return out, err
+		},
+		Video:  s.videoOptions(cmp.Or(p.Lang, s.settings().Language), where),
+		Images: s.imageLookup(ctx, p.Content),
+	})
+	// Video players are the core's: filters see a placeholder, so they
+	// neither strip the player's attributes nor embed its link again.
+	protected, restore := content.ProtectVideos(string(html))
+	filtered := s.plugins.FilterContent(ctx, protected, &info, where, func(h string) string {
 		return string(content.SanitizePluginHTML(h, nil))
 	})
+	filtered = restore(filtered)
 	filtered = content.ExpandIcons(filtered, func(name string) string { return icons.SVG(name, "") })
 	s.content.Set(key, &cache.Entry{Body: []byte(filtered), MaxAge: maxAge})
 	return template.HTML(filtered)
@@ -643,6 +653,7 @@ type PageData struct {
 	Translations []LangLink
 	IsFront      bool
 	Preview      bool
+	Video        bool     // the page shows a video player: load video.js
 	Ask          *AskView // the assistant page without JavaScript (assistant.go)
 	// Blocks: block layouts replacing theme regions (builder.go).
 	Blocks *BlocksView

@@ -230,7 +230,7 @@ func localRedirectTarget(target string) bool {
 var reservedRoutes = map[string]bool{
 	"admin": true, "login": true, "logout": true, "register": true, "setup": true, "forgot-password": true,
 	"reset-password": true, "sso": true, "api": true, "mcp": true, "billing": true, "static": true, "themes": true,
-	"uploads": true, "plugin-assets": true, "plugin-forms": true, "og": true, "healthz": true, "search": true,
+	"uploads": true, "plugin-assets": true, "plugin-forms": true, "og": true, "video-thumbs": true, "healthz": true, "search": true,
 	"ask": true, "feed": true, ".well-known": true, "robots.txt": true, "manifest.webmanifest": true,
 }
 

@@ -55,7 +55,7 @@ func TestWebSubHub(t *testing.T) {
 	}
 	form := url.Values{"csrf": {e.csrf}, "site_title": {"T"}, "language": {"es"}, "timezone": {"UTC"}, "posts_per_page": {"10"},
 		"front_page": {"posts"}, "comment_moderation": {"all"}, "default_role": {"subscriber"}, "feed_items": {"20"},
-		"websub_hub": {"http://hub.example.com/"}, "two_factor": {"staff"}, "og_cards": {"classic"}, "ai_access": {"open"},
+		"websub_hub": {"http://hub.example.com/"}, "two_factor": {"staff"}, "og_cards": {"classic"}, "ai_access": {"open"}, "video_embeds": {"on"},
 		"session_days": {"14"}, "idle_hours": {"48"}}
 	post := func(f url.Values) *httptest.ResponseRecorder {
 		req := httptest.NewRequest("POST", "http://example.test/admin/settings", strings.NewReader(f.Encode()))

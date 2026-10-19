@@ -14,6 +14,7 @@ type Entry struct {
 	ContentType string
 	ETag        string
 	Status      int
+	CSP         string // the page's own Content-Security-Policy ("" for the usual one)
 	// MaxAge, when set and shorter than the cache's TTL, expires this
 	// entry sooner.
 	MaxAge  time.Duration

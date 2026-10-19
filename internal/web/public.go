@@ -70,7 +70,7 @@ func (s *Server) fillTokens(e *cache.Entry) *cache.Entry {
 		return []byte(s.keys.Sign("comment", string(m[len(commentTokenSlot):]), now))
 	})
 	body = s.fillFormTokens(body) // plugin forms (plugin_web.go)
-	return &cache.Entry{Body: body, Status: e.Status, ContentType: e.ContentType}
+	return &cache.Entry{Body: body, Status: e.Status, ContentType: e.ContentType, CSP: e.CSP}
 }
 
 // cached serves anonymous GET requests from the in-memory page cache.
@@ -99,7 +99,7 @@ func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 		h(rec, r)
 		sum := sha256.Sum256(rec.buf.Bytes())
 		e := &cache.Entry{Body: rec.buf.Bytes(), Status: rec.status, ContentType: rec.header.Get("Content-Type"),
-			ETag: `"` + hex.EncodeToString(sum[:8]) + `"`}
+			ETag: `"` + hex.EncodeToString(sum[:8]) + `"`, CSP: rec.header.Get("Content-Security-Policy")}
 		for k, v := range rec.header {
 			w.Header()[k] = v
 		}
@@ -115,6 +115,9 @@ func writeCached(w http.ResponseWriter, r *http.Request, e *cache.Entry, state s
 	h := w.Header()
 	if e.ContentType != "" {
 		h.Set("Content-Type", e.ContentType)
+	}
+	if e.CSP != "" {
+		h.Set("Content-Security-Policy", e.CSP) // a page with a video player (video.go)
 	}
 	if h.Get("Cache-Control") == "" {
 		h.Set("Cache-Control", "public, no-cache")
@@ -452,6 +455,10 @@ func (s *Server) renderSingle(w http.ResponseWriter, r *http.Request, p *store.P
 	ctx := r.Context()
 	pv := s.postView(p, viewer)
 	pv.Content = s.renderBody(ctx, p, plugin.FilterPage)
+	if content.HasVideo(string(pv.Content)) {
+		pd.Video = true
+		s.allowVideoFrames(w)
+	}
 	pd.Post, pd.Title, pd.Heading, pd.IsFront, pd.Preview = pv, p.Title, p.Title, front, preview
 	pi := s.PostInfo(p)
 	pd.postInfo = &pi

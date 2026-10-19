@@ -483,6 +483,9 @@ func (s *Server) renderAdminStatus(w http.ResponseWriter, r *http.Request, statu
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if name == "post_edit" {
+		s.allowVideoFrames(w) // the editor plays videos in its preview
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	w.Write(buf.Bytes())

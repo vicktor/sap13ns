@@ -125,6 +125,21 @@ func TestCleanAssistantBubble(t *testing.T) {
 	}
 }
 
+func TestCleanVideoEmbeds(t *testing.T) {
+	cur := store.DefaultSettings()
+	if cur.VideoEmbeds != "on" {
+		t.Fatalf("default video embeds %q", cur.VideoEmbeds)
+	}
+	for in, want := range map[string]string{"on": "on", "plain": "plain", "off": "off", "": "on", "iframe": "on"} {
+		s := store.DefaultSettings()
+		s.VideoEmbeds = in
+		out, reset := CleanSettings(s, cur, Site{})
+		if out.VideoEmbeds != want || (want != in) != slices.Contains(reset, "video_embeds") {
+			t.Errorf("%q: got %q, reset %v", in, out.VideoEmbeds, reset)
+		}
+	}
+}
+
 func TestMenuURL(t *testing.T) {
 	for u, want := range map[string]bool{
 		"/": true, "/blog/x?y=1#z": true, "#section": true, "https://example.com/": true, "http://example.com": true,
