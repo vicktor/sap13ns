@@ -798,9 +798,34 @@ func TestBillingGrace(t *testing.T) {
 	e.served(a.PrimaryHost, http.StatusOK)
 	e.clock.add(time.Minute)
 	e.refresh()
-	rec := e.do("GET", "https://"+a.PrimaryHost+"/")
-	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "suspended") {
-		t.Fatalf("held: %d\n%s", rec.Code, rec.Body.String())
+	// "Paused", in the site's language (Spanish), and nothing about its
+	// billing for the visitors.
+	rec := e.do("GET", "https://"+a.PrimaryHost+"/", func(r *http.Request) { r.Header.Set("Accept-Language", "en-US,en;q=0.9") })
+	if body := rec.Body.String(); rec.Code != http.StatusServiceUnavailable || !strings.Contains(body, "Este sitio está en pausa") ||
+		!strings.Contains(body, "Volverá pronto. Si es tu sitio, inicia sesión para reactivarlo.") || !strings.Contains(body, `lang="es"`) ||
+		strings.Contains(body, "suspend") || strings.Contains(body, "pago") || strings.Contains(body, "factura") {
+		t.Fatalf("held: %d\n%s", rec.Code, body)
+	}
+	// A site in English with a Spanish version: Spanish for whoever
+	// prefers it, English for the others, once the languages are read
+	// again.
+	st := e.siteStore(a)
+	set, err := st.LoadSettings(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set.Language, set.Languages = "en", []string{"es"}
+	if err := st.SaveSettings(e.ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	e.clock.add(siteLangsTTL)
+	e.refresh()
+	for accept, want := range map[string]string{"": "This site is paused", "fr-FR,fr;q=0.9": "This site is paused",
+		"es-ES,es;q=0.9": "Este sitio está en pausa", "de,es;q=0.5": "Este sitio está en pausa"} {
+		rec := e.do("GET", "https://"+a.PrimaryHost+"/blog/x", func(r *http.Request) { r.Header.Set("Accept-Language", accept) })
+		if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("held, Accept-Language %q: %d, want %q", accept, rec.Code, want)
+		}
 	}
 	if rec := e.do("GET", "https://"+a.PrimaryHost+"/login"); rec.Code != http.StatusOK {
 		t.Fatalf("the sign-in of a held site: %d", rec.Code)

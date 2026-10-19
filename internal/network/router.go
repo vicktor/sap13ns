@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"sap13ns/internal/web"
@@ -49,19 +50,19 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			http.Redirect(w, req, r.cfg.BaseURL.String()+"/", http.StatusFound)
 			return
 		}
-		r.statusPage(w, req, web.StatusUnknown, http.StatusNotFound)
+		r.statusPage(w, req, nil, web.StatusUnknown, http.StatusNotFound)
 		return
 	case host != rt.Primary && !aliasServed(req.URL.Path):
 		r.toPrimary(w, req, rt)
 		return
 	case rt.Status == StatusSuspended && !rt.Emergency:
-		r.statusPage(w, req, web.StatusSuspended, http.StatusServiceUnavailable)
+		r.statusPage(w, req, rt, web.StatusSuspended, http.StatusServiceUnavailable)
 		return
 	case rt.Status == StatusSuspended:
 		// An emergency access is live: the site serves its session (and
 		// the sign-in that opens it), and the 503 page to everything else.
 		req = req.WithContext(web.EmergencyOnly(req.Context(), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			r.statusPage(w, req, web.StatusSuspended, http.StatusServiceUnavailable)
+			r.statusPage(w, req, rt, web.StatusSuspended, http.StatusServiceUnavailable)
 		})))
 	case rt.Status == StatusPending || rt.Held:
 		// Its sign-in pages and admin only. Its sign-in address is its own
@@ -73,7 +74,7 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			kind = web.StatusBilling
 		}
 		closed := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			r.statusPage(w, req, kind, http.StatusServiceUnavailable)
+			r.statusPage(w, req, rt, kind, http.StatusServiceUnavailable)
 		})
 		if !web.NotOpenServes(req.URL.Path) {
 			closed(w, req)
@@ -86,21 +87,73 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if req.Context().Err() == nil && !errors.Is(err, errBusy) && !errors.Is(err, errUnavailable) {
 			r.log.Error("site unavailable", "site", rt.ID, "host", host, "err", err)
 		}
-		r.statusPage(w, req, web.StatusBusy, http.StatusServiceUnavailable)
+		r.statusPage(w, req, rt, web.StatusBusy, http.StatusServiceUnavailable)
 		return
 	}
 	defer r.release(e)
 	e.app.ServeHTTP(w, req)
 }
 
-// statusPage answers for a host without a running site; the stylesheet
-// and scripts of the page come from the router too.
-func (r *Registry) statusPage(w http.ResponseWriter, req *http.Request, kind string, status int) {
+// statusPage answers for a host without a running site, rt when the host
+// is a site's, in the site's language; the stylesheet and scripts of the
+// page come from the router too.
+func (r *Registry) statusPage(w http.ResponseWriter, req *http.Request, rt *siteRoute, kind string, status int) {
 	if strings.HasPrefix(req.URL.Path, "/static/") {
 		r.pages.ServeStatic(w, req)
 		return
 	}
-	r.pages.Serve(w, req, kind, status, r.cfg.BaseURL.Scheme == "https")
+	var langs []string
+	if rt != nil {
+		langs = r.langs.get(req.Context(), r.net, rt.ID, r.o.Now())
+	}
+	r.pages.Serve(w, req, kind, status, r.cfg.BaseURL.Scheme == "https", langs)
+}
+
+// How long the languages of a site are kept for its status pages, and
+// how many sites' languages at most.
+const (
+	siteLangsTTL     = 10 * time.Minute
+	siteLangsRetry   = 30 * time.Second // after a failed read
+	siteLangsMax     = 4096
+	siteLangsTimeout = time.Second
+)
+
+// siteLangs keeps the languages of the sites whose status pages were
+// served (a site with a status page is not loaded, so its settings are
+// read from its schema): a held site answers every visitor with one.
+type siteLangs struct {
+	mu sync.Mutex
+	m  map[int64]siteLangsEntry
+}
+
+type siteLangsEntry struct {
+	langs []string
+	until time.Time
+}
+
+// get returns the languages of a site, its main one first; nil when they
+// cannot be read, and the page follows the visitor.
+func (c *siteLangs) get(ctx context.Context, n *Network, id int64, now time.Time) []string {
+	c.mu.Lock()
+	e, ok := c.m[id]
+	c.mu.Unlock()
+	if ok && now.Before(e.until) {
+		return e.langs
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), siteLangsTimeout)
+	defer cancel()
+	langs, err := n.SiteLanguages(ctx, id)
+	e = siteLangsEntry{langs: langs, until: now.Add(siteLangsTTL)}
+	if err != nil {
+		e = siteLangsEntry{until: now.Add(siteLangsRetry)}
+	}
+	c.mu.Lock()
+	if c.m == nil || len(c.m) >= siteLangsMax {
+		c.m = map[int64]siteLangsEntry{}
+	}
+	c.m[id] = e
+	c.mu.Unlock()
+	return e.langs
 }
 
 // aliasServed are the paths a site answers on all its hosts: ACME HTTP-01

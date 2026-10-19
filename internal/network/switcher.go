@@ -71,6 +71,27 @@ func (h hooks) SwitcherSites(ctx context.Context, accountID int64) (*web.Account
 	return out, nil
 }
 
+// SiteLanguages are the content languages of a site, its main one first,
+// read from the site's own schema.
+func (n *Network) SiteLanguages(ctx context.Context, id int64) ([]string, error) {
+	s, err := n.Site(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !hasSchema(s) {
+		return nil, ErrState
+	}
+	st, err := n.siteStore(s)
+	if err != nil {
+		return nil, err
+	}
+	set, err := st.LoadSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string{set.Language}, set.Languages...), nil
+}
+
 // SiteTitle is the title a site's administrators gave it, read from the
 // site's own schema (at most 80 characters of it).
 func (n *Network) SiteTitle(ctx context.Context, s *Site) (string, error) {

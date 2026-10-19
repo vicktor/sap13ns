@@ -127,6 +127,7 @@ type Registry struct {
 	unloaded  atomic.Int64 // and closed
 
 	access      accessCache                     // operator sessions' checks (portal_support.go)
+	langs       siteLangs                       // of the sites whose status pages are served (router.go)
 	lastBackups atomic.Pointer[web.BackupRun]   // the latest nightly backups
 	backupFree  func(dir string) (int64, error) // tests: the free disk space the backups see
 

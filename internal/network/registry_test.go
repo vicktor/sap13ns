@@ -350,7 +350,7 @@ func TestStatuses(t *testing.T) {
 	waitFor(t, "the notification", func() bool { return e.reg.refreshes.Load() > before && e.entry(b.ID) == nil })
 	for _, p := range []string{"/", "/login", "/admin/", "/blog/x"} {
 		rec := e.do("GET", "https://beta.sap13ns.site"+p)
-		if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "This site is suspended") ||
+		if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "Este sitio está suspendido") ||
 			!strings.Contains(rec.Header().Get("X-Robots-Tag"), "noindex") {
 			t.Fatalf("suspended %s: %d", p, rec.Code)
 		}
@@ -502,7 +502,7 @@ func TestInflightCapAndLoadWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := e.do("GET", "https://alpha.sap13ns.site/")
-	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" || !strings.Contains(rec.Body.String(), "This site is busy") {
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" || !strings.Contains(rec.Body.String(), "Este sitio está ocupado") {
 		t.Fatalf("over the cap: %d", rec.Code)
 	}
 	e.reg.release(held)

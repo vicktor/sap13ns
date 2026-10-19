@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"sap13ns/internal/i18n"
@@ -27,7 +28,7 @@ const (
 	StatusPending   = "pending"   // 503: waiting for the network's approval
 	StatusSuspended = "suspended" // 503: suspended by a network admin
 	StatusBusy      = "busy"      // 503: the site cannot be loaded right now
-	StatusBilling   = "billing"   // 503: held for its billing; its administrators can sign in
+	StatusBilling   = "billing"   // 503: held for its billing ("paused"); its administrators can sign in
 )
 
 func NewStatusPages(ui fs.FS) (*StatusPages, error) {
@@ -53,11 +54,14 @@ func (p *StatusPages) assetURL(file string) string {
 	return "/static/" + file
 }
 
-// Serve renders the page of kind with status, in the first language of
-// the visitor's that the UI has. https adds upgrade-insecure-requests to
-// the policy, as on a site.
-func (p *StatusPages) Serve(w http.ResponseWriter, r *http.Request, kind string, status int, https bool) {
-	lang := p.language(r.Header.Get("Accept-Language"))
+// Serve renders the page of kind with status. A site's page (site lists
+// its languages, the main one first) follows the site: the first of its
+// languages the visitor accepts, else its main language; without them, or
+// when the UI has none of them, the first language of the visitor's that
+// the UI has. https adds upgrade-insecure-requests to the policy, as on a
+// site.
+func (p *StatusPages) Serve(w http.ResponseWriter, r *http.Request, kind string, status int, https bool, site []string) {
+	lang := p.language(r.Header.Get("Accept-Language"), site)
 	t, err := p.tmpl.Clone()
 	if err != nil {
 		http.Error(w, http.StatusText(status), status)
@@ -84,7 +88,7 @@ func (p *StatusPages) Serve(w http.ResponseWriter, r *http.Request, kind string,
 	switch kind {
 	case StatusBusy:
 		h.Set("Retry-After", "5")
-	case StatusPending, StatusSuspended:
+	case StatusPending, StatusSuspended, StatusBilling:
 		h.Set("Retry-After", "3600")
 	}
 	w.WriteHeader(status)
@@ -123,15 +127,26 @@ func setStaticHeaders(h http.Header) {
 	h.Set("Cross-Origin-Opener-Policy", "same-origin")
 }
 
-// language picks the first catalog language the visitor accepts, ignoring
-// weights (browsers list languages by preference), else English.
-func (p *StatusPages) language(accept string) string {
+// language picks the language of a status page: of the site's languages
+// that the catalog has, the first the visitor accepts, else the first;
+// without any, the first catalog language the visitor accepts, else
+// English. Weights are ignored (browsers list languages by preference).
+func (p *StatusPages) language(accept string, site []string) string {
+	var known []string
+	for _, l := range site {
+		if l = strings.ToLower(l); l != "" && p.i18n.Has(l) {
+			known = append(known, l)
+		}
+	}
 	for part := range strings.SplitSeq(accept, ",") {
 		tag, _, _ := strings.Cut(strings.TrimSpace(part), ";")
 		base, _, _ := strings.Cut(strings.ToLower(tag), "-")
-		if base != "" && p.i18n.Has(base) {
+		if base != "" && p.i18n.Has(base) && (known == nil || slices.Contains(known, base)) {
 			return base
 		}
+	}
+	if known != nil {
+		return known[0]
 	}
 	return "en"
 }
