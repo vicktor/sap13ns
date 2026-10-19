@@ -16,6 +16,8 @@ Supported versions: the latest release. Before 1.0, fixes are not backported.
 
 sap13ns assumes the server, its operator and its administrators are trusted. Everyone else is not: visitors, commenters, authors and contributors, plugin authors, AI providers and the content they return, and anything fetched from the network. The measures below enforce that boundary.
 
+On a network of sites, a site's administrators are trusted on their own site only. They are not trusted by the other sites, the portal or the operator: see [Networks of sites](#networks-of-sites).
+
 ### Accounts and sessions
 - **Passwords:**
   - hashed with Argon2id (time 2, memory 32 MiB) with a per-password random salt;
@@ -107,6 +109,58 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
 - **Updates** install only releases whose `SHA256SUMS` carries a valid Ed25519 signature from the key compiled into the binary.
 - **Analytics** store only daily aggregates. Visitors are counted with a salt that rotates daily and lives only in memory: no IP address, user agent or identifier is persisted.
 - **Public pages** make no third-party requests and set no tracking cookies.
+
+### Networks of sites
+A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many sites in one process and one database. Each site's administrators control their own site, and nothing else.
+
+- **Data isolation.** Every site has its own PostgreSQL schema. The shared pool points a connection at one schema before each statement, so a site's queries see only its own tables, and the caller cannot override that:
+  - the schema comes from the site's database handle, never from the request;
+  - `search_path` is exactly that schema, without `public`;
+  - a statement without a schema is refused, and a fresh connection starts on a schema that does not exist, so a forgotten scope fails instead of reading the previous site's data;
+  - a lint test rejects SQL that would change session state (`SET` without `LOCAL`, `RESET ALL`, `DISCARD`, `SET ROLE`).
+
+  Every schema is migrated before anything is served, so no site runs against another version of the tables.
+- **Files and processes.** Each site has its own data directory, plugin host and caches. A plugin's `posts:read` and key-value storage reach its own site only.
+- **Site secrets.** Each site has a random 32-byte secret, which signs its sessions and encrypts its stored keys. It is sealed with AES-256-GCM, under a key derived from `SAP13NS_SECRET_KEY`, with the site's ID as associated data, so sealed secrets cannot be swapped between sites.
+- **Cookies.** Session cookies are host-only (`__Host-`), so a site cannot set or read another host's.
+- **Single sign-on** through the portal is an authorization-code exchange with PKCE:
+  - a top-level navigation only;
+  - the callback must be exactly one of the site's own hosts;
+  - the code is stored as a hash, valid for 60 seconds, single-use, and bound to the site and the callback;
+  - the verifier never leaves the site's host-only cookie, and a state cookie prevents login CSRF;
+  - staff roles need a second factor on the portal;
+  - a site's user is never matched to a network account by e-mail.
+
+  Removing a membership, or disabling an account, ends the linked sessions on every site.
+- **Operators.** Network administrators need a second factor. When one opens a site they are not a member of, they get a separate operator user, and the sign-in is written to the audit logs of both the portal and the site.
+- **Plugins.**
+  - On a paid plan, an uploaded plugin is held until a network administrator approves that exact build: its module, its assets and the permissions it pins. A build that asks for more is reviewed again.
+  - Personal sites can only install the operator's catalogue.
+  - Either way, the site's administrator still approves the permissions before enabling the plugin.
+- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota.
+- **Custom domains.**
+  - **Proving control.** A host is routed only after a DNS check finds its TXT record with a token derived for that site and host, and finds that the host points to the network. Unverified hosts get a 404.
+  - **Untrusted answers.** DNS answers are untrusted: names are normalised, only the exact value counts, and nothing from an answer is stored.
+  - **Claims.** A tenant can never claim another site's verified host, the portal's host, or a host under `SAP13NS_SITES_DOMAIN`. A host that another site added but never verified moves only to a site that proves control of it.
+  - **Lapses.** Verified domains are checked daily. One that keeps failing stops being served. Resolver errors are never counted.
+- **HSTS** carries `includeSubDomains` only on the network's own hosts: the portal, and a site's default host while it is the primary one. A custom domain never gets it, whether it is the primary host or an alias, because forcing HTTPS on a customer's other subdomains is not the network's call.
+- **Passkeys** of a site keep its default host as RP ID, never the network's base domain, so a passkey for one site is useless on another. A custom primary domain is listed as a related origin by the RP ID host.
+- **TLS.**
+  - **Caddy's ask endpoint** (`/_sap13ns/tls-ask`) answers only requests that come straight from loopback or a trusted proxy, without forwarded headers. Anything else gets the same 404, so the endpoint cannot tell the internet which hosts exist.
+  - **The built-in ACME client** asks the CA only for verified custom domains, so nobody can make the network spend its certificate rate limits on arbitrary names.
+- **Billing.** The webhook accepts only events with a valid Stripe signature and stores each event once. The processor then fetches the subscription from Stripe instead of trusting the event. The browser never chooses a price: the server maps the plan to its configured price.
+
+**Known risks on a network:**
+- **Wrong-schema SQL** is the main leak risk. It is contained by the scoped handles, the fail-closed pool, the non-existent default schema, the lint test and the interleaving tests in `internal/db`. New SQL must go through a site's store, never the raw pool.
+- **A shared registrable domain.** When `SAP13NS_SITES_DOMAIN` is the portal's domain, or its parent, the sites are *same-site* with the portal:
+  - **What already protects it:** Go's cross-origin protection rejects same-site requests that are not same-origin, and `__Host-` cookies cannot be overwritten from a subdomain.
+  - **What does not:** a site that runs scripts (a plugin with the high-risk `assets:js` permission) can still set cookies for the parent domain and make every request to it too large ("cookie bombing").
+  - **What to do:** put the sites under a domain of their own (`SAP13NS_SITES_DOMAIN=example.net` with the portal on `example.com`), or add that domain to the Public Suffix List.
+- **HSTS and customer domains.** `includeSubDomains` from a customer's apex domain would force HTTPS on all of the customer's other hosts, so it is never sent there.
+- **Memory.** Every loaded site has its own templates, caches and plugin instances. `SAP13NS_MAX_LOADED_SITES`, `SAP13NS_MEMORY_LIMIT_MB` and the lower per-plugin limits of a network bound them. When more sites are active than the limit, sites keep loading and unloading each other.
+- **State lost on eviction.** An unloaded site loses its in-memory per-IP rate limits and its analytics visitor set. Account lockouts are kept in the database and survive. Unloading sites by loading many others resets a site's per-IP sign-in limits, but not the lockout of the account.
+- **Stale custom domains.** A domain whose owner moved it elsewhere is caught by the daily re-check, and stops being served after its grace period: 3 failed checks over at least 72 hours.
+- **Backups.** The encrypted backup command does not cover networks yet. Back up the database and the data directory yourself, and protect those copies as you would the server, because they hold every site's sealed secrets with `SAP13NS_SECRET_KEY`.
 
 ### Deployment
 The systemd unit in [`deploy/systemd`](../deploy/systemd/sap13ns.service) runs sap13ns unprivileged and sandboxed (see [DEPLOY.md](DEPLOY.md#hardening-notes)). nginx terminates TLS and talks to sap13ns over a Unix socket (`0660`, owned by the `sap13ns-web` group, which nginx joins); nginx cannot read the env file or the data directory.

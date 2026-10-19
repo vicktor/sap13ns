@@ -196,7 +196,7 @@ func (s *Server) planViews() []PlanView {
 		{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "5 €", Interval: "month", Commercial: true, Highlight: true,
 			SignupURL: "/signup?plan=pro", Features: []string{"Custom domain with HTTPS", "10 GB storage", "Your own themes and plugins", "Daily backups"}},
 		{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "12 €", Interval: "month", Commercial: true,
-			SignupURL: "/signup?plan=business", Features: []string{"3 sites", "50 GB storage", "AI assistant credits", "Priority support"}},
+			SignupURL: "/signup?plan=business", Features: []string{"Everything in Pro", "50 GB storage", "AI assistant credits", "Priority support"}},
 	}
 }
 

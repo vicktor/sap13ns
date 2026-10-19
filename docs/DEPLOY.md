@@ -95,6 +95,127 @@ Everything else (site title, languages, themes, comments, two-factor policy, AI,
 ### Updates
 Administrators see a notice in the admin when a release is out. Take a backup, run `sudo sap13ns update`, then restart. The previous binary stays as `sap13ns.old` for rollback. Details are in [RELEASES.md](RELEASES.md).
 
+## Networks of sites
+
+A network (`SAP13NS_MULTISITE=true`) serves the portal on the `SAP13NS_BASE_URL` host, and its sites on `<slug>.<SAP13NS_SITES_DOMAIN>` and on their custom domains. [MULTISITE.md](MULTISITE.md) explains the setup, the variables and the commands. Every host reaches the same process, so the proxy needs:
+- a wildcard DNS record and a wildcard certificate for the sites;
+- `Host` passed through unchanged, because sap13ns routes on it;
+- a way to get certificates for custom domains.
+
+`/healthz` answers on any host. A wildcard certificate needs a DNS-01 challenge, for example `certbot certonly --dns-<provider> -d example.com -d '*.example.com'`, with the certbot plugin for your DNS provider.
+
+### nginx with a wildcard certificate
+
+Keep `deploy/nginx/sap13ns.conf` as it is (the upstream, the proxy headers and the `location` blocks). Change its `server` blocks:
+
+```nginx
+# Port 80: ACME HTTP-01 challenges for every host (custom domains), and https.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+# The portal and every default host: one wildcard certificate.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name example.com *.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # ...the rest of the 443 block of deploy/nginx/sap13ns.conf...
+}
+```
+
+nginx cannot get certificates on demand. A custom domain needs its own certificate and its own `server` block, once the site has verified the domain:
+1. Get the certificate: `certbot certonly --webroot -w /var/www/letsencrypt -d www.example.org`.
+2. Copy the 443 block, with `server_name www.example.org;` and the new certificate.
+3. Reload nginx.
+
+For more than a few custom domains, use Caddy or the built-in ACME client.
+
+### Caddy with on-demand certificates
+
+Caddy gets a certificate for each custom domain when its first visitor arrives, after asking sap13ns whether the network serves that host. sap13ns must listen on loopback TCP, because the ask endpoint refuses requests over the Unix socket:
+
+```sh
+# /etc/sap13ns/sap13ns.env
+SAP13NS_LISTEN=127.0.0.1:8080
+SAP13NS_TLS=proxy
+```
+
+```caddyfile
+{
+	email ops@example.com
+	on_demand_tls {
+		ask http://127.0.0.1:8080/_sap13ns/tls-ask
+	}
+}
+
+# The portal and every default host: a wildcard certificate through DNS-01,
+# which needs the Caddy module of your DNS provider (built with xcaddy).
+example.com, *.example.com {
+	tls {
+		dns <provider> {env.DNS_API_TOKEN}
+	}
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Custom domains: one certificate per verified domain, on demand.
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:8080
+}
+```
+
+`reverse_proxy` passes `Host` through and sets `X-Forwarded-For`. sap13ns trusts that header from `127.0.0.1` by default (`SAP13NS_TRUSTED_PROXIES`). The ask endpoint answers only Caddy's own requests: loopback, without forwarded headers. When a site removes a domain, or the domain lapses, the endpoint answers 404 for it again, and Caddy no longer renews its certificate.
+
+### Without a proxy: the built-in ACME client
+
+With `SAP13NS_TLS=autocert`, sap13ns terminates TLS itself:
+
+```sh
+# /etc/sap13ns/sap13ns.env
+SAP13NS_TLS=autocert
+SAP13NS_LISTEN=:443
+SAP13NS_HTTP_LISTEN=:80
+SAP13NS_TLS_CERT=/etc/sap13ns/tls/fullchain.pem
+SAP13NS_TLS_KEY=/etc/sap13ns/tls/privkey.pem
+SAP13NS_ACME_EMAIL=ops@example.com
+```
+
+- **The wildcard certificate.** `SAP13NS_TLS_CERT` and `SAP13NS_TLS_KEY` cover the portal and the default hosts, and sap13ns picks up a renewal within a minute. A certbot deploy hook can copy it where the `sap13ns` user can read it:
+
+  ```sh
+  # /etc/letsencrypt/renewal-hooks/deploy/sap13ns.sh
+  install -D -m 0640 -g sap13ns "$RENEWED_LINEAGE/fullchain.pem" /etc/sap13ns/tls/fullchain.pem
+  install -D -m 0640 -g sap13ns "$RENEWED_LINEAGE/privkey.pem" /etc/sap13ns/tls/privkey.pem
+  ```
+
+- **Custom domains** get their certificates from Let's Encrypt, cached in `/var/lib/sap13ns/cache/autocert`. Set `SAP13NS_ACME_DIRECTORY=https://acme-staging-v02.api.letsencrypt.org/directory` to try the setup against the staging CA first.
+- **Ports.** The unit drops every capability, so it needs one back to bind ports 443 and 80:
+
+  ```ini
+  # /etc/systemd/system/sap13ns.service.d/autocert.conf
+  [Service]
+  CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+  AmbientCapabilities=CAP_NET_BIND_SERVICE
+  ```
+
+  Run `systemctl daemon-reload`, then restart.
+
+### Backups of a network
+
+`sap13ns backup create` and `restore` refuse to run on a network: an archive holds one database and one uploads directory, not a network's sites. Back up with `pg_dump` and the data directory instead, as [MULTISITE.md](MULTISITE.md#backups) shows, and disable `sap13ns-backup.timer`.
+
 ## Hardening notes
 - The systemd unit runs sap13ns unprivileged with a read-only system, a private `/tmp`, no capabilities and a system-call filter. Check it with `systemd-analyze security sap13ns`.
 - **Don't add `MemoryDenyWriteExecute=yes`.** The WebAssembly runtime compiles plugins to machine code, which needs executable memory.

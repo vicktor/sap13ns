@@ -12,6 +12,7 @@
 <p align="center">
   <a href="https://sap13ns.site">sap13ns.site</a> ·
   <a href="docs/DEPLOY.md">Deploy</a> ·
+  <a href="docs/MULTISITE.md">Multisite</a> ·
   <a href="docs/PLUGINS.md">Plugins</a> ·
   <a href="docs/SECURITY.md">Security</a> ·
   <a href="docs/RELEASES.md">Releases</a> ·
@@ -22,7 +23,7 @@
 
 sap13ns is for people who want a blog or a company site with posts, pages, comments, media, menus, themes, plugins and several languages, without a PHP stack, a plugin zoo or a weekly security patch. It ships as **one statically linked executable** with its templates, assets and migrations embedded. You run it behind nginx on Linux with PostgreSQL. That's the whole stack.
 
-> **Status:** pre-release. The core described below works and is tested. The items under [Roadmap](#roadmap) are under active development. Expect breaking changes until 1.0.
+> **Status:** pre-release. Everything described below works and is tested; the [Roadmap](#roadmap) lists what is still missing. Expect breaking changes until 1.0.
 
 ## Highlights
 
@@ -36,6 +37,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **Multilingual:** linked translations, `/<lang>/` URLs, `hreflang`, and per-language feeds, menus, widgets and categories.
 - **AI where it helps:** an optional writing assistant that works with Claude, any OpenAI-compatible server (including local models in LM Studio, Ollama or llama.cpp) and Gemini. Sites are also AI-ready: `llms.txt`, Markdown twins of every post, and an AI crawler policy.
 - **Themes with light and dark modes**, built on [Basecoat UI](https://basecoatui.com) and [Lucide](https://lucide.dev) icons. Themes and plugins load at runtime: no recompiling.
+- **Many sites in one process (optional):** a network mode serves a portal and isolated sites, with single sign-on, plans, Stripe billing and custom domains ([docs/MULTISITE.md](docs/MULTISITE.md)).
 
 ## Features
 
@@ -150,6 +152,17 @@ Plugins are written in Go with the [plugin SDK](pluginsdk) and compiled with the
 | [antispam](plugins/antispam) | Holds or rejects spam comments, optionally with StopForumSpam |
 | [contact](plugins/contact) | Contact form e-mailed to the site, with Reply-To |
 
+### Networks of sites (optional)
+With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any number of sites. The guide is [docs/MULTISITE.md](docs/MULTISITE.md).
+- **Isolated sites:** each site has its own PostgreSQL schema, users, settings, files and plugins, and picks its theme from the network's. It is served at `<slug>.<SITES_DOMAIN>` and on its own domains. Idle sites are unloaded from memory and load again on their next request.
+- **Portal and single sign-on:** people sign up on the portal (when the operator opens registration), request sites and manage them from **My sites**. They sign in to every site they belong to through the portal. Operators reach any site with a separate, audited account.
+- **Plans and billing:**
+  - Personal (free, approved by the operator), Pro and Business, with storage, custom-domain and plugin-upload limits;
+  - one subscription pays for one site, through Stripe Checkout and the Customer Portal ([docs/BILLING.md](docs/BILLING.md));
+  - a site whose payment lapses is held (its public pages answer 503) and never deleted.
+- **Custom domains:** proven with a DNS TXT record and checked again every day. TLS comes from nginx with a wildcard certificate, from Caddy's on-demand TLS, or from the built-in ACME client.
+- **Plugin catalogue and review:** sites install the plugins the operator offers. Uploads, on the plans that allow them, wait for the operator to review that exact build ([docs/PLUGINS.md](docs/PLUGINS.md#networks-of-sites)).
+
 ### Operations
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
 - Listens on TCP or a **Unix socket** (recommended behind nginx). Structured logs in text or JSON.
@@ -202,6 +215,18 @@ All settings are environment variables, which can be given in an env file with `
 | `SAP13NS_TRUSTED_PROXIES` | Proxies whose `X-Forwarded-For` is trusted |
 | `SAP13NS_MAX_UPLOAD_MB`, `SAP13NS_DB_MAX_CONNS`, `SAP13NS_LOG_LEVEL`, `SAP13NS_LOG_FORMAT` | Limits and logging |
 
+A network of sites adds these. [docs/MULTISITE.md](docs/MULTISITE.md#configuration) gives their defaults and rules.
+
+| Variable | Purpose |
+|---|---|
+| `SAP13NS_MULTISITE` | `true` serves a network; `SAP13NS_BASE_URL` is then the portal's address |
+| `SAP13NS_SITES_DOMAIN` | Domain of the sites' default hosts, `<slug>.<SITES_DOMAIN>` |
+| `SAP13NS_UNKNOWN_HOST` | `404` or `redirect` (to the portal) for hosts the network does not serve |
+| `SAP13NS_MAX_LOADED_SITES`, `SAP13NS_SITE_IDLE`, `SAP13NS_MEMORY_LIMIT_MB` | How many sites stay in memory, and for how long |
+| `SAP13NS_DOMAIN_TARGET`, `SAP13NS_DOMAIN_ADDRESSES` | What custom domains point to (CNAME target, A/AAAA addresses) |
+| `SAP13NS_TLS`, `SAP13NS_TLS_CERT`, `SAP13NS_TLS_KEY`, `SAP13NS_ACME_EMAIL`, `SAP13NS_ACME_DIRECTORY`, `SAP13NS_HTTP_LISTEN` | `proxy` (nginx or Caddy) or `autocert` (built-in ACME client) |
+| `SAP13NS_STRIPE_*`, `SAP13NS_BILLING_GRACE_DAYS` | Billing ([docs/BILLING.md](docs/BILLING.md)) |
+
 ### Commands
 
 ```
@@ -216,6 +241,12 @@ sap13ns plugin new|pack|check   Start, package and scan a plugin
 sap13ns plugin list|install     List or install the site's plugins
 sap13ns assistant reindex|status
 sap13ns version
+
+Networks of sites (SAP13NS_MULTISITE=true):
+sap13ns network init     Create the network and its portal, and an administrator
+sap13ns site create|list|suspend|resume|delete|purge
+sap13ns site domain add|verify|primary|remove
+sap13ns migrate|user|plugin|assistant -site S   Work on one site (-site network: the portal)
 ```
 
 ## Development
@@ -245,10 +276,11 @@ docs               operator and developer documentation
 
 ## Roadmap
 
-In active development:
+Still missing on a network of sites:
 
-- **Multisite:** one account and many isolated sites, each with its own database schema, domains, themes and plugins.
-- **Hosting at sap13ns.site:** free personal sites and paid commercial plans.
+- **Per-site backups:** `sap13ns backup create` and `restore` refuse to run on a network for now; back it up with `pg_dump` and a copy of the data directory ([docs/MULTISITE.md](docs/MULTISITE.md#backups)).
+- **Conversion:** a single-site install cannot yet be turned into a network, or moved into one.
+- **Theme uploads** by the sites themselves, and member invitations by site owners.
 
 ## License
 

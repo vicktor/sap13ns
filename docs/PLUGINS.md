@@ -21,9 +21,10 @@ This is the full contract between sap13ns and its plugins: the package format, t
 12. [Settings](#settings)
 13. [The scanner](#the-scanner)
 14. [Installing and approving](#installing-and-approving)
-15. [Command line](#command-line)
-16. [Developing and testing](#developing-and-testing)
-17. [Versioning](#versioning)
+15. [Networks of sites](#networks-of-sites)
+16. [Command line](#command-line)
+17. [Developing and testing](#developing-and-testing)
+18. [Versioning](#versioning)
 
 ## Security model
 
@@ -547,7 +548,37 @@ The scanner checks, in order:
 
 **Audit.** Every step is written to the audit log with the hashes, versions, verdicts and permissions: `plugin.installed`, `plugin.updated`, `plugin.refused`, `plugin.scanned`, `plugin.approved`, `plugin.disabled`, `plugin.settings_saved` and `plugin.uninstalled`.
 
-**Networks of sites.** A package can be marked *review required* when it is installed for a tenant. It cannot be enabled until the operator clears the review.
+## Networks of sites
+
+On a network ([MULTISITE.md](MULTISITE.md)), each site has its own plugins, settings and key-value data, and runs them in its own host. The network adds a catalogue and a review by its operator. The site's administrator still approves the permissions and enables each plugin, as described above.
+
+**The catalogue.**
+- **What is in it:** the plugins installed on the portal, as long as they are valid and their scan report is not blocked and matches their files.
+- **Installing:** every site lists them under **Plugins → From the network**. **Install** (`POST /admin/plugins/catalog/{id}/install`, with the `plugins` capability) packs the plugin on the portal and installs it on the site, **disabled**, with source `catalog`.
+- **No review:** catalogue installs need no operator review, because the operator chose them. A catalogue install also clears the review that an earlier upload of the same id was waiting for.
+
+**Uploads, by plan.**
+
+| Plan | Uploads |
+|---|---|
+| Personal | None. The upload form is hidden and an upload is refused with 403. Sites use the catalogue. |
+| Pro, Business | Allowed. An upload is installed disabled and **held for review**: enabling it fails with "The network operator must review this plugin before it can be enabled." |
+
+A plugin an operator installs with `sap13ns plugin install -site S` is not held.
+
+**The review.**
+1. **The queue.** A held upload adds a request to **Network → Plugin reviews** in the portal. The page shows the site, the version, the module's SHA-256, the requested permissions, the scan verdict and findings, and the imported host functions, with a link that opens the plugin on the site through single sign-on.
+2. **The decision.** A network administrator approves or rejects it. Both are audited as `network.plugin_approved` and `network.plugin_rejected`.
+3. **Approval.** It is applied by the site's own plugin host, under the lock its installs take, and only while the plugin on disk is still that build. Otherwise nothing changes, and the operator is told that the site no longer has this build.
+4. **After approval,** the site's administrator reviews the permissions and enables the plugin.
+
+The queue lists active sites only. A suspended site's requests wait until it is resumed.
+
+**The review pin.** An approval is not for a module, but for a build: the module's hash, the assets' hash, and what the manifest pins: its permissions with their sources, hooks, events and forms (`Plugin.ReviewPin` in `internal/plugin`).
+- **More permissions:** the same module uploaded again with a manifest that asks for more (`mail`, another `http:` host…) is a new build, and waits for a new review.
+- **A build seen before:** one the operator approved is approved again at once when it is uploaded again. One they rejected goes back to the queue.
+- **A replaced build:** an upload that is replaced from the catalogue or uninstalled leaves the queue.
+- **An update** of a held plugin stays held until its new build is approved.
 
 ## Command line
 
@@ -555,13 +586,14 @@ The scanner checks, in order:
 sap13ns plugin new <id> [-dir D] [-hooks shortcode,widget,...] [-sdk PATH] [-module M] [-name N]
 sap13ns plugin pack [-o DIR] [-no-build] <dir>      # build, pack and scan; writes <id>-<version>.zip and .zip.sha256
 sap13ns plugin check [-json] [-skip-dry-run] <dir|file.zip>   # exit status 1 when blocked
-sap13ns plugin list [-env FILE]                     # installed plugins of a site
-sap13ns plugin install [-env FILE] [-allow-downgrade] <file.zip>   # installs disabled
+sap13ns plugin list [-env FILE] [-site S]           # installed plugins of a site
+sap13ns plugin install [-env FILE] [-site S] [-allow-downgrade] <file.zip>   # installs disabled
 sap13ns plugin hash <dir>                           # SHA-256 of the module and assets
 ```
 
 - **`new`** copies the skeleton and keeps only the examples of the hooks you list (`shortcode widget content.filter head.meta event comment.check form.submit`). It rewrites the id, name and Go module. The `go.mod` `replace` points at the SDK found in a parent sap13ns checkout, or at `-sdk`.
 - **`pack`** produces a reproducible archive: the same files give the same `.zip`.
+- **`-site S`** picks the site of a network (`network` for the portal). It is required there, and the site need not be loaded by the server.
 
 ## Developing and testing
 

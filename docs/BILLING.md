@@ -10,9 +10,15 @@ sap13ns.site offers three hosting plans:
 
 Paid plans use Stripe Checkout (hosted page) to subscribe, the Stripe Customer
 Portal for self-service (card, invoices, plan change, cancellation), and
-webhooks to keep each site's billing state in sync. The client code is in
-`internal/billing` (standard library only, pinned to Stripe API version
-`2026-09-30.endive`).
+webhooks to keep each site's billing state in sync. **One subscription pays
+for one site.** The client code is in `internal/billing` (standard library
+only, pinned to Stripe API version `2026-09-30.endive`); the network side
+(prices, Checkout, the webhook processor, holds) is in
+`internal/network/billing.go`.
+
+Billing exists on a network of sites only (`SAP13NS_MULTISITE=true`, see
+[MULTISITE.md](MULTISITE.md)). An owner upgrades a site from **My sites** on
+the portal and manages its subscription from there (**Manage billing**).
 
 This guide covers the Stripe-side setup. It is not legal or tax advice.
 
@@ -108,9 +114,10 @@ Notes:
 
 ## 5. Webhook endpoint
 
-sap13ns receives events at **`https://<portal>/billing/webhook`** (for the
-public service: `https://portal.sap13ns.site/billing/webhook`, adjust to the
-real portal host).
+sap13ns receives events at **`https://<portal>/billing/webhook`**, where
+`<portal>` is the host of `SAP13NS_BASE_URL` (for example
+`https://example.com/billing/webhook`). The route exists on the portal only,
+and only when billing is configured.
 
 **Workbench → Webhooks → Add destination**:
 
@@ -126,9 +133,9 @@ real portal host).
    | `checkout.session.completed` | Links the Stripe customer and subscription to the site (via `client_reference_id` / `metadata[site_id]`). |
    | `customer.subscription.created` | Stores plan, status and period end. |
    | `customer.subscription.updated` | Status changes (trial → active, active → past_due, cancellation scheduled), plan switches, renewals. |
-   | `customer.subscription.deleted` | Subscription ended: suspend the site. |
-   | `invoice.paid` | Payment succeeded: clears grace / lifts suspension, records the paid period. |
-   | `invoice.payment_failed` | Starts or continues the grace period, notifies the owner. |
+   | `customer.subscription.deleted` | Subscription ended: the site is held. |
+   | `invoice.paid` | Payment succeeded: clears grace, lifts a hold, records the paid period. |
+   | `invoice.payment_failed` | Starts or continues the grace period, and e-mails the owner a link to manage billing. |
 
    Optional: `customer.subscription.paused`, `customer.subscription.resumed`
    (only if you use pausing) and `customer.subscription.trial_will_end`
@@ -142,7 +149,7 @@ from the environment):
 ```sh
 curl https://api.stripe.com/v1/webhook_endpoints \
   -u "$SAP13NS_STRIPE_SECRET_KEY:" \
-  -d url=https://portal.sap13ns.site/billing/webhook \
+  -d url=https://example.com/billing/webhook \
   -d api_version=2026-09-30.endive \
   -d "enabled_events[]=checkout.session.completed" \
   -d "enabled_events[]=customer.subscription.created" \
@@ -161,7 +168,13 @@ Other points:
   signature, records the event and returns before doing slow work.
   Signature failures return `400`.
 - Stripe retries failed deliveries for up to three days. Events can arrive
-  out of order or more than once; sap13ns deduplicates by event ID.
+  out of order or more than once; sap13ns deduplicates by event ID, and
+  applies each event by fetching the subscription's current state from
+  Stripe, so the order does not matter.
+- An event that fails to apply is retried with a growing delay (from a
+  minute up to six hours, ten attempts). Failed and unmapped events are
+  listed under **Network → Billing events** in the portal, where a network
+  administrator can retry them. Processed events are purged after 90 days.
 - Optionally restrict the route to Stripe's published webhook IP addresses at
   nginx (docs.stripe.com/ips) in addition to signature verification.
 - **Rolling the secret**: in the endpoint's menu choose *Roll secret* and keep
@@ -172,28 +185,31 @@ Other points:
 
 ## 6. Environment variables
 
-`internal/config` reads these in multisite mode (the `internal/billing`
-package itself takes plain arguments). Billing is disabled when
-`SAP13NS_STRIPE_SECRET_KEY` is unset: the network then has Personal and
-operator-granted sites only, and the portal shows no billing.
+`internal/config` reads these when `SAP13NS_MULTISITE=true` (they are
+ignored on a single site) and checks them before the server starts. Billing
+is disabled when `SAP13NS_STRIPE_SECRET_KEY` is unset: the network then has
+Personal sites, and the sites an operator creates on another plan with
+`sap13ns site create -plan`, and the portal shows no billing.
 
-| Variable | Required | Example | Meaning |
+| Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |
-| `SAP13NS_STRIPE_SECRET_KEY` | yes | `rk_live_…` | Restricted (or secret) API key. Test keys (`_test_`) in staging. |
-| `SAP13NS_STRIPE_WEBHOOK_SECRET` | yes | `whsec_…` or `whsec_new,whsec_old` | Endpoint signing secret(s), comma-separated during rotation. |
-| `SAP13NS_STRIPE_PRICE_PRO` | yes | `price_…` | Pro, monthly. |
-| `SAP13NS_STRIPE_PRICE_PRO_YEARLY` | no | `price_…` | Pro, yearly. |
-| `SAP13NS_STRIPE_PRICE_BUSINESS` | yes | `price_…` | Business, monthly. |
-| `SAP13NS_STRIPE_PRICE_BUSINESS_YEARLY` | no | `price_…` | Business, yearly. |
+| `SAP13NS_STRIPE_SECRET_KEY` | yes | | Restricted (`rk_live_…`, `rk_test_…`) or secret (`sk_…`) API key. Test keys in staging. |
+| `SAP13NS_STRIPE_WEBHOOK_SECRET` | yes | | Endpoint signing secret(s), `whsec_…`, comma-separated during rotation (`whsec_new,whsec_old`). |
+| `SAP13NS_STRIPE_PRICE_PRO` | yes | | Pro, monthly (`price_…`). |
+| `SAP13NS_STRIPE_PRICE_PRO_YEARLY` | no | | Pro, yearly. |
+| `SAP13NS_STRIPE_PRICE_BUSINESS` | yes | | Business, monthly. |
+| `SAP13NS_STRIPE_PRICE_BUSINESS_YEARLY` | no | | Business, yearly. |
 | `SAP13NS_STRIPE_API_VERSION` | no | `2026-09-30.endive` | Override the pinned API version (keep it equal to the webhook endpoint's). |
 | `SAP13NS_STRIPE_AUTOMATIC_TAX` | no | `false` | `true` enables Stripe Tax on Checkout (`automatic_tax[enabled]`). |
 | `SAP13NS_STRIPE_TAX_ID_COLLECTION` | no | `true` | Show the business tax ID (VAT number) field in Checkout. |
-| `SAP13NS_STRIPE_BILLING_ADDRESS` | no | `true` | Checkout always collects a billing address (evidence of the customer's country for VAT). |
-| `SAP13NS_STRIPE_TRIAL_DAYS` | no | `0` | Free trial length, for an account's first subscription only. |
-| `SAP13NS_BILLING_GRACE_DAYS` | no | `14` | Days a site stays online after a failed renewal before suspension (`0`: at once). |
+| `SAP13NS_STRIPE_BILLING_ADDRESS` | no | `true` | Checkout always collects a billing address (evidence of the customer's country for VAT). `false` lets Stripe decide. |
+| `SAP13NS_STRIPE_TRIAL_DAYS` | no | `0` | Free trial length (0 to 730 days), for an account's first subscription only. |
+| `SAP13NS_BILLING_GRACE_DAYS` | no | `14` | Days (0 to 90) a site stays online after a failed renewal before it is held (`0`: at once). |
 
-The general rule `SAP13NS_STRIPE_PRICE_<PLAN>` / `SAP13NS_STRIPE_PRICE_<PLAN>_YEARLY`
-leaves room for more plans later. The service refuses to start when a
+The booleans are strict: a value that is not a boolean (`true`, `false`,
+`1`, `0`) stops the start. The general rule `SAP13NS_STRIPE_PRICE_<PLAN>` /
+`SAP13NS_STRIPE_PRICE_<PLAN>_YEARLY` leaves room for more plans later; a
+yearly price needs the monthly one. The service refuses to start when a
 configured price is not an active recurring price of the key's mode (a live
 key with test price IDs or the reverse: prices are environment-specific, so
 Checkout would fail anyway), when it names a plan that is not a paid plan of
@@ -205,8 +221,13 @@ the network, or when two plans share a price.
 | --- | --- | --- |
 | `active`, `trialing` | active | Site served with the plan's features. |
 | `incomplete` | pending | First payment not confirmed yet (3-D Secure, delayed method). Plan not granted yet. Becomes `incomplete_expired` after about 23 h if unpaid. |
-| `past_due`, `unpaid`, `paused` | grace | Site stays online, owner sees a billing banner and gets emails. After `SAP13NS_BILLING_GRACE_DAYS` the public site is suspended (content kept, admin still reachable to pay). |
-| `canceled`, `incomplete_expired` | canceled | Public site suspended right away; content kept for the retention period in the terms, then deleted after notice. Re-subscribing starts a new Checkout. |
+| `past_due`, `unpaid`, `paused` | grace | Site stays online; the owner sees the state in **My sites** and gets emails. After `SAP13NS_BILLING_GRACE_DAYS` the site is **held**: its public pages answer 503, while sign-in and the admin still work so the owner can pay. |
+| `canceled`, `incomplete_expired` | canceled | The site is held right away. Re-subscribing starts a new Checkout. |
+
+Nothing is ever deleted for billing: a held site keeps its content, files
+and domains. Removing it for good is an operator decision (`sap13ns site
+delete`, then `sap13ns site purge`), for example after the retention period
+of your terms.
 
 A cancellation from the portal "at period end" keeps the status `active`
 (with `cancel_at_period_end=true`) until the paid period ends; Stripe then
