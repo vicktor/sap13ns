@@ -435,6 +435,7 @@ func (s *Server) handleCustomCSS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.Set("Content-Type", "text/css; charset=utf-8")
+		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Cache-Control", "private, no-store")
 		io.WriteString(w, d.Stylesheet(ms.fontURL))
 		return
@@ -457,6 +458,7 @@ func (s *Server) handleCustomCSS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Set("Content-Type", "text/css; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Cache-Control", "public, max-age=31536000, immutable")
 	h.Set("ETag", `"`+e.hash+`"`)
 	if r.Header.Get("If-None-Match") == `"`+e.hash+`"` {

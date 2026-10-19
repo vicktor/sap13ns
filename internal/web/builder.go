@@ -22,6 +22,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/builder"
 	"sap13ns/internal/content"
+	"sap13ns/internal/customize"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -68,7 +69,7 @@ type BlockView struct {
 	ID    string
 	Type  string
 	S     map[string]string
-	HTML  template.HTML // rich text
+	HTML  template.HTML // rich text, an HTML block
 	Image *ImageView
 	Links []SocialLink
 	Items []*ItemView // the entries of a landing block (features, plans…)
@@ -121,6 +122,7 @@ func (s *Server) builderRoutes(mux *http.ServeMux, admin func(string, auth.Cap, 
 	admin("POST "+base+"/draft", auth.CapAppearance, s.adminBuilderDraft)
 	admin("POST "+base+"/publish", auth.CapAppearance, s.adminBuilderPublish)
 	admin("POST "+base+"/discard", auth.CapAppearance, s.adminBuilderDiscard)
+	admin("POST "+base+"/css", auth.CapAppearance, s.adminBuilderCSS) // builder_css.go
 	admin("POST "+base+"/revisions/{id}/restore", auth.CapAppearance, s.adminBuilderRestore)
 	admin("GET /admin/appearance/builder", auth.CapAppearance, func(w http.ResponseWriter, r *http.Request) {
 		th := s.themes.Active(s.settings().ActiveTheme)
@@ -288,6 +290,9 @@ func sectionClass(sec builder.Section) string {
 		}
 		cl = append(cl, "sap-"+k+"-"+v)
 	}
+	if sec.Class != "" {
+		cl = append(cl, sec.Class) // the owner's classes, for Custom CSS
+	}
 	return strings.Join(cl, " ")
 }
 
@@ -317,6 +322,8 @@ func (s *Server) blockView(b *builder.Block, lang string, pd *PageData, media fu
 	switch b.Type {
 	case "rich-text":
 		v.HTML = content.RenderPlain(v.S["text"])
+	case "html":
+		v.HTML = content.RenderHTMLBlock(v.S["html"])
 	case "hero", "image":
 		v.Image = image("image")
 		if v.Image != nil && v.S["alt"] != "" {
@@ -437,6 +444,14 @@ type builderState struct {
 	// MenusURL is where the menus are edited (for the #links of a one-page
 	// site).
 	MenusURL string `json:"menus_url"`
+	// CSS is the theme's custom CSS in the design's draft (builder_css.go);
+	// CSSPending: it differs from the published one.
+	CSS        string `json:"css"`
+	CSSPending bool   `json:"css_pending"`
+	CSSMax     int    `json:"css_max"`
+	// ThemeFront: the theme has its own front page template (onepage's
+	// sample sections), which the Front page region replaces.
+	ThemeFront bool `json:"theme_front"`
 }
 
 type frontPreset struct {
@@ -485,7 +500,12 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	st := builderState{Theme: th.Slug, Layout: l, Presets: builder.PresetOrder,
+	css, err := s.loadCustomCSS(ctx, th)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	st := builderState{CSS: css.Draft, CSSPending: css.Pending(), CSSMax: customize.MaxCSS, ThemeFront: th.Has("front"), Theme: th.Slug, Layout: l, Presets: builder.PresetOrder,
 		Langs: []langOption{}, MainLang: s.mainLang(), Regions: s.builderRegions(ctx, r, th),
 		DesignURL: "/admin/appearance/themes/" + th.Slug + "/customize"}
 	st.Menus, st.Areas = []theme.MenuLocation{}, []theme.WidgetArea{}
@@ -533,7 +553,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		st.Images = []mediaOption{}
 	}
 	b, _ := json.Marshal(st)
-	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
+	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil || css.Pending(), DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
 		Revisions: revs, Active: s.themes.Active(s.settings().ActiveTheme) == th, Icons: append([]string{}, builderIcons...)}
 	for _, t := range builder.Types {
 		data.Icons = append(data.Icons, t.Icon)
@@ -744,17 +764,34 @@ func (s *Server) adminBuilderPublish(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	if row.Draft == nil {
-		s.builderDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
-		return
-	}
-	if err := s.store.PublishCustom(ctx, th.Slug, store.CustomLayout, l.JSON(), uid(r), nil); err != nil {
+	css, err := s.loadCustomCSS(ctx, th)
+	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
+	if row.Draft == nil && !css.Pending() {
+		s.builderDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
+		return
+	}
+	if row.Draft != nil {
+		if err := s.store.PublishCustom(ctx, th.Slug, store.CustomLayout, l.JSON(), uid(r), nil); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		s.audit(r, uid(r), "theme.layout_published", th.Slug, nil)
+	}
+	// The custom CSS edited here goes live with the layout.
+	if css.Pending() {
+		if err := s.publishCustomCSS(ctx, r, th, css); err != nil {
+			s.custom.invalidate()
+			s.contentChanged()
+			s.serverError(w, r, err)
+			return
+		}
+		s.audit(r, uid(r), "theme.css_published", th.Slug, nil)
+	}
 	s.custom.invalidate()
 	s.contentChanged()
-	s.audit(r, uid(r), "theme.layout_published", th.Slug, nil)
 	s.builderDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new layout."))
 }
 
@@ -763,9 +800,21 @@ func (s *Server) adminBuilderDiscard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.store.DiscardCustomDraft(r.Context(), th.Slug, store.CustomLayout); err != nil {
+	ctx := r.Context()
+	css, err := s.loadCustomCSS(ctx, th)
+	if err != nil {
 		s.serverError(w, r, err)
 		return
+	}
+	if err := s.store.DiscardCustomDraft(ctx, th.Slug, store.CustomLayout); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if css.Pending() {
+		if err := s.discardCustomCSS(ctx, r, th, css); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
 	}
 	s.audit(r, uid(r), "theme.layout_discarded", th.Slug, nil)
 	s.builderDone(w, r, th, "success", s.tu(r, "Draft discarded."))

@@ -59,6 +59,14 @@ func (s *Store) SaveCustomDraft(ctx context.Context, theme, kind string, data []
 	return mapErr(err)
 }
 
+// SaveCustomDraftTx is SaveCustomDraft inside a transaction (such as the fn
+// of PublishCustom, to keep part of a draft unpublished).
+func SaveCustomDraftTx(ctx context.Context, tx pgx.Tx, theme, kind string, data []byte, userID int64) error {
+	_, err := tx.Exec(ctx, `UPDATE theme_custom SET draft = $3, draft_at = now(), updated_by = nullif($4, 0)
+		WHERE theme = $1 AND kind = $2`, theme, kind, json.RawMessage(data), userID)
+	return mapErr(err)
+}
+
 // DiscardCustomDraft drops the draft, keeping the published version.
 func (s *Store) DiscardCustomDraft(ctx context.Context, theme, kind string) error {
 	_, err := s.DB.Exec(ctx, `UPDATE theme_custom SET draft = NULL, draft_at = NULL WHERE theme = $1 AND kind = $2`, theme, kind)
