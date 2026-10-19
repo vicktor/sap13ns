@@ -196,8 +196,9 @@ The payload objects below use these shapes:
 
 - **Payload:** `{"name": "hello", "attrs": {"name": "Ada"}, "inner": "text between the tags", "post": {…}}`
   - `inner` is raw text, not HTML.
-- **Response:** `{"html": "…"}`
+- **Response:** `{"html": "…"}`, optionally with `"max_age": 300`
   - The output is sanitized; see [Output rules](#output-rules).
+  - The post's rendered body is cached (see [content.filter](#contentfilter)). Output that changes on its own, such as a list the plugin refreshes in the background, sets `max_age` in seconds (`pluginsdk.HTMLMaxAge`): the body is rendered again after that long. The host keeps it between 60 seconds and one day.
   - Shortcodes inside code blocks are not expanded.
   - If two enabled plugins declare the same shortcode, only one of them gets it. The scanner warns about it.
 
@@ -205,7 +206,7 @@ The payload objects below use these shapes:
 
 - **Payload:** `{"html": "…", "post": {…}, "context": "page"}`
   - `context` is `page` for the post's own page and `feed` for a full-text feed item. A filter that adds page furniture, such as related posts, share buttons or forms, should return nothing for `feed`.
-  - The filtered body is cached, separately for pages and feeds, until the post or a plugin's settings change, or until any content changes (a post, a comment, a menu), so a body that lists other posts stays current.
+  - The filtered body is cached, separately for pages and feeds, until the post or a plugin's settings change, or until any content changes (a post, a comment, a menu), so a body that lists other posts stays current. A shortcode's `max_age` shortens it.
 - **Response:** `{"html": "…"}`
   - The output replaces the HTML and is sanitized again.
   - Form placeholders that were already in the input are kept. A filter can only add its own forms.

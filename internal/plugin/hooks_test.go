@@ -458,6 +458,39 @@ func TestQualifyForms(t *testing.T) {
 	}
 }
 
+func TestShortcodeMaxAge(t *testing.T) {
+	st := testutil.Store(t)
+	dir := t.TempDir()
+	ctx := context.Background()
+	admin := adminUser(t, st)
+	for id, resp := range map[string]string{
+		"plain": `{"html":"<p>a</p>"}`,
+		"short": `{"html":"<p>b</p>","max_age":5}`,
+		"five":  `{"html":"<p>c</p>","max_age":300}`,
+		"long":  `{"html":"<p>d</p>","max_age":9999999999}`,
+		"minus": `{"html":"<p>e</p>","max_age":-1}`,
+	} {
+		pdir := filepath.Join(dir, id)
+		os.MkdirAll(pdir, 0o755)
+		os.WriteFile(filepath.Join(pdir, "plugin.json"), []byte(`{"abi": 1, "id": "`+id+`", "name": "T", "version": "1.0.0", "hooks": ["shortcode"], "shortcodes": ["`+id+`"]}`), 0o644)
+		os.WriteFile(filepath.Join(pdir, "plugin.wasm"), respond(resp).bytes(), 0o644)
+	}
+	h := newTestHost(t, st, dir)
+	want := map[string]time.Duration{"plain": 0, "short": time.Minute, "five": 5 * time.Minute, "long": 24 * time.Hour, "minus": 0}
+	for id, age := range want {
+		if err := h.Approve(ctx, id, "", admin); err != nil {
+			t.Fatal(err)
+		}
+		html, got, err := h.ShortcodeMaxAge(ctx, id, nil, "", nil)
+		if err != nil || html == "" {
+			t.Fatalf("%s: %q, %v", id, html, err)
+		}
+		if got != age {
+			t.Errorf("%s: max age %v, want %v", id, got, age)
+		}
+	}
+}
+
 func TestAssetsAndCSP(t *testing.T) {
 	st := testutil.Store(t)
 	dir := t.TempDir()

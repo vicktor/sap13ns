@@ -434,6 +434,22 @@ func TestPluginsEndToEnd(t *testing.T) {
 		t.Errorf("stale body after a content change: %s", got)
 	}
 
+	// A shortcode's max_age bounds how long the body is cached; the
+	// shortest one in the body wins.
+	freshID, err := e.st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: "Fresh", Slug: "fresh",
+		Lang: e.s.mainLang(), Content: "[posts max_age=600]\n\n[posts max_age=90]\n\n[posts]", AuthorID: e.adminID, CommentStatus: "open", PublishedAt: &at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[int64]time.Duration{listID: 0, freshID: 90 * time.Second} {
+		p, _ := e.st.PostByID(ctx, id)
+		e.s.renderBody(ctx, p, plugin.FilterPage)
+		c, ok := e.s.content.Get(fmt.Sprintf("%d:%d:%d:%s", p.ID, p.UpdatedAt.UnixNano(), e.host.Generation(), plugin.FilterPage))
+		if !ok || c.MaxAge != want {
+			t.Errorf("%s: cached %v with max age %v, want %v", p.Slug, ok, c, want)
+		}
+	}
+
 	// post.published fires once, when a post goes live: on save, or for a
 	// scheduled post when its date arrives.
 	logged := func(text string) int {

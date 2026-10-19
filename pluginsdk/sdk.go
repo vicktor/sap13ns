@@ -266,7 +266,8 @@ type FormResult struct {
 }
 
 type htmlResponse struct {
-	HTML string `json:"html"`
+	HTML   string `json:"html"`
+	MaxAge int    `json:"max_age,omitempty"`
 }
 
 type metaResponse struct {
@@ -279,6 +280,16 @@ type metaResponse struct {
 // allowed, `<span data-icon="name"></span>` becomes a Lucide icon and
 // FormPlaceholder marks where a declared form goes.
 func HTML(s string) any { return htmlResponse{HTML: s} }
+
+// HTMLMaxAge is HTML for a shortcode whose output changes on its own, such
+// as a list the plugin refreshes in the background. The host caches a post's
+// rendered body until the post or the plugin's settings change, and with a
+// max age for at most that long, so the post shows the new output within
+// maxAge (plus the page cache's two minutes). The host keeps it between one
+// minute and one day; other hooks ignore it.
+func HTMLMaxAge(s string, maxAge time.Duration) any {
+	return htmlResponse{HTML: s, MaxAge: int(maxAge / time.Second)}
+}
 
 // MetaTags builds the response of the head.meta hook.
 func MetaTags(m ...Meta) any { return metaResponse{Meta: m} }

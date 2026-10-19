@@ -58,6 +58,14 @@ func TestShortcodeThenCron(t *testing.T) {
 	if len(yt.requests()) != 0 {
 		t.Fatal("a render made a request")
 	}
+	// The host renders a post's gallery again within five minutes, so the
+	// list fetched below reaches the post without saving it.
+	if r, err := env.Call(pluginsdk.HookShortcode, pluginsdk.Shortcode{Name: "youtube_videos", Attrs: attrs}); err != nil || r.MaxAge != 300 {
+		t.Fatalf("max age %+v, %v", r, err)
+	}
+	if r, err := env.Call(pluginsdk.HookWidget, pluginsdk.Widget{Widget: "videos", Config: map[string]string{}}); err != nil || r.MaxAge != 0 {
+		t.Fatalf("widget max age %+v, %v", r, err)
+	}
 	if n := countSlots(env); n != 1 {
 		t.Fatalf("%d slots after the render, want 1", n)
 	}

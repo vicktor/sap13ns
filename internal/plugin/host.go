@@ -1196,6 +1196,7 @@ type envelopePlugin struct {
 
 type response struct {
 	HTML    *string           `json:"html,omitempty"`
+	MaxAge  int               `json:"max_age,omitempty"` // shortcode: seconds the output stays current
 	Meta    []MetaTag         `json:"meta,omitempty"`
 	JSONLD  []json.RawMessage `json:"jsonld,omitempty"`
 	Verdict string            `json:"verdict,omitempty"` // comment.check
@@ -1408,17 +1409,39 @@ type shortcodePayload struct {
 
 // Shortcode renders one shortcode; the caller sanitizes the HTML.
 func (h *Host) Shortcode(ctx context.Context, name string, attrs map[string]string, inner string, post *PostInfo) (string, error) {
+	html, _, err := h.ShortcodeMaxAge(ctx, name, attrs, inner, post)
+	return html, err
+}
+
+// Bounds of a shortcode's max_age: a body is rendered again at most once a
+// minute, and at least once a day like any other.
+const (
+	minShortcodeAge = time.Minute
+	maxShortcodeAge = 24 * time.Hour
+)
+
+// ShortcodeMaxAge is Shortcode plus how long its output stays current: the
+// response's max_age, within minShortcodeAge and maxShortcodeAge, or 0 when
+// the output changes only with the post or the plugin's settings.
+func (h *Host) ShortcodeMaxAge(ctx context.Context, name string, attrs map[string]string, inner string, post *PostInfo) (string, time.Duration, error) {
 	h.mu.RLock()
 	p := h.shortcodes[name]
 	h.mu.RUnlock()
 	if p == nil {
-		return "", errors.New("unknown shortcode")
+		return "", 0, errors.New("unknown shortcode")
 	}
 	resp, err := h.call(ctx, p, HookShortcode, "", shortcodePayload{Name: name, Attrs: attrs, Inner: inner, Post: post}, renderTimeout, 0)
 	if err != nil || resp.HTML == nil {
-		return "", err
+		return "", 0, err
 	}
-	return qualifyForms(p, *resp.HTML, ""), nil
+	var age time.Duration
+	if resp.MaxAge > 0 {
+		age = maxShortcodeAge
+		if resp.MaxAge < int(maxShortcodeAge/time.Second) {
+			age = max(time.Duration(resp.MaxAge)*time.Second, minShortcodeAge)
+		}
+	}
+	return qualifyForms(p, *resp.HTML, ""), age, nil
 }
 
 type filterPayload struct {

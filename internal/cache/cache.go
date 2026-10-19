@@ -14,8 +14,11 @@ type Entry struct {
 	ContentType string
 	ETag        string
 	Status      int
-	created     time.Time
-	gen         uint64
+	// MaxAge, when set and shorter than the cache's TTL, expires this
+	// entry sooner.
+	MaxAge  time.Duration
+	created time.Time
+	gen     uint64
 }
 
 type Cache struct {
@@ -52,6 +55,9 @@ func (c *Cache) Get(key string) (*Entry, bool) {
 	e, ok := c.entries[key]
 	c.mu.RUnlock()
 	if !ok || e.gen != c.gen.Load() || time.Since(e.created) > c.ttl {
+		return nil, false
+	}
+	if e.MaxAge > 0 && time.Since(e.created) > e.MaxAge {
 		return nil, false
 	}
 	return e, true

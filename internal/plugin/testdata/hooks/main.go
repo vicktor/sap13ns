@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
 )
@@ -36,6 +37,9 @@ func init() {
 			var titles []string
 			for _, p := range posts {
 				titles = append(titles, p.Title+"/"+p.Lang)
+			}
+			if age, err := strconv.Atoi(sc.Attrs["max_age"]); err == nil {
+				return pluginsdk.HTMLMaxAge(strings.Join(titles, ","), time.Duration(age)*time.Second), nil
 			}
 			return pluginsdk.HTML(strings.Join(titles, ",")), nil
 

@@ -157,10 +157,9 @@ and a privacy policy on the site.
   the next one, the stalest first.
 - **The host caches pages.** A widget shows a new list within about two
   minutes, because the page cache is short. A gallery inside a post is part
-  of the post's rendered body, which the host caches for up to 24 hours or
-  until any content changes. So in a post, new videos can appear up to a day
-  late. Saving any post or changing the plugin's settings renders the post
-  again.
+  of the post's rendered body, which the host caches; the shortcode gives it
+  a max age of five minutes (`pluginsdk.HTMLMaxAge`), so a post shows a new
+  list within about seven minutes of the fetch.
 
 The plugin stores, per source: the video ids, titles, dates, durations and
 Shorts/live flags, the channel's or playlist's name, and the time of the last

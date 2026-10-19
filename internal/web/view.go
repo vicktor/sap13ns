@@ -192,23 +192,29 @@ func canEditPost(u *store.User, p *store.Post) bool {
 
 // renderBody turns post Markdown into HTML through shortcodes, sanitizer and
 // content.filter plugins, for the post's page or a feed (where). Results are
-// cached per post version until content changes (contentChanged).
+// cached per post version until content changes (contentChanged), or for
+// the shortest max_age a shortcode gave (a list of a channel's videos).
 func (s *Server) renderBody(ctx context.Context, p *store.Post, where string) template.HTML {
 	key := fmt.Sprintf("%d:%d:%d:%s", p.ID, p.UpdatedAt.UnixNano(), s.plugins.Generation(), where)
 	if e, ok := s.content.Get(key); ok {
 		return template.HTML(e.Body)
 	}
 	info := s.PostInfo(p)
+	var maxAge time.Duration
 	// Icon placeholders stay as they are until every filter has run: each
 	// filter's output is sanitised again, and <svg> would not survive that.
 	html := content.Render(p.Content, s.plugins.HasShortcode, func(sc content.Shortcode) (string, error) {
-		return s.plugins.Shortcode(ctx, sc.Name, sc.Attrs, sc.Inner, &info)
+		out, age, err := s.plugins.ShortcodeMaxAge(ctx, sc.Name, sc.Attrs, sc.Inner, &info)
+		if age > 0 && (maxAge == 0 || age < maxAge) {
+			maxAge = age
+		}
+		return out, err
 	}, nil)
 	filtered := s.plugins.FilterContent(ctx, string(html), &info, where, func(h string) string {
 		return string(content.SanitizePluginHTML(h, nil))
 	})
 	filtered = content.ExpandIcons(filtered, func(name string) string { return icons.SVG(name, "") })
-	s.content.Set(key, &cache.Entry{Body: []byte(filtered)})
+	s.content.Set(key, &cache.Entry{Body: []byte(filtered), MaxAge: maxAge})
 	return template.HTML(filtered)
 }
 

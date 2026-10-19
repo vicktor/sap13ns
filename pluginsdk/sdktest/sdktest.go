@@ -109,6 +109,7 @@ func New(t testing.TB) *Env {
 // Response is a decoded handler response.
 type Response struct {
 	HTML    string            `json:"html"`
+	MaxAge  int               `json:"max_age"` // seconds, from pluginsdk.HTMLMaxAge
 	Meta    []pluginsdk.Meta  `json:"meta"`
 	JSONLD  []json.RawMessage `json:"jsonld"`
 	Verdict string            `json:"verdict"`

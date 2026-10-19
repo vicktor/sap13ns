@@ -23,6 +23,12 @@ func logOnce(level pluginsdk.Level, msg string) {
 	}
 }
 
+// galleryMaxAge is how long the host may keep a post's body with a gallery
+// before it renders the shortcode again: a list fetched in the background
+// reaches the post within this time (plus the page cache's two minutes), as
+// it reaches a widget, which is rendered with every page.
+const galleryMaxAge = 5 * time.Minute
+
 // handle answers the hooks of plugin.json. Expected trouble (nothing
 // configured, storage denied in the scanner's dry run) is logged, never
 // returned as an error, so a page always renders.
@@ -39,7 +45,7 @@ func handle(req *pluginsdk.Request) (any, error) {
 			lang = sc.Post.Lang
 		}
 		a := sc.Attrs
-		return pluginsdk.HTML(render(req, a["channel"], a["playlist"], a["count"], a["layout"], a["title"], lang, false, "[youtube_videos]")), nil
+		return pluginsdk.HTMLMaxAge(render(req, a["channel"], a["playlist"], a["count"], a["layout"], a["title"], lang, false, "[youtube_videos]"), galleryMaxAge), nil
 	case pluginsdk.HookWidget:
 		var w pluginsdk.Widget
 		if err := req.Decode(&w); err != nil {
