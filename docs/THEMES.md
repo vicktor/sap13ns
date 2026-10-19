@@ -20,11 +20,12 @@ This is the contract between sap13ns and its themes: the folder layout, the mani
 10. [CSS and design tokens](#css-and-design-tokens)
 11. [Light and dark](#light-and-dark)
 12. [Videos and images in posts](#videos-and-images-in-posts)
-13. [Content Security Policy](#content-security-policy)
-14. [Accessibility](#accessibility)
-15. [The customiser](#the-customiser)
-16. [The page builder](#the-page-builder)
-17. [Checklist](#checklist)
+13. [Cookie consent](#cookie-consent)
+14. [Content Security Policy](#content-security-policy)
+15. [Accessibility](#accessibility)
+16. [The customiser](#the-customiser)
+17. [The page builder](#the-page-builder)
+18. [Checklist](#checklist)
 
 ## Folder layout
 
@@ -295,7 +296,7 @@ A theme can be a landing page or a one-page site rather than a blog. `templates/
 | `shared/lang-switch` | PageData | links to this page in the other languages (nothing on single-language sites) |
 | `shared/logo` | PageData | the customiser's logo (nothing without one) |
 | `shared/widget-area` | `dict "Page" . "Area" "<id>"` | the widgets of an area, in `.widget-area.widget-area-<id>` |
-| `shared/footer-meta` | PageData | the footer line with the **"Powered by sap13ns"** credit |
+| `shared/footer-meta` | PageData | the footer line with the **"Powered by sap13ns"** credit, the "Cookies" link and the cookie consent ([Cookie consent](#cookie-consent)) |
 | `shared/post-meta`, `shared/categories`, `shared/tags` | PostView | date, author and reading time; term links |
 | `shared/image` | `dict "Image" "Sizes" "Eager" "Class"` | a responsive `<img>` with `srcset` |
 | `shared/avatar` | `dict "A" "Size" "Class"` | a person's photo, or their initials without one (below) |
@@ -514,6 +515,37 @@ Post content can hold two things a theme should check in both modes and at phone
 - **Below 640px** floats stop and the image takes the column's width.
 - A width without an alignment keeps the image inline. A theme that styles `.prose img` should keep `height: auto` and `max-width: 100%`, so that images with a `width` stay in proportion.
 
+## Cookie consent
+
+When the site's cookie consent is on (Settings → Privacy and cookies), `shared/footer-meta` adds a "Cookies" link to the footer line and renders the banner and the cookie settings dialog, and `shared/head` links `consent.css` before `theme.css` and loads `consent.js`. A theme needs no markup of its own: every theme that renders `shared/footer-meta` (all of them must) gets it, uploaded and imported ones included. The script moves the banner and the dialog out of the footer to the top and the end of `<body>`, so no stacking context or overflow of the theme's footer reaches them.
+
+**Looks.** `consent.css` takes its colours from the Basecoat tokens every built-in theme defines in `:root` and `.dark` (`--popover`, `--popover-foreground`, `--muted`, `--muted-foreground`, `--border`, `--primary`, `--primary-foreground`, `--ring`, `--radius`), and falls back to the system colours (`Canvas`, `CanvasText`, `LinkText`) for a theme that defines none, so it works in light and dark without changes. To restyle it, set its custom properties on `.sap-consent-banner, .sap-consent-dialog, .sap-consent-note` (in `.dark` too, if they differ):
+
+| Property | Default | Used for |
+|---|---|---|
+| `--sap-consent-bg`, `--sap-consent-fg` | `--popover`, `--popover-foreground` | the banner and the dialog |
+| `--sap-consent-muted` | `--muted-foreground` | descriptions and the table's secondary text |
+| `--sap-consent-border`, `--sap-consent-subtle` | `--border`, `--muted` | borders, the categories' and table's background |
+| `--sap-consent-accent`, `--sap-consent-accent-fg` | `--primary`, `--primary-foreground` | the Accept and Reject buttons (equally prominent), switches that are on |
+| `--sap-consent-ring` | `--ring` | focus rings |
+| `--sap-consent-radius`, `--sap-consent-shadow`, `--sap-consent-font` | `--radius`, a soft shadow, `inherit` | shape and type |
+
+```css
+.sap-consent-banner, .sap-consent-dialog, .sap-consent-note {
+  --sap-consent-radius: 0;
+  --sap-consent-shadow: none;
+  --sap-consent-font: var(--font-mono);
+}
+```
+
+For more, use selectors at least as specific as the shared ones: `.sap-consent-banner`, `.sap-consent-dialog` (a native `<dialog>`, with `::backdrop`), `.sap-consent-btn` and `.sap-consent-btn-quiet`, `.sap-consent-cat`, `.sap-consent-switch` (`[aria-checked="true"]` when on), `.sap-consent-table` (stacked rows below 40rem), and `.sap-consent-note` or `.sap-consent-controls` for the "Always allow" line under a click-to-load video. `consent.css` is not in a cascade layer, so a theme's layered resets do not undo it, and a theme rule must be at least as specific to win.
+
+**Keep it usable.**
+
+- Do not hide the banner, the "Cookies" link or the Reject button, and keep Accept and Reject the same weight: that is what makes the consent valid.
+- The banner is fixed at the bottom with `z-index: 85`, above the assistant's button (80) and below the admin bar (90). Leave room for it rather than covering it.
+- Check it in light and dark, at 360 px and on desktop: the banner, the dialog with a category's details open, and a post with a video before it plays.
+
 ## Content Security Policy
 
 Public pages are served with a strict policy:
@@ -634,5 +666,6 @@ A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-are
 - [ ] No inline script or style, no external fonts or stylesheets.
 - [ ] Light and dark checked at phone and desktop widths, with visible focus and reduced motion respected.
 - [ ] A post with a video and with images floated left and right looks right ([Videos and images in posts](#videos-and-images-in-posts)).
+- [ ] With the cookie consent on and a video in a post (tick **Show the banner even when…** in Settings → Privacy and cookies to see the banner), the banner, the dialog and the video's note look right and stay readable ([Cookie consent](#cookie-consent)).
 - [ ] `static/theme.css` built and committed.
 - [ ] To upload it: zip the folder with only the files of [Uploading a theme](#uploading-a-theme) (no `node_modules`, scripts or SVG), and upload it to a test site first; the refusal lists every problem.

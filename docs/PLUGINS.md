@@ -20,13 +20,14 @@ This is the full contract between sap13ns and its plugins: the package format, t
 10. [Output rules](#output-rules)
 11. [Forms](#forms)
 12. [Assets and the Content-Security-Policy](#assets-and-the-content-security-policy)
-13. [Settings](#settings)
-14. [The scanner](#the-scanner)
-15. [Installing and approving](#installing-and-approving)
-16. [Networks of sites](#networks-of-sites)
-17. [Command line](#command-line)
-18. [Developing and testing](#developing-and-testing)
-19. [Versioning](#versioning)
+13. [Cookies and other sites](#cookies-and-other-sites)
+14. [Settings](#settings)
+15. [The scanner](#the-scanner)
+16. [Installing and approving](#installing-and-approving)
+17. [Networks of sites](#networks-of-sites)
+18. [Command line](#command-line)
+19. [Developing and testing](#developing-and-testing)
+20. [Versioning](#versioning)
 
 ## Security model
 
@@ -124,6 +125,7 @@ Extraction checks every entry name before writing anything. It writes into a sta
 | `assets` | up to 5 `css` and 5 `js` paths, each `assets/….css` or `assets/….js`; JavaScript needs `assets:js` |
 | `csp` | `frame-src` and/or `img-src`, 1 to 10 sources each, `https://host` or `https://*.domain` |
 | `oauth` | up to 3 providers the administrator connects the plugin to; see [OAuth connections](#oauth-connections) |
+| `privacy` | up to 20 cookies, storage entries and other sites the plugin uses, for the site's cookie consent; see [Cookies and other sites](#cookies-and-other-sites) |
 
 Text shown to visitors, such as form titles, submit labels, field labels and placeholders, may be a string or an object by language: `{"en": "Send", "es": "Enviar"}`. The host uses the page language (or its base language: `es` for `es-MX`), then a plain string or `en`, then any other value.
 
@@ -437,6 +439,7 @@ All HTML from `shortcode`, `content.filter` and `widget` passes through the plug
   - the usual content elements, plus `section header footer aside figure figcaption time progress meter details summary mark small nav kbd`;
   - `class` with safe class names, so Basecoat components work;
   - `data-variant`, `data-size`, `data-category` and `data-icon`;
+  - `data-consent="<service>"` on `figure section div` and an empty `data-consent-note` on `figcaption p div span`, for [click-to-load placeholders](#cookies-and-other-sites);
   - limited `role` and `aria-*` values;
   - `rel` and `target="_blank"` on links;
   - `http`, `https`, `mailto` and `tel` URLs.
@@ -500,6 +503,73 @@ Values are trimmed and control characters are removed (newlines are kept in `tex
   - A `frame-src` set to `'none'` is replaced by the plugin sources.
   - The additions apply to public pages only, never to `/admin`, and only while the plugin is enabled.
   - The base policy already allows `https:` images, so `img-src` additions only matter on sites with a stricter policy.
+
+## Cookies and other sites
+
+The site's cookie consent (Settings → Privacy and cookies) lists every cookie, storage entry and other site the visitors' browsers deal with, and asks for consent for the ones that need it. It knows the core's own; a plugin's, it learns only from the plugin's `"privacy"`. The host cannot see what a plugin's script stores or loads, so **declaring is the author's job**, and a plugin that stores or loads something it does not declare is breaking the site's consent.
+
+```json
+"privacy": [
+  {"type": "service", "name": "YouTube", "service": "youtube", "category": "media",
+   "provider": "Google Ireland Limited", "policy": "https://policies.google.com/privacy",
+   "purpose": {"en": "Plays the videos linked in posts. Nothing loads until you press play.",
+               "es": "Reproduce los vídeos enlazados en las entradas. No se carga nada hasta que pulsas reproducir."},
+   "lifetime": {"en": "Set by the provider", "es": "La fija el proveedor"}, "click_to_load": true},
+  {"type": "storage", "name": "hello-seen", "category": "preferences",
+   "purpose": "Remembers that you closed the greeting.", "lifetime": "Until you clear it"}
+]
+```
+
+**What to declare.**
+
+| `type` | What it is | Required |
+|---|---|---|
+| `cookie` | a cookie the plugin's script, or a provider's script it loads, sets on the site | `name` (`name` or `prefix*`), `lifetime` |
+| `storage` | a `localStorage`, `sessionStorage` or IndexedDB key | `name`, `lifetime` |
+| `service` | content from another site that can store data in the browser once it loads: a player, a map, a script | `name`, `service`, `provider` |
+| `resource` | content from another site that loads with the page and stores nothing, such as images from a CDN: the provider sees the visitor's IP address | `name`, `provider` |
+
+- **Every entry** needs a `category` and a `purpose`.
+- **Categories:**
+  - `necessary`: what the visitor asked for, or what the page cannot work without. It is always on.
+  - `preferences`: remembers a choice, such as a closed notice.
+  - `analytics`: measures visits.
+  - `media`: external media and marketing (players, maps, social posts, advertising).
+- **Service ids** are `^[a-z][a-z0-9-]{1,39}$` and are shared across plugins and the core: allowing `youtube` once allows every YouTube player on the site. The core uses `youtube` and `vimeo`; use the provider's name in lower case.
+- **Texts:** `purpose` (at most 300 characters), `lifetime` (at most 60) and `provider` (at most 100) are shown to visitors. `purpose` and `lifetime` may be a string or an object by language, like other visitor texts. They may not contain `<`, `>`, `"` or control characters.
+- **Other fields:** `policy` is the provider's privacy policy, an `https://` URL of at most 300 characters. `click_to_load` is only for services, and `service` is required for, and only for, services.
+
+The declarations of enabled plugins appear in the cookie list on every public page and on Settings → Privacy and cookies. A cookie or storage entry outside `necessary` is deleted from the visitor's browser when its category is refused (prefix entries by prefix), so declare the exact name. An optional `cookie` or `storage` entry, or a `service` without `click_to_load`, makes the site show the banner; a `resource` never does, since there is nothing to block.
+
+**Click-to-load placeholders.** With `"click_to_load": true`, nothing of the service loads until the visitor presses the placeholder's own button, and that press is consent for that one item. Mark the placeholder so the site's consent script can add an "Always allow YouTube" checkbox and a "Cookie settings" link to it:
+
+```html
+<figure class="my-player" data-consent="youtube">
+  <button type="button">Play</button>
+  <figcaption data-consent-note>The player loads from YouTube when you press play.</figcaption>
+</figure>
+```
+
+The controls go at the end of the `data-consent-note` element; without one, a short note goes right after the placeholder. Once the visitor plays it, add the class `is-playing` to the placeholder and the controls go away.
+
+**From JavaScript.** When the consent is on, `consent.js` loads before the plugins' scripts and exposes `window.sapConsent`:
+
+- `sapConsent.allowed(id)`: whether a category (`"analytics"`) or a declared service (`"youtube"`) may load now. A service is allowed when its category is accepted or the visitor ticked "Always allow" for it. `necessary` is always allowed, and anything not declared is not.
+- `sapConsent.decided`: whether the visitor has made a choice.
+- `sapConsent.on(fn)`, or the `sap:consent` event on `document`: called with `{categories, services, decided}` whenever the choice changes.
+- `sapConsent.open()`: opens the cookie settings.
+
+Without `window.sapConsent` the administrator turned the consent off and takes care of it elsewhere:
+
+```js
+const ok = (id) => !window.sapConsent || window.sapConsent.allowed(id);
+if (ok("analytics")) startCounting();
+else document.addEventListener("sap:consent", () => { if (ok("analytics")) startCounting(); });
+```
+
+The choice is kept in the visitor's browser (`localStorage`, key `sap13ns-consent`), never in a cookie, so the server never sees it and cached pages stay the same for everyone. Do not read or write that key yourself.
+
+**Compatibility.** `privacy` came with the cookie consent. Older hosts refuse manifests with unknown fields, so a plugin that declares it installs only on a host that has Settings → Privacy and cookies; keep a release without it for older sites.
 
 ## Settings
 

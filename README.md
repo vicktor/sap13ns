@@ -148,6 +148,11 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
   - **Request protection:** cross-origin request protection and CSRF tokens; SSRF protection on every outbound request (private, loopback and metadata ranges are blocked).
   - **Logging:** an audit log of sensitive actions.
 - **Privacy:** no third-party requests from public pages and no tracking cookies.
+- **Cookie consent:** built in, and built from what the site really uses. The core lists its own cookies and storage, and plugins declare theirs in their manifest, so **Settings → Privacy and cookies** and the "Cookies" link at the bottom of every page show the same generated list, by category (necessary, preferences, analytics, external media and marketing).
+  - A category appears only when something uses it, and the banner only when something optional needs consent. A site with only the core's necessary cookies shows no banner.
+  - Accept all, reject all (just as prominent) and customise, with a toggle per category and a table of every cookie. Nothing optional loads before consent: video players stay click-to-load placeholders that name the provider, and pressing play allows that one video, or the provider everywhere with "Always allow".
+  - The choice stays in the visitor's browser for six months, with its date and the version of the list; a new category asks again. Cached pages stay the same for everyone.
+  - Per-language texts and a link to your cookie policy; styled by every theme in light and dark; accessible with the keyboard and screen readers.
 
 ### Plugins
 Plugins are WebAssembly modules run by [wazero](https://wazero.io) inside a sandbox:

@@ -136,6 +136,13 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
 - **Turning it off.** Switching either option off sends nothing more and deletes the copies at once.
 - **Development.** `SAP13NS_DEV_GRAVATAR_URL`, read only in development mode (`SAP13NS_DEV=true`), points the lookups at a fake server, which may be on this machine.
 
+### Cookie consent
+- **Public pages only.** The banner, the cookie settings dialog and `consent.js`/`consent.css` are served from the site itself (no third-party consent service, no CDN) under the same strict CSP: no inline script or style, no `style` attribute. The admin panel never loads them.
+- **The choice is client-side.** It is kept in `localStorage` (`sap13ns-consent`: a version, the categories, the services allowed at a placeholder and the date), never in a cookie, so it is not sent with requests and the server cannot be tricked into serving one visitor another's page. The page cache stores one body per language and path, identical for everyone, as before. A choice older than 182 days, from another version of the list or dated in the future is ignored and the banner asks again.
+- **Nothing optional loads before consent.** The core's video players and the official embeds stay click-to-load placeholders; a refused category deletes the declared first-party cookies and storage entries of that category from the browser. Content that loads with the page and stores nothing (declared as a `resource`, such as a plugin's thumbnails) is listed, not blocked.
+- **Declarations are data, not permissions.** A plugin's `privacy` entries are validated at install like the rest of the manifest: enumerated types and categories, bounded plain texts without markup, `https://` policy links, service ids from a fixed pattern. They are rendered escaped. The sanitizer only lets plugins add `data-consent="<id>"` and an empty `data-consent-note` to their placeholders, so a plugin cannot inject controls or mark another plugin's content.
+- **Administrator texts** (title, text and policy link per language) are bounded, and the link must be a site path or `https://`/`http://` URL, as for menus. The generated list is read-only.
+
 ### Plugins
 - Plugins are WebAssembly modules run by wazero:
   - no filesystem, sockets, environment or clock beyond what WASI provides;
