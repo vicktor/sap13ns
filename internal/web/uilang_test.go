@@ -37,7 +37,8 @@ func TestAdminLanguageChoice(t *testing.T) {
 	page := e.get("/admin/posts", e.admin).Body.String()
 	for _, want := range []string{`<html lang="es" dir="ltr">`, "<title>Entradas ·", `action="/admin/profile/language"`,
 		`name="next" value="/admin/posts"`, `role="menuitemradio" aria-checked="true" form="lang-form" name="lang" value="es"`,
-		`role="menuitemradio" aria-checked="false" form="lang-form" name="lang" value="en"`} {
+		`role="menuitemradio" aria-checked="false" form="lang-form" name="lang" value="en"`,
+		"</aside>\n<div class=\"admin-main\">"} { // Basecoat places the content by the sidebar (.sidebar + *)
 		if !strings.Contains(page, want) {
 			t.Errorf("before choosing, the posts page lacks %q", want)
 		}

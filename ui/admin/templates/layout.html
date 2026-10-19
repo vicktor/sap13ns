@@ -128,9 +128,10 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
       <form id="logout-form" method="post" action="/logout" hidden>{{.CSRFField}}</form>
     </footer>
   </nav>
+  {{/* Not deferred: it restores the collapsed groups before the first
+  paint. Inside the aside, since Basecoat places what follows it (.sidebar + *). */}}
+  <script src="{{asset "nav-groups.js"}}"></script>
 </aside>
-{{/* Not deferred: it restores the collapsed groups before the first paint. */}}
-<script src="{{asset "nav-groups.js"}}"></script>
 <div class="admin-main">
   <header class="topbar">
     <button type="button" class="btn" data-variant="ghost" data-size="icon" data-sidebar-toggle="admin-sidebar" aria-label="{{T "Toggle navigation"}}">{{icon "panel-left"}}</button>
