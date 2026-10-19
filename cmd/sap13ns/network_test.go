@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -293,6 +294,13 @@ func TestNetworkCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	backups := filepath.Join(c.data, "backups", "sites", strconv.FormatInt(beta.ID, 10))
+	if err := os.MkdirAll(backups, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(backups, "sap13ns-site-beta-20261019-000000.zip"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	c.fails("only a deleted site", siteCmd, "purge", "-slug", "alpha", "-yes")
 	c.fails("-yes", siteCmd, "purge", "-slug", "beta")
 	if got := c.must("", siteCmd, "purge", "-slug", "beta", "-yes"); !strings.Contains(got, "purged") {
@@ -304,6 +312,9 @@ func TestNetworkCLI(t *testing.T) {
 	}
 	if _, err := os.Stat(n.Dir(beta.ID)); !os.IsNotExist(err) {
 		t.Fatalf("the directory of a purged site: %v", err)
+	}
+	if _, err := os.Stat(backups); !os.IsNotExist(err) {
+		t.Fatalf("the backups of a purged site: %v", err)
 	}
 	c.fails("no site", siteCmd, "purge", "-slug", "beta", "-yes")
 }

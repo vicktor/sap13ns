@@ -365,7 +365,7 @@ func siteCmd(args []string) error {
 		}
 	}
 	var slug, owner, plan, title, lang, status, reason string
-	var asJSON, yes, force bool
+	var asJSON, yes, force, keepBackups bool
 	cfg, log, fs, err := setup("site "+sub, args, true, func(f *flag.FlagSet) {
 		switch sub {
 		case "create", "suspend", "resume", "delete", "purge", "domain add":
@@ -384,6 +384,9 @@ func siteCmd(args []string) error {
 			f.StringVar(&reason, "reason", "", "why, shown to the owner")
 		case "delete", "purge":
 			f.BoolVar(&yes, "yes", false, "confirm")
+			if sub == "purge" {
+				f.BoolVar(&keepBackups, "keep-backups", false, "keep the site's backups instead of deleting them")
+			}
 		case "domain verify":
 			f.BoolVar(&force, "force", false, "record the domain as verified without the DNS check")
 		}
@@ -448,17 +451,24 @@ func siteCmd(args []string) error {
 		fmt.Fprintf(out, "site %s (#%d) is %s\n", s.Slug, s.ID, s.Status)
 		return nil
 	case "purge":
-		// A deleted site's schema, directory and row go for good; its
-		// domains are free for other sites from then on.
+		// A deleted site's schema, directory, row and backups go for good;
+		// its domains are free for other sites from then on.
 		s, err := site()
 		if err != nil {
 			return err
 		}
 		if !yes {
-			return fmt.Errorf("purging %s removes its database schema, its files, its members and its domains for good. Add -yes to go on", s.Slug)
+			return fmt.Errorf("purging %s removes its database schema, its files, its backups, its members and its domains for good. Add -yes to go on", s.Slug)
 		}
 		if err := n.PurgeSite(ctx, s.ID); err != nil {
 			return err
+		}
+		if !keepBackups {
+			// After the row: a purge interrupted here leaves only backups,
+			// which -keep-backups would have kept anyway.
+			if err := os.RemoveAll(cfg.SiteBackups.SiteBackupDir(s.ID)); err != nil {
+				return fmt.Errorf("site %s purged, but its backups were not removed: %w", s.Slug, err)
+			}
 		}
 		fmt.Fprintf(out, "site %s (#%d) purged\n", s.Slug, s.ID)
 		return nil

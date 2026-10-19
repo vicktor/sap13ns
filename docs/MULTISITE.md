@@ -313,7 +313,8 @@ sap13ns site suspend -slug S -reason R      The owner sees the reason.
 sap13ns site resume -slug S                 A site never approved goes back to pending.
 sap13ns site delete -slug S -yes            Stops serving it; its data stays.
 sap13ns site purge -slug S -yes             Removes a deleted site for good: schema,
-                                            files, members and domains.
+                                            files, backups, members and domains;
+                                            -keep-backups keeps its backups.
 sap13ns site domain add -slug S HOST        Prints the records to create.
 sap13ns site domain verify [-force] HOST    Runs the DNS check; -force records the
                                             domain as verified without one.
@@ -470,4 +471,3 @@ So a site's exports take at most one finished file and one being written, each n
 - **Members.** Only network administrators manage the members of a site.
 - **Emergency access on a suspended site.** The site is inert meanwhile (see [Emergency access](#emergency-access)): its admin shows its plugins as not loaded, and what the plugins would do (a contact form, a widget, a cron job) does not happen. The network's sweeps only visit active sites, so its scheduled-post announcements wait until it is resumed.
 - **Plans.** A site's plan changes only through billing, or when it is created from the command line. The plans themselves are edited in the database.
-- **Backups of purged sites.** `site purge` leaves a site's backups in `$SAP13NS_BACKUP_DIR/sites/<id>/`, for the operator to keep or delete.
