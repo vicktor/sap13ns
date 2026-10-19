@@ -333,6 +333,9 @@ sap13ns user create|reset-password -site S ...    -site network: a network accou
 sap13ns plugin list|install -site S ...
 sap13ns theme list|install|remove -site S ...    the site's own themes; the same checks as
                                                  an upload, without the plan's gate or quota
+sap13ns content load -site S [-author U] DIR    a content pack (site.json and <lang>/*.md,
+                                                 the format of site/content); run again,
+                                                 it updates only what changed
 sap13ns assistant reindex|status -site S ...
 sap13ns export -site S -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media]
         Export one site's content (see Exporting one site).

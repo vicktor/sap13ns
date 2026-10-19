@@ -22,7 +22,6 @@ import (
 	"log"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"time"
 
 	"sap13ns/internal/auth"
@@ -57,21 +56,6 @@ func run(envFile, dir string) error {
 		return err
 	}
 
-	// Parse before touching the database so that a broken pack changes nothing.
-	items, err := contentpack.Parse(dir)
-	if err != nil {
-		return err
-	}
-	var site *contentpack.Site
-	sitePath := filepath.Join(dir, "site.json")
-	if _, err := os.Stat(sitePath); err == nil {
-		if site, err = contentpack.LoadSite(sitePath); err != nil {
-			return err
-		}
-	} else {
-		fmt.Printf("%s not found: keeping the current settings\n", sitePath)
-	}
-
 	ctx := context.Background()
 	pool, err := db.Open(ctx, cfg.DatabaseURL, 4)
 	if err != nil {
@@ -88,7 +72,7 @@ func run(envFile, dir string) error {
 	if err != nil {
 		return err
 	}
-	rep, err := contentpack.Import(ctx, st, items, contentpack.Options{AuthorID: authorID, Site: site, Now: time.Now()})
+	rep, err := contentpack.Load(ctx, st, dir, contentpack.Options{AuthorID: authorID, Now: time.Now()})
 	if rep != nil {
 		fmt.Print(rep.String())
 	}
@@ -123,17 +107,5 @@ func author(ctx context.Context, st *store.Store, dev bool) (int64, error) {
 		fmt.Println("created user admin with password dev-password-123 (development only)")
 		return id, nil
 	}
-	if u, err := st.UserByUsername(ctx, "admin"); err == nil && u.Role == auth.RoleAdmin {
-		return u.ID, nil
-	} else if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return 0, err
-	}
-	admins, _, err := st.ListUsers(ctx, store.UserListQuery{Role: auth.RoleAdmin, Limit: 1})
-	if err != nil {
-		return 0, err
-	}
-	if len(admins) == 0 {
-		return 0, errors.New("no administrator found to author the content")
-	}
-	return admins[0].ID, nil
+	return contentpack.DefaultAuthor(ctx, st)
 }

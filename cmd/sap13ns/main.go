@@ -80,6 +80,8 @@ func main() {
 		err = backupCmd(args)
 	case "export":
 		err = exportCmd(args)
+	case "content":
+		err = contentCmd(args)
 	case "assistant":
 		err = assistantCmd(args)
 	case "update":
@@ -141,6 +143,10 @@ Commands:
   export -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media] [-pending-comments]
                                  Export the content as a WordPress file (WXR),
                                  or a .zip with the uploads and Markdown copies
+  content load [-author U] <dir>
+                                 Import a content pack (site.json and
+                                 <lang>/*.md), such as site/content; again
+                                 updates only what changed
   assistant reindex [-full] [-changed] | status
                                  Rebuild the site assistant's search index, or
                                  show its state (embeddings, pgvector, failures)
@@ -162,7 +168,7 @@ Networks (SAP13NS_MULTISITE=true):
   site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST
                                  Manage the sites; running servers follow
   migrate [-site S]              Migrate the network, then every site (or one)
-  user, plugin list|install, theme, assistant, export -site S
+  user, plugin list|install, theme, content, assistant, export -site S
                                  Work on one site; -site network is the portal
   backup create|list|prune|restore -site S
                                  The site's own backups (the whole network:
