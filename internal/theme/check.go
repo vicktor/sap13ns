@@ -40,12 +40,21 @@ import (
 //     pass must stay small and cheap (no text scans, no other silent
 //     loop), and the whole page has a bounded number of steps;
 //   - format only with literal formats and widths up to 99;
-//   - never read the signed-in user's CSRF token, call server-side methods
-//     such as .Site.Assistant, or write out whole values that hold the
-//     token (printing a struct prints its fields);
+//   - never read a form token (the signed-in user's CSRF token, the
+//     comment form's), call server-side methods such as .Site.Assistant,
+//     or write out whole values that hold a token (printing a struct
+//     prints its fields), nor write the placeholders the server fills with
+//     tokens and plugin forms;
 //   - hold no <script>, <style>, style attributes, event handlers,
-//     <meta http-equiv>, <base>, frames, plugins or form controls that post
-//     elsewhere;
+//     <meta http-equiv>, <base>, frames, plugins, <math>, or form controls
+//     that post elsewhere; their forms use GET and send to a path of the
+//     site, and never hold a shared template with a form or a form
+//     control (the comment form, the admin bar), whose fields, tokens
+//     included, the browser would add to the theme's form. Inside <svg>,
+//     only drawing elements: the HTML tokenizer of these checks reads the
+//     page as a browser does only outside foreign content;
+//   - leave the page's Referrer-Policy alone: no referrerpolicy attribute,
+//     no <meta name="referrer">, no rel="opener";
 //   - always render shared/footer-meta with the page data, in the page's
 //     text: the licence's attribution. RenderContext checks the rendered
 //     page too.
@@ -84,12 +93,18 @@ var themeFuncs = map[string]bool{
 	"print": true, "printf": true, "println": true, "html": true, "js": true, "urlquery": true,
 }
 
-// secretFields hold a secret of the signed-in user; deniedMembers do work
-// on the server instead of reading the page data.
+// secretFields hold a form token: the signed-in user's CSRF token, the
+// comment form's token; deniedMembers do work on the server instead of
+// reading the page data.
 var (
-	secretFields  = map[string]bool{"CSRF": true}
+	secretFields  = map[string]bool{"CSRF": true, "Token": true}
 	deniedMembers = map[string]bool{"Assistant": true}
 )
+
+// TokenSlots are the placeholders the server replaces with a fresh form
+// token in every response (internal/web: commentTokenSlot, formTokenSlot);
+// a theme's templates and translations cannot write them.
+var TokenSlots = []string{"sap-ctoken-", "sap-ftoken-"}
 
 // refusedElements cannot appear in a theme's templates. The CSP blocks
 // most of them anyway; refusing them tells the author at once.
@@ -97,12 +112,27 @@ var refusedElements = map[string]string{
 	"script": "template.script", "style": "template.style", "base": "template.element",
 	"iframe": "template.element", "frame": "template.element", "frameset": "template.element",
 	"object": "template.element", "embed": "template.element", "applet": "template.element",
+	"math": "template.element",
+}
+
+// svgElements are the elements a theme's <svg> can hold: drawing ones.
+// None is an HTML integration point (foreignObject, desc, title), raw text
+// (style, script) or an HTML element that ends the SVG, so the browser
+// reads everything up to </svg> as SVG, as the checks do.
+var svgElements = map[string]bool{
+	"svg": true, "g": true, "path": true, "circle": true, "ellipse": true, "line": true, "polyline": true,
+	"polygon": true, "rect": true, "defs": true, "symbol": true, "use": true, "lineargradient": true,
+	"radialgradient": true, "stop": true, "clippath": true, "mask": true, "pattern": true, "text": true, "tspan": true,
 }
 
 // formAttrs re-target a form; a theme's controls cannot have them.
 var formAttrs = map[string]bool{
 	"form": true, "formaction": true, "formmethod": true, "formenctype": true, "formtarget": true,
 }
+
+// formTags make a template "form-bearing": a form, a control with a value
+// (such as a hidden token), or a plugin form's placeholder.
+var formTags = []string{"<form", "<input", "<select", "<textarea", "data-form"}
 
 // Bounds of the expansion of a page's templates (calls expanded, loops
 // counted once) and of one pass of a loop that may write nothing, in
@@ -233,6 +263,22 @@ func (m *Manager) checkTemplates(fsys fs.FS, t *Theme) []Problem {
 			if protected[name] {
 				c.report(Problem{Code: "template.protected", File: f, Line: line, Args: []any{name}})
 			}
+			walkNodes(tr.Root, func(n parse.Node) {
+				var s string
+				switch n := n.(type) {
+				case *parse.TextNode:
+					s = string(n.Text)
+				case *parse.StringNode:
+					s = n.Text
+				default:
+					return
+				}
+				for _, slot := range TokenSlots {
+					if strings.Contains(s, slot) {
+						c.report(Problem{Code: "template.token", File: f, Line: lineOf(tr, n), Args: []any{slot}})
+					}
+				}
+			})
 			sk := &skeleton{tree: tr, file: f}
 			sk.walk(tr.Root)
 			c.checkHTML(sk)
@@ -1094,6 +1140,12 @@ func (w *walker) function(name string, argNodes []parse.Node, final *val, n pars
 // tokenizer sees the tags and attributes the text spells out, branches
 // included. With a set, the theme's own templates are inlined where they
 // are called, so that a tag cannot be split across templates either.
+// Inlining stops at maxSkeleton bytes or maxSkeletonNodes nodes, as it
+// does for recursion: a call not inlined is a placeholder, which the
+// checks treat as a template that may write anything. Without the node
+// bound, templates that write nothing and call each other ten times over
+// would take the walk through 10^n nodes before the step count refuses
+// them.
 type skeleton struct {
 	b     strings.Builder
 	spans []span
@@ -1102,6 +1154,7 @@ type skeleton struct {
 	stack []string
 	tree  *parse.Tree
 	file  string
+	nodes int
 }
 
 type span struct {
@@ -1111,11 +1164,90 @@ type span struct {
 	file string
 }
 
+// The skeleton's placeholders: an action that writes, a template that is
+// not inlined, and an action that writes a path of the site
+// ({{link "/search"}}, a path that cannot start with "//").
 const (
 	writeMark    = "\uE000"
 	templateMark = "\uE001"
+	pathMark     = "\uE002"
 	maxSkeleton  = 4 << 20
+	// maxSkeletonNodes is ten times maxSteps: a page within the step
+	// count is inlined in full.
+	maxSkeletonNodes = 10 * maxSteps
 )
+
+var marks = []string{writeMark, templateMark, pathMark}
+
+func hasMark(s string) bool {
+	for _, m := range marks {
+		if strings.Contains(s, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// sitePath reports whether an action writes a path of the site: link
+// with a path in quotes that starts with one "/" and something else.
+func sitePath(p *parse.PipeNode) bool {
+	if len(p.Cmds) != 1 || len(p.Cmds[0].Args) != 2 {
+		return false
+	}
+	fn, ok := p.Cmds[0].Args[0].(*parse.IdentifierNode)
+	arg, isStr := p.Cmds[0].Args[1].(*parse.StringNode)
+	if !ok || !isStr || fn.Ident != "link" || len(arg.Text) < 2 || arg.Text[0] != '/' {
+		return false
+	}
+	return arg.Text[1] != '/' && arg.Text[1] != '\\' && !strings.ContainsAny(arg.Text, "\t\n\r")
+}
+
+// siteAction reports whether a form's action, as the template writes it,
+// is a path of the site, as the browser reads it: without tabs and line
+// breaks, and the spaces and controls around it.
+func siteAction(v string) bool {
+	v = strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, v)
+	v = strings.TrimFunc(v, func(r rune) bool { return r <= ' ' })
+	switch {
+	case v == "", strings.HasPrefix(v, pathMark):
+		return true
+	case strings.HasPrefix(v, "/"):
+		rest := v[1:]
+		return rest == "" || rest[0] != '/' && rest[0] != '\\' && !strings.HasPrefix(rest, writeMark) &&
+			!strings.HasPrefix(rest, templateMark) && !strings.HasPrefix(rest, pathMark)
+	}
+	return false
+}
+
+// formBearing reports whether the template name of set writes a form or a
+// form control, itself or through the templates it calls.
+func formBearing(set *htmltemplate.Template, name string, memo map[string]bool) bool {
+	if v, ok := memo[name]; ok {
+		return v
+	}
+	memo[name] = false // cycles
+	tmpl := set.Lookup(name)
+	if tmpl == nil || tmpl.Tree == nil {
+		return false
+	}
+	found := false
+	walkNodes(tmpl.Tree.Root, func(n parse.Node) {
+		switch n := n.(type) {
+		case *parse.TextNode:
+			lower := strings.ToLower(string(n.Text))
+			found = found || slices.ContainsFunc(formTags, func(t string) bool { return strings.Contains(lower, t) })
+		case *parse.TemplateNode:
+			found = found || formBearing(set, n.Name, memo)
+		}
+	})
+	memo[name] = found
+	return found
+}
 
 func (sk *skeleton) mark(n parse.Node, s string) {
 	sk.spans = append(sk.spans, span{sk.b.Len(), n, sk.tree, sk.file})
@@ -1123,6 +1255,7 @@ func (sk *skeleton) mark(n parse.Node, s string) {
 }
 
 func (sk *skeleton) walk(n parse.Node) {
+	sk.nodes++
 	switch n := n.(type) {
 	case *parse.ListNode:
 		if n == nil {
@@ -1135,10 +1268,14 @@ func (sk *skeleton) walk(n parse.Node) {
 		sk.mark(n, string(n.Text))
 	case *parse.ActionNode:
 		if len(n.Pipe.Decl) == 0 {
-			sk.mark(n, writeMark)
+			if sitePath(n.Pipe) {
+				sk.mark(n, pathMark)
+			} else {
+				sk.mark(n, writeMark)
+			}
 		}
 	case *parse.TemplateNode:
-		if f, ok := sk.own[n.Name]; ok && sk.set != nil && len(sk.stack) < 30 && sk.b.Len() < maxSkeleton && !slices.Contains(sk.stack, n.Name) {
+		if f, ok := sk.own[n.Name]; ok && sk.set != nil && len(sk.stack) < 30 && sk.b.Len() < maxSkeleton && sk.nodes < maxSkeletonNodes && !slices.Contains(sk.stack, n.Name) {
 			if t := sk.set.Lookup(n.Name); t != nil && t.Tree != nil {
 				tree, file := sk.tree, sk.file
 				sk.stack = append(sk.stack, n.Name)
@@ -1181,20 +1318,35 @@ func (sk *skeleton) at(off int) (string, int) {
 	return sp.file, line
 }
 
+// nodeAt returns the node that wrote the skeleton's offset off.
+func (sk *skeleton) nodeAt(off int) parse.Node {
+	i := sort.Search(len(sk.spans), func(i int) bool { return sk.spans[i].off > off }) - 1
+	if i < 0 {
+		return nil
+	}
+	return sk.spans[i].node
+}
+
 // checkHTML looks for what a theme's HTML cannot hold. The template
 // text is checked file by file, and each page with the theme's templates
-// inlined.
+// inlined, where the shared templates a theme form holds are checked too.
+// The tokenizer reads <noscript> as markup, as a browser without
+// JavaScript does: what a browser may read as tags is checked as tags.
 func (c *checker) checkHTML(sk *skeleton) {
 	text := sk.b.String()
 	report := func(code string, off int, args ...any) {
 		file, line := sk.at(off)
 		c.report(Problem{Code: code, File: file, Line: line, Args: args})
 	}
-	for _, mark := range []string{"<" + writeMark, "<" + templateMark, "</" + writeMark, "</" + templateMark} {
-		if i := strings.Index(text, mark); i >= 0 {
-			report("template.tag-name", i)
+	for _, m := range marks {
+		for _, mark := range []string{"<" + m, "</" + m} {
+			if i := strings.Index(text, mark); i >= 0 {
+				report("template.tag-name", i)
+			}
 		}
 	}
+	memo := map[string]bool{}
+	forms, selects, svg := 0, 0, 0 // open in the theme's markup
 	z := html.NewTokenizer(strings.NewReader(text))
 	off := 0
 	for {
@@ -1203,25 +1355,77 @@ func (c *checker) checkHTML(sk *skeleton) {
 			return
 		}
 		start := off
-		off += len(z.Raw())
-		if tt != html.StartTagToken && tt != html.SelfClosingTagToken {
+		raw := string(z.Raw())
+		off += len(raw)
+		switch tt {
+		case html.TextToken:
+			// In a page, with the theme's templates inlined: the shared
+			// templates called in a theme's form, select or svg.
+			if sk.set == nil || forms == 0 && selects == 0 && svg == 0 {
+				continue
+			}
+			for i := strings.Index(raw, templateMark); i >= 0; {
+				at := start + i
+				if tn, ok := sk.nodeAt(at).(*parse.TemplateNode); ok {
+					switch {
+					case svg > 0:
+						report("template.svg", at, fmt.Sprintf("{{template %q}}", tn.Name))
+					case formBearing(sk.set, tn.Name, memo):
+						report("template.form-nested", at, tn.Name)
+					}
+				}
+				next := strings.Index(raw[i+len(templateMark):], templateMark)
+				if next < 0 {
+					break
+				}
+				i += len(templateMark) + next
+			}
+			continue
+		case html.EndTagToken:
+			name, _ := z.TagName()
+			switch tag := string(name); {
+			case svg > 0 && tag == "svg":
+				svg--
+			case svg > 0 && !svgElements[tag]:
+				report("template.svg", start, "</"+tag+">")
+			case tag == "form" && selects == 0 && forms > 0:
+				forms-- // a browser ignores </form> inside a <select>
+			case tag == "select" && selects > 0:
+				selects--
+			}
+			continue
+		case html.StartTagToken, html.SelfClosingTagToken:
+		default:
 			continue
 		}
 		name, more := z.TagName()
 		tag := string(name)
-		switch code := refusedElements[tag]; code {
-		case "":
-		case "template.element":
+		switch code := refusedElements[tag]; {
+		case code == "template.element":
 			report(code, start, tag)
-		default:
+		case code != "":
 			report(code, start)
+		case svg > 0 && !svgElements[tag]:
+			report("template.svg", start, "<"+tag+">")
+		}
+		switch tag {
+		case "svg":
+			if tt == html.StartTagToken {
+				svg++
+			}
+		case "form": // <form/> opens a form too
+			forms++
+		case "select":
+			selects++
+		case "noscript":
+			z.NextIsNotRawText()
 		}
 		for more {
 			var k, v []byte
 			k, v, more = z.TagAttr()
-			key := string(k)
+			key, val := string(k), string(v)
 			switch {
-			case strings.Contains(key, writeMark) || strings.Contains(key, templateMark):
+			case hasMark(key):
 				// html/template lets an action write a harmless attribute
 				// name, such as "method", which would undo the form check.
 				report("template.attr-name", start)
@@ -1231,28 +1435,58 @@ func (c *checker) checkHTML(sk *skeleton) {
 				report("template.style", start)
 			case tag == "meta" && key == "http-equiv":
 				report("template.http-equiv", start)
+			case tag == "meta" && key == "name":
+				if hasMark(val) {
+					report("template.meta-name", start)
+				} else if strings.EqualFold(strings.TrimSpace(val), "referrer") {
+					report("template.referrer", start)
+				}
+			case key == "referrerpolicy":
+				report("template.referrer", start)
+			case key == "rel":
+				if hasMark(val) || slices.ContainsFunc(strings.Fields(val), func(t string) bool { return strings.EqualFold(t, "opener") }) {
+					report("template.rel", start)
+				}
+			case key == "data-form":
+				report("template.token", start, "data-form")
 			case formAttrs[key]:
 				report("template.form-attr", start, key)
-			case tag == "form" && key == "method" && !strings.EqualFold(string(v), "get"):
+			case tag == "form" && key == "method" && !strings.EqualFold(val, "get"):
 				report("template.form-post", start)
+			case tag == "form" && key == "action" && !siteAction(val):
+				report("template.form-action", start)
 			}
 		}
 	}
 }
 
-// probe escapes every page as html/template does before its first run:
-// an ambiguous context is an error, and a textOnly template called inside
-// an attribute, a comment or an RCDATA element gets a mangled name
-// ("shared/footer-meta$htmltemplate_…").
+// probe runs every page once, without page data, through a slot as
+// RenderContext does: within the same bounds (bounds.go), all pages within
+// one RenderTimeout. Running escapes the page as html/template does before
+// its first run: an ambiguous context is an error, and a textOnly template
+// called inside an attribute, a comment or an RCDATA element gets a
+// mangled name ("shared/footer-meta$htmltemplate_…"). A page that goes
+// over a bound without any data would go over it for every visitor.
 func (c *checker) probe(t *Theme, owns map[string]map[string]string) {
+	deadline := time.Now().Add(RenderTimeout)
 	for _, page := range sortedKeys(t.pages) {
-		set, err := t.pages[page].Clone()
+		s, err := t.newSlot(page, "en")
 		if err != nil {
 			c.report(Problem{Code: "template.parse", Args: []any{err.Error()}})
 			continue
 		}
-		lw := &limitWriter{ctx: context.Background(), max: 1 << 20, deadline: time.Now().Add(RenderTimeout)}
-		err = set.ExecuteTemplate(lw, "layout", nil)
+		set := s.set
+		s.g.start(context.Background(), deadline)
+		err = set.ExecuteTemplate(&limitWriter{g: s.g, max: MaxRenderBytes}, "layout", nil)
+		limit := s.g.err
+		s.g.stop()
+		if limit != nil {
+			c.report(Problem{Code: "template.render-limit", File: "templates/layout.html", Args: []any{page}})
+			if errors.Is(limit, errTimeout) {
+				return // the next pages have no time left
+			}
+			continue
+		}
 		var he *htmltemplate.Error
 		if errors.As(err, &he) && he.ErrorCode != htmltemplate.OK {
 			file := owns[page][he.Name]

@@ -10,7 +10,7 @@
 {{/* Language-aware replacements of two shared partials: the core versions
      point to "/" and "/search" in every language. */}}
 {{define "shared/search-form"}}
-<form class="search-form" method="get" action="{{.Site.Search}}" role="search">
+<form class="search-form" method="get" action="{{link "/search"}}" role="search">
   <label class="sr-only" for="search-q-{{.Kind}}">{{T "Search"}}</label>
   <input id="search-q-{{.Kind}}" type="search" name="q" value="{{.Query}}" placeholder="{{T "Search…"}}" maxlength="200" required>
   <button type="submit" aria-label="{{T "Search"}}">{{icon "search"}}</button>

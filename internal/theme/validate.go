@@ -299,12 +299,11 @@ func (m *Manager) validate(r io.ReaderAt, size int64, root string) (*validation,
 
 	// The templates: they must parse with the server's functions and the
 	// shared templates, then pass the checks of check.go.
-	t, err := m.loadTheme(v.slug, fsys, false)
+	t, err := m.loadTheme(v.slug, fsys, false, true)
 	if err != nil {
 		v.add(parseProblem(fsys, err))
 		return v, nil
 	}
-	t.Uploaded = true
 	for _, p := range m.checkTemplates(fsys, t) {
 		v.add(p)
 	}
@@ -357,6 +356,11 @@ func checkI18n(v *validation, name string, b []byte) {
 		for _, s := range []string{k, cat[k]} {
 			if !boundedFormat(s) {
 				v.add(Problem{Code: "format.width", File: name, Args: []any{s}})
+			}
+			for _, slot := range TokenSlots {
+				if strings.Contains(s, slot) {
+					v.add(Problem{Code: "template.token", File: name, Args: []any{slot}})
+				}
 			}
 		}
 	}

@@ -62,14 +62,16 @@
 {{else if eq . "error"}}<p class="comment-notice is-error" role="alert">{{icon "circle-alert"}} {{T "The comment could not be saved. Check the fields and try again."}}</p>{{end}}
 {{end}}
 
-{{/* shared/comment-form. Data: *CommentForm. */}}
+{{/* shared/comment-form. Data: *CommentForm. The </select></form> before
+     the form ends any form or select a theme left open, so that a browser
+     never adds the tokens to a theme's form (docs/SECURITY.md). */}}
 {{define "shared/comment-form"}}
 <div class="comment-respond" id="respond">
   <h3>{{T "Leave a comment"}}</h3>
   {{if and .RequireLogin (not .LoggedIn)}}
   <p><a href="/login">{{T "Log in to comment."}}</a></p>
   {{else}}
-  <form class="comment-form" method="post" action="{{.Action}}">
+  </select></form><form class="comment-form" method="post" action="{{.Action}}">
     <input type="hidden" name="token" value="{{.Token}}">
     <input type="hidden" name="parent_id" value="" data-reply-parent>
     {{if .LoggedIn}}<input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}

@@ -63,14 +63,17 @@
 {{/* shared/skip-link */}}
 {{define "shared/skip-link"}}<a class="skip-link" href="#main">{{T "Skip to content"}}</a>{{end}}
 
-{{/* shared/admin-bar: shown to signed-in editors. Data: PageData. */}}
+{{/* shared/admin-bar: shown to signed-in editors. Data: PageData.
+     The </select></form> before the form ends any form or select a theme
+     left open, so that a browser never adds the CSRF token to a theme's
+     form (docs/SECURITY.md, "Uploaded themes"). */}}
 {{define "shared/admin-bar"}}
 {{if and .Site.Viewer (not .Site.Custom.Preview)}}{{if .Site.Viewer.Admin}}
 <div class="sap-adminbar" role="region" aria-label="{{T "Administration"}}">
   <a href="/admin/" title="{{T "Dashboard"}}">{{icon "layout-dashboard"}}<span>{{T "Dashboard"}}</span></a>
   {{if .Post}}{{with .Post.EditURL}}<a href="{{.}}">{{icon "pencil"}}<span>{{T "Edit"}}</span></a>{{end}}{{end}}
   <a href="/admin/posts/new" title="{{T "New post"}}">{{icon "plus"}}<span class="sap-hide-sm">{{T "New"}}</span></a>
-  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.Site.Viewer.CSRF}}"><button type="submit" title="{{T "Log out"}}" aria-label="{{T "Log out"}}">{{icon "log-out"}}</button></form>
+  </select></form><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.Site.Viewer.CSRF}}"><button type="submit" title="{{T "Log out"}}" aria-label="{{T "Log out"}}">{{icon "log-out"}}</button></form>
 </div>
 {{end}}{{end}}
 {{if .Preview}}<div class="sap-preview" role="status">{{icon "eye"}} {{T "Preview — this content is not public yet."}}</div>{{end}}

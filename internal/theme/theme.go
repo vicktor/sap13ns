@@ -77,7 +77,7 @@ type Theme struct {
 	// Own: the theme is in the site's own directory, so an administrator
 	// can replace or delete it. Uploaded: it was installed by an upload
 	// (Install), passed the validation, and renders under the bounds of
-	// RenderContext.
+	// RenderContext and bounds.go.
 	Own      bool
 	Uploaded bool
 	Upload   *UploadInfo // what the upload recorded, for Uploaded themes
@@ -86,9 +86,11 @@ type Theme struct {
 	static map[string]string             // static file -> short content hash
 	pages  map[string]*template.Template // pristine sets, never executed
 
+	funcs     template.FuncMap // the server's functions, for uploaded themes' slots
 	langFuncs func(lang string) template.FuncMap
 	mu        sync.Mutex
 	byLang    map[string]map[string]*template.Template // per-language clones
+	pools     map[string]*pool                         // uploaded themes: page and language -> slots
 	i18n      map[string]map[string]string             // theme's own strings: lang -> key -> text
 }
 
@@ -196,7 +198,7 @@ func (m *Manager) Load() error {
 				failed = append(failed, Failure{Slug: e.Name(), Err: "a built-in or network theme has this name"})
 				continue
 			}
-			t, err := m.loadTheme(e.Name(), sub, src.Builtin)
+			t, err := m.loadTheme(e.Name(), sub, src.Builtin, src.Dir != "" && info != nil)
 			if err != nil {
 				m.log.Error("theme failed to load", "theme", e.Name(), "err", err)
 				if src.Dir != "" {
@@ -204,12 +206,7 @@ func (m *Manager) Load() error {
 				}
 				continue
 			}
-			t.Own, t.Uploaded, t.Upload = src.Dir != "", src.Dir != "" && info != nil, info
-			if t.Uploaded {
-				for _, set := range t.pages {
-					set.Funcs(boundedFuncs(m.funcs))
-				}
-			}
+			t.Own, t.Upload = src.Dir != "", info
 			themes[t.Slug] = t
 		}
 	}
@@ -230,13 +227,17 @@ func (m *Manager) Failures() []Failure {
 	return append([]Failure(nil), m.failed...)
 }
 
-func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin bool) (*Theme, error) {
+// loadTheme parses a theme. The template sets of an uploaded theme have
+// their functions bound to closedGuard, which fails every call: they run
+// only through the slots of RenderContext and of the checks' probe, whose
+// functions are bounded (bounds.go).
+func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin, uploaded bool) (*Theme, error) {
 	raw, err := fs.ReadFile(fsys, "theme.json")
 	if err != nil {
 		return nil, fmt.Errorf("theme.json: %w", err)
 	}
-	t := &Theme{Slug: slug, Builtin: builtin, fsys: fsys, static: map[string]string{}, pages: map[string]*template.Template{},
-		langFuncs: m.langFuncs, byLang: map[string]map[string]*template.Template{}}
+	t := &Theme{Slug: slug, Builtin: builtin, Uploaded: uploaded, fsys: fsys, static: map[string]string{}, pages: map[string]*template.Template{},
+		funcs: m.funcs, langFuncs: m.langFuncs, byLang: map[string]map[string]*template.Template{}}
 	if err := json.Unmarshal(raw, &t.Manifest); err != nil {
 		return nil, fmt.Errorf("theme.json: %w", err)
 	}
@@ -259,6 +260,12 @@ func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin bool) (*Theme, erro
 				return nil, fmt.Errorf("%s: %w", f, err)
 			}
 			t.i18n[strings.TrimSuffix(path.Base(f), ".json")] = cat
+		}
+	}
+	if uploaded {
+		closed := t.funcsFor("en", closedGuard)
+		for _, set := range t.pages {
+			set.Funcs(closed)
 		}
 	}
 	_ = fs.WalkDir(fsys, "static", func(p string, d fs.DirEntry, err error) error {
@@ -378,8 +385,8 @@ func (m *Manager) List() []*Theme {
 
 // Bounds of rendering an uploaded theme. Templates cannot be interrupted,
 // so the checks of check.go keep every loop that writes nothing short,
-// and the writer stops the rest: past MaxRenderBytes or RenderTimeout,
-// the page fails.
+// and the writer and the functions (bounds.go) stop the rest: past
+// MaxRenderBytes or RenderTimeout, the page fails.
 const (
 	MaxRenderBytes = 8 << 20
 	RenderTimeout  = 5 * time.Second
@@ -419,11 +426,11 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 			}
 		}
 	}
-	set, err := t.forLang(page, lang)
-	if err != nil {
-		return err
-	}
 	if !t.Uploaded {
+		set, err := t.forLang(page, lang)
+		if err != nil {
+			return err
+		}
 		var buf bytes.Buffer
 		if err := set.ExecuteTemplate(&buf, "layout", data); err != nil {
 			return err
@@ -431,13 +438,17 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 		_, err = w.Write(buf.Bytes())
 		return err
 	}
-	lw := &limitWriter{ctx: ctx, max: MaxRenderBytes, deadline: time.Now().Add(RenderTimeout)}
-	if err := set.ExecuteTemplate(lw, "layout", data); err != nil {
-		if lw.err != nil {
-			return fmt.Errorf("%w: %w", ErrRenderLimit, lw.err)
-		}
-		if errors.Is(err, errTooLong) {
-			return fmt.Errorf("%w: %w", ErrRenderLimit, err)
+	deadline := time.Now().Add(RenderTimeout)
+	s, err := t.acquire(ctx, page, lang, deadline)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRenderLimit, err)
+	}
+	defer t.release(s)
+	s.g.start(ctx, deadline)
+	lw := &limitWriter{g: s.g, max: MaxRenderBytes}
+	if err := s.set.ExecuteTemplate(lw, "layout", data); err != nil {
+		if s.g.err != nil {
+			return fmt.Errorf("%w: %w", ErrRenderLimit, s.g.err)
 		}
 		return err
 	}
@@ -448,40 +459,108 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 	return err
 }
 
-// limitWriter buffers a page and fails past its size or time limit, or
-// once its context ends. The template stops at the first failed write.
+// limitWriter buffers a page and fails past its size, or once its guard
+// fails: past the time limit, when the request ends or when a function hit
+// a limit. The template stops at the first failed write.
 type limitWriter struct {
-	ctx      context.Context
-	buf      bytes.Buffer
-	max      int
-	deadline time.Time
-	err      error
+	g   *guard
+	buf bytes.Buffer
+	max int
 }
 
 func (w *limitWriter) Write(p []byte) (int, error) {
-	if w.err != nil {
-		return 0, w.err
+	// Every write, even an empty one, checks the guard: the checks of
+	// check.go keep the work between two writes small, and every function
+	// checks it too.
+	if err := w.g.check(); err != nil {
+		return 0, err
 	}
 	if w.buf.Len()+len(p) > w.max {
-		w.err = fmt.Errorf("more than %d MB of output", w.max>>20)
-		return 0, w.err
-	}
-	// Every write, even an empty one, checks the clock: the checks of
-	// check.go keep the work between two writes small.
-	if time.Now().After(w.deadline) {
-		w.err = errors.New("took longer than " + RenderTimeout.String())
-		return 0, w.err
-	}
-	if err := w.ctx.Err(); err != nil {
-		w.err = err
-		return 0, w.err
+		return 0, w.g.fail(fmt.Errorf("more than %d MB of output", w.max>>20))
 	}
 	return w.buf.Write(p)
 }
 
+// A slot is a copy of one page's template set, in one language, whose
+// functions are bound to the slot's guard; it serves one execution at a
+// time. A pool keeps up to maxSlots of them.
+type slot struct {
+	set  *template.Template
+	g    *guard
+	pool *pool
+}
+
+type pool struct {
+	free chan *slot
+	made int // under Theme.mu
+}
+
+// newSlot copies the pristine set of page and binds its functions to a
+// new guard, closed until an execution starts it.
+func (t *Theme) newSlot(page, lang string) (*slot, error) {
+	set, err := t.pages[page].Clone()
+	if err != nil {
+		return nil, err
+	}
+	g := &guard{err: errClosed}
+	set.Funcs(t.funcsFor(lang, g))
+	return &slot{set: set, g: g}, nil
+}
+
+// acquire takes a free slot of page in lang, makes one while the pool has
+// fewer than maxSlots, or waits for one until the deadline.
+func (t *Theme) acquire(ctx context.Context, page, lang string, deadline time.Time) (*slot, error) {
+	key := page + "\x00" + lang
+	t.mu.Lock()
+	if t.pools == nil {
+		t.pools = map[string]*pool{}
+	}
+	p := t.pools[key]
+	if p == nil {
+		p = &pool{free: make(chan *slot, maxSlots)}
+		t.pools[key] = p
+	}
+	select {
+	case s := <-p.free:
+		t.mu.Unlock()
+		return s, nil
+	default:
+	}
+	if p.made < maxSlots {
+		p.made++
+		t.mu.Unlock()
+		s, err := t.newSlot(page, lang)
+		if err != nil {
+			t.mu.Lock()
+			p.made--
+			t.mu.Unlock()
+			return nil, err
+		}
+		s.pool = p
+		return s, nil
+	}
+	t.mu.Unlock()
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
+	select {
+	case s := <-p.free:
+		return s, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+		return nil, errBusy
+	}
+}
+
+func (t *Theme) release(s *slot) {
+	s.g.stop()
+	s.pool.free <- s // never blocks: a pool holds at most maxSlots
+}
+
 // forLang returns the page's template set with the language functions bound
-// to lang. Clones are made from the pristine set (html/template cannot clone
-// a set after it has been executed) and kept for later requests.
+// to lang, for a theme that is not an upload. Clones are made from the
+// pristine set (html/template cannot clone a set after it has been
+// executed) and kept for later requests.
 func (t *Theme) forLang(page, lang string) (*template.Template, error) {
 	if t.langFuncs == nil {
 		return t.pages[page], nil
@@ -509,9 +588,6 @@ func (t *Theme) forLang(page, lang string) (*template.Template, error) {
 				return v
 			}
 		}
-	}
-	if t.Uploaded {
-		boundLangFuncs(funcs)
 	}
 	set.Funcs(funcs)
 	if t.byLang[lang] == nil {

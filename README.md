@@ -83,7 +83,7 @@ Five built-in themes, each with light and dark modes:
 
 Themes are Go templates plus static files. They can be previewed before you switch, and extra themes are loaded from a directory at runtime.
 
-- **Theme uploads:** an administrator uploads a theme as a `.zip` in **Appearance → Themes** (or with `sap13ns theme install`). It is checked before it is installed: only passive static files, no scripts or SVG, stylesheets through the CSS checker, templates parsed with the real functions and checked for loops, recursion, secrets, inline code and the footer credit. It arrives inactive for a preview, a bad new version leaves the active one in place, and uploaded themes render within output and time limits ([docs/THEMES.md](docs/THEMES.md#uploading-a-theme)).
+- **Theme uploads:** an administrator uploads a theme as a `.zip` in **Appearance → Themes** (or with `sap13ns theme install`). It is checked before it is installed: only passive static files, no scripts or SVG, stylesheets through the CSS checker, templates parsed with the real functions and checked for loops, recursion, secrets, form targets, inline code and the footer credit. It arrives inactive for a preview, a bad new version leaves the active one in place, and uploaded themes render within output and time limits ([docs/THEMES.md](docs/THEMES.md#uploading-a-theme)).
 
 - **Customiser:** colours, fonts (self-hosted WOFF2), radius, density, header and footer, with a live preview. Changes stay a draft until published, with ten revisions and export/import.
 - **Page builder:** 18 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, image, button, …) arranged per region and page type. Page types you have not built keep the theme's own template.

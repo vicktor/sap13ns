@@ -190,7 +190,9 @@ func mergeCSP(base string, add map[string][]string) string {
 // bodies are cached, so the placeholder is expanded on every response: the
 // form carries a signed, single-use timestamp token, and after a submission
 // the visitor sees the result (and their input, on errors) from an encrypted
-// cookie.
+// cookie. The </select></form> before the form ends any form or select an
+// uploaded theme left open around the placeholder, so that a browser never
+// adds these fields to the theme's form.
 
 var (
 	formSlotRe  = regexp.MustCompile(`<div data-form="([a-z0-9][a-z0-9-]{1,49})\.([a-z][a-z0-9_-]{0,39})"></div>`)
@@ -226,7 +228,7 @@ var pluginFormTmpl = template.Must(template.New("form").Parse(`<div class="plugi
 {{- with .Title}}<h3 class="plugin-form-title">{{.}}</h3>{{end}}
 {{- with .Notice}}<p class="comment-notice {{if $.NoticeOK}}is-success{{else}}is-error{{end}}" role="{{if $.NoticeOK}}status{{else}}alert{{end}}">{{.}}</p>{{end}}
 {{- if not .Done}}
-<form class="plugin-form comment-form" method="post" action="{{.Action}}">
+</select></form><form class="plugin-form comment-form" method="post" action="{{.Action}}">
 <input type="hidden" name="_token" value="{{.Token}}">
 <input type="hidden" name="_back" value="{{.Back}}">
 <input type="hidden" name="_lang" value="{{.Lang}}">
