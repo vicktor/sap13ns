@@ -47,7 +47,7 @@ Los planes comerciales se pagan **por adelantado, por meses o por años**, segú
 
 Si cambiamos el precio de un plan, te avisaremos por correo electrónico al menos 30 días antes de que se te aplique. Si no estás de acuerdo, puedes darte de baja antes de que el cambio entre en vigor.
 
-Si falla el pago de una renovación, te lo comunicaremos y volveremos a intentarlo, y tu sitio seguirá en línea durante 14 días. Si para entonces sigue sin pagarse, el sitio queda **retenido**: sus páginas públicas muestran un aviso de que no está disponible, pero tú puedes seguir iniciando sesión en él, pagar y exportar tu contenido. Al pagar, o al volver a suscribirte, se levanta la retención.
+Si falla el pago de una renovación, te lo comunicaremos y volveremos a intentarlo, y tu sitio seguirá en línea durante 14 días. Si para entonces sigue sin pagarse, el sitio queda **retenido**: sus páginas públicas muestran un aviso de que está en pausa y no está disponible, pero tú puedes seguir iniciando sesión en él, pagar y exportar tu contenido. Al pagar, o al volver a suscribirte, se levanta la retención.
 
 ## 6. Baja
 

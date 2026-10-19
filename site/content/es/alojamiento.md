@@ -64,7 +64,7 @@ Los pagos los gestiona Stripe. Nunca vemos ni guardamos el número de tu tarjeta
 
 ### ¿Qué pasa si me doy de baja?
 
-Tu plan sigue activo hasta el final del periodo que ya has pagado. Después el sitio queda retenido: los visitantes ven un aviso de que no está disponible, pero tú puedes seguir iniciando sesión, descargar una copia de seguridad, exportar tu contenido o volver a suscribirte. Lo conservamos durante 90 días y después nuestro equipo lo elimina.
+Tu plan sigue activo hasta el final del periodo que ya has pagado. Después el sitio queda retenido: los visitantes ven un aviso de que está en pausa y no está disponible, pero tú puedes seguir iniciando sesión, descargar una copia de seguridad, exportar tu contenido o volver a suscribirte. Lo conservamos durante 90 días y después nuestro equipo lo elimina.
 
 ### ¿Puedo usar mi propio tema o plugin?
 

@@ -15,12 +15,10 @@
   <section class="card" id="consent">
     <header><h2>{{T "Cookie consent"}} {{if $c.Off}}<span class="badge" data-variant="secondary">{{T "Off"}}</span>{{else}}<span class="badge" data-variant="success">{{icon "circle-check"}}{{T "On"}}</span>{{end}}</h2>
       <p>{{if $c.Off}}{{T "Visitors see no banner and no “Cookies” link. Turn it off only if another tool asks for consent on this site."}}
-        {{else if $d.Banner}}{{T "New visitors see the banner: something on this site needs their consent."}}
-        {{else if $d.Optional}}{{T "No banner: the only content that needs consent, such as videos, asks for it where it is shown. The “Cookies” link at the bottom of every page opens the settings."}}
-        {{else}}{{T "No banner: this site stores only what it needs to work. The “Cookies” link at the bottom of every page opens the list."}}{{end}}</p></header>
+        {{else if $d.Optional}}{{T "New visitors see the banner and choose what this site may store: something on it needs their consent. The “Cookies” link at the bottom of every page opens the settings again."}}
+        {{else}}{{T "New visitors see the banner, which tells them this site stores only what it needs to work. The “Cookies” link at the bottom of every page opens the list."}}{{end}}</p></header>
     <section class="form">
       <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if not $c.Off}} checked{{end}}> {{T "Show the cookie settings on the site"}}</label>
-      <label class="check"><input type="checkbox" class="input" role="switch" name="always_banner" value="1"{{if $c.AlwaysBanner}} checked{{end}}> {{T "Show the banner even when the only content that needs consent asks for it where it is shown"}}</label>
     </section>
   </section>
 

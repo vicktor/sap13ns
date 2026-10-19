@@ -187,7 +187,7 @@
   const listeners = [];
   function apply(keep) {
     for (const b of toggles) b.setAttribute("aria-checked", String(allowed(choice, b.dataset.consentToggle, optional, services)));
-    if (banner) banner.hidden = !("banner" in dialog.dataset) || choice.cats !== null;
+    if (banner) banner.hidden = choice.cats !== null;
     for (const el of placeholders()) {
       const id = serviceOf(el);
       if (!has(services, id)) continue;

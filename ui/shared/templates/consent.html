@@ -7,24 +7,28 @@
      page. Without JavaScript the link opens the dialog's list in place
      (#sap-consent:target); consent.js moves both to the end of <body>,
      shows the banner when the visitor has not chosen yet and opens the
-     dialog as a modal. Every string the script shows comes from the
-     data-t-* attributes, in the page's language. */}}
+     dialog as a modal. With nothing optional the banner only tells about
+     the necessary storage, and "Got it" records that it was seen. Every
+     string the script shows comes from the data-t-* attributes, in the
+     page's language. */}}
 {{define "shared/consent-link"}}{{with .Site.Consent}}<span aria-hidden="true">·</span> <a href="#sap-consent" data-consent-open>{{T "Cookies"}}</a>{{end}}{{end}}
 
 {{define "shared/consent"}}{{with .Site.Consent}}{{if $.ConsentOnce}}
-{{if .Banner}}<section class="sap-consent-banner" data-consent-banner aria-labelledby="sap-consent-banner-title" hidden>
+<section class="sap-consent-banner" data-consent-banner aria-labelledby="sap-consent-banner-title" hidden>
   <div class="sap-consent-banner-text">
     <h2 id="sap-consent-banner-title">{{.Title}}</h2>
     <p>{{.Text}}{{with .PolicyURL}} <a href="{{.}}">{{T "Cookie policy"}}</a>{{end}}</p>
   </div>
   <div class="sap-consent-actions">
-    <button type="button" class="sap-consent-btn" data-consent-accept>{{T "Accept all"}}</button>
+    {{if .Optional}}<button type="button" class="sap-consent-btn" data-consent-accept>{{T "Accept all"}}</button>
     <button type="button" class="sap-consent-btn" data-consent-reject>{{T "Reject all"}}</button>
     <button type="button" class="sap-consent-btn sap-consent-btn-quiet" data-consent-open aria-haspopup="dialog">{{T "Customise"}}</button>
+    {{else}}<button type="button" class="sap-consent-btn" data-consent-reject>{{T "Got it"}}</button>
+    <button type="button" class="sap-consent-btn sap-consent-btn-quiet" data-consent-open aria-haspopup="dialog">{{T "See the list"}}</button>{{end}}
   </div>
 </section>
-{{end}}<dialog id="sap-consent" class="sap-consent-dialog" aria-labelledby="sap-consent-title" data-consent-dialog
-  data-key="{{.Key}}" data-rev="{{.Rev}}" data-days="{{.Days}}"{{if .Banner}} data-banner{{end}}
+<dialog id="sap-consent" class="sap-consent-dialog" aria-labelledby="sap-consent-title" data-consent-dialog
+  data-key="{{.Key}}" data-rev="{{.Rev}}" data-days="{{.Days}}"
   data-t-note="{{T "{provider} ({category}): it loads only when you start it, and {provider} may then store data on your device."}}"
   data-t-always="{{T "Always allow {provider}"}}" data-t-settings="{{T "Cookie settings"}}">
   <div class="sap-consent-head">

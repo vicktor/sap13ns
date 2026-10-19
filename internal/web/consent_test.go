@@ -16,7 +16,7 @@ func TestConsentOnPublicPages(t *testing.T) {
 	e := newCustomEnv(t)
 
 	// By default the core lists its necessary cookies and the click-to-load
-	// video players: a footer link and the dialog, but no banner.
+	// video players: a footer link, the dialog and the banner, which asks.
 	rec := e.get("/", nil)
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
@@ -41,8 +41,8 @@ func TestConsentOnPublicPages(t *testing.T) {
 			t.Errorf("missing %s", s)
 		}
 	}
-	if strings.Contains(body, "data-consent-banner") {
-		t.Error("a banner for click-to-load content only")
+	if !strings.Contains(body, "data-consent-banner") || !strings.Contains(body, "data-consent-accept") {
+		t.Error("no banner for a new visitor")
 	}
 	if n := strings.Count(body, `<dialog id="sap-consent"`); n != 1 {
 		t.Errorf("%d dialogs", n)
@@ -61,8 +61,8 @@ func TestConsentOnPublicPages(t *testing.T) {
 		t.Fatal("no revision")
 	}
 
-	// The administrator wants the banner anyway; a new revision asks again.
-	e.saveSettings(func(st *store.Settings) { st.Consent.AlwaysBanner = true; st.Consent.Revision = 3 })
+	// A new revision asks again.
+	e.saveSettings(func(st *store.Settings) { st.Consent.Revision = 3 })
 	e.s.contentChanged()
 	body = e.get("/", nil).Body.String()
 	if !strings.Contains(body, `data-consent-banner`) || !strings.Contains(body, `data-consent-reject`) || !strings.Contains(body, `data-consent-accept`) {
@@ -84,12 +84,16 @@ func TestConsentOnPublicPages(t *testing.T) {
 		}
 	}
 
-	// Without video embeds only necessary storage is left: no toggles,
-	// no banner even when asked for, nothing to accept.
+	// Without video embeds only necessary storage is left: no toggles and
+	// nothing to accept, but new visitors still see the banner, as a
+	// notice with "Got it" (Entendido).
 	e.setVideoEmbeds("off")
 	body = e.get("/", nil).Body.String()
-	if strings.Contains(body, "data-consent-toggle") || strings.Contains(body, "data-consent-banner") || strings.Contains(body, "data-consent-accept") {
+	if strings.Contains(body, "data-consent-toggle") || strings.Contains(body, "data-consent-accept") {
 		t.Error("something to accept with necessary storage only")
+	}
+	if !strings.Contains(body, "data-consent-banner") || !strings.Contains(body, ">Entendido</button>") {
+		t.Error("no notice banner with necessary storage only")
 	}
 	if !strings.Contains(body, `<dialog id="sap-consent"`) {
 		t.Error("no cookie list")
@@ -122,8 +126,6 @@ func TestConsentTranslated(t *testing.T) {
 	if !strings.Contains(en, "Cookie settings") || !strings.Contains(en, "Strictly necessary") {
 		t.Error("the English page is not in English")
 	}
-	e.saveSettings(func(st *store.Settings) { st.Consent.AlwaysBanner = true })
-	e.s.contentChanged()
 	if en = e.get("/en/", nil).Body.String(); !strings.Contains(en, ">Cookie jar</h2>") {
 		t.Error("no English title")
 	}

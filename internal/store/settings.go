@@ -77,8 +77,8 @@ type Settings struct {
 // is the default: on, with the built-in texts.
 type ConsentSettings struct {
 	Off bool `json:"off"` // no banner, dialog or footer link
-	// AlwaysBanner shows the banner to new visitors even when the only
-	// content that needs consent asks for it at its placeholder (videos).
+	// AlwaysBanner is no longer read: new visitors always see the banner.
+	// It stays so that saved settings keep parsing the same.
 	AlwaysBanner bool `json:"always_banner"`
 	// Title, Text and PolicyURL are in the main language; empty uses the
 	// built-in title and text, and no policy link. Texts translates them

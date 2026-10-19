@@ -679,6 +679,6 @@ A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-are
 - [ ] No inline script or style, no external fonts or stylesheets.
 - [ ] Light and dark checked at phone and desktop widths, with visible focus and reduced motion respected.
 - [ ] A post with a video and with images floated left and right looks right ([Videos and images in posts](#videos-and-images-in-posts)).
-- [ ] With the cookie consent on and a video in a post (tick **Show the banner even when…** in Settings → Privacy and cookies to see the banner), the banner, the dialog and the video's note look right and stay readable ([Cookie consent](#cookie-consent)).
+- [ ] With the cookie consent on and a video in a post (in a private window, or with `sap13ns-consent` removed from local storage, to see the banner), the banner, the dialog and the video's note look right and stay readable ([Cookie consent](#cookie-consent)).
 - [ ] `static/theme.css` built and committed.
 - [ ] To upload it: zip the folder with only the files of [Uploading a theme](#uploading-a-theme) (no `node_modules`, scripts or SVG), and upload it to a test site first; the refusal lists every problem.

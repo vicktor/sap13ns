@@ -47,7 +47,7 @@ Commercial plans are paid **in advance, monthly or yearly**, as you choose at ch
 
 If we change the price of a plan, we will tell you by e-mail at least 30 days before it applies to you. If you do not agree, you can cancel before the change takes effect.
 
-If a renewal payment fails, we will let you know and try again, and your site stays online for 14 days. If it has still not been paid by then, the site is **held**: its public pages show a notice that it is unavailable, while you can still sign in to it, pay and export your content. Paying, or subscribing again, lifts the hold.
+If a renewal payment fails, we will let you know and try again, and your site stays online for 14 days. If it has still not been paid by then, the site is **held**: its public pages show a notice that it is paused and unavailable, while you can still sign in to it, pay and export your content. Paying, or subscribing again, lifts the hold.
 
 ## 6. Cancellation
 

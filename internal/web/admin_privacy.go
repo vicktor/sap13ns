@@ -16,9 +16,8 @@ type privacySettingsData struct {
 	Langs []LangLink // the extra ones, with their texts in Texts
 	Texts map[string]store.ConsentText
 	// Categories is the generated cookie list, in the administrator's
-	// language; Banner whether new visitors see the banner (once on).
+	// language; Optional whether anything in it needs consent.
 	Categories  []ConsentCategory
-	Banner      bool
 	Optional    bool
 	DefaultText string // the built-in banner text, as a placeholder
 	Error       string
@@ -33,11 +32,15 @@ func (s *Server) renderPrivacySettings(w http.ResponseWriter, r *http.Request, s
 	lang := s.uiLang(r)
 	d := privacySettingsData{C: c, Main: LangLink{Code: st.Language, Name: langName(st.Language)}, Langs: s.extraLangs(),
 		Texts: c.Texts, Categories: s.consentCategories(lang), Error: msg,
-		DefaultText: s.i18n.T(st.Language, defaultConsentText)}
+	}
 	if d.Texts == nil {
 		d.Texts = map[string]store.ConsentText{}
 	}
-	d.Banner, d.Optional = consentBanner(d.Categories, c.AlwaysBanner)
+	d.Optional = consentOptional(d.Categories)
+	d.DefaultText = s.i18n.T(st.Language, consentAskText)
+	if !d.Optional {
+		d.DefaultText = s.i18n.T(st.Language, consentNoticeText)
+	}
 	s.renderAdminStatus(w, r, status, "privacy_settings", s.tu(r, "Privacy and cookies"), "settings", d)
 }
 
@@ -45,7 +48,6 @@ func (s *Server) adminPrivacySettingsSave(w http.ResponseWriter, r *http.Request
 	st := s.settings()
 	c := st.Consent
 	c.Off = r.FormValue("enabled") != "1"
-	c.AlwaysBanner = r.FormValue("always_banner") == "1"
 	c.Title, c.Text, c.PolicyURL = trimmed(r, "title"), trimmed(r, "text"), trimmed(r, "policy_url")
 	c.Texts = map[string]store.ConsentText{}
 	for _, l := range s.extraLangs() {

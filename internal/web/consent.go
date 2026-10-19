@@ -66,15 +66,6 @@ func (i ConsentItem) Clear() bool {
 		(i.Kind == plugin.PrivacyCookie || i.Kind == plugin.PrivacyStorage)
 }
 
-// asks reports whether the item stores data in the browser without asking
-// at a placeholder, so that the banner must ask first.
-func (i ConsentItem) asks() bool {
-	if i.Category == plugin.CategoryNecessary {
-		return false
-	}
-	return i.Kind == plugin.PrivacyCookie || i.Kind == plugin.PrivacyStorage || i.Kind == plugin.PrivacyService && !i.ClickToLoad
-}
-
 // ConsentCategory is a group of the cookie list.
 type ConsentCategory struct {
 	ID, Name, Description string
@@ -87,12 +78,9 @@ type ConsentCategory struct {
 
 // ConsentView is what shared/consent renders, in the page's language.
 type ConsentView struct {
-	Key  string // localStorage key
-	Rev  string // version of the choice: a new category or a revision asks again
-	Days int    // lifetime of a choice
-	// Banner: new visitors see the banner; otherwise only the footer link
-	// opens the dialog.
-	Banner     bool
+	Key        string // localStorage key
+	Rev        string // version of the choice: a new category or a revision asks again
+	Days       int    // lifetime of a choice
 	Title      string
 	Text       string
 	PolicyURL  string
@@ -100,8 +88,10 @@ type ConsentView struct {
 }
 
 // Optional reports whether anything on the site needs consent.
-func (v *ConsentView) Optional() bool {
-	return slices.ContainsFunc(v.Categories, func(c ConsentCategory) bool { return c.Toggle })
+func (v *ConsentView) Optional() bool { return consentOptional(v.Categories) }
+
+func consentOptional(cats []ConsentCategory) bool {
+	return slices.ContainsFunc(cats, func(c ConsentCategory) bool { return c.Toggle })
 }
 
 // Consent returns the cookie consent, or nil when it is off (and in the
@@ -143,11 +133,13 @@ func (s *Server) consentView(lang string) *ConsentView {
 	if v.Title == "" {
 		v.Title = tr("Cookies on this site")
 	}
-	if v.Text == "" {
-		v.Text = tr(defaultConsentText)
-	}
 	v.Categories = s.consentCategories(lang)
-	v.Banner, _ = consentBanner(v.Categories, c.AlwaysBanner)
+	if v.Text == "" {
+		v.Text = tr(consentAskText)
+		if !consentOptional(v.Categories) {
+			v.Text = tr(consentNoticeText)
+		}
+	}
 	var toggles []string
 	for _, cat := range v.Categories {
 		if cat.Toggle {
@@ -159,24 +151,13 @@ func (s *Server) consentView(lang string) *ConsentView {
 	return v
 }
 
-// defaultConsentText is the banner's text when the administrator wrote
-// none.
-const defaultConsentText = "This site uses the cookies it needs to work. With your permission, it also uses optional cookies and content from other sites, listed in the settings. You can change your choice at any time with the “Cookies” link at the bottom of every page."
-
-// consentBanner reports whether new visitors see the banner, and whether
-// anything needs consent at all: the banner asks when something optional
-// stores data without asking at its own placeholder, or always when the
-// administrator wants it and there is something to ask.
-func consentBanner(cats []ConsentCategory, always bool) (banner, optional bool) {
-	asks := false
-	for _, cat := range cats {
-		optional = optional || cat.Toggle
-		for _, it := range cat.Items {
-			asks = asks || it.asks()
-		}
-	}
-	return optional && (asks || always), optional
-}
+// The banner's text when the administrator wrote none: a request for
+// consent when something is optional, otherwise a notice of the necessary
+// storage.
+const (
+	consentAskText    = "This site uses the cookies it needs to work. With your permission, it also uses optional cookies and content from other sites, listed in the settings. You can change your choice at any time with the “Cookies” link at the bottom of every page."
+	consentNoticeText = "This site uses only the cookies and storage it needs to work, such as those that keep you signed in or remember the light or dark mode. They need no consent; the full list is in the settings, and the “Cookies” link at the bottom of every page opens it again."
+)
 
 // consentCategories groups the cookie list, in lang: the categories with
 // at least one entry, in plugin.PrivacyCategories order.

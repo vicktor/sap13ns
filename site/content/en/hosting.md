@@ -64,7 +64,7 @@ Payments are handled by Stripe. We never see or store your card number. You get 
 
 ### What happens when I cancel?
 
-Your plan stays active until the end of the period you have already paid for. After that the site is held: visitors see a notice that it is unavailable, but you can still sign in, download a backup, export your content or subscribe again. We keep it for 90 days, and then our team deletes it.
+Your plan stays active until the end of the period you have already paid for. After that the site is held: visitors see a notice that it is paused and unavailable, but you can still sign in, download a backup, export your content or subscribe again. We keep it for 90 days, and then our team deletes it.
 
 ### Can I use my own theme or plugin?
 
