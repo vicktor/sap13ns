@@ -427,6 +427,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 		Config: cfg, Store: store.New(h), Log: r.log.With("site", s.ID), UI: r.o.UI, Mailer: r.mailer,
 		Blocklist:  filepath.Join(r.cfg.DataDir, "plugin-blocklist.txt"),
 		Network:    siteHooks{hooks{r: r, id: s.ID}},
+		Quota:      siteHooks{hooks{r: r, id: s.ID}},
 		Hosts:      rt.aliases(),
 		CacheSizes: siteCaches,
 		Plugins:    siteapp.PluginLimits{Cache: r.cache, MemoryLimitPages: pluginPages, MaxInstances: pluginInstances, Limit: r.limit},
@@ -436,6 +437,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	if s.Kind == KindNetwork {
 		p.Updates = r.o.Updates
 		p.Network = portalHooks{hooks{r: r, id: s.ID}}
+		p.Quota = nil // the operator's
 	}
 	app, err := siteapp.Open(ctx, p)
 	if err != nil {

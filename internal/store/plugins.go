@@ -18,7 +18,7 @@ type PluginRecord struct {
 	Settings           map[string]string `db:"settings"`
 	ApprovedBy         *int64            `db:"approved_by"`
 	Version            string            `db:"version"` // installed package version
-	Source             string            `db:"source"`  // manual | upload | cli
+	Source             string            `db:"source"`  // manual | upload | cli | catalog
 	UploadedBy         *int64            `db:"uploaded_by"`
 	UploadedByName     string            `db:"uploaded_by_name"`
 	UploadedAt         *time.Time        `db:"uploaded_at"`
@@ -67,21 +67,23 @@ func (s *Store) ApprovePlugin(ctx context.Context, id, sha, assetsSHA string, pe
 type PluginInstall struct {
 	ID             string
 	Version        string
-	Source         string // upload | cli
+	Source         string // upload | cli | catalog
 	UploadedBy     int64  // 0 = command line
 	ReviewRequired bool
+	Reviewed       bool   // the network operator vouches for it: clears the review flag
 	Report         []byte // JSON plugin.Report
 }
 
 // RecordPluginInstall creates the plugin row (disabled) or updates an
-// existing one, keeping its approval, settings and key-value data.
+// existing one, keeping its approval, settings and key-value data. An
+// update keeps a review the plugin waits for, unless it is Reviewed.
 func (s *Store) RecordPluginInstall(ctx context.Context, in PluginInstall) error {
 	_, err := s.DB.Exec(ctx, `INSERT INTO plugins (id, enabled, wasm_sha256, version, source, uploaded_by, uploaded_at, review_required, scan_report, scanned_at)
-		VALUES ($1, false, '', $2, $3, $4, now(), $5, $6, now())
+		VALUES ($1, false, '', $2, $3, $4, now(), $5 AND NOT $7, $6, now())
 		ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version, source = EXCLUDED.source, uploaded_by = EXCLUDED.uploaded_by,
-			uploaded_at = now(), review_required = plugins.review_required OR EXCLUDED.review_required,
+			uploaded_at = now(), review_required = NOT $7 AND (plugins.review_required OR EXCLUDED.review_required),
 			scan_report = EXCLUDED.scan_report, scanned_at = now(), updated_at = now()`,
-		in.ID, in.Version, in.Source, nullID(in.UploadedBy), in.ReviewRequired, in.Report)
+		in.ID, in.Version, in.Source, nullID(in.UploadedBy), in.ReviewRequired, in.Report, in.Reviewed)
 	return err
 }
 

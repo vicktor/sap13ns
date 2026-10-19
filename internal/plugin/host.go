@@ -337,6 +337,7 @@ type Host struct {
 	installMu   sync.Mutex
 	loadMu      sync.Mutex // one Load at a time: each prunes the compiled cache to what it installs
 	mailPerHour int
+	quota       Quota
 
 	tzMu   sync.Mutex
 	tzName string
@@ -399,6 +400,17 @@ type HostOptions struct {
 	MemoryLimitPages uint32         // per instance, in 64 KiB pages; 0 = 2048 (128 MiB), never more
 	MaxInstances     int            // per plugin; 0 = 4, never more
 	Limit            *InstanceLimit // instances alive in the process; nil = no limit
+
+	// Quota bounds the bytes the site stores (a site of a network): the
+	// files of installed packages count. nil = no quota.
+	Quota Quota
+}
+
+// A Quota is the storage of a site (media.Quota): Reserve claims bytes
+// atomically and fails when they do not fit; Release gives them back.
+type Quota interface {
+	Reserve(ctx context.Context, n int64) error
+	Release(ctx context.Context, n int64)
 }
 
 // NewHost creates the runtime. cacheDir stores compiled machine code so that
@@ -443,6 +455,7 @@ func NewHostWithOptions(ctx context.Context, opts HostOptions) (*Host, error) {
 		sharedCache:  opts.Cache != nil,
 		maxInstances: perPlugin,
 		limit:        opts.Limit,
+		quota:        opts.Quota,
 	}
 	h.mailLimit = auth.NewLimiter(h.mailPerHour, time.Hour)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, h.rt); err != nil {
@@ -831,28 +844,12 @@ func (h *Host) Approve(ctx context.Context, id, reviewed string, userID int64) e
 	if p := h.Get(id); p != nil && p.Record != nil && p.Record.ReviewRequired {
 		return ErrReviewRequired
 	}
-	raw, err := readLimited(filepath.Join(h.dir, id, "plugin.json"), 64<<10)
+	b, wasm, err := readBuild(h.dir, id)
 	if err != nil {
 		return err
 	}
-	m, err := ParseManifest(raw)
-	if err != nil {
-		return err
-	}
-	if m.ID != id {
-		return errors.New("plugin id does not match its directory")
-	}
-	wasm, err := readLimited(filepath.Join(h.dir, id, m.Wasm), MaxWasmBytes)
-	if err != nil {
-		return err
-	}
-	sum := sha256.Sum256(wasm)
-	sha := hex.EncodeToString(sum[:])
-	_, assetsSHA, err := readAssets(filepath.Join(h.dir, id))
-	if err != nil {
-		return err
-	}
-	if reviewed != "" && reviewed != reviewPin(sha, assetsSHA, m.Pinned()) {
+	m, sha, assetsSHA := b.Manifest, b.SHA256, b.AssetsSHA256
+	if reviewed != "" && reviewed != b.Pin {
 		return ErrChangedSinceReview
 	}
 	if _, err := h.compile(ctx, sha, wasm); err != nil {
@@ -862,6 +859,78 @@ func (h *Host) Approve(ctx context.Context, id, reviewed string, userID int64) e
 		return err
 	}
 	return h.Load(ctx)
+}
+
+// A Build is a plugin as its directory holds it: what an approval pins.
+type Build struct {
+	Manifest     *Manifest
+	SHA256       string // of the module
+	AssetsSHA256 string
+	Pin          string // see ReviewPin
+}
+
+// ReadBuild reads the plugin id of a plugins directory.
+func ReadBuild(pluginsDir, id string) (*Build, error) {
+	if !idRe.MatchString(id) {
+		return nil, errors.New("invalid plugin id")
+	}
+	b, _, err := readBuild(pluginsDir, id)
+	return b, err
+}
+
+// readBuild reads a plugin's manifest and module from its directory, with
+// the hashes of the module and of the assets.
+func readBuild(pluginsDir, id string) (*Build, []byte, error) {
+	dir := filepath.Join(pluginsDir, id)
+	raw, err := readLimited(filepath.Join(dir, "plugin.json"), 64<<10)
+	if err != nil {
+		return nil, nil, err
+	}
+	m, err := ParseManifest(raw)
+	if err != nil {
+		return nil, nil, err
+	}
+	if m.ID != id {
+		return nil, nil, errors.New("plugin id does not match its directory")
+	}
+	wasm, err := readLimited(filepath.Join(dir, m.Wasm), MaxWasmBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	sum := sha256.Sum256(wasm)
+	_, assetsSHA, err := readAssets(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	b := &Build{Manifest: m, SHA256: hex.EncodeToString(sum[:]), AssetsSHA256: assetsSHA}
+	b.Pin = reviewPin(b.SHA256, assetsSHA, m.Pinned())
+	return b, wasm, nil
+}
+
+// ClearReview records the network operator's review of a plugin a tenant
+// uploaded: the review it waits for is cleared when the plugin on disk is
+// still the build the operator reviewed, its module, assets and pinned
+// permissions (pin, as ReviewPin and InstallResult.Pin give it). It
+// reports false, changing nothing, when it is not.
+func (h *Host) ClearReview(ctx context.Context, id, pin string) (bool, error) {
+	if !idRe.MatchString(id) {
+		return false, errors.New("invalid plugin id")
+	}
+	h.installMu.Lock() // no install between the check and the clearing
+	defer h.installMu.Unlock()
+	b, _, err := readBuild(h.dir, id)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	if pin == "" || b.Pin != pin {
+		return false, nil
+	}
+	if err := h.store.ClearPluginReview(ctx, id); err != nil {
+		return false, err
+	}
+	return true, h.Load(ctx)
 }
 
 func (h *Host) Disable(ctx context.Context, id string) error {

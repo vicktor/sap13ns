@@ -86,6 +86,8 @@ type Server struct {
 	sso         SSOClient     // a tenant of a network: sign-in through the portal
 	portal      Portal        // the network portal
 	billing     PortalBilling // the portal of a network with a Stripe key (billing.go)
+	reviews     PortalPlugins // the portal: the operator's review of uploaded plugins (limits.go)
+	limits      SiteLimits    // a site of a network: its plan (limits.go)
 	ssoFailures *auth.Limiter // failed single sign-on callbacks, per IP
 	checkout    *auth.Limiter // Checkout and Customer Portal sessions, per account
 	hosts       []string      // other host names of this site (multisite aliases)
@@ -156,6 +158,12 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	if b, ok := d.Network.(PortalBilling); ok && s.portal != nil && b.BillingEnabled() {
 		s.billing = b
 	}
+	if s.portal != nil {
+		s.reviews, _ = d.Network.(PortalPlugins)
+	} else {
+		s.limits, _ = d.Network.(SiteLimits)
+	}
+	s.media.Quota = storageQuota(s.limits)
 	if err := s.cop.AddTrustedOrigin(d.Config.BaseURL.String()); err != nil {
 		return nil, err
 	}
@@ -183,7 +191,13 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.themes = theme.NewManager(shared, funcs, s.langFuncs, d.Log, d.Config.Dev, theme.Source{FS: builtin, Builtin: true}, theme.Source{FS: dirFS(d.Config.ThemesDir)})
+	// The site's own themes override the network's (a site of a network),
+	// which override the built-in ones.
+	sources := []theme.Source{{FS: builtin, Builtin: true}}
+	if dir := d.Config.NetworkThemesDir; dir != "" {
+		sources = append(sources, theme.Source{FS: dirFS(dir)})
+	}
+	s.themes = theme.NewManager(shared, funcs, s.langFuncs, d.Log, d.Config.Dev, append(sources, theme.Source{FS: dirFS(d.Config.ThemesDir)})...)
 	if err := s.themes.Load(); err != nil {
 		return nil, err
 	}

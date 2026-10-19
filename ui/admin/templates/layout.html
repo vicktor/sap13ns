@@ -47,6 +47,7 @@
           {{template "nav-item" (dict "URL" "/admin/network/admins" "Icon" "shield-check" "Label" (T "Network administrators") "Current" (.Active "net-admins"))}}
           {{template "nav-item" (dict "URL" "/admin/network/plans" "Icon" "package" "Label" (T "Plans") "Current" (.Active "net-plans"))}}
           {{if .Billing}}{{template "nav-item" (dict "URL" "/admin/network/billing" "Icon" "triangle-alert" "Label" (T "Billing events") "Current" (.Active "net-billing") "Badge" .NetFailing)}}{{end}}
+          {{if .Reviews}}{{template "nav-item" (dict "URL" "/admin/network/plugins" "Icon" "puzzle" "Label" (T "Plugin reviews") "Current" (.Active "net-plugins") "Badge" .NetReviews)}}{{end}}
           {{end}}
         </ul>
       </div>

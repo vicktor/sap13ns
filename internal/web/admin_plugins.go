@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"sap13ns/internal/media"
 	"sap13ns/internal/plugin"
 )
 
@@ -47,6 +48,37 @@ type pluginsData struct {
 	MaxMB        int64
 	// Refused is the report of an upload that was not installed.
 	Refused *plugin.Report
+	// A site of a network: the network's catalogue, and whether its plan
+	// lets it upload its own plugins (held for the operator's review).
+	Tenant  bool
+	Uploads bool
+	Plan    string
+	Catalog []CatalogPlugin
+}
+
+// pluginsPage is the list of plugins, with the upload form and, on a site
+// of a network, the catalogue.
+func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
+	d := pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Uploads: true}
+	if s.limits == nil {
+		return d, nil
+	}
+	pol, err := s.limits.PluginPolicy(r.Context())
+	if err != nil {
+		return d, err
+	}
+	d.Tenant, d.Uploads, d.Plan = true, pol.Uploads, pol.Plan
+	if d.Catalog, err = s.limits.PluginCatalog(r.Context()); err != nil {
+		s.log.Error("the network's plugin catalogue", "err", err) // the page works without it
+	}
+	// A plugin the site uploaded with the same id can be replaced by the
+	// network's.
+	for i := range d.Catalog {
+		if p := s.plugins.Get(d.Catalog[i].ID); p != nil && p.Record != nil && p.Record.Source == "catalog" {
+			d.Catalog[i].Installed = cmp.Or(p.Version, "?")
+		}
+	}
+	return d, nil
 }
 
 func (s *Server) pluginsList() []pluginRow {
@@ -58,7 +90,12 @@ func (s *Server) pluginsList() []pluginRow {
 }
 
 func (s *Server) adminPlugins(w http.ResponseWriter, r *http.Request) {
-	s.renderAdmin(w, r, "plugins", s.t("Plugins"), "plugins", pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20})
+	d, err := s.pluginsPage(r)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderAdmin(w, r, "plugins", s.t("Plugins"), "plugins", d)
 }
 
 func (s *Server) adminPluginsReload(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +222,19 @@ func pluginBack(r *http.Request, id string) string {
 
 func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 	fail := func(msg string) { s.redirect(w, r, "/admin/plugins", "error", msg) }
+	// On a site of a network, the plan decides; the upload waits for the
+	// network operator's review.
+	if s.limits != nil {
+		pol, err := s.limits.PluginPolicy(r.Context())
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		if !pol.Uploads {
+			s.adminError(w, r, http.StatusForbidden, s.t("On the %s plan, plugins come from the network's catalogue. Uploading your own needs a paid plan.", pol.Plan))
+			return
+		}
+	}
 	file, hdr, err := r.FormFile("package")
 	if err != nil {
 		fail(s.t("Choose a plugin package (.zip) to upload."))
@@ -200,8 +250,11 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.plugins.Install(r.Context(), file, hdr.Size, plugin.InstallOptions{UserID: uid(r), Source: "upload",
-		AllowDowngrade: r.FormValue("allow_downgrade") == "1"})
+		AllowDowngrade: r.FormValue("allow_downgrade") == "1", ReviewRequired: s.limits != nil})
 	switch {
+	case errors.Is(err, media.ErrQuota):
+		s.adminError(w, r, http.StatusRequestEntityTooLarge, s.storageFull())
+		return
 	case errors.Is(err, plugin.ErrRefused):
 		details := map[string]string{"file": truncateStr(hdr.Filename, 120), "package_sha256": res.Report.PackageSHA256}
 		var rules []string
@@ -212,8 +265,13 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		details["critical"] = strings.Join(rules, " ")
 		s.audit(r, uid(r), "plugin.refused", res.ID, details)
-		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "plugins", s.t("Plugins"), "plugins",
-			pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Refused: res.Report})
+		d, err := s.pluginsPage(r)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		d.Refused = res.Report
+		s.renderAdminStatus(w, r, http.StatusUnprocessableEntity, "plugins", s.t("Plugins"), "plugins", d)
 		return
 	case errors.Is(err, plugin.ErrDowngrade):
 		fail(s.t("Version %s is older than the installed %s. Tick “Allow an older version” to install it anyway.", res.Version, res.Previous))
@@ -223,17 +281,32 @@ func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
 		fail(s.t("The plugin could not be installed: %s", err.Error()))
 		return
 	}
+	held := false
+	if s.limits != nil {
+		if held, err = s.tenantReview(r.Context(), res); err != nil {
+			s.log.Error("request a plugin review", "plugin", res.ID, "err", err)
+			s.pluginsChanged()
+			fail(s.t("The plugin was installed, but its review could not be requested. Upload it again."))
+			return
+		}
+	}
 	s.pluginsChanged()
 	action := "plugin.installed"
 	details := map[string]string{"version": res.Version, "sha256": res.Report.WasmSHA256, "package_sha256": res.Report.PackageSHA256,
 		"verdict": res.Report.Verdict, "file": truncateStr(hdr.Filename, 120)}
 	msg := s.t("Plugin installed. It is disabled: review the scan report and the permissions, then switch it on.")
+	if held {
+		msg = s.t("Plugin installed. The network operator reviews it before it can be switched on.")
+	}
 	if res.Previous != "" {
 		action = "plugin.updated"
 		details["previous"] = res.Previous
 		msg = s.t("Plugin updated from %s to %s. Its settings and data were kept.", res.Previous, res.Version)
 		if p := s.plugins.Get(res.ID); p != nil && p.Status == plugin.StatusModified {
 			msg += " " + s.t("Its code, assets or permissions changed, so it is stopped until you enable it again.")
+		}
+		if held {
+			msg += " " + s.t("The network operator reviews it before it can be switched on.")
 		}
 	}
 	s.audit(r, uid(r), action, res.ID, details)

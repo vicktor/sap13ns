@@ -205,7 +205,13 @@ func (r *Registry) Maintain(ctx context.Context) {
 }
 
 // measure records the space a site uses: its tables and its directory.
+// It replaces the running count that uploads reserve and deletions
+// release, keeping what changed while it measured.
 func (r *Registry) measure(ctx context.Context, s *Site) error {
+	before, err := r.net.StorageBytes(ctx, s.ID)
+	if err != nil {
+		return err
+	}
 	b, err := r.net.SchemaBytes(ctx, s.Schema)
 	if err != nil {
 		return err
@@ -214,7 +220,7 @@ func (r *Registry) measure(ctx context.Context, s *Site) error {
 	if err != nil {
 		return err
 	}
-	return r.net.SetStorage(ctx, s.ID, b+files)
+	return r.net.SetStorage(ctx, s.ID, b+files, before)
 }
 
 // dirBytes adds up the sizes of the regular files under dir. Symbolic

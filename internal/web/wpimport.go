@@ -238,7 +238,9 @@ func (k *wpSink) CreateComment(ctx context.Context, postID int64, c wpimport.Com
 }
 
 func (k *wpSink) StoreMedia(ctx context.Context, name string, r io.Reader, alt string) (int64, string, error) {
-	res, err := k.s.media.Save(r)
+	// Over the site's storage quota, each file fails with media.ErrQuota
+	// and the import report lists it.
+	res, err := k.s.media.Save(ctx, r)
 	if err != nil {
 		if errors.Is(err, media.ErrTooLarge) {
 			return 0, "", wpimport.ErrMediaTooLarge
@@ -248,18 +250,18 @@ func (k *wpSink) StoreMedia(ctx context.Context, name string, r io.Reader, alt s
 	m := &store.Media{UploaderID: &k.uploader, Path: res.Path, OriginalName: cleanFilename(name), MIME: res.MIME, Size: res.Size,
 		Width: res.Width, Height: res.Height, Variants: res.Variants, SHA256: res.SHA256, Alt: alt}
 	if !media.MatchesName(res.MIME, m.OriginalName) {
-		k.s.media.Remove(m)
+		k.s.media.Remove(ctx, m)
 		return 0, "", errors.New("file type does not match its name")
 	}
 	if existing, err := k.s.store.MediaBySHA(ctx, res.SHA256); err == nil {
-		k.s.media.Remove(m) // already imported
+		k.s.media.Remove(ctx, m) // already imported
 		return existing.ID, existing.URL(), nil
 	}
 	if m.Variants == nil {
 		m.Variants = map[string]store.MediaVariant{}
 	}
 	if m.ID, err = k.s.store.CreateMedia(ctx, m); err != nil {
-		k.s.media.Remove(m)
+		k.s.media.Remove(ctx, m)
 		return 0, "", err
 	}
 	return m.ID, m.URL(), nil

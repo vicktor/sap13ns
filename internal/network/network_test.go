@@ -152,7 +152,7 @@ func TestMigrate(t *testing.T) {
 	}
 	var site, net int
 	if err := f.n.db.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM schema_migrations), (SELECT count(*) FROM network_migrations)`).
-		Scan(&site, &net); err != nil || site < 10 || net != 2 {
+		Scan(&site, &net); err != nil || site < 10 || net != 3 {
 		t.Fatalf("migrations: site %d, network %d, %v", site, net, err)
 	}
 }

@@ -1,0 +1,36 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div><h1>{{T "Plugin reviews"}}</h1><p>{{T "Plugins that sites uploaded. None runs until you approve its build; open it on the site to read its scan report and permissions first."}}</p></div>
+</div>
+<div class="card table-wrap">
+  <table class="table">
+    <thead><tr><th>{{T "Plugin"}}</th><th>{{T "Site"}}</th><th class="max-md:hidden">{{T "Requested permissions"}}</th><th class="max-md:hidden">{{T "Scan"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+    <tbody>
+      {{range $d.Reviews}}
+      <tr>
+        <td><strong class="mono">{{.PluginID}}</strong>{{with .Version}} <span class="muted text-xs">v{{.}}</span>{{end}}<div class="row-sub muted mono" title="{{.SHA256}}">{{printf "%.12s" .SHA256}}</div><div class="row-sub muted">{{T "received %s" (ago .RequestedAt)}}</div></td>
+        <td><strong>{{.Slug}}</strong><div class="row-sub muted mono">{{.Host}}</div></td>
+        <td class="max-md:hidden">{{with .Permissions}}<span class="mono break-all">{{join . ", "}}</span>{{else}}<span class="muted">{{T "No permissions: it can only transform the content it receives."}}</span>{{end}}</td>
+        <td class="max-md:hidden">
+          {{if eq .Verdict "clean"}}<span class="badge" data-variant="success">{{T "No problems found"}}</span>
+          {{else if eq .Verdict "review"}}<span class="badge" data-variant="warning">{{T "Needs review"}}</span>
+          {{else if eq .Verdict "blocked"}}<span class="badge" data-variant="destructive">{{T "Blocked"}}</span>
+          {{else}}<span class="badge" data-variant="secondary">{{T "Not scanned"}}</span>{{end}}
+          {{if .Findings}}<div class="row-sub muted">{{T "%d findings" .Findings}}</div>{{end}}
+          {{with .Imports}}<div class="row-sub muted mono break-all">{{join . ", "}}</div>{{end}}
+        </td>
+        <td class="text-right nowrap">
+          {{if .SiteURL}}<a class="btn" data-variant="ghost" data-size="sm" href="{{.SiteURL}}" target="_blank" rel="noopener">{{icon "external-link"}}{{T "Open on the site"}}</a>{{end}}
+          <form method="post" action="/admin/network/plugins/review" class="inline-flex">{{$.CSRFField}}<input type="hidden" name="site" value="{{.SiteID}}"><input type="hidden" name="plugin" value="{{.PluginID}}"><input type="hidden" name="pin" value="{{.Pin}}"><input type="hidden" name="verdict" value="approve"><button class="btn" data-size="sm" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>
+          <form method="post" action="/admin/network/plugins/review" class="inline-flex">{{$.CSRFField}}<input type="hidden" name="site" value="{{.SiteID}}"><input type="hidden" name="plugin" value="{{.PluginID}}"><input type="hidden" name="pin" value="{{.Pin}}"><input type="hidden" name="verdict" value="reject"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "x"}}{{T "Reject"}}</button></form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">{{template "empty" (dict "Icon" "circle-check" "Title" (T "No plugin is waiting for a review"))}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

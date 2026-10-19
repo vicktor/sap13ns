@@ -269,13 +269,14 @@ func (n *Network) CreateSite(ctx context.Context, ns NewSite) (*Site, error) {
 			if status != "active" {
 				return fmt.Errorf("%w: the account is %s", ErrState, status)
 			}
-			var has bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE owner_id = $1 AND plan = $2 AND status <> 'deleted')`,
+			// The plan's sites per grant: one Personal site per account.
+			var has int
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM sites WHERE owner_id = $1 AND plan = $2 AND status <> 'deleted'`,
 				ns.OwnerID, plan.Slug).Scan(&has); err != nil {
 				return err
 			}
-			if has {
-				return fmt.Errorf("%w: the account already has a %s site", ErrState, plan.Name)
+			if has >= plan.SitesPerGrant {
+				return fmt.Errorf("%w: the account already has its %s sites", ErrState, plan.Name)
 			}
 		}
 		if err := tx.QueryRow(ctx, `SELECT nextval('sites_id_seq')`).Scan(&id); err != nil {
@@ -487,9 +488,13 @@ func (n *Network) SchemaBytes(ctx context.Context, schema string) (int64, error)
 	return b, err
 }
 
-// SetStorage records the space a site uses (schema and directory).
-func (n *Network) SetStorage(ctx context.Context, siteID, bytes int64) error {
-	_, err := n.db.Exec(ctx, `UPDATE sites SET storage_bytes = $2, storage_checked_at = now() WHERE id = $1`, siteID, bytes)
+// SetStorage records the space a site uses (schema and directory),
+// measured while its count was before: what uploads reserved or deletions
+// released since is kept (an upload finished during the measurement
+// counts twice until the next one, never zero times).
+func (n *Network) SetStorage(ctx context.Context, siteID, bytes, before int64) error {
+	_, err := n.db.Exec(ctx, `UPDATE sites SET storage_bytes = greatest($2 + storage_bytes - $3, 0), storage_checked_at = now()
+		WHERE id = $1`, siteID, bytes, before)
 	return err
 }
 

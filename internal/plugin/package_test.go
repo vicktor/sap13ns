@@ -526,10 +526,38 @@ func TestInstallLifecycle(t *testing.T) {
 	if err := h.Approve(ctx, "tenant", "", uid); !errors.Is(err, ErrReviewRequired) {
 		t.Fatalf("approve before review: %v", err)
 	}
-	if err := st.ClearPluginReview(ctx, "tenant"); err != nil {
+	// The operator's review clears it only for the build it saw.
+	held, err := install(testPackage(t, "tenant", "1.0.1", "x"), InstallOptions{UserID: uid, ReviewRequired: true})
+	if err != nil || len(held.Pin) != 64 || held.Pin != h.Get("tenant").ReviewPin() {
+		t.Fatalf("held upload: %+v %v", held, err)
+	}
+	if ok, err := h.ClearReview(ctx, "tenant", strings.Repeat("0", 64)); ok || err != nil {
+		t.Fatalf("another pin: %v %v", ok, err)
+	}
+	if ok, err := h.ClearReview(ctx, "missing", held.Pin); ok || err != nil {
+		t.Fatalf("no such plugin: %v %v", ok, err)
+	}
+	if !h.Get("tenant").Record.ReviewRequired {
+		t.Fatal("cleared by another pin")
+	}
+	if ok, err := h.ClearReview(ctx, "tenant", held.Pin); !ok || err != nil {
+		t.Fatalf("clear: %v %v", ok, err)
+	}
+	if err := h.Approve(ctx, "tenant", "", uid); err != nil {
 		t.Fatal(err)
 	}
-	h.Load(ctx)
+	// An update of a held plugin stays held, unless the operator vouches
+	// for it (its catalogue).
+	if _, err := install(testPackage(t, "tenant", "1.0.2", "x"), InstallOptions{UserID: uid, ReviewRequired: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := install(testPackage(t, "tenant", "1.0.3", "x"), InstallOptions{UserID: uid}); err != nil || !h.Get("tenant").Record.ReviewRequired {
+		t.Fatalf("an update of a held plugin: %v", err)
+	}
+	if _, err := install(testPackage(t, "tenant", "1.0.4", "x"), InstallOptions{UserID: uid, Source: "catalog", Reviewed: true}); err != nil ||
+		h.Get("tenant").Record.ReviewRequired || h.Get("tenant").Record.Source != "catalog" {
+		t.Fatalf("the catalogue's build: %v %+v", err, h.Get("tenant").Record)
+	}
 	if err := h.Approve(ctx, "tenant", "", uid); err != nil {
 		t.Fatal(err)
 	}

@@ -354,6 +354,8 @@ type adminPage struct {
 	NetPending   int
 	Billing      bool // the network has billing
 	NetFailing   int  // billing events that failed, for network admins
+	NetReviews   int  // plugin uploads waiting for the operator's review
+	Reviews      bool // the network reviews the plugins its sites upload
 }
 
 func (p *adminPage) Can(c string) bool {
@@ -390,6 +392,11 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 			if s.billing != nil {
 				if n, err := s.billing.FailingBillingEvents(r.Context()); err == nil {
 					p.NetFailing = n
+				}
+			}
+			if p.Reviews = s.reviews != nil; p.Reviews {
+				if n, err := s.reviews.PendingPluginReviews(r.Context()); err == nil {
+					p.NetReviews = n
 				}
 			}
 		}

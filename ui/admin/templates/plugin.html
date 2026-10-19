@@ -132,7 +132,7 @@
         {{if $p.Homepage}}<div><dt>{{T "Website"}}</dt><dd><a href="{{$p.Homepage}}" rel="noopener nofollow" target="_blank">{{$p.Homepage}}</a></dd></div>{{end}}
         <div><dt>{{T "Status"}}</dt><dd>{{$p.Status}}</dd></div>
         {{with $p.Record}}
-        <div><dt>{{T "Installed from"}}</dt><dd>{{if eq .Source "upload"}}{{T "Upload"}}{{else if eq .Source "cli"}}{{T "Command line"}}{{else}}{{T "Plugins folder"}}{{end}}</dd></div>
+        <div><dt>{{T "Installed from"}}</dt><dd>{{if eq .Source "upload"}}{{T "Upload"}}{{else if eq .Source "cli"}}{{T "Command line"}}{{else if eq .Source "catalog"}}{{T "The network's catalogue"}}{{else}}{{T "Plugins folder"}}{{end}}</dd></div>
         {{if .UploadedByName}}<div><dt>{{T "Uploaded by"}}</dt><dd>{{.UploadedByName}}</dd></div>{{end}}
         {{with .UploadedAt}}<div><dt>{{T "Uploaded"}}</dt><dd>{{dateTime .}}</dd></div>{{end}}
         {{end}}

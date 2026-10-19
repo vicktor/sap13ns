@@ -19,10 +19,40 @@
 </div>
 {{end}}
 
+{{if $d.Tenant}}
+<section class="card" id="catalog">
+  <header>
+    <h2>{{icon "package"}} {{T "From the network"}}</h2>
+    <p>{{T "Plugins the network offers its sites. They are installed disabled: review their permissions, then switch them on."}}</p>
+  </header>
+  <section>
+    {{if $d.Catalog}}
+    <ul class="stack">
+      {{range $d.Catalog}}
+      <li class="flex flex-wrap items-center gap-3">
+        <div class="grow"><strong>{{or .Name .ID}}</strong> {{if .Version}}<span class="muted text-xs">v{{.Version}}</span>{{end}}{{with .Description}}<div class="row-sub muted">{{.}}</div>{{end}}</div>
+        <form method="post" action="/admin/plugins/catalog/{{.ID}}/install">
+          {{$.CSRFField}}
+          {{if not .Installed}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "plus"}}{{T "Install"}}</button>
+          {{else if ne .Installed .Version}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Install version %s" .Version}}</button>
+          {{else}}<span class="badge" data-variant="secondary">{{T "Installed"}}</span>{{end}}
+        </form>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="muted">{{T "The network offers no plugins yet."}}</p>
+    {{end}}
+    {{if not $d.Uploads}}<p class="hint">{{T "On the %s plan, plugins come from the network's catalogue. Uploading your own needs a paid plan." $d.Plan}}</p>{{end}}
+  </section>
+</section>
+{{end}}
+
+{{if $d.Uploads}}
 <section class="card plugin-upload" id="upload">
   <header>
     <h2>{{icon "upload"}} {{T "Upload a plugin"}}</h2>
-    <p>{{T "A .zip package of up to %d MB with plugin.json and plugin.wasm. It is checked for malicious code and installed disabled; uploading a new version of an installed plugin replaces it and keeps its settings and data." $d.MaxMB}}</p>
+    <p>{{T "A .zip package of up to %d MB with plugin.json and plugin.wasm. It is checked for malicious code and installed disabled; uploading a new version of an installed plugin replaces it and keeps its settings and data." $d.MaxMB}}{{if $d.Tenant}} {{T "The network operator reviews every upload before it can be switched on."}}{{end}}</p>
   </header>
   <section>
     <form method="post" action="/admin/plugins/upload" enctype="multipart/form-data" class="plugin-upload-form">
@@ -36,6 +66,7 @@
     </form>
   </section>
 </section>
+{{end}}
 
 {{if $d.Plugins}}
 <ul class="plugin-list">

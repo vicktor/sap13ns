@@ -315,7 +315,8 @@ func TestForSite(t *testing.T) {
 	dir := filepath.Join(base.DataDir, "sites", "7")
 	if c.BaseURL.String() != "https://blog.sap13ns.site" || c.DataDir != dir ||
 		c.UploadsDir != filepath.Join(dir, "uploads") || c.PluginsDir != filepath.Join(dir, "plugins") ||
-		c.ThemesDir != filepath.Join(dir, "themes") || string(c.SecretKey) != string(secret) {
+		c.ThemesDir != filepath.Join(dir, "themes") || string(c.SecretKey) != string(secret) ||
+		c.NetworkThemesDir != base.ThemesDir || base.NetworkThemesDir != "" {
 		t.Fatalf("site config: %+v", c)
 	}
 	if !c.CookieSecure || !c.HSTS || c.HSTSNoSubdomains || c.PasskeyRPID != "blog.sap13ns.site" ||

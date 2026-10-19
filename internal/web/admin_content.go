@@ -329,9 +329,11 @@ func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []map[string]any
 	var errs []string
+	full := false // a file did not fit in the site's storage
 	for _, fh := range files {
 		m, err := s.storeUpload(r, u, fh.Filename, func() (multipartFile, error) { return fh.Open() })
 		if err != nil {
+			full = full || errors.As(err, new(quotaError))
 			errs = append(errs, fh.Filename+": "+err.Error())
 			continue
 		}
@@ -342,10 +344,17 @@ func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	if wantJSON {
 		status := http.StatusOK
-		if len(out) == 0 {
+		switch {
+		case len(out) == 0 && full:
+			status = http.StatusRequestEntityTooLarge
+		case len(out) == 0:
 			status = http.StatusUnprocessableEntity
 		}
 		writeJSON(w, status, map[string]any{"items": out, "errors": errs})
+		return
+	}
+	if len(out) == 0 && full {
+		s.adminError(w, r, http.StatusRequestEntityTooLarge, strings.Join(errs, " · "))
 		return
 	}
 	if len(errs) > 0 {
@@ -360,14 +369,27 @@ type multipartFile interface {
 	Close() error
 }
 
+// storageFull is what an editor reads when a file does not fit in the
+// site's storage (media.ErrQuota).
+func (s *Server) storageFull() string {
+	return s.t("The site's storage is full. Delete files you no longer need, or move the site to a plan with more space.")
+}
+
+// quotaError is an upload refused for the site's storage: 413.
+type quotaError struct{ msg string }
+
+func (e quotaError) Error() string { return e.msg }
+
 func (s *Server) storeUpload(r *http.Request, u *store.User, name string, open func() (multipartFile, error)) (*store.Media, error) {
 	f, err := open()
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	res, err := s.media.Save(f)
+	res, err := s.media.Save(r.Context(), f)
 	switch {
+	case errors.Is(err, media.ErrQuota):
+		return nil, quotaError{s.storageFull()}
 	case errors.Is(err, media.ErrTooLarge):
 		return nil, errors.New(s.t("The file is too large (%s max).", filesize(s.cfg.MaxUploadBytes)))
 	case errors.Is(err, media.ErrUnsupported):
@@ -381,24 +403,24 @@ func (s *Server) storeUpload(r *http.Request, u *store.User, name string, open f
 	m := &store.Media{UploaderID: &u.ID, Path: res.Path, OriginalName: cleanFilename(name), MIME: res.MIME, Size: res.Size,
 		Width: res.Width, Height: res.Height, Variants: res.Variants, SHA256: res.SHA256}
 	if !media.MatchesName(res.MIME, m.OriginalName) {
-		s.media.Remove(m)
+		s.media.Remove(r.Context(), m)
 		return nil, errors.New(s.t("This file type is not allowed."))
 	}
 	// Fonts go into the site's stylesheet (Appearance → Customise), so
 	// only those who may change the site's look upload them.
 	if res.MIME == "font/woff2" && !auth.Can(u.Role, auth.CapAppearance) {
-		s.media.Remove(m)
+		s.media.Remove(r.Context(), m)
 		return nil, errors.New(s.t("Only users who can change the site's appearance can upload fonts."))
 	}
 	if existing, err := s.store.MediaBySHA(r.Context(), res.SHA256); err == nil && canManageMedia(u, existing) {
-		s.media.Remove(m) // duplicate upload: reuse the stored file
+		s.media.Remove(r.Context(), m) // duplicate upload: reuse the stored file
 		return existing, nil
 	}
 	if m.Variants == nil {
 		m.Variants = map[string]store.MediaVariant{}
 	}
 	if m.ID, err = s.store.CreateMedia(r.Context(), m); err != nil {
-		s.media.Remove(m)
+		s.media.Remove(r.Context(), m)
 		return nil, err
 	}
 	return m, nil
@@ -482,7 +504,7 @@ func (s *Server) adminMediaDelete(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.media.Remove(m)
+	s.media.Remove(r.Context(), m)
 	s.audit(r, uid(r), "media.deleted", fmt.Sprintf("#%d %s", m.ID, m.OriginalName), nil)
 	s.contentChanged()
 	s.redirect(w, r, "/admin/media", "success", s.t("“%s” deleted.", m.OriginalName))

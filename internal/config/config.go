@@ -33,19 +33,23 @@ type SMTP struct {
 func (s SMTP) Enabled() bool { return s.Host != "" && s.From != "" }
 
 type Config struct {
-	DatabaseURL    string
-	Listen         string // "127.0.0.1:8080" or "unix:/run/sap13ns/sap13ns.sock"
-	SocketGroup    string // group given access to the Unix socket (nginx), if not the process group
-	BaseURL        *url.URL
-	SecretKey      []byte
-	DataDir        string
-	UploadsDir     string
-	PluginsDir     string
-	ThemesDir      string
-	TrustedProxies []netip.Prefix
-	MaxUploadBytes int64
-	ServeUploads   bool // serve /uploads from the app (nginx normally does it)
-	Dev            bool
+	DatabaseURL string
+	Listen      string // "127.0.0.1:8080" or "unix:/run/sap13ns/sap13ns.sock"
+	SocketGroup string // group given access to the Unix socket (nginx), if not the process group
+	BaseURL     *url.URL
+	SecretKey   []byte
+	DataDir     string
+	UploadsDir  string
+	PluginsDir  string
+	ThemesDir   string
+	// NetworkThemesDir, on a site of a network, is the network's themes
+	// directory (SAP13NS_THEMES_DIR): the operator's catalogue of themes,
+	// offered to every site besides the built-in ones.
+	NetworkThemesDir string
+	TrustedProxies   []netip.Prefix
+	MaxUploadBytes   int64
+	ServeUploads     bool // serve /uploads from the app (nginx normally does it)
+	Dev              bool
 	// DevSkip2FA lifts the mandatory second factor in development mode only
 	// (SAP13NS_DEV_SKIP_2FA), for local testing with seeded accounts.
 	DevSkip2FA   bool
@@ -469,6 +473,7 @@ func ForSite(base *Config, p SiteParams) (*Config, error) {
 	c.UploadsDir = filepath.Join(c.DataDir, "uploads")
 	c.PluginsDir = filepath.Join(c.DataDir, "plugins")
 	c.ThemesDir = filepath.Join(c.DataDir, "themes")
+	c.NetworkThemesDir = base.ThemesDir
 	c.HSTSNoSubdomains = p.Custom
 	c.PasskeyRPID = rpID
 	c.PasskeyOrigins = []string{c.BaseURL.String()}
@@ -507,6 +512,7 @@ func ForNetwork(base *Config, id int64, secret []byte) (*Config, error) {
 	c.UploadsDir = filepath.Join(c.DataDir, "uploads")
 	c.PluginsDir = filepath.Join(c.DataDir, "plugins")
 	c.ThemesDir = filepath.Join(c.DataDir, "themes")
+	c.NetworkThemesDir = base.ThemesDir
 	c.HSTSNoSubdomains, c.PasskeyRPID, c.PasskeyOrigins = false, "", nil
 	return &c, nil
 }

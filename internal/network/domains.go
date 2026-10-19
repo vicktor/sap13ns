@@ -79,6 +79,10 @@ func (n *Network) AddDomain(ctx context.Context, siteID int64, host string) (*Do
 		if status == StatusDeleted || status == StatusProvisioning {
 			return fmt.Errorf("%w: the site is %s", ErrState, status)
 		}
+		// Counted under the site's lock; a downgrade keeps what is there.
+		if err := customDomainsLeft(ctx, tx, siteID); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, `INSERT INTO domains (host, site_id, kind, verify_token) VALUES ($1, $2, 'custom', $3)`,
 			host, siteID, auth.NewToken(24))
 		return err

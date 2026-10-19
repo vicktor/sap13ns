@@ -87,7 +87,7 @@ func main() {
 	img := func(name string, hue float64) *int64 {
 		var buf bytes.Buffer
 		png.Encode(&buf, gradient(1600, 1000, hue))
-		res, err := proc.Save(&buf)
+		res, err := proc.Save(ctx, &buf)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -288,11 +288,14 @@ func extractEntry(f *zip.File, dest, name string, limit int64) (int64, error) {
 // InstallOptions describe who installs a package and how.
 type InstallOptions struct {
 	UserID         int64  // 0 for the command line
-	Source         string // "upload" | "cli"
+	Source         string // "upload" | "cli" | "catalog" (the network's, on a site of a network)
 	AllowDowngrade bool
 	// ReviewRequired marks packages uploaded by tenants of a network: they
 	// cannot be enabled until the operator reviews them.
 	ReviewRequired bool
+	// Reviewed marks a package the network operator vouches for (its
+	// catalogue): it clears the review an earlier upload waited for.
+	Reviewed bool
 }
 
 // InstallResult describes an installed package (or the refused one).
@@ -301,6 +304,9 @@ type InstallResult struct {
 	Version  string
 	Previous string // version replaced by an update; "" for a new plugin
 	Report   *Report
+	// Pin is the ReviewPin of the installed build: its module, assets and
+	// pinned permissions (see ClearReview).
+	Pin string
 }
 
 var (
@@ -376,6 +382,7 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 	if rep.Blocked() || !idRe.MatchString(rep.PluginID) || rep.PluginID != newID {
 		return res, ErrRefused
 	}
+	res.Pin = reviewPin(rep.WasmSHA256, rep.AssetsSHA256, newM.Pinned())
 
 	target := filepath.Join(h.dir, rep.PluginID)
 	if raw, err := readLimited(filepath.Join(target, "plugin.json"), 64<<10); err == nil {
@@ -388,23 +395,49 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 			return res, ErrDowngrade
 		}
 	}
+	// The files count against the site's storage: what the package adds
+	// over the version it replaces, claimed before anything changes.
+	var grow int64
+	if h.quota != nil {
+		newBytes, err := treeBytes(staging)
+		if err != nil {
+			return nil, err
+		}
+		oldBytes, err := treeBytes(target)
+		if err != nil {
+			return nil, err
+		}
+		if grow = newBytes - oldBytes; grow > 0 {
+			if err := h.quota.Reserve(ctx, grow); err != nil {
+				return res, err
+			}
+		}
+	}
+	release := func(n int64) {
+		if h.quota != nil && n > 0 {
+			h.quota.Release(context.WithoutCancel(ctx), n)
+		}
+	}
 	// Strip the kept data before the files go in, so a failure cannot leave
 	// the new package installed with the old secrets and approval.
 	if opt.Retained {
 		if err := h.store.ResetRetainedPlugin(ctx, newID, inheritedSettings(retained, newM)); err != nil {
+			release(grow)
 			return nil, err
 		}
 	}
 	if err := swapDir(staging, target); err != nil {
+		release(grow)
 		return nil, err
 	}
+	release(-grow) // a smaller version gives bytes back
 	source := opts.Source
-	if source != "cli" {
+	if source != "cli" && source != "catalog" {
 		source = "upload"
 	}
 	ctx = context.WithoutCancel(ctx) // the files are in place: record them
 	if err := h.store.RecordPluginInstall(ctx, store.PluginInstall{ID: rep.PluginID, Version: rep.Version, Source: source,
-		UploadedBy: opts.UserID, ReviewRequired: opts.ReviewRequired, Report: rep.JSON()}); err != nil {
+		UploadedBy: opts.UserID, ReviewRequired: opts.ReviewRequired && !opts.Reviewed, Reviewed: opts.Reviewed, Report: rep.JSON()}); err != nil {
 		return nil, err
 	}
 	return res, h.Load(ctx)
@@ -529,6 +562,29 @@ func Pack(dir string, w io.Writer) (*Manifest, error) {
 	return m, zw.Close()
 }
 
+// treeBytes adds up the sizes of the regular files under dir, without
+// following symbolic links; a directory that does not exist is empty.
+func treeBytes(dir string) (int64, error) {
+	var n int64
+	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if d.Type().IsRegular() {
+			fi, err := d.Info()
+			if err != nil {
+				return err
+			}
+			n += fi.Size()
+		}
+		return nil
+	})
+	return n, err
+}
+
 // packTime is the timestamp of every packed file (reproducible archives).
 var packTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -572,12 +628,16 @@ func (h *Host) Uninstall(ctx context.Context, id string, deleteData bool) error 
 	}
 	dir := filepath.Join(h.dir, id)
 	if _, err := os.Lstat(dir); err == nil {
+		size, _ := treeBytes(dir)
 		trash := filepath.Join(h.dir, ".trash-"+id+"-"+randomSuffix())
 		if err := os.Rename(dir, trash); err != nil {
 			return err
 		}
 		if err := os.RemoveAll(trash); err != nil {
 			return err
+		}
+		if h.quota != nil && size > 0 {
+			h.quota.Release(context.WithoutCancel(ctx), size)
 		}
 	}
 	if deleteData {

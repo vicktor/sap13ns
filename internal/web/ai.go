@@ -167,6 +167,8 @@ func (s *Server) aiErrorMessage(err error) string {
 	switch {
 	case errors.Is(err, errBudget):
 		return s.t("You have used this month's AI allowance. An administrator can raise it in Settings → AI.")
+	case errors.Is(err, media.ErrQuota):
+		return s.storageFull()
 	case errors.Is(err, ai.ErrAuth):
 		return s.t("The AI provider rejected the API key. Check Settings → AI.")
 	case errors.Is(err, ai.ErrRateLimited):
@@ -414,7 +416,7 @@ func (s *Server) apiAIImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) storeAIImage(ctx context.Context, u *store.User, img ai.Image, title string) (*store.Media, error) {
-	res, err := s.media.Save(bytes.NewReader(img.Data))
+	res, err := s.media.Save(ctx, bytes.NewReader(img.Data))
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +431,7 @@ func (s *Server) storeAIImage(ctx context.Context, u *store.User, img ai.Image, 
 		m.Variants = map[string]store.MediaVariant{}
 	}
 	if m.ID, err = s.store.CreateMedia(ctx, m); err != nil {
-		s.media.Remove(m)
+		s.media.Remove(ctx, m)
 		return nil, err
 	}
 	return m, nil

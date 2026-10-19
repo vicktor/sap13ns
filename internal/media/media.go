@@ -7,11 +7,13 @@ package media
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -34,7 +36,19 @@ var (
 	ErrTooLarge    = errors.New("file too large")
 	ErrUnsupported = errors.New("file type not allowed")
 	ErrBadImage    = errors.New("image cannot be decoded or is too large")
+	// ErrQuota means the site has no room left for the file: a site of a
+	// network gets the storage of its plan.
+	ErrQuota = errors.New("storage quota exceeded")
 )
+
+// A Quota bounds the bytes a site stores. Reserve claims n bytes
+// atomically, so concurrent uploads never overshoot, and fails with
+// ErrQuota when they do not fit; Release gives bytes back. The network
+// measures every site daily, which corrects any drift.
+type Quota interface {
+	Reserve(ctx context.Context, n int64) error
+	Release(ctx context.Context, n int64)
+}
 
 // Allowed maps detected MIME types to the extension used on disk. SVG and
 // HTML are deliberately absent: they can carry scripts.
@@ -80,6 +94,7 @@ var variantWidths = []struct {
 type Processor struct {
 	Dir      string
 	MaxBytes int64
+	Quota    Quota // nil: no quota (a single-site install)
 }
 
 type Result struct {
@@ -98,8 +113,10 @@ func randomName() string {
 	return hex.EncodeToString(b)
 }
 
-// Save stores an upload and returns its metadata.
-func (p *Processor) Save(r io.Reader) (*Result, error) {
+// Save stores an upload and returns its metadata. With a Quota, the bytes
+// it stores are reserved first: an upload that does not fit fails with
+// ErrQuota and leaves no file behind.
+func (p *Processor) Save(ctx context.Context, r io.Reader) (*Result, error) {
 	tmpDir := filepath.Join(p.Dir, ".tmp")
 	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 		return nil, err
@@ -123,15 +140,53 @@ func (p *Processor) Save(r io.Reader) (*Result, error) {
 		return nil, ErrUnsupported
 	}
 	head := make([]byte, 512)
-	if _, err := tmp.ReadAt(head, 0); err != nil && err != io.EOF {
+	k, err := tmp.ReadAt(head, 0)
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	mime := sniff(head)
+	mime := sniff(head[:k]) // a shorter file is not padded with zeros
 	ext, ok := Allowed[mime]
 	if !ok {
 		return nil, ErrUnsupported
 	}
+	// The upload's size first, so an upload that cannot fit is refused
+	// before it is decoded; adjusted below to what was written.
+	reserved := int64(0)
+	if p.Quota != nil {
+		if err := p.Quota.Reserve(ctx, n); err != nil {
+			return nil, err
+		}
+		reserved = n
+	}
+	res, err := p.store(tmp, mime, ext, n, h)
+	if err != nil {
+		p.release(ctx, reserved)
+		return nil, err
+	}
+	if p.Quota != nil {
+		switch written := p.written(res); {
+		case written > reserved:
+			if err := p.Quota.Reserve(ctx, written-reserved); err != nil {
+				p.removeFiles(res)
+				p.release(ctx, reserved)
+				return nil, err
+			}
+		case written < reserved:
+			p.release(ctx, reserved-written)
+		}
+	}
+	return res, nil
+}
 
+func (p *Processor) release(ctx context.Context, n int64) {
+	if p.Quota != nil && n > 0 {
+		p.Quota.Release(context.WithoutCancel(ctx), n)
+	}
+}
+
+// store moves or re-encodes the temporary file of an upload into place.
+// On an error it leaves no file behind.
+func (p *Processor) store(tmp *os.File, mime, ext string, n int64, h hash.Hash) (*Result, error) {
 	now := time.Now().UTC()
 	rel := fmt.Sprintf("%04d/%02d", now.Year(), now.Month())
 	dir := filepath.Join(p.Dir, rel)
@@ -145,6 +200,8 @@ func (p *Processor) Save(r io.Reader) (*Result, error) {
 	switch mime {
 	case "image/jpeg", "image/png":
 		if err := p.processRaster(tmp, mime, dir, rel, base, ext, res); err != nil {
+			res.Path = rel + "/" + base + ext
+			p.removeFiles(res)
 			return nil, err
 		}
 		fi, err := os.Stat(final)
@@ -260,17 +317,48 @@ func writeImage(path string, img image.Image, mime string) error {
 	return os.Rename(tmp, path)
 }
 
-// Remove deletes the original file and its variants.
-func (p *Processor) Remove(m *store.Media) {
-	paths := []string{m.Path}
-	for _, v := range m.Variants {
-		paths = append(paths, v.Path)
+// Remove deletes the original file and its variants, and gives their
+// bytes back to the quota.
+func (p *Processor) Remove(ctx context.Context, m *store.Media) {
+	var freed int64
+	for _, path := range p.files(m.Path, m.Variants) {
+		if fi, err := os.Lstat(path); err == nil && fi.Mode().IsRegular() && os.Remove(path) == nil {
+			freed += fi.Size()
+		}
 	}
-	for _, rel := range paths {
+	p.release(ctx, freed)
+}
+
+// files are the paths on disk of a stored file and its variants.
+func (p *Processor) files(path string, variants map[string]store.MediaVariant) []string {
+	rels := []string{path}
+	for _, v := range variants {
+		rels = append(rels, v.Path)
+	}
+	var out []string
+	for _, rel := range rels {
 		clean := filepath.Clean("/" + rel)[1:]
-		if clean == "" || strings.HasPrefix(clean, "..") {
+		if clean == "" || strings.HasPrefix(clean, "..") || strings.HasPrefix(clean, ".tmp") {
 			continue
 		}
-		os.Remove(filepath.Join(p.Dir, clean))
+		out = append(out, filepath.Join(p.Dir, clean))
+	}
+	return out
+}
+
+// written adds up the sizes of the files Save stored.
+func (p *Processor) written(res *Result) int64 {
+	var n int64
+	for _, path := range p.files(res.Path, res.Variants) {
+		if fi, err := os.Lstat(path); err == nil {
+			n += fi.Size()
+		}
+	}
+	return n
+}
+
+func (p *Processor) removeFiles(res *Result) {
+	for _, path := range p.files(res.Path, res.Variants) {
+		os.Remove(path)
 	}
 }

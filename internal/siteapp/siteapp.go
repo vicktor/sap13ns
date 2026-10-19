@@ -40,7 +40,8 @@ type Params struct {
 	Blocklist string
 
 	Network    web.NetworkHooks
-	Hosts      []string // other routed host names of the site
+	Quota      plugin.Quota // a site of a network: installed plugins count against its storage; nil = none
+	Hosts      []string     // other routed host names of the site
 	CacheSizes web.CacheSizes
 	Plugins    PluginLimits
 	Background web.BackgroundOptions
@@ -105,6 +106,7 @@ func Open(ctx context.Context, p Params) (*App, error) {
 		Dir: cfg.PluginsDir, CacheDir: filepath.Join(cfg.DataDir, "cache", "wasm"), Cache: p.Plugins.Cache,
 		Store: p.Store, Log: p.Log, Site: func() plugin.SiteInfo { return a.srv.SiteInfo() }, Links: lk,
 		MemoryLimitPages: p.Plugins.MemoryLimitPages, MaxInstances: p.Plugins.MaxInstances, Limit: p.Plugins.Limit,
+		Quota: p.Quota,
 	})
 	if err != nil {
 		return nil, err
