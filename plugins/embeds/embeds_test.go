@@ -17,11 +17,11 @@ var english = Options{Enabled: all, Notice: "Note about {provider}."}
 
 func TestFilterExactOutput(t *testing.T) {
 	got, changed := Filter(`<p><a href="`+yt+`">`+yt+`</a></p>`, english)
-	want := `<figure class="card embed embed-youtube" data-category="youtube">` +
+	want := `<figure class="card embed embed-youtube" data-category="youtube" data-consent="youtube">` +
 		`<a class="embed-link" href="` + yt + `"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span>` +
 		`<span class="embed-text"><strong class="embed-title">YouTube video</strong><small class="embed-source">Watch on YouTube</small></span></a>` +
 		`<a class="embed-player" href="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1" aria-label="Play YouTube video"><span class="embed-provider">YouTube</span></a>` +
-		`<figcaption class="embed-notice">Note about YouTube.</figcaption></figure>`
+		`<figcaption class="embed-notice" data-consent-note="">Note about YouTube.</figcaption></figure>`
 	if !changed || got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}

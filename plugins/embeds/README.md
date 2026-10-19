@@ -142,9 +142,26 @@ Built-in notes:
   from TikTok on this browser?" dialog over the video. TikTok also says it
   "may apply usage limits to embedded players on a per-domain basis".
 - The plugin stores nothing and sets no cookies. Each video needs its own
-  click; the choice is not remembered.
+  click, unless the visitor allows the provider in the site's cookie
+  settings (below).
 - Add your privacy policy with `privacy_url` so visitors can read how the site
   handles embedded content.
+
+### Cookie consent
+
+Since 1.2.0 the plugin declares YouTube, Vimeo and TikTok in the `privacy`
+of its `plugin.json` (category `media`, click-to-load), so they appear in
+the site's cookie list (Settings → Privacy and cookies, and the "Cookies"
+link at the bottom of every page). Each figure carries
+`data-consent="youtube|vimeo|tiktok"` and its notice `data-consent-note`:
+while the visitor has not allowed the provider, the site's consent script
+adds "Always allow YouTube" and a "Cookie settings" link at the end of the
+notice. Pressing play still loads that one video, as before; ticking
+"Always allow" remembers the provider for the whole site (the core's own
+video players included), and accepting "External media and marketing" in
+the cookie settings allows them all. Nothing in the player changes: it is
+always click-to-load. Version 1.2.0 needs no new approval: the
+declarations are information, not permissions.
 
 ## Accessibility
 
@@ -172,13 +189,13 @@ A post in English with `privacy_url` = `/privacy`:
 becomes
 
 ```html
-<figure class="card embed embed-youtube" data-category="youtube"><a class="embed-link" href="https://youtu.be/dQw4w9WgXcQ?t=1m30s"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">Our keynote</strong><small class="embed-source">Watch on YouTube</small></span></a><a class="embed-player" href="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&amp;start=90" aria-label="Play video: Our keynote (YouTube)"><span class="embed-provider">YouTube</span></a><figcaption class="embed-notice">Nothing is loaded from YouTube until you press play. Playing the video connects to YouTube, which may collect data about your visit. <a href="/privacy">Privacy policy</a></figcaption></figure>
+<figure class="card embed embed-youtube" data-category="youtube" data-consent="youtube"><a class="embed-link" href="https://youtu.be/dQw4w9WgXcQ?t=1m30s"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">Our keynote</strong><small class="embed-source">Watch on YouTube</small></span></a><a class="embed-player" href="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&amp;start=90" aria-label="Play video: Our keynote (YouTube)"><span class="embed-provider">YouTube</span></a><figcaption class="embed-notice" data-consent-note="">Nothing is loaded from YouTube until you press play. Playing the video connects to YouTube, which may collect data about your visit. <a href="/privacy">Privacy policy</a></figcaption></figure>
 ```
 
 A bare Vimeo URL in a Spanish post:
 
 ```html
-<figure class="card embed embed-vimeo" data-category="vimeo"><a class="embed-link" href="https://vimeo.com/76979871"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">Vídeo de Vimeo</strong><small class="embed-source">Ver en Vimeo</small></span></a><a class="embed-player" href="https://player.vimeo.com/video/76979871?autoplay=1&amp;dnt=1" aria-label="Reproducir vídeo de Vimeo"><span class="embed-provider">Vimeo</span></a><figcaption class="embed-notice">No se carga nada de Vimeo hasta que pulsas reproducir. Al reproducir el vídeo te conectas a Vimeo, que puede recoger datos de tu visita.</figcaption></figure>
+<figure class="card embed embed-vimeo" data-category="vimeo" data-consent="vimeo"><a class="embed-link" href="https://vimeo.com/76979871"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">Vídeo de Vimeo</strong><small class="embed-source">Ver en Vimeo</small></span></a><a class="embed-player" href="https://player.vimeo.com/video/76979871?autoplay=1&amp;dnt=1" aria-label="Reproducir vídeo de Vimeo"><span class="embed-provider">Vimeo</span></a><figcaption class="embed-notice" data-consent-note="">No se carga nada de Vimeo hasta que pulsas reproducir. Al reproducir el vídeo te conectas a Vimeo, que puede recoger datos de tu visita.</figcaption></figure>
 ```
 
 The server replaces `<span data-icon="play">` with the Lucide icon. The
@@ -193,7 +210,7 @@ with:
 A bare TikTok URL in an English post:
 
 ```html
-<figure class="card embed embed-tiktok embed-portrait" data-category="tiktok"><a class="embed-link" href="https://www.tiktok.com/@scout2015/video/6718335390845095173"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">TikTok video by @scout2015</strong><small class="embed-source">Watch on TikTok</small></span></a><a class="embed-player" href="https://www.tiktok.com/player/v1/6718335390845095173?autoplay=1&amp;description=1&amp;rel=0" aria-label="Play TikTok video by @scout2015"><span class="embed-provider">TikTok</span></a><figcaption class="embed-notice">Nothing is loaded from TikTok until you press play. Playing the video connects to TikTok, which may collect data about your visit.</figcaption></figure>
+<figure class="card embed embed-tiktok embed-portrait" data-category="tiktok" data-consent="tiktok"><a class="embed-link" href="https://www.tiktok.com/@scout2015/video/6718335390845095173"><span class="embed-icon" aria-hidden="true"><span data-icon="play"></span></span><span class="embed-text"><strong class="embed-title">TikTok video by @scout2015</strong><small class="embed-source">Watch on TikTok</small></span></a><a class="embed-player" href="https://www.tiktok.com/player/v1/6718335390845095173?autoplay=1&amp;description=1&amp;rel=0" aria-label="Play TikTok video by @scout2015"><span class="embed-provider">TikTok</span></a><figcaption class="embed-notice" data-consent-note="">Nothing is loaded from TikTok until you press play. Playing the video connects to TikTok, which may collect data about your visit.</figcaption></figure>
 ```
 
 and after the click the button is replaced by

@@ -178,10 +178,10 @@ func untitledName(provider, author string, spanish bool, n int) (name, play stri
 
 // figure builds the embed. Structure (see assets/embeds.css and .js):
 //
-//	figure.card.embed[data-category]
+//	figure.card.embed[data-category][data-consent] the service, for the cookie consent
 //	  a.embed-link            the original link: icon, title, "Watch on …"
 //	  a.embed-player          the privacy player URL; hidden, read by the JS
-//	  figcaption.embed-notice the privacy note
+//	  figcaption.embed-notice the privacy note, which gets the consent's controls
 //
 // play is the button label; "" builds it from the title.
 func figure(v video, href, name, play string, o Options) *html.Node {
@@ -190,7 +190,7 @@ func figure(v video, href, name, play string, o Options) *html.Node {
 	if v.portrait {
 		class += " embed-portrait"
 	}
-	fig := element(atom.Figure, "class", class, "data-category", p.id)
+	fig := element(atom.Figure, "class", class, "data-category", p.id, "data-consent", p.id)
 
 	link := element(atom.A, "class", "embed-link", "href", href)
 	icon := element(atom.Span, "class", "embed-icon", "aria-hidden", "true")
@@ -223,7 +223,7 @@ func figure(v video, href, name, play string, o Options) *html.Node {
 	player.AppendChild(prov)
 	fig.AppendChild(player)
 
-	caption := element(atom.Figcaption, "class", "embed-notice")
+	caption := element(atom.Figcaption, "class", "embed-notice", "data-consent-note", "")
 	caption.AppendChild(textNode(strings.ReplaceAll(o.Notice, "{provider}", p.name)))
 	if o.PrivacyURL != "" {
 		policy := "Privacy policy"
