@@ -254,7 +254,7 @@ func serve(args []string) error {
 	}
 	checker := update.NewChecker(web.Version, nil, log)
 	app, err := siteapp.Open(ctx, siteapp.Params{Config: cfg, Store: store.New(pool), Log: log, UI: uiFS(cfg),
-		Background: web.BackgroundOptions{Cron: true, Maintenance: true}, Updates: checker})
+		Official: officialPlugins(cfg, log), Background: web.BackgroundOptions{Cron: true, Maintenance: true}, Updates: checker})
 	if err != nil {
 		return err
 	}

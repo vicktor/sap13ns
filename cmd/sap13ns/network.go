@@ -198,7 +198,7 @@ func serveNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger) err
 	}
 	checker := update.NewChecker(web.Version, nil, log)
 	reg, err := network.NewRegistry(network.RegistryOptions{Config: cfg, Network: n, Log: log, UI: uiFS(cfg), Updates: checker,
-		Billing: bill})
+		Billing: bill, Official: officialPlugins(cfg, log)})
 	if err != nil {
 		return err
 	}

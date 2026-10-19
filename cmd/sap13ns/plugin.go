@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -23,6 +25,7 @@ import (
 
 	"sap13ns/internal/config"
 	"sap13ns/internal/plugin"
+	"sap13ns/internal/plugin/bundled"
 	"sap13ns/internal/pluginskel"
 )
 
@@ -30,8 +33,9 @@ const pluginUsage = `usage:
   sap13ns plugin new <id> [-dir D] [-hooks shortcode,widget,...] [-sdk PATH] [-module M] [-name N]
   sap13ns plugin pack [-o DIR] [-no-build] <dir>
   sap13ns plugin check [-json] [-skip-dry-run] <dir|file.zip>
-  sap13ns plugin list [-env FILE]
-  sap13ns plugin install [-env FILE] [-allow-downgrade] <file.zip>
+  sap13ns plugin list [-env FILE] [-site S] [-official]
+  sap13ns plugin install [-env FILE] [-site S] [-allow-downgrade] <file.zip>
+  sap13ns plugin install [-env FILE] [-site S] -official <id>
   sap13ns plugin hash <dir>`
 
 // pluginCmd implements "sap13ns plugin new|pack|check|list|install|hash".
@@ -231,24 +235,65 @@ func pluginCheck(ctx context.Context, args []string) error {
 	return nil
 }
 
+// officialFS is where the official plugins come from: the bundle in the
+// binary, or in development mode, run from a checkout, the bundle
+// directory on disk, so that `make plugins` shows without a rebuild.
+var officialFS = func(cfg *config.Config) fs.FS {
+	if cfg.Dev {
+		if fi, err := os.Stat(devBundleDir); err == nil && fi.IsDir() {
+			return os.DirFS(devBundleDir)
+		}
+	}
+	return bundled.FS()
+}
+
+const devBundleDir = "internal/plugin/bundled/packs"
+
+// officialPlugins reads the official plugins; a package that cannot be
+// read is logged and left out.
+func officialPlugins(cfg *config.Config, log *slog.Logger) *plugin.Official {
+	o, err := plugin.LoadOfficial(officialFS(cfg))
+	if err != nil {
+		log.Error("official plugins", "err", err)
+	}
+	return o
+}
+
 // pluginSite runs list and install against a configured site.
 func pluginSite(ctx context.Context, sub string, args []string) error {
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		args = append(args[1:], args[0]) // the zip may come before the flags
 	}
-	var allowDowngrade bool
+	var allowDowngrade, official bool
 	var siteSlug string
 	cfg, log, fs, err := setup("plugin "+sub, args, false, func(f *flag.FlagSet) {
 		f.StringVar(&siteSlug, "site", "", "network: the site")
 		if sub == "install" {
 			f.BoolVar(&allowDowngrade, "allow-downgrade", false, "install a version older than the installed one")
+			f.BoolVar(&official, "official", false, "install the official plugin <id> that ships in this binary")
+		} else {
+			f.BoolVar(&official, "official", false, "list the official plugins that ship in this binary")
 		}
 	})
 	if err != nil {
 		return err
 	}
 	if sub == "install" && fs.NArg() != 1 {
-		return errors.New("usage: sap13ns plugin install [-env FILE] [-site S] [-allow-downgrade] <file.zip>")
+		return errors.New("usage: sap13ns plugin install [-env FILE] [-site S] [-allow-downgrade] <file.zip>\n" +
+			"       sap13ns plugin install [-env FILE] [-site S] -official <id>")
+	}
+	var bundle *plugin.Official
+	if official {
+		if bundle = officialPlugins(cfg, log); bundle.Len() == 0 {
+			return errors.New("this binary carries no official plugins: build it with make build (make plugins packs them before go build)")
+		}
+		if sub == "install" && bundle.Get(fs.Arg(0)) == nil {
+			var ids []string
+			for _, p := range bundle.List() {
+				ids = append(ids, p.ID)
+			}
+			return fmt.Errorf("no official plugin %q; this binary has %s", termSafe(fs.Arg(0)), strings.Join(ids, ", "))
+		}
 	}
 	t, err := openTarget(ctx, cfg, log, siteSlug, 4)
 	if err != nil {
@@ -261,8 +306,29 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 	}
 	defer host.Close(context.WithoutCancel(ctx))
 
+	if sub == "list" && official {
+		// What the site would get: the bundle's version, and the copy the
+		// site has, if any.
+		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "ID\tVERSION\tINSTALLED\tSOURCE\tPERMISSIONS")
+		for _, o := range bundle.List() {
+			installed, source := "-", "-"
+			if p := host.Get(o.ID); p != nil {
+				installed, source = cmp.Or(p.Version, "?"), "manual"
+				if p.Record != nil {
+					source = p.Record.Source
+				}
+				if source == plugin.SourceOfficial && o.NewerThan(p.Version) {
+					installed += " (update available)"
+				}
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", termSafe(o.ID), termSafe(o.Version), termSafe(installed), source,
+				termSafe(strings.Join(o.EffectivePermissions(), " ")))
+		}
+		return tw.Flush()
+	}
 	if sub == "list" {
-		tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 		fmt.Fprintln(tw, "ID\tVERSION\tSTATUS\tSCAN\tSOURCE\tPERMISSIONS")
 		for _, p := range host.List() {
 			verdict, source := "-", "manual"
@@ -278,19 +344,37 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 		return tw.Flush()
 	}
 
-	path := fs.Arg(0)
-	f, err := os.Open(path)
-	if err != nil {
-		return err
+	var pkg io.ReaderAt
+	var size int64
+	opts := plugin.InstallOptions{Source: "cli", AllowDowngrade: allowDowngrade}
+	if official {
+		// As in the admin: the same scan, and a plugin installed some
+		// other way under the same id is not replaced.
+		o := bundle.Get(fs.Arg(0))
+		if p := host.Get(o.ID); p != nil && (p.Record == nil || p.Record.Source != plugin.SourceOfficial) {
+			return fmt.Errorf("a plugin with the id %s is already installed, not from the official plugins; uninstall it first", o.ID)
+		}
+		b, err := o.Package()
+		if err != nil {
+			return err
+		}
+		pkg, size = bytes.NewReader(b), int64(len(b))
+		opts.Source, opts.Reviewed = plugin.SourceOfficial, true
+	} else {
+		f, err := os.Open(fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		fi, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		pkg, size = f, fi.Size()
 	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	res, err := host.Install(ctx, f, fi.Size(), plugin.InstallOptions{Source: "cli", AllowDowngrade: allowDowngrade})
+	res, err := host.Install(ctx, pkg, size, opts)
 	if res != nil && res.Report != nil {
-		printReport(os.Stdout, res.Report)
+		printReport(out, res.Report)
 	}
 	switch {
 	case errors.Is(err, plugin.ErrRefused):
@@ -304,8 +388,8 @@ func pluginSite(ctx context.Context, sub string, args []string) error {
 	if res.Previous != "" {
 		action = "updated from " + res.Previous
 	}
-	fmt.Printf("\n%s %s %s, disabled until an administrator enables it in Admin → Plugins.\n", termSafe(res.ID), termSafe(res.Version), termSafe(action))
-	fmt.Println("A running server shows it after Admin → Plugins → Rescan.")
+	fmt.Fprintf(out, "\n%s %s %s, disabled until an administrator enables it in Admin → Plugins.\n", termSafe(res.ID), termSafe(res.Version), termSafe(action))
+	fmt.Fprintln(out, "A running server shows it after Admin → Plugins → Rescan.")
 	return nil
 }
 
