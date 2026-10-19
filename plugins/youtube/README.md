@@ -217,6 +217,28 @@ Built-in notes (thumbnails on / off):
   carga nada de YouTube hasta que pulsas reproducir. Al reproducir un vídeo
   te conectas a YouTube, que puede recoger datos de tu visita."
 
+### Cookie consent
+
+Since 1.1.0 the plugin declares two entries in the `privacy` of its
+`plugin.json`, both in the `media` category ("External media and
+marketing"), so they appear in the site's cookie list (Settings → Privacy
+and cookies, and the "Cookies" link at the bottom of every page):
+
+- the **YouTube** player, a click-to-load service with the shared id
+  `youtube`. Each gallery and widget carries `data-consent="youtube"` and its
+  note `data-consent-note`: while the visitor has not allowed YouTube, the
+  site's consent script adds "Always allow YouTube" and a "Cookie settings"
+  link at the end of the note. Pressing play still loads that one video;
+  "Always allow" or accepting the category remembers YouTube for the whole
+  site (the embeds plugin and the core's video players included).
+- the **thumbnails**, a resource: they load with the page (unless
+  `thumbnails` is off) and set no cookies, so they are listed but not
+  blocked. Turn `thumbnails` off if your site must not contact YouTube
+  before the visitor chooses.
+
+Older sap13ns versions do not know the `privacy` field and refuse the
+manifest: use 1.0.0 there.
+
 ## Accessibility
 
 - The gallery is a labelled region ("Latest videos from Google for Developers

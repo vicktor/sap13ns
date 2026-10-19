@@ -48,9 +48,9 @@ func Gallery(src Source, rec record, v View) string {
 	var b strings.Builder
 	class := "ytg ytg-" + v.Layout
 	if v.Widget {
-		b.WriteString(`<div class="` + class + ` ytg-widget">`)
+		b.WriteString(`<div class="` + class + ` ytg-widget" data-consent="youtube">`)
 	} else {
-		b.WriteString(`<section class="card ` + class + `" aria-label="` + attr(t.Label(src, rec.Title)) + `">`)
+		b.WriteString(`<section class="card ` + class + `" data-consent="youtube" aria-label="` + attr(t.Label(src, rec.Title)) + `">`)
 		if h := strings.TrimSpace(v.Heading); h != "" {
 			b.WriteString(`<header class="ytg-head"><h2 class="ytg-heading">` + html.EscapeString(cleanText(h, 200)) + `</h2></header>`)
 		}
@@ -116,7 +116,7 @@ func item(b *strings.Builder, vid Video, v View) {
 func footer(b *strings.Builder, src Source, v View) {
 	b.WriteString(`<footer class="ytg-footer">`)
 	if v.Notice != "" {
-		b.WriteString(`<p class="ytg-notice">` + html.EscapeString(v.Notice))
+		b.WriteString(`<p class="ytg-notice" data-consent-note>` + html.EscapeString(v.Notice))
 		if v.PrivacyURL != "" {
 			b.WriteString(` <a href="` + html.EscapeString(v.PrivacyURL) + `">` + html.EscapeString(v.Text.Policy()) + `</a>`)
 		}

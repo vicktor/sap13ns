@@ -2,7 +2,7 @@
   "abi": 1,
   "id": "youtube",
   "name": "YouTube gallery",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shows the latest videos of a YouTube channel or playlist as a grid or a carousel, in posts with [youtube_videos] and as a widget. The list comes from YouTube's public feed (or the Data API with a key) and is refreshed every hour. Thumbnails load from YouTube's image server; the player loads from youtube-nocookie.com only when the visitor presses play. Without JavaScript every video links to YouTube.",
   "author": "sap13ns",
   "license": "MIT",
@@ -20,6 +20,17 @@
   "permissions": ["kv", "http:www.youtube.com", "http:www.googleapis.com", "assets:js"],
   "assets": {"css": ["assets/youtube.css"], "js": ["assets/youtube.js"]},
   "csp": {"frame-src": ["https://www.youtube-nocookie.com"], "img-src": ["https://i.ytimg.com"]},
+  "privacy": [
+    {"type": "service", "name": "YouTube", "service": "youtube", "category": "media", "provider": "Google Ireland Limited",
+      "purpose": {"en": "Plays the videos of the YouTube galleries from youtube-nocookie.com. Nothing loads until you press play; then YouTube receives your IP address and may store data on your device.",
+        "es": "Reproduce los vídeos de las galerías de YouTube desde youtube-nocookie.com. No se carga nada hasta que pulsas reproducir; entonces YouTube recibe tu dirección IP y puede guardar datos en tu dispositivo."},
+      "lifetime": {"en": "Set by the provider", "es": "La fija el proveedor"},
+      "policy": "https://policies.google.com/privacy", "click_to_load": true},
+    {"type": "resource", "name": "YouTube thumbnails", "category": "media", "provider": "Google Ireland Limited",
+      "purpose": {"en": "The galleries' thumbnails load from i.ytimg.com with the page, unless the site turned them off: Google receives your IP address. They set no cookies.",
+        "es": "Las miniaturas de las galerías se cargan desde i.ytimg.com con la página, salvo que el sitio las haya desactivado: Google recibe tu dirección IP. No crean cookies."},
+      "policy": "https://policies.google.com/privacy"}
+  ],
   "settings": [
     {"key": "channel", "label": "Channel", "type": "text", "default": "", "help": "The default channel: its id (UC…), its URL (youtube.com/channel/UC…) or, with an API key, its handle (@name). Find the id on the channel's page: “…more” → “Share channel” → “Copy channel ID”, or for your own channel in YouTube → Settings → Advanced settings."},
     {"key": "playlist", "label": "Playlist", "type": "text", "default": "", "help": "A default playlist id (PL…) or URL, used instead of the channel when set."},

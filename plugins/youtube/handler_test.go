@@ -81,7 +81,7 @@ func TestShortcodeThenCron(t *testing.T) {
 	}
 
 	html = shortcode(t, env, attrs)
-	for _, w := range []string{`<section class="card ytg ytg-carousel" aria-label="Latest videos from Google for Developers on YouTube">`,
+	for _, w := range []string{`<section class="card ytg ytg-carousel" data-consent="youtube" aria-label="Latest videos from Google for Developers on YouTube">`,
 		`<h2 class="ytg-heading">Our videos</h2>`, `src="https://i.ytimg.com/vi/LJ2v4-FvPcA/hqdefault.jpg"`,
 		`<time datetime="2026-10-16T21:00:00Z">Oct 16, 2026</time>`, "Thumbnails are loaded from YouTube."} {
 		if !strings.Contains(html, w) {
@@ -132,7 +132,7 @@ func TestDefaultsFromSettings(t *testing.T) {
 	}
 	html := shortcode(t, env, nil)
 	for _, w := range []string{`class="card ytg ytg-carousel"`, `aria-label="Vídeos de la lista Uploads from Google for Developers en YouTube"`,
-		`<p class="ytg-notice">Nota. <a href="/privacidad">Política de privacidad</a></p>`, `>Lista completa en YouTube</a>`} {
+		`<p class="ytg-notice" data-consent-note>Nota. <a href="/privacidad">Política de privacidad</a></p>`, `>Lista completa en YouTube</a>`} {
 		if !strings.Contains(html, w) {
 			t.Errorf("missing %q in\n%s", w, html)
 		}
@@ -143,7 +143,7 @@ func TestDefaultsFromSettings(t *testing.T) {
 
 	// The widget defaults to a carousel; its config wins over the settings.
 	html, err := env.Widget("videos", map[string]string{"layout": "grid", "count": "2", "playlist": gfdUploads})
-	if err != nil || !strings.Contains(html, `<div class="ytg ytg-grid ytg-widget">`) || strings.Count(html, `<li class="ytg-item">`) != 2 {
+	if err != nil || !strings.Contains(html, `<div class="ytg ytg-grid ytg-widget" data-consent="youtube">`) || strings.Count(html, `<li class="ytg-item">`) != 2 {
 		t.Fatalf("widget: %s, %v", html, err)
 	}
 	html, _ = env.Widget("videos", map[string]string{"layout": "carousel"})

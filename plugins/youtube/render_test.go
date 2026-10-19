@@ -26,7 +26,7 @@ func TestGalleryExactOutput(t *testing.T) {
 	v := view("en")
 	v.PrivacyURL = "/privacy?a=1&b=2"
 	got := Gallery(gfd, rec, v)
-	want := `<section class="card ytg ytg-grid" aria-label="Latest videos from Google for Developers on YouTube">` +
+	want := `<section class="card ytg ytg-grid" data-consent="youtube" aria-label="Latest videos from Google for Developers on YouTube">` +
 		`<ul class="ytg-list" role="list">` +
 		`<li class="ytg-item"><a class="ytg-link" href="https://www.youtube.com/shorts/LJ2v4-FvPcA"><span class="ytg-thumb">` +
 		`<img src="https://i.ytimg.com/vi/LJ2v4-FvPcA/hqdefault.jpg" alt="" width="480" height="360" loading="lazy">` +
@@ -35,7 +35,7 @@ func TestGalleryExactOutput(t *testing.T) {
 		`<span class="ytg-body"><span class="ytg-title">Tom &amp; &#34;Jerry&#34; &lt;b&gt;</span><span class="sr-only"> (4 min 13 s)</span></span></a>` +
 		`<span class="ytg-meta"><time datetime="2026-10-16T23:30:00Z">Oct 17, 2026</time></span>` +
 		`<a class="ytg-player" href="https://www.youtube-nocookie.com/embed/LJ2v4-FvPcA?autoplay=1" aria-label="Play video: Tom &amp; Jerry b (YouTube)"></a></li>` +
-		`</ul><footer class="ytg-footer"><p class="ytg-notice">Note. <a href="/privacy?a=1&amp;b=2">Privacy policy</a></p>` +
+		`</ul><footer class="ytg-footer"><p class="ytg-notice" data-consent-note>Note. <a href="/privacy?a=1&amp;b=2">Privacy policy</a></p>` +
 		`<a class="ytg-more" href="https://www.youtube.com/channel/` + gfdChannel + `">More videos on YouTube</a></footer></section>`
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
@@ -62,7 +62,7 @@ func TestGallery(t *testing.T) {
 		items   int
 	}{
 		{name: "spanish carousel", src: gfd, v: es, items: 3, want: []string{
-			`<section class="card ytg ytg-carousel" aria-label="Últimos vídeos de Google for Developers en YouTube">`,
+			`<section class="card ytg ytg-carousel" data-consent="youtube" aria-label="Últimos vídeos de Google for Developers en YouTube">`,
 			`<header class="ytg-head"><h2 class="ytg-heading">Nuestros &lt;vídeos&gt;</h2></header>`,
 			`<time datetime="2026-10-15T16:00:00Z">15 oct 2026</time>`,
 			`<span class="ytg-duration ytg-live" aria-hidden="true">En directo</span>`, `<span class="sr-only"> (En directo)</span>`,
@@ -74,7 +74,7 @@ func TestGallery(t *testing.T) {
 			without: []string{`ytg-meta"><time datetime="1970`}},
 		{name: "no thumbnails, no note", src: gfd, v: noThumbs, items: 3, without: []string{"<img", "ytg-notice", "i.ytimg.com"}},
 		{name: "count", src: gfd, v: two, items: 2},
-		{name: "widget", src: gfd, v: widget, items: 3, want: []string{`<div class="ytg ytg-carousel ytg-widget"><ul class="ytg-list" role="list">`, `</span></span></span></div>`},
+		{name: "widget", src: gfd, v: widget, items: 3, want: []string{`<div class="ytg ytg-carousel ytg-widget" data-consent="youtube"><ul class="ytg-list" role="list">`, `</span></span></span></div>`},
 			without: []string{"<section", "card", "<h2"}},
 		{name: "playlist", src: playlist, v: view("en"), items: 3, want: []string{
 			`aria-label="Videos in the playlist Google for Developers on YouTube"`,
