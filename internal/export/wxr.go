@@ -281,11 +281,22 @@ func (e *exporter) eachMedia(ctx context.Context, fn func(*store.Media) error) e
 	}
 }
 
+// WPImportDir is the folder of a WordPress site's uploads where the files
+// of an export with WPBase wait for the WordPress Importer.
+//
+// Not the uploads themselves: the importer copies each file it imports,
+// and a copy in the same folder gets a new name (photo-1.png). The
+// importer then swaps photo.png for photo-1.png in the posts, and next
+// the stub photo for photo-1 (for resized copies), so that the posts
+// end up pointing at photo-1-1.png. From another folder the copy keeps
+// its name, and the posts point at it.
+const WPImportDir = "sap13ns-import"
+
 // mediaURL is the address of an uploaded file in the export: on the site,
-// or with WPBase where WordPress keeps its uploads.
+// or with WPBase where WordPress picks them up (WPImportDir).
 func (e *exporter) mediaURL(path string) string {
 	if e.o.WPBase != "" {
-		return e.o.WPBase + "/wp-content/uploads/" + path
+		return e.o.WPBase + "/wp-content/uploads/" + WPImportDir + "/" + path
 	}
 	return e.o.Site.URL + "/uploads/" + path
 }
@@ -436,7 +447,10 @@ func (e *exporter) renderHTML(md string) string {
 	if e.o.WPBase != "" {
 		// The files move with the content: point at where WordPress
 		// serves them, so that its importer finds and swaps them.
-		h = strings.ReplaceAll(h, e.o.Site.URL+"/uploads/", e.o.WPBase+"/wp-content/uploads/")
+		h = strings.ReplaceAll(h, e.o.Site.URL+"/uploads/", e.o.WPBase+"/wp-content/uploads/"+WPImportDir+"/")
+		// And so do the links to the site's own pages.
+		h = strings.ReplaceAll(h, `="`+e.o.Site.URL+`/`, `="`+e.o.WPBase+`/`)
+		h = strings.ReplaceAll(h, `="`+e.o.Site.URL+`"`, `="`+e.o.WPBase+`/"`)
 	}
 	return h
 }

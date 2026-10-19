@@ -129,9 +129,9 @@ func seed(t testing.TB, st *store.Store, uploads string) seeded {
 		s.posts[key] = id
 		return id
 	}
-	medium := "/uploads/" + res.Variants["medium"].Path
+	thumb := "/uploads/" + res.Variants["thumb"].Path // a 640-pixel image has no medium copy
 	hello := post("hello", store.PostInput{Type: "post", Status: "published", Title: "Hola <mundo> & más", Slug: "hola",
-		Excerpt: "Un resumen\ncon dos líneas", Content: "Texto con **negrita** y ![foto](" + medium + ")\n\n[Sobre](/sobre)\n",
+		Excerpt: "Un resumen\ncon dos líneas", Content: "Texto con **negrita** y ![foto](" + thumb + ")\n\n[Sobre](/sobre)\n",
 		PublishedAt: &pub, TermIDs: []int64{child, tag}, FeaturedMediaID: &s.media, MetaDescription: "Descripción",
 		AssistantExclude: true})
 	post("hello-en", store.PostInput{Type: "post", Status: "published", Title: "Hello world", Slug: "hello", Lang: "en",

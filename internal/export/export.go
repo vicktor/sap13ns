@@ -79,10 +79,13 @@ type Options struct {
 	NoMenus bool
 	// WPBase is the address of a WordPress site the content moves to
 	// (https://new.example). The uploaded files are then listed at
-	// <WPBase>/wp-content/uploads/<path>, in the attachments and in the
-	// links of the content, which is where the owner copies the
-	// wp-content/uploads folder of a backup before importing the file. ""
-	// keeps them on Site.URL.
+	// <WPBase>/wp-content/uploads/sap13ns-import/<path> (WPImportDir), in
+	// the attachments and in the links of the content: the owner copies
+	// the wp-content/uploads folder of a backup there before importing the
+	// file, and the WordPress Importer copies each file into its uploads
+	// and points the content at its copy. Links of the content and custom
+	// menu links to the site's own pages point at WPBase too. "" keeps
+	// them on Site.URL.
 	WPBase string
 
 	Site Site

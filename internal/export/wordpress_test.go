@@ -157,9 +157,11 @@ func TestWordPressShape(t *testing.T) {
 	o.WPBase = "https://new.example/"
 	out, _ = wxr(t, st, o)
 	for _, want := range []string{
-		`<wp:attachment_url><![CDATA[https://new.example/wp-content/uploads/2026/10/photo.jpg]]></wp:attachment_url>`,
-		`src="https://new.example/wp-content/uploads/2026/10/photo.jpg"`,
-		`src="https://new.example/wp-content/uploads/2026/10/gamma.png"`,
+		`<wp:attachment_url><![CDATA[https://new.example/wp-content/uploads/sap13ns-import/2026/10/photo.jpg]]></wp:attachment_url>`,
+		`src="https://new.example/wp-content/uploads/sap13ns-import/2026/10/photo.jpg"`,
+		`src="https://new.example/wp-content/uploads/sap13ns-import/2026/10/gamma.png"`,
+		// Where WordPress keeps it: the importer copies it there.
+		`<wp:meta_key><![CDATA[_wp_attached_file]]></wp:meta_key><wp:meta_value><![CDATA[2026/10/photo.jpg]]></wp:meta_value>`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("export for WordPress lacks %s", want)
@@ -167,6 +169,15 @@ func TestWordPressShape(t *testing.T) {
 	}
 	if strings.Contains(out, "https://example.com/uploads/") {
 		t.Error("export for WordPress still points at the old uploads")
+	}
+	// Menu links to the site's own pages go to the new site too.
+	for _, want := range []string{meta("_menu_item_url", "https://new.example/"), meta("_menu_item_url", "https://other.example.org/x")} {
+		if !strings.Contains(out, want) {
+			t.Errorf("export for WordPress lacks %s", want)
+		}
+	}
+	if strings.Contains(out, meta("_menu_item_url", "https://example.com/")) {
+		t.Error("a menu link of the export for WordPress points at the old site")
 	}
 
 	o = siteOpts(s)

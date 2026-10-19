@@ -130,8 +130,13 @@ func (e *exporter) resolve(raw string) menuTarget {
 	}
 	switch {
 	case u.Scheme == "" && u.Host == "" && strings.HasPrefix(u.Path, "/"):
-		custom.url = e.o.Site.URL + raw
+		custom.url = e.ownURL(raw)
 	case (u.Scheme == "http" || u.Scheme == "https") && e.sameSite(u):
+		if e.o.WPBase != "" {
+			rel := *u
+			rel.Scheme, rel.Host, rel.User = "", "", nil
+			custom.url = e.ownURL(rel.String())
+		}
 	default:
 		return custom // another site, mailto:, #anchors
 	}
@@ -162,6 +167,15 @@ func (e *exporter) resolve(raw string) menuTarget {
 		}
 	}
 	return custom
+}
+
+// ownURL is the address of a path of the site: on the WordPress site it
+// moves to, when there is one (WPBase).
+func (e *exporter) ownURL(path string) string {
+	if e.o.WPBase != "" {
+		return e.o.WPBase + path
+	}
+	return e.o.Site.URL + path
 }
 
 func (e *exporter) sameSite(u *url.URL) bool {

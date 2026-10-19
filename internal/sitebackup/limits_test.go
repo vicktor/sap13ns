@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -316,4 +317,43 @@ func countKinds(t *testing.T, dir string) (regular, safety int) {
 		}
 	}
 	return regular, safety
+}
+
+// TestRestoreWPBaseArchive: a backup made for WordPress (-wp-base) lists
+// its files where WordPress picks them up, and still restores whole.
+func TestRestoreWPBaseArchive(t *testing.T) {
+	st := testutil.Store(t)
+	ctx := context.Background()
+	base := t.TempDir()
+	up := filepath.Join(base, "uploads")
+	s := seed(t, st, up)
+	o := siteOpts(filepath.Join(base, "backups"), up, 0)
+	o.WPBase = "https://new.example"
+	arch, _, err := Create(ctx, st, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wxr := string(members(t, arch.Path)[NameWXR]); !strings.Contains(wxr, "https://new.example/wp-content/uploads/sap13ns-import/") {
+		t.Fatal("the export does not list the files for WordPress")
+	}
+	before := snapshot(t, st)
+	rep, err := Restore(ctx, st, arch.Path, restoreOpts(o, s.admin, true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Media != 2 {
+		t.Errorf("%d media restored, warnings %v", rep.Media, rep.Warnings)
+	}
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, "not in the backup") {
+			t.Errorf("warning: %s", w)
+		}
+	}
+	p, err := st.PostByID(ctx, s.posts["hello"])
+	if err != nil || p.FeaturedMediaID == nil || *p.FeaturedMediaID != s.media {
+		t.Errorf("featured image after the restore: %+v %v", p, err)
+	}
+	if !mapsEqual(snapshot(t, st), before) {
+		t.Error("the restore of a backup made for WordPress changed the site")
+	}
 }

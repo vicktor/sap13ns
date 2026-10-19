@@ -34,7 +34,7 @@
         {{.CSRFField}}
         <div class="field"><label for="wp_base">{{T "Address of the WordPress site (optional)"}}</label>
           <input class="input" id="wp_base" name="wp_base" type="url" maxlength="500" placeholder="https://new.example" value="{{$d.WPBase}}">
-          <p class="hint">{{T "Only to move to WordPress: links and images in the export file then point to this address, and the files are in wp-content/uploads to copy there. Leave it empty for a normal backup."}}</p></div>
+          <p class="hint">{{T "Only to move to WordPress: links and images in the export file then point to this address. Copy the folder wp-content/uploads of the backup there as wp-content/uploads/sap13ns-import before importing; README.txt in the backup has the steps. Leave it empty for a normal backup."}}</p></div>
         <button class="btn" type="submit"{{if $d.Running}} disabled{{end}}>{{icon "archive"}}{{T "Back up now"}}</button>
       </form>
     </section>

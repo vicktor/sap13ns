@@ -22,6 +22,7 @@ import (
 	"sap13ns/internal/backup"
 	"sap13ns/internal/builder"
 	"sap13ns/internal/customize"
+	"sap13ns/internal/export"
 	"sap13ns/internal/media"
 	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
@@ -1016,14 +1017,15 @@ func (k *restoreSink) CheckRedirect(context.Context, string, string, int) error 
 }
 
 // uploadPath is the path below the uploads of a media address: on the
-// site (/uploads/…) or on WordPress (/wp-content/uploads/…).
+// site (/uploads/…) or, in a backup made for WordPress, where WordPress
+// picks the files up (/wp-content/uploads/sap13ns-import/…).
 func uploadPath(src string) string {
 	u, err := url.Parse(src)
 	if err != nil {
 		return ""
 	}
 	p := u.Path
-	for _, prefix := range []string{"/wp-content/uploads/", "/uploads/"} {
+	for _, prefix := range []string{"/wp-content/uploads/" + export.WPImportDir + "/", "/wp-content/uploads/", "/uploads/"} {
 		if i := strings.Index(p, prefix); i >= 0 {
 			return p[i+len(prefix):]
 		}

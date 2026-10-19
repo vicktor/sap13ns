@@ -21,6 +21,7 @@ import (
 
 	"sap13ns/internal/backup"
 	"sap13ns/internal/config"
+	"sap13ns/internal/export"
 	"sap13ns/internal/network"
 	"sap13ns/internal/sitebackup"
 	"sap13ns/internal/web"
@@ -68,7 +69,7 @@ func backupCmd(args []string) error {
 		f.StringVar(&passFile, "passphrase-file", "", "file holding the archive passphrase")
 		f.StringVar(&format, "format", "", "full (database and uploads) or site (one site, WordPress-compatible); default site with -site, full otherwise")
 		f.StringVar(&site, "site", "", "network: the site (implies -format site)")
-		f.StringVar(&wpBase, "wp-base", "", "create -format site: the address of the WordPress site the content moves to (media listed at URL/wp-content/uploads/)")
+		f.StringVar(&wpBase, "wp-base", "", "create -format site: the address of the WordPress site the content moves to (media listed at URL/wp-content/uploads/sap13ns-import/, links at URL)")
 		f.BoolVar(&replace, "replace", false, "restore -format site: replace the content the site has (a backup of it is taken first)")
 		f.StringVar(&output, "o", "", "decrypt: the output file (default: the archive's name without .enc)")
 		f.StringVar(&pgDump, "pg-dump", os.Getenv("SAP13NS_PG_DUMP"), "pg_dump binary")
@@ -302,7 +303,7 @@ func siteBackupCmd(ctx context.Context, cfg *config.Config, log *slog.Logger, su
 		fmt.Fprintf(out, "%s\n  %d posts, %d pages, %d media items, %d comments, %d users, %d files, %s\n", arch.Path, m.Counts.Posts,
 			m.Counts.Pages, m.Counts.Attachments, m.Counts.Comments, m.Counts.Users, m.Counts.Files, humanBytes(arch.Size))
 		if wpBase != "" {
-			fmt.Fprintf(out, "  media listed at %s/wp-content/uploads/ (README.txt inside has the steps)\n", wpBase)
+			fmt.Fprintf(out, "  media listed at %s/wp-content/uploads/%s/ (README.txt inside has the steps)\n", wpBase, export.WPImportDir)
 		}
 		if a.pass == "" {
 			fmt.Fprintln(os.Stderr, "warning: the archive is not encrypted; set SAP13NS_BACKUP_PASSPHRASE_FILE to protect it")

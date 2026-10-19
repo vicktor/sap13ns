@@ -3,6 +3,8 @@ package sitebackup
 import (
 	"strings"
 	"time"
+
+	"sap13ns/internal/export"
 )
 
 // readme is README.txt: what the archive holds and how to use it, in
@@ -42,9 +44,9 @@ func readme(m *Manifest) string {
 		w("This archive was made for "+m.WPBase+": its media addresses point there.",
 			"",
 			"  1. Install WordPress at "+m.WPBase+" and sign in as an administrator.",
-			"  2. Copy the folder wp-content/uploads of this archive into the",
-			"     wp-content/uploads folder of WordPress (SFTP, or your host's file",
-			"     manager), keeping the year/month folders.",
+			"  2. Copy the folder wp-content/uploads of this archive to WordPress as",
+			"     wp-content/uploads/"+export.WPImportDir+" (SFTP, or your host's file manager):",
+			"     the year folders go inside "+export.WPImportDir+".",
 			"  3. Tools > Import > WordPress: install the importer if asked, then",
 			"     \"Run Importer\".",
 			"  4. Choose export.xml, assign or create the authors, tick \"Download and",
@@ -52,8 +54,8 @@ func readme(m *Manifest) string {
 			"  5. Appearance > Menus: assign each imported menu to a location of your",
 			"     theme.",
 			"",
-			"WordPress copies each file once more under a new name (photo-1.jpg) and",
-			"points the posts at the copy; the files of step 2 can then be deleted.",
+			"WordPress copies each file from there into its own uploads, and points",
+			"the posts at its copies: delete the folder "+export.WPImportDir+" afterwards.",
 		)
 	} else {
 		w("The media addresses in this archive point at "+m.Site.URL+", so that site",
@@ -75,7 +77,9 @@ func readme(m *Manifest) string {
 	}
 	w("",
 		"With WP-CLI: wp plugin install wordpress-importer --activate, then",
-		"wp import export.xml --authors=create.",
+		"wp import export.xml --authors=create --user=ADMIN, ADMIN being a WordPress",
+		"administrator (without --user, WordPress drops the address of pending",
+		"posts and filters their HTML).",
 		"",
 		"Imported users have no password: they set one with \"Lost your password?\".",
 		"",
