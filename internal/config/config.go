@@ -61,6 +61,11 @@ type Config struct {
 	DBMaxConns   int32
 	SiteBackups  SiteBackups
 
+	// DevGravatarURL, in development mode only (SAP13NS_DEV_GRAVATAR_URL),
+	// replaces https://gravatar.com/avatar/ with a stand-in server, which
+	// may be on this machine, so that seeded accounts never reach Gravatar.
+	DevGravatarURL string
+
 	// Multisite settings. They are read only when SAP13NS_MULTISITE is
 	// true, so a single-site install gets the zero values whatever else
 	// its environment contains.
@@ -372,6 +377,9 @@ func Load(requireSecret bool) (*Config, error) {
 	c.CookieSecure = envBool("COOKIE_SECURE", u.Scheme == "https")
 	c.HSTS = envBool("HSTS", u.Scheme == "https")
 	c.ServeUploads = envBool("SERVE_UPLOADS", true)
+	if c.Dev {
+		c.DevGravatarURL = env("DEV_GRAVATAR_URL", "")
+	}
 
 	switch strings.ToLower(env("LOG_LEVEL", "info")) {
 	case "debug":

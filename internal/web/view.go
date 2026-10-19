@@ -93,6 +93,7 @@ type AuthorView struct {
 	Username string
 	URL      string
 	Initials string
+	Avatar   AvatarView // their photo, or their initials (avatars.go)
 }
 
 type PostView struct {
@@ -146,7 +147,7 @@ func (s *Server) postView(p *store.Post, viewer *store.User) *PostView {
 		Summary: content.Summary(p.Excerpt, p.Content, 220),
 		Updated: p.UpdatedAt.In(s.loc()),
 		Author: AuthorView{Name: p.AuthorName, Username: p.AuthorUsername, URL: s.langPath(p.Lang, authorURL(p.AuthorUsername)),
-			Initials: initials(p.AuthorName)},
+			Initials: initials(p.AuthorName), Avatar: avatarView(p.AuthorName, photoOf(s.settings(), p.AuthorAvatar, p.AuthorGravatar))},
 		Categories:     s.termViews(p.Categories(), p.Lang),
 		Tags:           s.termViews(p.Tags(), p.Lang),
 		Image:          imageView(p.Featured),
@@ -232,6 +233,7 @@ type Viewer struct {
 	Username string
 	Role     string
 	Initials string
+	Avatar   AvatarView
 	Admin    bool
 	CSRF     string
 }
@@ -458,7 +460,7 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		sv.Menus[loc] = markActive(links, here)
 	}
 	if u := currentUser(r); u != nil {
-		sv.Viewer = &Viewer{Name: u.Name(), Username: u.Username, Role: u.Role, Initials: initials(u.Name()),
+		sv.Viewer = &Viewer{Name: u.Name(), Username: u.Username, Role: u.Role, Initials: initials(u.Name()), Avatar: s.userAvatar(u),
 			Admin: auth.Can(u.Role, auth.CapEditOwnPosts) || auth.Can(u.Role, auth.CapManageSettings)}
 		if sess := rctx(r).Session; sess != nil {
 			sv.Viewer.CSRF = sess.CSRFToken
@@ -572,6 +574,7 @@ type CommentView struct {
 	ID       int64
 	Author   string
 	Initials string
+	Avatar   AvatarView // the author's photo, or their initials (avatars.go)
 	URL      string
 	Content  string
 	Date     time.Time

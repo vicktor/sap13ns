@@ -101,6 +101,7 @@ func (s *Server) adminUserCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, uid(r), "user.created", u.Username, map[string]string{"role": u.Role})
 	s.plugins.Emit("user.registered", map[string]any{"username": u.Username, "role": u.Role})
+	s.gravatarSoon(id)
 	s.redirect(w, r, fmt.Sprintf("/admin/users/%d", id), "success", s.t("User “%s” created.", u.Username))
 }
 
@@ -252,6 +253,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.emailChanged(r, u, edited.Email)
 	if role != u.Role || status != u.Status {
 		if err := s.store.UpdateUserRoleStatus(ctx, u.ID, role, status); err != nil {
 			s.serverError(w, r, err)
@@ -382,6 +384,7 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
+		s.removeUserPhotos(ctx, u)
 		s.audit(r, uid(r), "user.deleted", u.Username, map[string]string{"reassigned_to": fmt.Sprint(reassign)})
 		s.contentChanged()
 		s.redirect(w, r, "/admin/users", "success", s.t("User “%s” deleted.", u.Username))
@@ -490,6 +493,7 @@ func (s *Server) adminProfileUpdate(w http.ResponseWriter, r *http.Request) {
 	if edited.Email != u.Email {
 		s.audit(r, u.ID, "profile.email_changed", u.Username, map[string]string{"from": u.Email, "to": edited.Email})
 	}
+	s.emailChanged(r, u, edited.Email)
 	s.contentChanged()
 	s.redirect(w, r, "/admin/profile", "success", s.t("Saved."))
 }

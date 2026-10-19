@@ -522,8 +522,14 @@ func (s *Server) loadComments(r *http.Request, p *store.Post, pd *PageData) erro
 	if err != nil {
 		return err
 	}
+	all := make([]*store.Comment, 0, len(tree))
+	for _, c := range tree {
+		all = append(append(all, c), c.Replies...)
+	}
+	s.commenterGravatars(r.Context(), all) // from the cache only
+	set := s.settings()
 	conv := func(c *store.Comment) *CommentView {
-		return &CommentView{ID: c.ID, Author: c.AuthorName, Initials: initials(c.AuthorName), URL: c.AuthorURL,
+		return &CommentView{ID: c.ID, Author: c.AuthorName, Initials: initials(c.AuthorName), Avatar: commentAvatar(set, c), URL: c.AuthorURL,
 			Content: c.Content, Date: c.CreatedAt.In(s.loc()), IsAuthor: c.UserID != nil && p.AuthorID != nil && *c.UserID == *p.AuthorID}
 	}
 	for _, c := range tree {
@@ -775,6 +781,12 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 	}
 	s.plugins.Emit("comment.created", map[string]any{"id": id, "post_id": p.ID, "post": s.PostInfo(p), "author": in.AuthorName,
 		"status": in.Status, "content": in.Content})
+	if in.UserID == nil && in.Status == "approved" {
+		// The commenter's Gravatar, if the site shows them and the cache
+		// lacks it, is looked up in the background, for the next view; a
+		// held comment's when it is shown.
+		s.commenterGravatars(ctx, []*store.Comment{{AuthorEmail: in.AuthorEmail}})
+	}
 	if in.Status == "approved" {
 		s.contentChanged()
 		done("approved")

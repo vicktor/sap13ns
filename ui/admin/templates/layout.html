@@ -107,7 +107,7 @@
     <footer>
       <div id="user-menu" class="dropdown-menu">
         <button type="button" id="user-menu-trigger" class="user-button" aria-haspopup="menu" aria-controls="user-menu-menu" aria-expanded="false" data-keep-mobile-sidebar-open>
-          <span class="avatar-initials" aria-hidden="true">{{initials .User.Name}}</span>
+          {{template "avatar" (dict "A" (.UserAvatar .User))}}
           <span class="user-meta"><strong>{{.User.Name}}</strong><small>{{roleLabel .User.Role}}</small></span>
           {{icon "ellipsis-vertical" "ml-auto"}}
         </button>

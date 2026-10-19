@@ -96,6 +96,11 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.OGCards, st.OGAccent = r.FormValue("og_cards"), strings.TrimSpace(r.FormValue("og_accent"))
 	st.AIAccess, st.AnalyticsOff = r.FormValue("ai_access"), !on("analytics")
 	st.SessionDays, st.IdleHours = formInt(r, "session_days", 14), formInt(r, "idle_hours", 48)
+	// Commenters' Gravatars need the users' setting, which sends anything
+	// to Gravatar at all (sitecheck).
+	st.GravatarUsers = on("gravatar_users")
+	st.GravatarCommenters = st.GravatarUsers && on("gravatar_commenters")
+	before := s.settings()
 
 	// The rules are shared with restores (sitecheck). The active theme is
 	// not on this page: an uninstalled one must not block it.
@@ -107,6 +112,7 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.gravatarSettingsChanged(r.Context(), before, st) // avatars.go
 	s.audit(r, uid(r), "settings.saved", "", nil)
 	s.redirect(w, r, "/admin/settings", "success", s.t("Settings saved."))
 }

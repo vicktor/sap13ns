@@ -254,7 +254,7 @@ type adminTemplates struct {
 	pages  map[string]*template.Template
 }
 
-var adminBase = []string{"layout.html", "auth.html", "partials.html", "ai_panel.html", "site_switcher.html"}
+var adminBase = []string{"layout.html", "auth.html", "partials.html", "ai_panel.html", "site_switcher.html", "avatar.html"}
 
 func newAdminTemplates(ui fs.FS, funcs template.FuncMap, reload bool) (*adminTemplates, error) {
 	sub, err := fs.Sub(ui, "admin/templates")

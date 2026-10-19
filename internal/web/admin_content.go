@@ -81,6 +81,7 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
+		s.commenterGravatars(ctx, commentPtrs(d.Pending))
 	}
 	if auth.Can(u.Role, auth.CapManageUsers) {
 		d.Users, _ = s.store.CountUsers(ctx)
@@ -582,6 +583,7 @@ func (s *Server) adminComments(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.commenterGravatars(r.Context(), commentPtrs(list))
 	counts["all"] = counts["pending"] + counts["approved"]
 	vals := r.URL.Query()
 	vals.Del("page")

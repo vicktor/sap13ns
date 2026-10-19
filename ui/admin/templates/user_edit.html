@@ -82,6 +82,7 @@
 
   {{if not $d.New}}
   <div class="stack">
+    {{if not $d.Protected}}{{template "avatar-card" (dict "U" $u "A" ($.UserAvatar $u) "Action" (printf "/admin/users/%d/avatar" $u.ID) "Gravatar" $.Site.GravatarUsers "CSRF" $.CSRFField)}}{{end}}
     <section class="card">
       <header><h2>{{T "Security"}}</h2></header>
       <section>

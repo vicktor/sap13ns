@@ -1,0 +1,37 @@
+{{/* avatar: a person's photo, or their initials when they have none
+     (internal/web/avatars.go). The name goes next to it, so the image is
+     decorative. Data: dict "A" AvatarView, "Size" its size in CSS pixels
+     (32), "Class" more classes ("lg", "xl"). */}}
+{{define "avatar"}}{{with .A}}{{if .URL}}<img class="avatar-initials avatar-photo{{with $.Class}} {{.}}{{end}}" src="{{.URL}}" srcset="{{.Srcset}}" sizes="{{or $.Size 32}}px" width="{{or $.Size 32}}" height="{{or $.Size 32}}" alt="" loading="lazy" decoding="async">{{else}}<span class="avatar-initials{{with $.Class}} {{.}}{{end}}" aria-hidden="true">{{.Initials}}</span>{{end}}{{end}}{{end}}
+
+{{/* avatar-card: a user's photo and the forms that change it, on the
+     profile and on a user's page. Data: dict "U" *store.User, "A" its
+     AvatarView, "Action" the path of the forms (/admin/profile/avatar),
+     "Gravatar" whether the site uses Gravatar, "CSRF" the token field. */}}
+{{define "avatar-card"}}{{$u := .U}}
+<section class="card" id="photo">
+  <header><h2>{{T "Photo"}}</h2><p>{{T "Shown next to the name on posts, comments and in the administration."}}</p></header>
+  <section class="avatar-card">
+    {{template "avatar" (dict "A" .A "Size" 96 "Class" "xl")}}
+    <div class="avatar-card-forms">
+      <form method="post" action="{{.Action}}" enctype="multipart/form-data" class="form">
+        {{.CSRF}}
+        <div class="field">
+          <label for="photo-file">{{if $u.Avatar}}{{T "Replace the photo"}}{{else}}{{T "Upload a photo"}}{{end}}</label>
+          <input class="input" id="photo-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required>
+          <p class="hint">{{T "JPEG, PNG, WebP or GIF, up to 5 MB. It is cropped to a square, and its metadata, such as the place it was taken, is removed."}}</p>
+        </div>
+        <div class="form-actions"><button class="btn" type="submit">{{icon "upload"}}{{T "Save photo"}}</button></div>
+      </form>
+      {{if $u.Avatar}}
+      <form method="post" action="{{.Action}}/delete">{{.CSRF}}<button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Remove this photo?"}}">{{icon "trash-2"}}{{T "Remove photo"}}</button></form>
+      {{else if .Gravatar}}
+      <div class="avatar-card-gravatar">
+        <p class="hint">{{T "Without a photo, the Gravatar of the e-mail address is shown, if it has one. The server fetches it and sends Gravatar only a hash of the address; visitors' browsers never contact Gravatar."}}</p>
+        <form method="post" action="{{.Action}}/gravatar">{{.CSRF}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{T "Refresh from Gravatar"}}</button></form>
+      </div>
+      {{end}}
+    </div>
+  </section>
+</section>
+{{end}}

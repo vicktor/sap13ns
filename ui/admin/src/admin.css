@@ -151,6 +151,12 @@
   @apply grid size-8 shrink-0 place-items-center rounded-full bg-accent text-[0.7rem] font-semibold text-accent-foreground;
 }
 .avatar-initials.lg { @apply size-14 text-lg; }
+.avatar-initials.xl { @apply size-24 text-2xl; }
+/* A photo (avatar.html) takes the size of the initials it replaces. */
+.avatar-photo { @apply border border-border bg-muted object-cover p-0; }
+.avatar-card { @apply flex flex-col items-start gap-5 sm:flex-row; }
+.avatar-card-forms { @apply flex min-w-0 flex-1 flex-col gap-4; }
+.avatar-card-gravatar { @apply flex flex-col items-start gap-2 border-t pt-4; }
 
 .admin-main { @apply flex min-h-dvh min-w-0 flex-col; }
 .topbar {

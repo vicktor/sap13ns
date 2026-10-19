@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/media"
 	"sap13ns/internal/store"
 )
 
@@ -365,6 +366,12 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if isAvatarUpload(r) && r.ContentLength > avatarBodyLimit {
+				// Refused before the form is read: a clear 413 rather than
+				// a form whose token could not be read.
+				s.adminError(w, r, http.StatusRequestEntityTooLarge, s.t("The photo is too large (%s max).", filesize(media.AvatarMaxBytes)))
+				return
+			}
 			r.Body = http.MaxBytesReader(w, r.Body, s.maxBody(r))
 			if !validCSRF(r) {
 				s.log.Warn("invalid CSRF token", "path", r.URL.Path, "user", u.Username, "ip", clientIP(r))
@@ -422,6 +429,9 @@ func (s *Server) maxBody(r *http.Request) int64 {
 	}
 	if r.URL.Path == "/admin/appearance/themes/upload" {
 		return themeUploadLimit
+	}
+	if isAvatarUpload(r) {
+		return avatarBodyLimit
 	}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return s.cfg.MaxUploadBytes + 1<<20

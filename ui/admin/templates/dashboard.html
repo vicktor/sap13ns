@@ -99,7 +99,7 @@
       <ul class="comment-list">
         {{range $d.Pending}}
         <li>
-          <div class="comment-head"><span class="avatar-initials" aria-hidden="true">{{initials .AuthorName}}</span><strong>{{.AuthorName}}</strong><span class="muted">{{T "on"}} <a href="/blog/{{.PostSlug}}" target="_blank" rel="noopener">{{.PostTitle}}</a> · {{ago .CreatedAt}}</span></div>
+          <div class="comment-head">{{template "avatar" (dict "A" ($.CommentAvatar .) "Size" 28)}}<strong>{{.AuthorName}}</strong><span class="muted">{{T "on"}} <a href="/blog/{{.PostSlug}}" target="_blank" rel="noopener">{{.PostTitle}}</a> · {{ago .CreatedAt}}</span></div>
           <p class="comment-body">{{truncate .Content 240}}</p>
           <div class="row-actions">
             <form method="post" action="/admin/comments/{{.ID}}/approve">{{$.CSRFField}}<button class="btn" data-size="sm" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>

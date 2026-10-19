@@ -94,6 +94,12 @@
             (list "returning" (T "Hold it unless the author has an approved comment"))
             (list "none" (T "Publish immediately"))))}}</div>
         <div class="field"><label for="comments_close_days">{{T "Close comments on posts older than (days)"}}</label><input class="input w-32" id="comments_close_days" name="comments_close_days" type="number" min="0" max="3650" value="{{$s.CommentsCloseDays}}"><p class="hint">{{T "0 keeps them open forever."}}</p></div>
+        <fieldset class="fieldset" id="avatars">
+          <legend>{{T "Photos"}}</legend>
+          <label class="check"><input type="checkbox" class="input" role="switch" name="gravatar_users" value="1"{{if $s.GravatarUsers}} checked{{end}}> {{T "Use Gravatar for users without a photo"}}</label>
+          <label class="check"><input type="checkbox" class="input" role="switch" name="gravatar_commenters" value="1"{{if $s.GravatarCommenters}} checked{{end}}> {{T "Show Gravatar images for commenters"}}</label>
+          <p class="hint">{{T "The server looks the image up and serves a copy from this site, so visitors' browsers never contact Gravatar. Gravatar receives only a hash (SHA-256) of the e-mail address, never the address itself. Turned off, nothing is sent and the copies are deleted. Commenters' images also need the first option."}}</p>
+        </fieldset>
       </section>
     </section>
 

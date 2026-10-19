@@ -3,12 +3,14 @@
 {{$d := .D}}{{$u := $d.User}}{{$pk := $d.Passkeys}}
 <div class="page-header">
   <div class="profile-head">
-    <span class="avatar-initials lg" aria-hidden="true">{{initials $u.Name}}</span>
+    {{template "avatar" (dict "A" ($.UserAvatar $u) "Size" 56 "Class" "lg")}}
     <div><h1>{{$u.Name}}</h1><p>@{{$u.Username}} · {{roleLabel $u.Role}}</p></div>
   </div>
 </div>
 {{template "form-error" $d.Error}}
 <div class="split">
+  <div class="stack">
+  {{template "avatar-card" (dict "U" $u "A" ($.UserAvatar $u) "Action" "/admin/profile/avatar" "Gravatar" $.Site.GravatarUsers "CSRF" $.CSRFField)}}
   <section class="card">
     <header><h2>{{T "Profile"}}</h2><p>{{T "Your public name and biography appear on your posts."}}</p></header>
     <section>
@@ -37,6 +39,7 @@
       </form>
     </section>
   </section>
+  </div>
 
   <div class="stack" id="security">
     {{if $d.CanLink}}

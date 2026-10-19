@@ -90,6 +90,8 @@ type Server struct {
 
 	plans planCache // the portal's pricing table (plans.go)
 
+	grav gravatarState // Gravatar lookups and their copies (avatars.go)
+
 	network     NetworkHooks   // nil on a single-site install
 	sso         SSOClient      // a tenant of a network: sign-in through the portal
 	portal      Portal         // the network portal
@@ -169,6 +171,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		resetIP:    auth.NewLimiter(5, time.Hour),
 		uploadUser: auth.NewLimiter(120, time.Hour),
 		cop:        http.NewCrossOriginProtection(),
+		grav:       newGravatarState(),
 
 		ssoFailures: auth.NewLimiter(10, 15*time.Minute),
 		checkout:    auth.NewLimiter(30, time.Hour),
@@ -355,6 +358,7 @@ func (s *Server) Background(ctx context.Context, opt BackgroundOptions) {
 	}
 	wg.Go(func() { s.stats.Run(ctx) })
 	wg.Go(func() { s.assistant().Run(ctx) })
+	wg.Go(func() { s.runGravatars(ctx) }) // avatars.go
 	wg.Go(func() {
 		t := time.NewTicker(time.Minute)
 		defer t.Stop()

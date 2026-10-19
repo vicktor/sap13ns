@@ -342,6 +342,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.gravatarSoon(id)
 	u, err := s.store.UserByID(r.Context(), id)
 	if err != nil {
 		s.serverError(w, r, err)
@@ -553,6 +554,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	s.ReloadSettings(ctx)
 	s.contentChanged()
+	s.gravatarSoon(id)
 	u, _ := s.store.UserByID(ctx, id)
 	s.audit(r, id, "setup.completed", u.Username, nil)
 	s.flash(w, "success", s.t("Installation complete. Welcome to your new site!"))

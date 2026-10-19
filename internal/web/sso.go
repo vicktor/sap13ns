@@ -479,7 +479,9 @@ func (s *Server) ssoUser(ctx context.Context, g *SSOGrant) (*store.User, error) 
 	}
 	p := s.ssoProfile(g)
 	u, err := lookup(ctx, g.AccountID)
+	created := false
 	if errors.Is(err, store.ErrNotFound) {
+		created = true
 		if u, err = s.createSSOUser(ctx, g, p); errors.Is(err, store.ErrConflict) {
 			u, err = lookup(ctx, g.AccountID) // created meanwhile by a parallel sign-in
 		}
@@ -493,7 +495,16 @@ func (s *Server) ssoUser(ctx context.Context, g *SSOGrant) (*store.User, error) 
 	} else if err != nil {
 		return nil, err
 	}
-	return s.store.UserByID(ctx, u.ID)
+	nu, err := s.store.UserByID(ctx, u.ID)
+	if err == nil && (created || nu.Email != u.Email) {
+		// A new user or a new address: the old address's Gravatar copy
+		// goes (avatars.go), and the new one is looked up.
+		if nu.Gravatar != u.Gravatar {
+			s.media.RemoveAvatar(ctx, u.Gravatar)
+		}
+		s.gravatarSoon(u.ID)
+	}
+	return nu, err
 }
 
 // ssoProfile is what a grant sets on its user. An operator user gets an

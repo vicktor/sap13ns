@@ -236,6 +236,13 @@ func (s *Server) routes() *http.ServeMux {
 	admin("GET /admin/users/{id}", auth.CapManageUsers, s.adminUserEdit)
 	admin("POST /admin/users/{id}", auth.CapManageUsers, s.adminUserUpdate)
 	admin("POST /admin/users/{id}/{action}", auth.CapManageUsers, s.adminUserAction)
+	// Profile photos (avatars.go): a user's own, or another's with users.manage.
+	admin("POST /admin/users/{id}/avatar", auth.CapManageUsers, s.adminUserAvatar)
+	admin("POST /admin/users/{id}/avatar/delete", auth.CapManageUsers, s.adminUserAvatarDelete)
+	admin("POST /admin/users/{id}/avatar/gravatar", auth.CapManageUsers, s.adminUserGravatar)
+	admin("POST /admin/profile/avatar", auth.CapAdminPanel, s.adminProfileAvatar)
+	admin("POST /admin/profile/avatar/delete", auth.CapAdminPanel, s.adminProfileAvatarDelete)
+	admin("POST /admin/profile/avatar/gravatar", auth.CapAdminPanel, s.adminProfileGravatar)
 
 	admin("GET /admin/profile", auth.CapAdminPanel, s.adminProfile)
 	admin("POST /admin/profile", auth.CapAdminPanel, s.adminProfileUpdate)
