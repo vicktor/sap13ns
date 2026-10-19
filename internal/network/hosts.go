@@ -54,12 +54,14 @@ var routable = []string{StatusPending, StatusActive, StatusSuspended}
 
 // hostTable reads the verified domains of the routable sites, whether
 // their billing holds them at now, and whether an emergency access is
-// live on them at now. The portal is always served on the SAP13NS_BASE_URL
+// live on them at now. Registry.Refresh reloads it every minute, so a
+// grace period or a paid period that ends holds its site within a minute.
+// The portal is always served on the SAP13NS_BASE_URL
 // host, which becomes its primary if the operator changed the base URL
 // after `network init`; its other hosts then redirect there.
 func (n *Network) hostTable(ctx context.Context, now time.Time) (*hostTable, error) {
 	rows, err := n.db.Query(ctx, `SELECT s.id, s.kind, s.slug, s.status, d.host, d.kind = 'custom', d.is_primary,
-			coalesce(p.paid, false) AND sub.id IS NOT NULL, coalesce(sub.state, ''), sub.grace_since,
+			coalesce(p.paid, false) AND sub.id IS NOT NULL, coalesce(sub.state, ''), sub.grace_since, sub.paid_until,
 			EXISTS (SELECT 1 FROM emergency_access e WHERE e.site_id = s.id AND e.ended_at IS NULL AND e.expires_at > $2)
 		FROM domains d JOIN sites s ON s.id = d.site_id
 		LEFT JOIN plans p ON p.slug = s.plan
@@ -73,20 +75,17 @@ func (n *Network) hostTable(ctx context.Context, now time.Time) (*hostTable, err
 	t := &hostTable{hosts: map[string]*siteRoute{}, sites: map[int64]*siteRoute{}}
 	for rows.Next() {
 		var (
-			s                   siteRoute
-			host, state         string
-			custom, prime, paid bool
-			graceSince          *time.Time
+			s                     siteRoute
+			host, state           string
+			custom, prime, paid   bool
+			graceSince, paidUntil *time.Time
 		)
-		if err := rows.Scan(&s.ID, &s.Kind, &s.Slug, &s.Status, &host, &custom, &prime, &paid, &state, &graceSince, &s.Emergency); err != nil {
+		if err := rows.Scan(&s.ID, &s.Kind, &s.Slug, &s.Status, &host, &custom, &prime, &paid, &state, &graceSince, &paidUntil,
+			&s.Emergency); err != nil {
 			return nil, err
 		}
 		if paid {
-			var since time.Time
-			if graceSince != nil {
-				since = *graceSince
-			}
-			s.Held = held(state, since, now, n.grace)
+			s.Held = held(state, graceSince, paidUntil, now, n.grace)
 		}
 		cur := t.sites[s.ID]
 		if cur == nil {

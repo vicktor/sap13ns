@@ -91,7 +91,7 @@ func (h portalHooks) withBilling(ctx context.Context, out *web.NetSite, s *Site,
 		return err
 	}
 	out.Billing = &web.NetBilling{Plan: sub.Plan, Status: sub.Status, State: sub.State, PeriodEnd: sub.CurrentPeriodEnd,
-		CancelAtPeriodEnd: sub.CancelAtPeriodEnd, GraceSince: sub.GraceSince, Held: h.r.net.Held(p.Paid, sub, h.r.o.Now()),
+		PaidUntil: sub.PaidUntil, CancelAtPeriodEnd: sub.CancelAtPeriodEnd, GraceSince: sub.GraceSince, Held: h.r.net.Held(p.Paid, sub, h.r.o.Now()),
 		Manageable: sub.StripeCustomerID != ""}
 	return nil
 }

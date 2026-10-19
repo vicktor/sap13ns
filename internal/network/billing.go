@@ -22,9 +22,9 @@ package network
 //     billingMaxAttempts; failed and unmapped events are listed in the
 //     network admin area.
 //   - The host table holds a paid site whose subscription is in grace for
-//     longer than SAP13NS_BILLING_GRACE_DAYS, pending or canceled (public
-//     503, admin and sign-in still work); invoice.paid lifts it. Nothing
-//     is ever deleted for billing.
+//     longer than SAP13NS_BILLING_GRACE_DAYS, pending, or canceled once
+//     the period it paid for is over (public 503, admin and sign-in still
+//     work); invoice.paid lifts it. Nothing is ever deleted for billing.
 
 import (
 	"context"
@@ -85,6 +85,7 @@ type Subscription struct {
 	State                string     `db:"state"`  // billing.SubscriptionState
 	GraceSince           *time.Time `db:"grace_since"`
 	CurrentPeriodEnd     *time.Time `db:"current_period_end"`
+	PaidUntil            *time.Time `db:"paid_until"` // the end of the last period paid for (invoice.paid)
 	CancelAtPeriodEnd    bool       `db:"cancel_at_period_end"`
 	SyncedAt             *time.Time `db:"synced_at"`
 	CheckoutSiteID       *int64     `db:"checkout_site_id"`
@@ -93,7 +94,7 @@ type Subscription struct {
 }
 
 const subCols = `id, account_id, plan, coalesce(stripe_subscription_id, '') AS stripe_subscription_id, stripe_price_id,
-	stripe_customer_id, status, state, grace_since, current_period_end, cancel_at_period_end, synced_at, checkout_site_id,
+	stripe_customer_id, status, state, grace_since, current_period_end, paid_until, cancel_at_period_end, synced_at, checkout_site_id,
 	created_at, updated_at`
 
 func (n *Network) Subscription(ctx context.Context, id int64) (*Subscription, error) {
@@ -118,22 +119,33 @@ func (n *Network) SiteSubscription(ctx context.Context, s *Site) (*Subscription,
 }
 
 // Held reports whether a site is not served to the public for its billing:
-// its plan is paid and the subscription paying for it is pending, canceled,
-// or in grace for longer than the grace period. A paid site without a
-// subscription was granted by an operator and is never held.
+// its plan is paid and the subscription paying for it is pending, in grace
+// for longer than the grace period, or canceled once the period it paid
+// for is over. A paid site without a subscription was granted by an
+// operator and is never held.
 func (n *Network) Held(paid bool, sub *Subscription, now time.Time) bool {
 	if !paid || sub == nil {
 		return false
 	}
-	var since time.Time
-	if sub.GraceSince != nil {
-		since = *sub.GraceSince
-	}
-	return held(sub.State, since, now, n.grace)
+	return held(sub.State, sub.GraceSince, sub.PaidUntil, now, n.grace)
 }
 
-func held(state string, graceSince, now time.Time, grace time.Duration) bool {
-	return billing.ShouldSuspend(billing.SubscriptionState(state), graceSince, now, grace)
+// held is the rule of Network.Held, which the host table applies too. A
+// subscription canceled before the end of a period it paid for (at once,
+// from the Stripe Dashboard) keeps its sites served until that end, as a
+// cancellation at the end of the period does; the host table is reloaded
+// every minute (reloadEvery), so the hold starts within a minute of it.
+// A refund that should take the site offline at once is the operator's
+// suspension.
+func held(state string, graceSince, paidUntil *time.Time, now time.Time, grace time.Duration) bool {
+	if state == string(billing.StateCanceled) && paidUntil != nil && now.Before(*paidUntil) {
+		return false
+	}
+	var since time.Time
+	if graceSince != nil {
+		since = *graceSince
+	}
+	return billing.ShouldSuspend(billing.SubscriptionState(state), since, now, grace)
 }
 
 // graceOf is the grace period of a configuration: 0 days means none (a
@@ -649,12 +661,13 @@ func (b *Billing) apply(ctx context.Context, ev *storedEvent) ([]BillingNotice, 
 
 // applyRun is one event being applied.
 type applyRun struct {
-	b       *Billing
-	ctx     context.Context
-	tx      pgx.Tx
-	changed bool
-	state   string // of the subscription, after sync
-	notices []BillingNotice
+	b         *Billing
+	ctx       context.Context
+	tx        pgx.Tx
+	changed   bool
+	state     string     // of the subscription, after sync
+	periodEnd *time.Time // and its current period's end
+	notices   []BillingNotice
 }
 
 func unmapped(reason string) string { return resultUnmapped + ": " + reason }
@@ -838,6 +851,9 @@ func (a *applyRun) invoice(e *billing.Event) (string, error) {
 		return note, err
 	}
 	result, err := a.sync(row, note)
+	if err == nil && e.Type == billing.EventInvoicePaid {
+		err = a.paid(row, inv)
+	}
 	// A failure Stripe has recovered from since (a late delivery) is not
 	// news.
 	if err != nil || e.Type != billing.EventInvoicePaymentFailed || a.state != string(billing.StateGrace) {
@@ -864,6 +880,24 @@ func (a *applyRun) invoice(e *billing.Event) (string, error) {
 	return result, nil
 }
 
+// paid records the period a paid invoice paid for: its lines' service
+// period, or else the subscription's current period. An invoice that
+// charged nothing (a trial's) pays for no time.
+func (a *applyRun) paid(row *Subscription, inv *billing.Invoice) error {
+	if inv.Status != "paid" || inv.Total <= 0 {
+		return nil
+	}
+	end := inv.ServicePeriodEnd
+	if end.IsZero() && a.periodEnd != nil {
+		end = *a.periodEnd
+	}
+	if end.IsZero() {
+		return nil
+	}
+	_, err := a.tx.Exec(a.ctx, `UPDATE subscriptions SET paid_until = greatest(paid_until, $2) WHERE id = $1`, row.ID, end)
+	return err
+}
+
 // sync fetches the subscription from Stripe, the source of truth, and
 // stores its state. Grace starts the first time it is seen and ends when
 // the subscription is active again; an active subscription gives its plan
@@ -886,6 +920,7 @@ func (a *applyRun) sync(row *Subscription, note string) (string, error) {
 	if !s.CurrentPeriodEnd.IsZero() {
 		periodEnd = &s.CurrentPeriodEnd
 	}
+	a.periodEnd = periodEnd
 	if _, err := a.tx.Exec(a.ctx, `UPDATE subscriptions SET plan = $2, stripe_price_id = $3,
 			stripe_customer_id = CASE WHEN $4 = '' THEN stripe_customer_id ELSE $4 END, status = $5, state = $6,
 			grace_since = CASE WHEN $6 = 'grace' THEN coalesce(grace_since, $7) WHEN $6 = 'active' THEN NULL ELSE grace_since END,

@@ -145,6 +145,7 @@ type NetBilling struct {
 	Status            string // Stripe's
 	State             string // active, pending, grace or canceled
 	PeriodEnd         *time.Time
+	PaidUntil         *time.Time // the end of the last period paid for
 	CancelAtPeriodEnd bool
 	GraceSince        *time.Time
 	Held              bool // its public pages are not served

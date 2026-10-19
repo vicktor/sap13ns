@@ -313,6 +313,23 @@ func invoiceJSON(id, sub, md string) string {
 		`"parent":{"type":"subscription_details","subscription_details":{"subscription":%q,"metadata":%s}}}`, id, sub, md)
 }
 
+// paidInvoiceJSON is a paid invoice of total cents for the period ending
+// at end.
+func paidInvoiceJSON(id, sub, md string, total int, end time.Time) string {
+	return fmt.Sprintf(`{"id":%q,"object":"invoice","customer":"cus_test0001","status":"paid","total":%d,"amount_paid":%d,`+
+		`"livemode":false,"lines":{"object":"list","data":[{"period":{"start":%d,"end":%d}}]},`+
+		`"parent":{"type":"subscription_details","subscription_details":{"subscription":%q,"metadata":%s}}}`,
+		id, total, total, end.Add(-30*24*time.Hour).Unix(), end.Unix(), sub, md)
+}
+
+// periodEnd makes Stripe answer a subscription's current period as
+// ending at end.
+func (f *fakeStripe) periodEnd(id string, end time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.subs[id].end = end
+}
+
 // upgrade sends the owner's upgrade form and returns the response.
 func (b *browser) upgrade(csrf string, siteID int64, offer string, extra ...string) *httptest.ResponseRecorder {
 	b.e.t.Helper()
@@ -824,7 +841,9 @@ func TestBillingGrace(t *testing.T) {
 	e.refresh()
 	e.served(a.PrimaryHost, http.StatusOK)
 
-	// Canceled: held at once, its data kept, and it can subscribe again.
+	// Canceled without a paid period on record (the invoices of this test
+	// do not say they were paid): held at once, its data kept, and it can
+	// subscribe again.
 	fs.set("sub_test0004", "canceled", "price_pro_month")
 	e.mustHook("evt_deleted", "customer.subscription.deleted", 40, subJSON("sub_test0004", "canceled", md))
 	if res := e.result("evt_deleted"); res != resultApplied {
@@ -848,6 +867,132 @@ func TestBillingGrace(t *testing.T) {
 	// Without grace days a failed renewal holds at once.
 	if graceOf(config.Stripe{SecretKey: "sk_test_x"}) != time.Nanosecond || graceOf(config.Stripe{GraceDays: 3}) != 72*time.Hour {
 		t.Fatal("graceOf")
+	}
+}
+
+// TestBillingCanceledEarly: a subscription canceled at once (from the
+// Stripe Dashboard) keeps its site served until the end of the period it
+// paid for, and the host table holds it once that end passes; one that
+// ends with its period, or after a failed renewal, holds it at once.
+func TestBillingCanceledEarly(t *testing.T) {
+	e, fs, _ := newBillingEnv(t)
+	a := e.personal("alpha")
+	md := e.subscribe(fs, a, "pro:month", "sub_test0010", "price_pro_month")
+	end := e.clock.now().Add(30 * 24 * time.Hour)
+	fs.periodEnd("sub_test0010", end)
+
+	// A trial's invoice charges nothing and pays for no time.
+	e.mustHook("evt_trial", "invoice.paid", 11, paidInvoiceJSON("in_0", "sub_test0010", md, 0, end))
+	if res := e.result("evt_trial"); res != resultApplied || e.subscription(a.ID).PaidUntil != nil {
+		t.Fatalf("a trial's invoice: %s, paid until %v", res, e.subscription(a.ID).PaidUntil)
+	}
+	e.mustHook("evt_paid", "invoice.paid", 12, paidInvoiceJSON("in_1", "sub_test0010", md, 900, end))
+	if res := e.result("evt_paid"); res != resultApplied {
+		t.Fatalf("paid: %s", res)
+	}
+	if got := e.subscription(a.ID); got.PaidUntil == nil || !got.PaidUntil.Equal(end) {
+		t.Fatalf("paid until %v, want %v", got.PaidUntil, end)
+	}
+	// A late delivery of an older invoice does not move it back.
+	e.mustHook("evt_paid_old", "invoice.paid", 13, paidInvoiceJSON("in_old", "sub_test0010", md, 900, end.Add(-30*24*time.Hour)))
+	e.result("evt_paid_old")
+	if got := e.subscription(a.ID); !got.PaidUntil.Equal(end) {
+		t.Fatalf("an older invoice moved the paid period to %v", got.PaidUntil)
+	}
+
+	// Canceled at once, ten days into the month: still served.
+	e.clock.add(10 * 24 * time.Hour)
+	fs.set("sub_test0010", "canceled", "price_pro_month")
+	e.mustHook("evt_deleted", "customer.subscription.deleted", 20, subJSON("sub_test0010", "canceled", md))
+	if res := e.result("evt_deleted"); res != resultApplied {
+		t.Fatalf("deleted: %s", res)
+	}
+	if sub := e.subscription(a.ID); sub.State != "canceled" || e.n.Held(true, sub, e.clock.now()) {
+		t.Fatalf("canceled with time paid for: %+v", sub)
+	}
+	e.refresh()
+	e.served(a.PrimaryHost, http.StatusOK)
+	ob := e.browser()
+	ob.portalSignIn(e.owner)
+	body := ob.page("/admin/sites")
+	if !strings.Contains(body, "Suscripción terminada") || !strings.Contains(body, "en línea hasta el") || strings.Contains(body, "Retenido por facturación") {
+		t.Fatalf("My sites does not show until when the site is served:\n%s", body)
+	}
+
+	// The minute's reload holds it once the paid period is over.
+	e.clock.add(end.Sub(e.clock.now()) - time.Minute)
+	e.refresh()
+	e.served(a.PrimaryHost, http.StatusOK)
+	e.clock.add(time.Minute)
+	e.refresh()
+	if rec := e.do("GET", "https://"+a.PrimaryHost+"/"); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("after the paid period: %d", rec.Code)
+	}
+	if !e.n.Held(true, e.subscription(a.ID), e.clock.now()) {
+		t.Fatal("Network.Held disagrees with the host table")
+	}
+
+	// Canceled at the end of its period (the Customer Portal's way): held
+	// when Stripe ends it, as before.
+	b := e.personal("bravo")
+	mdB := e.subscribe(fs, b, "pro:month", "sub_test0011", "price_pro_month")
+	endB := e.clock.now().Add(30 * 24 * time.Hour)
+	fs.periodEnd("sub_test0011", endB)
+	e.mustHook("evt_paid_b", "invoice.paid", 30, paidInvoiceJSON("in_b", "sub_test0011", mdB, 900, endB))
+	e.result("evt_paid_b")
+	e.clock.add(endB.Sub(e.clock.now()))
+	fs.set("sub_test0011", "canceled", "price_pro_month")
+	e.mustHook("evt_deleted_b", "customer.subscription.deleted", 31, subJSON("sub_test0011", "canceled", mdB))
+	e.result("evt_deleted_b")
+	e.refresh()
+	if rec := e.do("GET", "https://"+b.PrimaryHost+"/"); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("canceled at the end of its period: %d", rec.Code)
+	}
+
+	// Canceled after a failed renewal: the period it is in was not paid.
+	c := e.personal("charlie")
+	mdC := e.subscribe(fs, c, "pro:month", "sub_test0012", "price_pro_month")
+	endC := e.clock.now().Add(30 * 24 * time.Hour)
+	e.mustHook("evt_paid_c", "invoice.paid", 40, paidInvoiceJSON("in_c", "sub_test0012", mdC, 900, endC))
+	e.result("evt_paid_c")
+	e.clock.add(endC.Sub(e.clock.now()) + time.Hour)
+	fs.periodEnd("sub_test0012", endC.Add(30*24*time.Hour))
+	fs.set("sub_test0012", "past_due", "price_pro_month")
+	e.mustHook("evt_fail_c", "invoice.payment_failed", 41, invoiceJSON("in_c2", "sub_test0012", mdC))
+	e.result("evt_fail_c")
+	e.clock.add(2 * 24 * time.Hour)
+	fs.set("sub_test0012", "canceled", "price_pro_month")
+	e.mustHook("evt_deleted_c", "customer.subscription.deleted", 42, subJSON("sub_test0012", "canceled", mdC))
+	e.result("evt_deleted_c")
+	e.refresh()
+	if rec := e.do("GET", "https://"+c.PrimaryHost+"/"); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("canceled after a failed renewal: %d", rec.Code)
+	}
+}
+
+// TestHeld is the rule itself.
+func TestHeld(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	at := func(d time.Duration) *time.Time { x := now.Add(d); return &x }
+	grace := 7 * 24 * time.Hour
+	for _, c := range []struct {
+		name              string
+		state             string
+		graceSince, until *time.Time
+		want              bool
+	}{
+		{"active", "active", nil, nil, false},
+		{"pending", "pending", nil, nil, true},
+		{"in grace", "grace", at(-time.Hour), nil, false},
+		{"grace over", "grace", at(-grace), at(time.Hour), true},
+		{"canceled, nothing paid", "canceled", nil, nil, true},
+		{"canceled, paid for a day more", "canceled", nil, at(24 * time.Hour), false},
+		{"canceled, paid period over", "canceled", nil, at(0), true},
+		{"pending, paid for later", "pending", nil, at(time.Hour), true},
+	} {
+		if got := held(c.state, c.graceSince, c.until, now, grace); got != c.want {
+			t.Errorf("%s: held = %t", c.name, got)
+		}
 	}
 }
 

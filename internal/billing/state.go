@@ -20,12 +20,14 @@ import "time"
 //     state is seen, show a billing banner in the admin and email the owner
 //     with a link to the Customer Portal. Once the grace period
 //     (DefaultGracePeriod unless configured) has elapsed, suspend the site:
-//     stop serving public pages (show a neutral "site suspended" page),
+//     stop serving public pages (show a neutral "site paused" page),
 //     keep all content, keep the admin reachable so the owner can pay.
 //     A later invoice.paid / status active lifts the suspension.
 //   - StateCanceled (canceled, incomplete_expired): the subscription is over
 //     (end of period after a cancellation, or Stripe gave up collecting).
-//     Suspend the site right away and drop the paid plan. Keep the data for
+//     Suspend the site, at once or, when it was canceled before the end of
+//     a period it paid for, at that end (the network applies this in held,
+//     internal/network/billing.go), and drop the paid plan. Keep the data for
 //     the retention period announced in the terms, then delete after notice.
 //     Re-subscribing goes through a new Checkout Session.
 //
