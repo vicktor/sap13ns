@@ -57,9 +57,13 @@ Cuando mueves contenido, los enlaces antiguos deberían seguir funcionando. Las 
 
 ## Aspecto
 
-### Cinco temas, en claro y oscuro
+### Seis temas, en claro y oscuro
 
-sap13ns incluye Apple, Neumorphism, Glassmorphism, Bento Grid y Dashboard / SaaS. Todos tienen modo claro y oscuro, que sigue la preferencia del sistema del visitante, con un interruptor que recuerda su elección y sin parpadeos de color al cargar. [Ver los temas](/es/temas).
+sap13ns incluye Apple, Neumorphism, Glassmorphism, Bento Grid, Dashboard / SaaS y Onepage. Todos tienen modo claro y oscuro, que sigue la preferencia del sistema del visitante, con un interruptor que recuerda su elección y sin parpadeos de color al cargar. [Ver los temas](/es/temas).
+
+### Landings y webs de una sola página
+
+La portada no tiene por qué listar entradas. Puede ser una landing o una web de una sola página, con el blog en `/blog`: la del propio tema, o una que montas con características, cifras, testimonios, precios, preguntas y respuestas, logotipos y una llamada a la acción, a partir de una página ya hecha. Los enlaces del menú llevan a cada sección y marcan la que está a la vista.
 
 ### Personalizador y constructor de páginas
 
@@ -140,7 +144,7 @@ Todavía no están disponibles las copias de seguridad por sitio, la conversión
 | Ejecución | Un binario de Go, PostgreSQL y nginx delante, sin Node.js en producción |
 | Velocidad | Caché de páginas en memoria, búsqueda de texto completo en PostgreSQL, imágenes adaptables |
 | Escritura | Editor visual y Markdown con vista previa, traducciones, feeds y comentarios |
-| Diseño | Cinco temas, cada uno con modo claro y oscuro; personalizador y constructor de páginas |
+| Diseño | Seis temas, cada uno con modo claro y oscuro; portadas de landing y de una sola página; personalizador y constructor de páginas |
 | Ampliación | Plugins de WebAssembly con aprobación por permiso ligada a los hashes del módulo y de sus recursos |
 | Cuentas | Cinco roles, segundo factor obligatorio (TOTP con códigos de recuperación, o una passkey), acceso sin contraseña con passkeys y registro de auditoría |
 | Migración | Importador de WordPress y redirecciones |

@@ -307,8 +307,7 @@
 /* --------------------------------------------------------------- themes */
 .theme-showcase { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
 @media (min-width: 700px) { .theme-showcase { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1020px) { .theme-showcase { grid-template-columns: repeat(6, 1fr); } .theme-card { grid-column: span 2; } .theme-card:nth-child(-n+2) { grid-column: span 3; } }
-@media (min-width: 700px) and (max-width: 1019px) { .theme-card:last-child { grid-column: 1 / -1; } }
+@media (min-width: 1020px) { .theme-showcase { grid-template-columns: repeat(3, 1fr); } }
 .theme-card { margin: 0; display: flex; flex-direction: column; gap: 1rem; padding: 0.75rem 0.75rem 1.25rem; border: 1px solid var(--border); border-radius: 1.25rem; background: var(--card); transition: border-color .25s, transform .25s; }
 .theme-card:hover { border-color: color-mix(in srgb, var(--icon) 40%, var(--border)); }
 .theme-card figcaption { display: flex; flex-direction: column; gap: 0.25rem; padding: 0 0.5rem; }
@@ -412,6 +411,30 @@
 .m-dash .m-chart span { flex: 1; border-radius: 0.3em 0.3em 0 0; background: color-mix(in srgb, var(--acc) 35%, var(--panel)); }
 .m-dash .m-chart span:nth-child(1) { height: 40%; } .m-dash .m-chart span:nth-child(2) { height: 62%; } .m-dash .m-chart span:nth-child(3) { height: 48%; }
 .m-dash .m-chart span:nth-child(4) { height: 80%; background: var(--acc); } .m-dash .m-chart span:nth-child(5) { height: 58%; } .m-dash .m-chart span:nth-child(6) { height: 70%; } .m-dash .m-chart span:nth-child(7) { height: 92%; }
+
+/* Onepage: paper and ink, a section menu, a serif headline beside the
+   poster of shapes, and the figures below. */
+.m-one { --bg: #f6f3ec; --fg: #17140f; --mut: #ddd5c6; --acc: #c43a20; background: var(--bg); }
+.m-one.mode-dark { --bg: #12110f; --fg: #f3eee4; --mut: #34302a; --acc: #ff6b4a; }
+.m-one .m-nav { gap: 1.2em; margin-bottom: 8%; padding-bottom: 1em; border-bottom: 1px solid var(--mut); }
+.m-one .m-logo { flex: none; width: 1.5em; height: 1.5em; border-radius: 999px; background: linear-gradient(90deg, var(--acc) 50%, var(--fg) 50%); }
+.m-one .m-links { margin-inline: auto; }
+.m-one .m-links span { background: var(--mut); }
+.m-one .m-links span.on { background: var(--fg); box-shadow: 0 0.6em 0 -0.2em var(--acc); }
+.m-one .m-cta { flex: none; width: 5em; height: 1.7em; border-radius: 999px; background: var(--acc); }
+.m-one .m-hero { display: flex; align-items: center; gap: 7%; }
+.m-one .m-text { flex: 1.5; min-width: 0; }
+.m-one .m-h1 { width: 94%; height: 2.6em; border-radius: 0.3em; background: var(--fg); }
+.m-one .m-h1.short { width: 58%; }
+.m-one .m-sub { background: var(--mut); }
+.m-one .m-pill { width: 6.5em; height: 2em; margin-top: 1.4em; border-radius: 999px; background: var(--acc); }
+.m-one .m-art { position: relative; flex: 1; aspect-ratio: 1; }
+.m-one .m-art span { position: absolute; }
+.m-one .m-sun { top: 0; right: 0; width: 64%; aspect-ratio: 1; border-radius: 999px; background: var(--acc); }
+.m-one .m-half { bottom: 4%; left: 0; width: 58%; aspect-ratio: 2; border-radius: 999px 999px 0 0; background: var(--fg); }
+.m-one .m-ring { top: 18%; left: 8%; width: 42%; aspect-ratio: 1; border: 0.18em solid var(--fg); border-radius: 999px; }
+.m-one .m-band { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2em; margin-top: 8%; padding-top: 1.2em; border-top: 1px solid var(--mut); }
+.m-one .m-band span { width: 70%; height: 1.8em; border-radius: 0.3em; background: var(--fg); }
 
 /* ------------------------------------------------------------- security */
 .security { padding-block: clamp(2rem, 5vw, 3rem); }

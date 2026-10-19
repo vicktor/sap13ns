@@ -71,7 +71,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - Menus, widgets and category names can be translated. Page cache keys include the language.
 
 ### Themes
-Five built-in themes, each with light and dark modes:
+Six built-in themes, each with light and dark modes:
 
 | Theme | Style |
 |---|---|
@@ -80,13 +80,17 @@ Five built-in themes, each with light and dark modes:
 | **Glassmorphism** | Frosted, translucent layers |
 | **Bento Grid** | Modular card layout |
 | **Dashboard** | SaaS-style, sidebar navigation |
+| **Onepage** | A one-page site: sticky header with a section menu, editorial serif type, the blog at `/blog` |
 
 Themes are Go templates plus static files. They can be previewed before you switch, and extra themes are loaded from a directory at runtime.
+
+- **Not only blogs:** a theme can be a landing page or a one-page site. It ships `templates/front.html`, **Settings → Reading** shows it at `/`, and the posts move to `/blog`. The blog pages a theme does not ship (posts, pages, archives, search) render with shared fallbacks inside its own layout. Menu links such as `#pricing` scroll to the section with that anchor, and lead back to it (`/#pricing`) from any other page; the link of the section in view is marked as you scroll.
 
 - **Theme uploads:** an administrator uploads a theme as a `.zip` in **Appearance → Themes** (or with `sap13ns theme install`). It is checked before it is installed: only passive static files, no scripts or SVG, stylesheets through the CSS checker, templates parsed with the real functions and checked for loops, recursion, secrets, form targets, inline code and the footer credit. It arrives inactive for a preview, a bad new version leaves the active one in place, and uploaded themes render within output and time limits ([docs/THEMES.md](docs/THEMES.md#uploading-a-theme)).
 
 - **Customiser:** colours, fonts (self-hosted WOFF2), radius, density, header and footer, with a live preview. Changes stay a draft until published, with ten revisions and export/import.
-- **Page builder:** 18 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, image, button, …) arranged per region and page type. Page types you have not built keep the theme's own template.
+- **Page builder:** 25 blocks (header, menu, hero, post list, content, comments, widget areas, rich text, image, button, …) arranged per region and page type. Page types you have not built keep the theme's own template.
+- **Landing pages:** seven landing blocks (features, figures, testimonials, pricing written by hand, questions and answers, logos, call to action), section anchors for one-page menus, and a front page region that starts from a **Landing** or **One-page site** preset in any theme.
 
 See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 

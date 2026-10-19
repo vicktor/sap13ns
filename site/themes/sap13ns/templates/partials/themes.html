@@ -1,4 +1,4 @@
-{{/* CSS-only previews of the five bundled themes. Every preview is drawn
+{{/* CSS-only previews of the six bundled themes. Every preview is drawn
      twice, light and dark, and the dark copy is clipped diagonally. */}}
 
 {{define "tp/apple"}}
@@ -49,19 +49,30 @@
 </span>
 {{end}}
 
+{{define "tp/onepage"}}
+<span class="m m-one mode-{{.}}">
+  <span class="m-nav"><span class="m-logo"></span><span class="m-links"><span class="on"></span><span></span><span></span></span><span class="m-cta"></span></span>
+  <span class="m-hero">
+    <span class="m-text"><span class="m-h1"></span><span class="m-h1 short"></span><span class="m-sub"></span><span class="m-pill"></span></span>
+    <span class="m-art"><span class="m-sun"></span><span class="m-half"></span><span class="m-ring"></span></span>
+  </span>
+  <span class="m-band"><span></span><span></span><span></span><span></span></span>
+</span>
+{{end}}
+
 {{/* sap/theme-card. Data: dict "Name" "Key" "Text". */}}
 {{define "sap/theme-card"}}
 <figure class="theme-card">
   <span class="theme-screen" aria-hidden="true">
-    <span class="theme-half is-light">{{if eq .Key "apple"}}{{template "tp/apple" "light"}}{{else if eq .Key "neumorphism"}}{{template "tp/neumorphism" "light"}}{{else if eq .Key "glass"}}{{template "tp/glass" "light"}}{{else if eq .Key "bento"}}{{template "tp/bento" "light"}}{{else}}{{template "tp/dashboard" "light"}}{{end}}</span>
-    <span class="theme-half is-dark">{{if eq .Key "apple"}}{{template "tp/apple" "dark"}}{{else if eq .Key "neumorphism"}}{{template "tp/neumorphism" "dark"}}{{else if eq .Key "glass"}}{{template "tp/glass" "dark"}}{{else if eq .Key "bento"}}{{template "tp/bento" "dark"}}{{else}}{{template "tp/dashboard" "dark"}}{{end}}</span>
+    <span class="theme-half is-light">{{if eq .Key "apple"}}{{template "tp/apple" "light"}}{{else if eq .Key "neumorphism"}}{{template "tp/neumorphism" "light"}}{{else if eq .Key "glass"}}{{template "tp/glass" "light"}}{{else if eq .Key "bento"}}{{template "tp/bento" "light"}}{{else if eq .Key "onepage"}}{{template "tp/onepage" "light"}}{{else}}{{template "tp/dashboard" "light"}}{{end}}</span>
+    <span class="theme-half is-dark">{{if eq .Key "apple"}}{{template "tp/apple" "dark"}}{{else if eq .Key "neumorphism"}}{{template "tp/neumorphism" "dark"}}{{else if eq .Key "glass"}}{{template "tp/glass" "dark"}}{{else if eq .Key "bento"}}{{template "tp/bento" "dark"}}{{else if eq .Key "onepage"}}{{template "tp/onepage" "dark"}}{{else}}{{template "tp/dashboard" "dark"}}{{end}}</span>
     <span class="theme-modes"><span>{{icon "sun"}}</span><span>{{icon "moon"}}</span></span>
   </span>
   <figcaption><strong>{{.Name}}</strong><span>{{.Text}}</span></figcaption>
 </figure>
 {{end}}
 
-{{/* sap/themes-showcase: the five previews. Data: PageData. */}}
+{{/* sap/themes-showcase: the six previews. Data: PageData. */}}
 {{define "sap/themes-showcase"}}
 <div class="theme-showcase">
   {{template "sap/theme-card" (dict "Key" "apple" "Name" "Apple" "Text" (T "Quiet product-page elegance: frosted navigation, oversized headlines and airy grids."))}}
@@ -69,5 +80,6 @@
   {{template "sap/theme-card" (dict "Key" "glass" "Name" "Glassmorphism" "Text" (T "Frosted, translucent panels floating over an aurora of colour."))}}
   {{template "sap/theme-card" (dict "Key" "bento" "Name" "Bento Grid" "Text" (T "An asymmetric grid of rounded tiles for stories, stats and categories."))}}
   {{template "sap/theme-card" (dict "Key" "dashboard" "Name" "Dashboard / SaaS" "Text" (T "A precise product layout: sidebar, top bar, KPI cards and crisp lists."))}}
+  {{template "sap/theme-card" (dict "Key" "onepage" "Name" "Onepage" "Text" (T "A one-page site: a sticky menu that scrolls to each section, editorial serif headlines and a bold call to action."))}}
 </div>
 {{end}}

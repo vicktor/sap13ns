@@ -31,7 +31,7 @@ Para empresas, profesionales autónomos, tiendas, boletines con patrocinadores, 
 - Certificados HTTPS, emitidos y renovados automáticamente.
 - Actualizaciones a las nuevas versiones de sap13ns, que aplicamos nosotros.
 - Copias de seguridad periódicas de tu contenido y tus archivos.
-- Los cinco temas, con modo claro y oscuro.
+- Los seis temas, con modo claro y oscuro.
 - El editor Markdown, las traducciones, los feeds, los comentarios y el importador de WordPress.
 - Estadísticas sin cookies, sin necesidad de aviso de consentimiento.
 - Una sola cuenta para todos tus sitios.

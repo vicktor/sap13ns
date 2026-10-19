@@ -57,9 +57,13 @@ When you move content, old links should keep working. Redirects are managed from
 
 ## Looks
 
-### Five themes, light and dark
+### Six themes, light and dark
 
-sap13ns ships with Apple, Neumorphism, Glassmorphism, Bento Grid and Dashboard / SaaS. Every theme has a light and a dark mode that follows the visitor's system setting, with a toggle that remembers their choice and no flash of the wrong colours on load. [See the themes](/themes).
+sap13ns ships with Apple, Neumorphism, Glassmorphism, Bento Grid, Dashboard / SaaS and Onepage. Every theme has a light and a dark mode that follows the visitor's system setting, with a toggle that remembers their choice and no flash of the wrong colours on load. [See the themes](/themes).
+
+### Landing pages and one-page sites
+
+The front page does not have to list posts. It can be a landing page or a one-page site, with the blog at `/blog`: the theme's own, or one you build from features, figures, testimonials, pricing, questions and answers, logos and a call to action, starting from a ready-made page. Menu links scroll to each section and mark the one in view.
 
 ### Customiser and page builder
 
@@ -140,7 +144,7 @@ Per-site backups, turning an existing single-site install into a network site, a
 | Runtime | One Go binary, PostgreSQL, nginx in front, no Node.js in production |
 | Speed | In-memory page cache, PostgreSQL full-text search, responsive images |
 | Writing | Visual and Markdown editor with preview, translations, feeds, comments |
-| Design | Five themes, each with light and dark mode; customiser and page builder |
+| Design | Six themes, each with light and dark mode; landing and one-page front pages; customiser and page builder |
 | Extending | WebAssembly plugins with per-permission approval pinned to the module and asset hashes |
 | Accounts | Five roles, mandatory second factor (TOTP with recovery codes, or a passkey), passwordless passkey sign-in, audit log |
 | Migration | WordPress importer, redirects |

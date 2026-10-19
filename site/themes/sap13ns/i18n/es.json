@@ -17,6 +17,7 @@
  "4. Migrate and start": "4. Migra y arranca",
  "50 GB storage": "50 GB de almacenamiento",
  "A domain per site, with HTTPS.": "Un dominio por sitio, con HTTPS.",
+ "A one-page site: a sticky menu that scrolls to each section, editorial serif headlines and a bold call to action.": "Una web de una sola página: un menú fijo que lleva a cada sección, titulares editoriales con serifa y una llamada a la acción contundente.",
  "A precise product layout: sidebar, top bar, KPI cards and crisp lists.": "Un diseño de producto preciso: barra lateral, barra superior, tarjetas de indicadores y listas nítidas.",
  "A separate PostgreSQL schema for every site.": "Un esquema de PostgreSQL propio para cada sitio.",
  "A strict Content Security Policy, Argon2id passwords, two-factor sign-in and plugins that cannot touch files, the network or the database unless you allow it.": "Una Content Security Policy estricta, contraseñas con Argon2id, acceso en dos pasos y plugins que no pueden tocar archivos, red ni base de datos si no lo permites.",

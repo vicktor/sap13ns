@@ -3,7 +3,7 @@ type: page
 key: themes
 title: Themes
 slug: themes
-excerpt: Five finished themes, each with a light and a dark mode, and a plain contract for building your own.
+excerpt: Six finished themes, each with a light and a dark mode, and a plain contract for building your own, whether it is a blog, a landing page or a one-page site.
 order: 2
 menu: [primary, footer, landing]
 menu_label: Themes
@@ -13,7 +13,7 @@ A theme decides how a site looks. It never decides how safe it is. Every sap13ns
 
 Screenshots are on their way. Until they are ready, the previews on this page draw each theme in miniature with nothing but CSS, in its light and dark mode.
 
-## The five themes
+## The six themes
 
 ### Apple
 
@@ -35,6 +35,10 @@ Rounded tiles of different sizes, like a bento box: an asymmetric home grid with
 
 The precision of a product dashboard: persistent sidebar navigation, a top bar with breadcrumbs and search, KPI cards and table-like post lists, with crisp borders, one accent colour and a compact mode. It fits documentation, changelogs, knowledge bases and software products.
 
+### Onepage
+
+A one-page site with an editorial voice: warm paper and ink, large serif headlines (or sans-serif ones), and numbered sections for features, figures, testimonials, pricing and questions, closed by a bold call to action. The sticky menu scrolls to each section and marks the one you are reading. The blog lives at `/blog`, and each section can be switched off. Five accent colours.
+
 ## Light and dark, without the flash
 
 Each theme defines its colours for both modes. A tiny script that ships with the core applies the visitor's saved choice, or their system preference, before the first paint, so the page never flashes white at night. The toggle remembers the choice for next time.
@@ -45,6 +49,12 @@ Themes declare their options in a manifest and the admin panel builds the form: 
 
 Two tools go further without editing a theme. The **customiser** changes its colours, fonts, corner radius, density, header and footer, with a live preview in light and dark mode and contrast warnings. The **page builder** lays out the header, the footer and each type of page from sections, columns and blocks; a page type you have not built keeps the theme's own template. Both keep changes as a draft until you publish them, keep the last ten published versions, and export and import their work as one file.
 
+## Landing pages and one-page sites
+
+A site does not have to look like a blog. In **Settings → Reading**, the front page can be the theme's own: a landing page or a one-page site, with the posts moved to `/blog`. Any theme can have one, built in the page builder from seven landing blocks: features, figures, testimonials, pricing you write yourself, questions and answers, logos and a call to action. Start from the **Landing** or **One-page site** preset and change the texts, in every language of the site.
+
+Sections can have an anchor such as `#pricing`. A menu link to it scrolls there, smoothly unless the visitor has asked for less motion. From any other page it leads back to that section of the front page, and while you scroll, the menu marks the section in view.
+
 ## Build your own
 
 A theme is a folder with a small, documented contract:
@@ -54,12 +64,13 @@ my-theme/
 ├── theme.json          name, menus, widget areas, options, preview colours
 ├── templates/
 │   ├── layout.html     the page frame
-│   ├── home.html       latest posts or the front page
-│   ├── single.html     one post
+│   ├── front.html      a landing page or a one-page site
+│   ├── home.html       latest posts (this, front.html or both)
+│   ├── single.html     one post (optional)
 │   ├── page.html       one page (optional)
 │   ├── archive.html    categories, tags, authors, dates (optional)
 │   ├── search.html     search results (optional)
-│   ├── 404.html        not found (optional)
+│   ├── 404.html        not found
 │   ├── ask.html        the site assistant without JavaScript (optional)
 │   └── partials/       anything you want to reuse
 ├── i18n/es.json        translations of the theme's own strings
@@ -67,7 +78,9 @@ my-theme/
 └── static/theme.css    the compiled stylesheet
 ```
 
-To install a theme, copy its folder into the themes directory (`SAP13NS_THEMES_DIR`, by default `themes` in the data directory) and restart sap13ns: there is no recompiling. There is no form to upload a theme from the admin yet.
+A theme that leaves out the blog pages still has a blog: the posts, pages, archives and search results it does not draw use plain shared templates inside its own frame and colours.
+
+To install a theme, upload its `.zip` in **Appearance → Themes**, where it is checked before it is installed, or copy its folder into the themes directory (`SAP13NS_THEMES_DIR`, by default `themes` in the data directory) and restart sap13ns: there is no recompiling.
 
 Templates use Go's `html/template`, which escapes output by context, and a set of shared partials for the parts every site needs: the document head with canonical and `hreflang` links, menus, the language switcher, the light and dark toggle, comments, pagination and the search form. A theme can override any of them.
 

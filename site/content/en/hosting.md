@@ -31,7 +31,7 @@ For companies, freelancers, shops, newsletters with sponsors, client projects an
 - HTTPS certificates, issued and renewed automatically.
 - Updates to new sap13ns versions, applied by us.
 - Regular backups of your content and uploads.
-- All five themes, with light and dark modes.
+- All six themes, with light and dark modes.
 - The Markdown editor, translations, feeds, comments and the WordPress importer.
 - Cookie-less statistics, with no consent banner needed.
 - One account for all your sites.

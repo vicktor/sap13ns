@@ -3,6 +3,7 @@
 This is the contract between sap13ns and its themes: the folder layout, the manifest, the templates and the data they receive, the CSS pipeline and the design tokens, and the rules every theme follows. It also covers what operators can change without touching a theme: the customiser and the page builder.
 
 - **Writing a theme?** Copy a built-in theme from `ui/themes/` and read [Folder layout](#folder-layout), [Templates](#templates) and [CSS and design tokens](#css-and-design-tokens).
+- **A landing page or a one-page site?** A theme does not have to be a blog: read [Front pages and one-page sites](#front-pages-and-one-page-sites), and start from `ui/themes/onepage`.
 - **Running a site?** Read [Installing a theme](#installing-a-theme), [Uploading a theme](#uploading-a-theme), [The customiser](#the-customiser) and [The page builder](#the-page-builder).
 
 ## Contents
@@ -12,16 +13,17 @@ This is the contract between sap13ns and its themes: the folder layout, the mani
 3. [Uploading a theme](#uploading-a-theme)
 4. [theme.json](#themejson)
 5. [Templates](#templates)
-6. [Shared templates](#shared-templates)
-7. [Template data](#template-data)
-8. [Translations](#translations)
-9. [CSS and design tokens](#css-and-design-tokens)
-10. [Light and dark](#light-and-dark)
-11. [Content Security Policy](#content-security-policy)
-12. [Accessibility](#accessibility)
-13. [The customiser](#the-customiser)
-14. [The page builder](#the-page-builder)
-15. [Checklist](#checklist)
+6. [Front pages and one-page sites](#front-pages-and-one-page-sites)
+7. [Shared templates](#shared-templates)
+8. [Template data](#template-data)
+9. [Translations](#translations)
+10. [CSS and design tokens](#css-and-design-tokens)
+11. [Light and dark](#light-and-dark)
+12. [Content Security Policy](#content-security-policy)
+13. [Accessibility](#accessibility)
+14. [The customiser](#the-customiser)
+15. [The page builder](#the-page-builder)
+16. [Checklist](#checklist)
 
 ## Folder layout
 
@@ -32,12 +34,13 @@ my-theme/
 ├── theme.json            manifest: name, menus, widget areas, options, colours
 ├── templates/
 │   ├── layout.html       the page frame (required)
-│   ├── home.html         latest posts (required)
-│   ├── single.html       one post (required)
+│   ├── front.html        the front page as a landing or a one-page site
+│   ├── home.html         latest posts (front.html, home.html or both)
+│   ├── single.html       one post
 │   ├── page.html         one page
 │   ├── archive.html      categories, tags, authors and dates
 │   ├── search.html       search results
-│   ├── 404.html          not found
+│   ├── 404.html          not found (required in an upload)
 │   ├── ask.html          the site assistant without JavaScript
 │   └── partials/*.html   templates shared by the theme's pages
 ├── i18n/<lang>.json      translations of the theme's own strings
@@ -94,7 +97,7 @@ An administrator can install a theme from a `.zip` file, without access to the s
 - `static/**`;
 - `README`, `LICENSE`, `LICENCE`, `COPYING` and `CHANGELOG` (optionally `.md` or `.txt`) at the root.
 
-`theme.json`, `templates/layout.html`, `templates/home.html`, `templates/single.html` and `static/theme.css` are required. Anything else is refused.
+`theme.json`, `templates/layout.html`, `templates/404.html`, `static/theme.css` and a front page (`templates/front.html`, `templates/home.html` or both) are required. Anything else is refused.
 
 **Static files.** By extension and by content: `.css`, `.woff2`, `.woff`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.gif` and `.ico`. Each file's content is sniffed with the media library's checks (`internal/media`) and must match its extension, so an HTML page cannot pass as a `.png`.
 
@@ -199,15 +202,20 @@ Templates are Go [`html/template`](https://pkg.go.dev/html/template), which esca
 - **`partials/*.html`** are parsed into every page. Use them for templates the theme's pages share, and give them names that cannot clash with `content` or `layout`.
 - **Overriding.** Shared templates are parsed first, so a theme can redefine any of them (`shared/…` or `blocks/…`) in a partial. An uploaded theme cannot redefine the ones that render the head and the credit ([Uploading a theme](#uploading-a-theme)).
 
+A theme needs `layout` and a front page: `front`, `home` or both. Every other page is optional. A missing page renders with another of the theme's pages, or with a neutral shared fallback inside the theme's own layout, so a landing-page theme still has a working blog.
+
 | Page | Used for | Without it |
 |---|---|---|
-| `home` | the latest posts (`/` and `/blog`) | required |
-| `single` | one post | required |
-| `page` | one page, including a static front page | `single` |
-| `archive` | category, tag, author and date archives | `home` |
-| `search` | search results | `home` |
+| `front` | the theme's own front page: a landing page or a one-page site ([below](#front-pages-and-one-page-sites)) | `/` lists the latest posts |
+| `home` | the latest posts (`/`, or `/blog` when the front page is something else) | `shared/fallback-home` |
+| `single` | one post | `shared/fallback-single` |
+| `page` | one page, including a static front page | `single`, else `shared/fallback-single` |
+| `archive` | category, tag, author and date archives | `home`, else `shared/fallback-list` |
+| `search` | search results | `home`, else `shared/fallback-list` |
 | `404` | not found and gone | `shared/not-found` inside the layout |
 | `ask` | the site assistant without JavaScript | `shared/ask` inside the layout |
+
+The fallbacks use the shared blocks (post list, post details, content, comments, pagination) and the neutral `.sap-fallback` styles of `shared.css`, which follow the theme's colour tokens. A theme can restyle them in its `theme.css`.
 
 Pages laid out with the [page builder](#the-page-builder) use a page the server adds, whose `content` is `shared/blocks-main`. They still render inside the theme's `layout`.
 
@@ -237,6 +245,39 @@ A minimal `layout.html`:
 </html>{{end}}
 ```
 
+## Front pages and one-page sites
+
+A theme can be a landing page or a one-page site rather than a blog. `templates/front.html` is its front page; the blog moves to `/blog`, where the theme's `home` (or the shared fallback) lists the posts.
+
+**When `/` shows it.** **Settings → Reading** has three choices for the front page: the latest posts, a static page, or **The theme's front page**. The last one shows the active theme's `front.html`, or a front page built in the [page builder](#the-page-builder), which any theme can have and which takes the place of `front.html`. With neither, `/` lists the posts.
+
+- **Activating** a theme that has `front.html` while the site shows its latest posts switches the setting to the theme's front page. A static front page is left alone.
+- **Previewing** a theme that has `front.html` (`?preview_theme=<slug>`) shows it at `/`, even while the site lists its posts.
+- **`/?page=2`** keeps listing the posts, and the sitemap lists `/blog` (in every language) whenever `/` does not.
+
+**Its data** is a PageData with `.Kind` `front` and `.IsFront`, the WebSite JSON-LD, and the latest posts in `.Posts` (as many as the posts per page, without pagination) for a section that shows them. Link to the rest with `.Site.Blog`.
+
+**Sections and anchors.** Give each section the menu scrolls to an `id` and the class `sap-anchor`:
+
+```html
+<section class="sap-anchor" id="pricing" aria-labelledby="pricing-title">…</section>
+<a href="{{.Site.Link "#pricing"}}">{{T "Pricing"}}</a>
+```
+
+- **`.Site.Link "#pricing"`** is `#pricing` on the front page and `/#pricing` (or `/en/#pricing`) on every other page, so the menu still works from a post. Menu items whose link is `#name` (**Appearance → Menus**), and the links of builder headers and footers, go through it on their own.
+- **`onepage.js`** is loaded by `shared/head` on the front page and on any page whose menu or layout has anchors (`.OnePage`). It gives the links in `header`, `nav` and `footer` that point to the section in view `aria-current="true"`. Style `a[aria-current]` to show it.
+- **A sticky header** (a `header` or a `[data-sticky]` element with `position: sticky` or `fixed`) is measured into `--sap-scroll-offset`, which `.sap-anchor` uses as its `scroll-margin-top`, so a section never lands under it.
+- **Scrolling is smooth** only under `prefers-reduced-motion: no-preference`. The links are ordinary links, so the page works without JavaScript.
+
+**The landing blocks' markup.** The page builder's landing blocks (features, stats, testimonials, pricing, questions, logos, call to action, in `ui/shared/templates/blocks/landing.html`) use classes such as `.sap-feature`, `.sap-stats`, `.sap-quote`, `.sap-plan` and `.sap-faq-item`, styled by `shared.css`. A `front.html` that uses the same markup for its sample sections gets those styles, and whatever the theme adds to them also applies to a front page built from blocks.
+
+**Onepage**, the built-in example (`ui/themes/onepage`), ships only `layout.html`, `front.html` and `404.html`:
+
+- a sticky header whose menu, when the site has none, links to its sample sections and to the blog;
+- an introduction, figures, features, testimonials, pricing, questions, the latest posts and a closing call to action, with every text through `T`;
+- options for the accent, serif or sans headlines, the introduction's headline and text, the contact link, and one switch per section (its menu link goes with it);
+- a note, for administrators only, that opens the page builder on the front page, whose **One-page site** preset rewrites the samples as blocks to edit.
+
 ## Shared templates
 
 `ui/shared/templates` holds the parts every site needs. Call them with `{{template "shared/<name>" <data>}}`.
@@ -265,6 +306,7 @@ A minimal `layout.html`:
 | `shared/search-form` | PageData | the search form; its field gets an id unique in the page, so it can appear more than once |
 | `shared/search-count` | PageData | "12 results for “q”" for screen readers (a visually hidden status); show your own count beside it with `aria-hidden="true"` |
 | `shared/no-results` | PageData | an empty listing |
+| `shared/fallback-home`, `shared/fallback-single`, `shared/fallback-list` | PageData | the stand-ins for a missing `home`, `single`/`page` and `archive`/`search` ([Templates](#templates)) |
 | `shared/not-found` | PageData | the default 404 body |
 | `shared/comments` | PageData | the comments and the comment form |
 | `shared/subscribe` | PageData | feed links |
@@ -280,9 +322,10 @@ Every page template gets a **PageData** (`.`).
 | Field | Meaning |
 |---|---|
 | `.Site` | the site (below) |
-| `.Kind` | `home`, `single`, `page`, `archive`, `search`, `404` or `ask` |
+| `.Kind` | `front`, `home`, `single`, `page`, `archive`, `search`, `404` or `ask` |
 | `.Title`, `.Heading`, `.Description` | the page's title, its visible heading and its description |
-| `.IsFront` | the front page (latest posts or a static front page) |
+| `.IsFront` | the front page: the theme's front page, a static front page or the latest posts at `/` |
+| `.OnePage` | the page has sections to scroll to, or menu links to them ([Front pages](#front-pages-and-one-page-sites)) |
 | `.Posts`, `.Pagination`, `.Total` | listings: home, archives and search; `.Total` counts the posts of every page |
 | `.Post` | single posts and pages |
 | `.Prev`, `.Next` | the neighbouring posts of a single post |
@@ -300,8 +343,10 @@ Every page template gets a **PageData** (`.`).
 | Field | Meaning |
 |---|---|
 | `.Title`, `.Tagline`, `.Lang`, `.Year` | site title and tagline, page language, current year |
-| `.URL`, `.Home`, `.Search` | the absolute home URL, and the home and search paths in this language |
-| `.Menu "<id>"` | a menu location's links (`.Label`, `.URL`, `.Active`, `.External`) |
+| `.URL`, `.Home`, `.Search`, `.Blog` | the absolute home URL, and the home, search and posts list (`/blog`) paths in this language |
+| `.Menu "<id>"` | a menu location's links (`.Label`, `.URL`, `.Active`, `.External`); the primary location falls back to the published pages |
+| `.Menus` | the menus made for each location, without that fallback (`index .Site.Menus "primary"` is empty when there is none) |
+| `.Link "<url>"` | a link as this page needs it: away from the front page, `#section` becomes `/#section` |
 | `.Options` | the theme options (`index .Site.Options "<key>"`) |
 | `.Categories`, `.Tags`, `.Pages`, `.Archives`, `.Stats` | lists and counts for navigation and widgets; a term or month has `.Current` on its own archive (use `aria-current="page"`) |
 | `.FeedRSS`, `.FeedAtom`, `.FeedJSON` | feed URLs |
@@ -475,22 +520,26 @@ Themes are expected to meet WCAG 2.2 AA.
 
 **Appearance → Page builder** replaces a theme's regions with layouts made of sections, columns and blocks. Each theme has its own layouts.
 
-- **Regions.** The header and the footer (on every page), and one main area per page type: home, posts, pages, archives, search results and not found.
+- **Regions.** The header and the footer (on every page), and one main area per page type: the front page (a landing page, shown when **Settings → Reading** picks the theme's front page; see [Front pages](#front-pages-and-one-page-sites)), the latest posts, posts, pages, archives, search results and not found.
 - **Sections** have a column layout (`1`, `1-1`, `2-1`, `1-2` or `1-1-1`; columns stack on small screens) and a style: background (none, muted, card, primary, accent, inverted), spacing, width (content, narrow, wide, full) and alignment.
-- **Limits.** 40 sections per region, 40 blocks per column, 600 blocks in all.
+- **Anchors.** A section can have an anchor (`features` makes it `#features`): 1 to 40 lower-case letters, digits and hyphens, starting with a letter, unique in its region, and not `main`, `menu`, `primary-menu`, `comments`, `respond`, `search` or `sap-…`. A menu link or a button to `#features` scrolls to it, on the front page or, through `/#features`, from any other.
+- **Presets.** An empty front page offers two ready-made pages: **Landing** (hero, features, testimonials, pricing and a call to action, with `#features`, `#pricing` and `#contact`) and **One-page site** (sections with anchors: `#intro`, `#about`, `#services`, `#testimonials`, `#faq`, `#contact`). Their texts are written in the site's main language, with translations for the others, and stay editable.
+- **Limits.** 40 sections per region, 40 blocks per column, 600 blocks in all, and at most 30 items per landing block (6 plans, 8 figures, 12 features or testimonials, 24 logos).
 
 | Block | Where |
 |---|---|
 | Site header: brand, menu, search, language switch, light/dark toggle | header, once |
 | Menu, Search, Hero, Widget area, Text (Markdown), Image, Button, Spacer or divider, Social links | anywhere |
 | Breadcrumbs | posts, pages, archives, search, not found; once |
-| Post list (grid, list or bento) | home, archives, search; once |
+| Features, Stats, Testimonials, Pricing, Questions and answers, Logos, Call to action (the landing blocks, each with its list of items) | anywhere |
+| Post list (grid, list or bento) | front page, home, archives, search; once |
 | Post content | posts and pages; once, and required there |
 | Post details, Featured image, Comments | posts and pages |
 | Pagination | home, archives, search, posts; once |
 | Footer line and credits | footer; always there |
 
 - **Validation.** Every block is checked against its schema: settings are typed, links accept `https:`, `http:`, site paths, `#…`, `mailto:` and `tel:`, and appearance is always a named choice.
+- **Landing blocks.** Each item has its own fields: a feature's icon, title and text; a plan's name, price, period, description, features (one per line), button and highlight; a question and its answer, in Markdown through the content pipeline. Icons come from a fixed list of Lucide icons compiled into the binary and images from the media library. Pricing is written by hand and never reads a network's plans. An item without its main text (a question without an answer, a logo without an image…) is left out of the page.
 - **Languages.** Text settings have a main value and an optional translation per site language. A missing translation shows the main value.
 - **Drafts and publishing** work like the customiser's: a draft shows only in the preview, publishing makes it live, the last 10 published versions are kept, and the layouts travel in the customiser's export file.
 
@@ -515,7 +564,8 @@ A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-are
 ## Checklist
 
 - [ ] `theme.json` with menus, widget areas (including `top`), options, `tokens` and `swatches`.
-- [ ] `layout.html`, `home.html` and `single.html`, plus the optional pages you need.
+- [ ] `layout.html`, `404.html` and a front page (`front.html`, `home.html` or both), plus the optional pages you need; the others use the shared fallbacks.
+- [ ] For a one-page theme: sections with an `id` and `sap-anchor`, menu links through `.Site.Link`, and a style for `a[aria-current]`.
 - [ ] `shared/head`, `shared/skip-link`, `shared/admin-bar`, `shared/footer-meta` and `shared/assistant` in the layout.
 - [ ] Every visible string through `T`, every site link through `link`.
 - [ ] Every `--sap-*` colour token mapped with fallbacks in `:root` and `.dark`, and the scales where they make sense.
