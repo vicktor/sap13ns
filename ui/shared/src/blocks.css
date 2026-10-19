@@ -221,7 +221,7 @@
   /* Features. */
   .sap-feature { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; text-align: start; }
   .sap-features-cards .sap-feature { padding: calc(1.5rem * var(--sap-space-scale, 1)); border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--card-foreground); }
-  .sap-feature-icon { display: inline-grid; place-items: center; width: 2.75rem; height: 2.75rem; margin-bottom: 0.35rem; border-radius: calc(var(--radius) * 0.8); background: color-mix(in oklch, var(--primary) 13%, transparent); color: var(--primary); }
+  .sap-feature-icon { display: inline-grid; place-items: center; width: 2.75rem; height: 2.75rem; margin-bottom: 0.35rem; border-radius: calc(var(--radius) * 0.8); background: color-mix(in srgb, var(--primary) 13%, transparent); color: var(--primary); }
   .sap-feature-icon svg { width: 1.35rem; height: 1.35rem; }
   .sap-feature-title { margin: 0; font-size: 1.12rem; font-weight: 650; line-height: 1.3; letter-spacing: -0.01em; }
   .sap-feature-text { margin: 0; color: var(--muted-foreground); line-height: 1.6; }
@@ -261,13 +261,13 @@
   .sap-plans { display: grid; gap: calc(1.25rem * var(--sap-space-scale, 1)); align-items: stretch; margin: 0; padding: 0; list-style: none; }
   @media (min-width: 720px) { .sap-plans:not(.sap-plans-1) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (min-width: 1024px) {
-    .sap-plans-3, .sap-plans-5, .sap-plans-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .sap-plans-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .sap-plans:is(.sap-plans-3, .sap-plans-5, .sap-plans-6) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sap-plans.sap-plans-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
   .sap-plans-1 { max-width: 26rem; }
   .sap-align-center > .sap-section-inner .sap-plans-1 { margin-inline: auto; }
   .sap-plan { position: relative; display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; padding: calc(1.6rem * var(--sap-space-scale, 1)); border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--card-foreground); text-align: start; }
-  .sap-plan.is-highlighted { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), 0 24px 48px -28px color-mix(in oklch, var(--primary) 55%, transparent); }
+  .sap-plan.is-highlighted { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), 0 24px 48px -28px color-mix(in srgb, var(--primary) 55%, transparent); }
   .sap-plan > * { margin: 0; }
   .sap-plan-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .sap-plan-name { margin: 0; font-size: 1.1rem; font-weight: 650; }
@@ -309,7 +309,7 @@
 
   /* Call to action. */
   .sap-b-cta { display: flex; flex-direction: column; gap: 1.5rem; }
-  .sap-b-cta.sap-cta-panel { padding: calc(clamp(2rem, 5vw, 3.5rem) * var(--sap-space-scale, 1)); border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.5); background: radial-gradient(120% 140% at 0% 0%, color-mix(in oklch, var(--primary) 16%, transparent), transparent 60%), var(--card); color: var(--card-foreground); }
+  .sap-b-cta.sap-cta-panel { padding: calc(clamp(2rem, 5vw, 3.5rem) * var(--sap-space-scale, 1)); border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.5); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 60%), var(--card); color: var(--card-foreground); }
   .sap-cta-text { display: flex; flex-direction: column; gap: 0.75rem; max-width: 44rem; }
   .sap-cta-text > * { margin: 0; }
   .sap-cta-title { font-family: var(--sap-font-heading, inherit); font-size: clamp(1.7rem, 4.2vw, 2.75rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance; }
