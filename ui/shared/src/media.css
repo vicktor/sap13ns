@@ -51,7 +51,7 @@ figure.sap-video :is(a, button).sap-video-link::after {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0) 34%, rgb(0 0 0 / 0) 72%, rgb(0 0 0 / 0.28));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.78), rgb(0 0 0 / 0.5) 16%, rgb(0 0 0 / 0) 38%, rgb(0 0 0 / 0) 72%, rgb(0 0 0 / 0.28));
   pointer-events: none;
 }
 figure.sap-video img.sap-video-poster {
@@ -108,7 +108,7 @@ figure.sap-video span.sap-video-caption {
   padding: 0.85rem 1rem 1.5rem;
   font-size: 0.95rem;
   line-height: 1.3;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8), 0 0 8px rgb(0 0 0 / 0.5);
 }
 figure.sap-video span.sap-video-title {
   display: -webkit-box;
@@ -117,7 +117,7 @@ figure.sap-video span.sap-video-title {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-figure.sap-video span.sap-video-source { font-size: 0.8rem; opacity: 0.85; }
+figure.sap-video span.sap-video-source { font-size: 0.8rem; opacity: 0.9; }
 figure.sap-video iframe.sap-video-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 @media (max-width: 480px) {
   figure.sap-video span.sap-video-play { width: 3.6rem; height: 2.5rem; border-radius: 0.75rem; }
