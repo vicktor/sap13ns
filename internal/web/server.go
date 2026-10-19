@@ -95,6 +95,8 @@ type Server struct {
 	billing     PortalBilling  // the portal of a network with a Stripe key (billing.go)
 	reviews     PortalPlugins  // the portal: the operator's review of uploaded plugins (limits.go)
 	limits      SiteLimits     // a site of a network: its plan (limits.go)
+	switcher    SiteSwitcher   // a site of a network, the portal too: the admin's site switcher (switcher.go)
+	switchCache switcherCache  // the switcher's list, per session
 	backupHooks BackupHooks    // a site of a network: its name, and the reload after a restore (backups.go)
 	netBackups  NetworkBackups // the portal: the network's nightly backups
 	backupNow   *auth.Limiter  // backups started from Tools → Backups
@@ -172,6 +174,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	s.sso, _ = d.Network.(SSOClient)
 	s.portal, _ = d.Network.(Portal)
 	s.backupHooks, _ = d.Network.(BackupHooks)
+	s.switcher, _ = d.Network.(SiteSwitcher)
 	if b, ok := d.Network.(PortalBilling); ok && s.portal != nil && b.BillingEnabled() {
 		s.billing = b
 	}

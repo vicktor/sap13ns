@@ -62,7 +62,7 @@
     </section>
     {{end}}
     {{if $d.CanRequest}}
-    <section class="card">
+    <section class="card" id="request">
       <header><h2>{{T "Request a site"}}</h2><p>{{T "A free Personal site, which opens once a network administrator approves it. You can have one."}}</p></header>
       <section>
         {{template "form-error" $d.Error}}

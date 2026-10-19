@@ -251,7 +251,7 @@ type adminTemplates struct {
 	pages  map[string]*template.Template
 }
 
-var adminBase = []string{"layout.html", "auth.html", "partials.html", "ai_panel.html"}
+var adminBase = []string{"layout.html", "auth.html", "partials.html", "ai_panel.html", "site_switcher.html"}
 
 func newAdminTemplates(ui fs.FS, funcs template.FuncMap, reload bool) (*adminTemplates, error) {
 	sub, err := fs.Sub(ui, "admin/templates")
@@ -344,6 +344,9 @@ type adminPage struct {
 	NetFailing   int  // billing events that failed, for network admins
 	NetReviews   int  // plugin uploads waiting for the operator's review
 	Reviews      bool // the network reviews the plugins its sites upload
+
+	// On every site of a network: the account's other sites (switcher.go).
+	Switcher *switcherView
 }
 
 func (p *adminPage) Can(c string) bool {
@@ -370,6 +373,7 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 			p.Pending = counts["pending"]
 		}
 	}
+	p.Switcher = s.siteSwitcher(r)
 	if s.portal != nil && p.User != nil {
 		p.Portal, p.Billing = true, s.billing != nil
 		if ok, err := s.portal.IsNetworkAdmin(r.Context(), p.User.ID); err == nil && ok {

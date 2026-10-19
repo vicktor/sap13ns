@@ -27,6 +27,7 @@ chevron-left
 chevron-right
 chevron-up
 chevrons-right
+chevrons-up-down
 circle-alert
 circle-check
 circle-question-mark

@@ -120,6 +120,26 @@
 .brand-text strong { @apply truncate text-sm font-semibold; }
 .brand-text small { @apply text-muted-foreground text-[0.7rem]; }
 
+/* The site switcher (multisite): the sidebar's header on a site of a network. */
+.site-switcher { @apply flex w-full; }
+.site-switcher-trigger { @apply w-full text-left; }
+.site-switcher-trigger .brand-text { @apply flex-1; }
+.site-switcher-trigger[aria-expanded="true"] { @apply bg-sidebar-accent; }
+.site-switcher-chevron { @apply size-4 shrink-0 text-muted-foreground; }
+#site-switcher [data-popover] { @apply max-h-[min(28rem,75dvh)] min-w-60; }
+#site-switcher .site-switcher-item { @apply gap-2.5; }
+.site-switcher-mark {
+  @apply grid size-7 shrink-0 place-items-center rounded-md bg-accent text-[0.65rem] font-semibold text-accent-foreground;
+}
+.site-switcher-item[aria-current] .site-switcher-mark {
+  @apply text-primary-foreground;
+  background: linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 55%, oklch(0.7 0.18 300)));
+}
+.site-switcher-text { @apply flex min-w-0 flex-col leading-tight; }
+.site-switcher-text strong { @apply truncate font-medium; }
+.site-switcher-text small { @apply truncate text-xs text-muted-foreground; }
+#site-switcher .site-switcher-empty { @apply whitespace-normal text-muted-foreground; }
+
 .sidebar nav > footer { @apply border-t border-sidebar-border; }
 .user-button { @apply flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-sidebar-accent; }
 .user-meta { @apply flex min-w-0 flex-col leading-tight; }

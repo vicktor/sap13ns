@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -100,6 +101,10 @@ type Network struct {
 
 	// hook runs after each provisioning step; tests make it fail.
 	hook func(step string) error
+
+	// changes counts the changes committed through mutate, so that the
+	// site switcher's caches see them at once (switcher.go).
+	changes atomic.Uint64
 }
 
 // New returns the network of a shared pool (db.OpenShared) whose network
@@ -146,7 +151,9 @@ func (n *Network) mutate(ctx context.Context, siteID int64, fn func(pgx.Tx) erro
 	if _, err := tx.Exec(ctx, `SELECT pg_notify($1, $2)`, Channel, payload); err != nil {
 		return err
 	}
-	return mapErr(tx.Commit(ctx))
+	err = tx.Commit(ctx)
+	n.changes.Add(1) // also when the commit failed: it may have happened
+	return mapErr(err)
 }
 
 // restoredPrefix starts the notification payload of a site whose content

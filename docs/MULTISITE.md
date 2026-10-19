@@ -159,6 +159,11 @@ When the account is already signed in to the portal, this takes no clicks. The s
 
 Removing a member, or disabling an account, disables the linked users and ends their sessions at once, also on sites that are not loaded. A session that came through the portal does not ask for the site's second factor, because the portal has already asked for one.
 
+**Switching sites.** The admin of the portal, and of every site, has a site switcher at the top of its sidebar. It shows the site you are on, by its title and address, and lists the sites your account is a member of, with your role on each. An entry opens that site's admin through single sign-on, so with a portal session it takes no clicks. The menu also links to **My sites**, to the network admin area for network administrators, and to **Request a site** when the account may request one.
+- **Only memberships.** The switcher lists the pending and active sites the account is a member of. A site a network administrator opens with [support access](#support-access) or an [emergency access](#emergency-access) is not listed, even on that site: that access starts from the network admin area.
+- **On a site,** the switcher shows only in a session that came through the portal. A local user signed in with the site's own password sees the site's name, as on a single site.
+- **Freshness.** Each session reuses its list for 30 seconds. A change made on the running server (a membership, a site's status, a network administrator) shows at once; one made with the command line shows within a few seconds, when the host table is reloaded. A site's new title shows within 30 seconds.
+
 **Every portal account has a second factor.** An account opens every site it is a member of, so the portal requires an authenticator app or a passkey of every account, whatever its role and whatever the portal's own two-factor setting. A new account is sent to set one up as soon as it first signs in, and sees **My sites** and **Request a site** only after that. `SAP13NS_DEV_SKIP_2FA=true` lifts this in development mode only (`SAP13NS_DEV=true`), as it does on a single site.
 
 ### Operator access

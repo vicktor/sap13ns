@@ -1,0 +1,34 @@
+{{/* The site switcher of a site of a network (switcher.go): the header of
+   the sidebar, a menu of the account's sites, each opened through single
+   sign-on, and the portal's pages. Its data is a *switcherView. */}}
+{{define "site-switcher"}}
+<div id="site-switcher" class="dropdown-menu site-switcher">
+  <button type="button" id="site-switcher-trigger" class="brand site-switcher-trigger" aria-haspopup="menu" aria-controls="site-switcher-menu" aria-expanded="false" title="{{T "Switch site"}}">
+    <span class="brand-mark" aria-hidden="true">{{initials .Title}}</span>
+    <span class="brand-text"><strong>{{.Title}}</strong><small>{{.Host}}</small></span>
+    <span class="sr-only">{{T "Switch site"}}</span>
+    {{icon "chevrons-up-down" "site-switcher-chevron"}}
+  </button>
+  <div id="site-switcher-popover" data-popover aria-hidden="true" data-side="bottom" data-align="start">
+    <div role="menu" id="site-switcher-menu" aria-labelledby="site-switcher-trigger">
+      <div role="group" aria-labelledby="site-switcher-sites">
+        <div role="heading" id="site-switcher-sites">{{T "Your sites"}}</div>
+        {{range .Sites}}
+        <a role="menuitem" href="{{.OpenURL}}" class="site-switcher-item"{{if .Current}} aria-current="true"{{end}}>
+          <span class="site-switcher-mark" aria-hidden="true">{{initials .Name}}</span>
+          <span class="site-switcher-text"><strong>{{.Name}}</strong><small>{{.Host}} · {{roleLabel .Role}}{{if eq .Status "pending"}} · {{T "Pending approval"}}{{end}}</small></span>
+          {{if .Current}}{{icon "check" "ml-auto"}}<span class="sr-only">{{T "Current site"}}</span>{{end}}
+        </a>
+        {{else}}
+        <div role="menuitem" aria-disabled="true" class="site-switcher-empty">{{T "You are not a member of any site yet"}}</div>
+        {{end}}
+        {{if .More}}<a role="menuitem" href="{{.MySitesURL}}" class="site-switcher-more">{{icon "ellipsis"}}{{plural .More "%d more site" "%d more sites"}}</a>{{end}}
+      </div>
+      <hr role="separator">
+      <a role="menuitem" href="{{.MySitesURL}}">{{icon "globe"}}{{T "My sites"}}</a>
+      {{with .NetworkURL}}<a role="menuitem" href="{{.}}">{{icon "layers"}}{{T "Network administration"}}</a>{{end}}
+      {{with .RequestURL}}<a role="menuitem" href="{{.}}">{{icon "plus"}}{{T "Request a site"}}</a>{{end}}
+    </div>
+  </div>
+</div>
+{{end}}

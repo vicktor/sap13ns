@@ -31,10 +31,12 @@
 <aside id="admin-sidebar" class="sidebar" data-side="left" aria-hidden="false">
   <nav aria-label="{{T "Administration"}}">
     <header>
+      {{if .Switcher}}{{template "site-switcher" .Switcher}}{{else}}
       <a href="/admin/" class="brand">
         <span class="brand-mark" aria-hidden="true">{{initials .Site.SiteTitle}}</span>
         <span class="brand-text"><strong>{{.Site.SiteTitle}}</strong><small>sap13ns</small></span>
       </a>
+      {{end}}
     </header>
     <section class="scrollbar">
       {{if .Portal}}
