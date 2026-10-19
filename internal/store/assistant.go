@@ -19,8 +19,16 @@ type AssistantSettings struct {
 	Name        string   `json:"name"`
 	Greeting    string   `json:"greeting"`
 	Suggestions []string `json:"suggestions"`
-	// Text translates the greeting and suggestions per extra language.
+	// Text translates the greeting, suggestions and bubble label per extra
+	// language.
 	Text map[string]AssistantText `json:"text,omitempty"`
+	// The chat button ("bubble"): the bottom corner it sits in, how high
+	// above the bottom edge, and an optional short label shown beside it.
+	// An empty place is left out of the JSON, so it reads back as the
+	// default.
+	BubblePosition string `json:"bubble_position,omitempty"` // BubbleRight or BubbleLeft
+	BubbleOffset   string `json:"bubble_offset,omitempty"`   // BubbleNormal, BubbleRaised or BubbleHigh
+	BubbleLabel    string `json:"bubble_label,omitempty"`
 	// Limits: questions per visitor IP and hour, and site-wide questions per
 	// day and per month (0 means unlimited).
 	PerIPHour       int `json:"per_ip_hour"`
@@ -40,22 +48,42 @@ type AssistantSettings struct {
 	MCPTokenHash string `json:"mcp_token_hash,omitempty"`
 }
 
+// The places of the chat button.
+const (
+	BubbleRight = "right"
+	BubbleLeft  = "left"
+
+	BubbleNormal = "normal" // in the corner
+	BubbleRaised = "raised" // above a cookie bar or a bottom banner
+	BubbleHigh   = "high"   // well above the bottom edge
+)
+
+// BubblePositions and BubbleOffsets are the valid values, the default first.
+var (
+	BubblePositions = []string{BubbleRight, BubbleLeft}
+	BubbleOffsets   = []string{BubbleNormal, BubbleRaised, BubbleHigh}
+)
+
 // AssistantText is the translatable part of the assistant settings.
 type AssistantText struct {
 	Greeting    string   `json:"greeting"`
 	Suggestions []string `json:"suggestions"`
+	BubbleLabel string   `json:"bubble_label,omitempty"`
 }
 
-// In returns the greeting and suggestions for lang, falling back to the
-// main-language values.
+// In returns the greeting, suggestions and bubble label for lang, falling
+// back to the main-language values.
 func (s AssistantSettings) In(lang string) AssistantText {
-	out := AssistantText{Greeting: s.Greeting, Suggestions: s.Suggestions}
+	out := AssistantText{Greeting: s.Greeting, Suggestions: s.Suggestions, BubbleLabel: s.BubbleLabel}
 	if t, ok := s.Text[lang]; ok {
 		if t.Greeting != "" {
 			out.Greeting = t.Greeting
 		}
 		if len(t.Suggestions) > 0 {
 			out.Suggestions = t.Suggestions
+		}
+		if t.BubbleLabel != "" {
+			out.BubbleLabel = t.BubbleLabel
 		}
 	}
 	return out
@@ -66,7 +94,8 @@ const assistantSettingsKey = "assistant"
 // DefaultAssistantSettings are the settings of a site that never saved
 // them.
 func DefaultAssistantSettings() AssistantSettings {
-	return AssistantSettings{PerIPHour: 20, DailyRequests: 300, MonthlyRequests: 3000, EmbedProvider: "same"}
+	return AssistantSettings{PerIPHour: 20, DailyRequests: 300, MonthlyRequests: 3000, EmbedProvider: "same",
+		BubblePosition: BubbleRight, BubbleOffset: BubbleNormal}
 }
 
 func (s *Store) AssistantSettings(ctx context.Context) (AssistantSettings, error) {

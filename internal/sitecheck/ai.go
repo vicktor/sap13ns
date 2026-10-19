@@ -2,12 +2,13 @@ package sitecheck
 
 import (
 	"slices"
+	"strings"
 
 	"sap13ns/internal/ai"
 	"sap13ns/internal/store"
 )
 
-// The fields of Settings → AI, in the order of its checks.
+// The fields of Settings → AI provider, in the order of its checks.
 var aiFields = func() []field[store.AISettings] {
 	type S = store.AISettings
 	return []field[S]{
@@ -27,8 +28,8 @@ var aiFields = func() []field[store.AISettings] {
 	}
 }()
 
-// AI names the settings of the writing assistant that its page would
-// refuse.
+// AI names the settings of the AI provider (the writing assistant and the
+// answers of the site assistant) that its page would refuse.
 func AI(s store.AISettings) []string { return check(aiFields, s) }
 
 // CleanAI resets what fails in the writing assistant's settings (see
@@ -43,6 +44,15 @@ var EmbedProviders = []string{"same", "none", ai.ProviderOpenAI, ai.ProviderGemi
 // MaxSuggestions is how many suggested questions the assistant shows.
 const MaxSuggestions = 6
 
+// MaxBubbleLabel is the length of the label beside the chat button.
+const MaxBubbleLabel = 30
+
+// BubbleLabel reports whether l may be shown beside the chat button: short
+// and on one line.
+func BubbleLabel(l string) bool {
+	return !TooLong(l, MaxBubbleLabel) && !strings.ContainsAny(l, "\r\n")
+}
+
 func suggestionsOK(list []string) bool {
 	if len(list) > MaxSuggestions {
 		return false
@@ -55,7 +65,7 @@ func suggestionsOK(list []string) bool {
 	return true
 }
 
-// The fields of Settings → Assistant, in the order of its checks.
+// The fields of Settings → Site assistant, in the order of its checks.
 var assistantFields = func() []field[store.AssistantSettings] {
 	type S = store.AssistantSettings
 	return []field[S]{
@@ -71,9 +81,14 @@ var assistantFields = func() []field[store.AssistantSettings] {
 		{"name", func(s *S) bool { return !TooLong(s.Name, 60) }, func(d, s *S) { d.Name = s.Name }},
 		{"greeting", func(s *S) bool { return !TooLong(s.Greeting, 300) }, func(d, s *S) { d.Greeting = s.Greeting }},
 		{"suggestions", func(s *S) bool { return suggestionsOK(s.Suggestions) }, func(d, s *S) { d.Suggestions = s.Suggestions }},
+		{"bubble_position", func(s *S) bool { return slices.Contains(store.BubblePositions, s.BubblePosition) },
+			func(d, s *S) { d.BubblePosition = s.BubblePosition }},
+		{"bubble_offset", func(s *S) bool { return slices.Contains(store.BubbleOffsets, s.BubbleOffset) },
+			func(d, s *S) { d.BubbleOffset = s.BubbleOffset }},
+		{"bubble_label", func(s *S) bool { return BubbleLabel(s.BubbleLabel) }, func(d, s *S) { d.BubbleLabel = s.BubbleLabel }},
 		{"text", func(s *S) bool {
 			for l, t := range s.Text {
-				if !ValidLang(l) || TooLong(t.Greeting, 300) || !suggestionsOK(t.Suggestions) {
+				if !ValidLang(l) || TooLong(t.Greeting, 300) || !suggestionsOK(t.Suggestions) || !BubbleLabel(t.BubbleLabel) {
 					return false
 				}
 			}

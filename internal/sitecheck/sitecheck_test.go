@@ -87,6 +87,44 @@ func TestCleanAI(t *testing.T) {
 	}
 }
 
+// TestCleanAssistantBubble: the chat button's place and label follow the
+// page's rules on restore too.
+func TestCleanAssistantBubble(t *testing.T) {
+	cur := store.DefaultAssistantSettings()
+	cur.BubblePosition, cur.BubbleOffset, cur.BubbleLabel = store.BubbleLeft, store.BubbleRaised, "Help?"
+	in := cur
+	in.BubblePosition, in.BubbleOffset, in.BubbleLabel = "top", "", strings.Repeat("x", MaxBubbleLabel+1)
+	in.Text = map[string]store.AssistantText{"es": {Greeting: "Hola", BubbleLabel: "¿Dudas?\n¿Sí?"}}
+	if bad := Assistant(in); !slices.Equal(bad, []string{"bubble_position", "bubble_offset", "bubble_label", "text"}) {
+		t.Errorf("bubble checks: %v", bad)
+	}
+	out, reset := CleanAssistant(in, cur)
+	if !slices.Equal(reset, []string{"bubble_position", "bubble_offset", "bubble_label", "text"}) ||
+		out.BubblePosition != store.BubbleLeft || out.BubbleOffset != store.BubbleRaised || out.BubbleLabel != "Help?" || out.Text != nil {
+		t.Errorf("cleaned to the current values: %v %+v", reset, out)
+	}
+	// When the current values fail too (a site that never saved them), the
+	// defaults: bottom right, in the corner, no label.
+	out, _ = CleanAssistant(in, store.AssistantSettings{})
+	if out.BubblePosition != store.BubbleRight || out.BubbleOffset != store.BubbleNormal || out.BubbleLabel != "" {
+		t.Errorf("cleaned to the defaults: %+v", out)
+	}
+	ok := store.DefaultAssistantSettings()
+	ok.BubbleLabel = strings.Repeat("ñ", MaxBubbleLabel) // characters, not bytes
+	ok.Text = map[string]store.AssistantText{"es": {BubbleLabel: "¿Dudas?"}}
+	for _, p := range store.BubblePositions {
+		for _, o := range store.BubbleOffsets {
+			ok.BubblePosition, ok.BubbleOffset = p, o
+			if bad := Assistant(ok); len(bad) > 0 {
+				t.Errorf("%s %s refused: %v", p, o, bad)
+			}
+		}
+	}
+	if out, reset := CleanAssistant(ok, cur); len(reset) > 0 || out.BubbleLabel != ok.BubbleLabel {
+		t.Errorf("valid bubble changed: %v", reset)
+	}
+}
+
 func TestMenuURL(t *testing.T) {
 	for u, want := range map[string]bool{
 		"/": true, "/blog/x?y=1#z": true, "#section": true, "https://example.com/": true, "http://example.com": true,
