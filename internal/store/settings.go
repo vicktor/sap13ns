@@ -67,6 +67,53 @@ type Settings struct {
 	// HideAdmin answers visitors who open /admin with the page-not-found
 	// page instead of sending them to the sign-in address.
 	HideAdmin bool `json:"hide_admin"`
+	// Consent configures the cookie consent of the public site
+	// (Settings → Privacy, internal/web/consent.go).
+	Consent ConsentSettings `json:"consent"`
+}
+
+// ConsentSettings configure the cookie consent: the banner, the cookie
+// settings dialog and the footer link of the public site. The zero value
+// is the default: on, with the built-in texts.
+type ConsentSettings struct {
+	Off bool `json:"off"` // no banner, dialog or footer link
+	// AlwaysBanner shows the banner to new visitors even when the only
+	// content that needs consent asks for it at its placeholder (videos).
+	AlwaysBanner bool `json:"always_banner"`
+	// Title, Text and PolicyURL are in the main language; empty uses the
+	// built-in title and text, and no policy link. Texts translates them
+	// for the extra languages (empty fields fall back to the main ones).
+	Title     string                 `json:"title"`
+	Text      string                 `json:"text"`
+	PolicyURL string                 `json:"policy_url"` // a path of the site or an http(s) address
+	Texts     map[string]ConsentText `json:"texts,omitempty"`
+	// Revision is part of every stored choice's version: raising it asks
+	// every visitor again.
+	Revision int `json:"revision"`
+}
+
+// ConsentText is the translatable part of ConsentSettings.
+type ConsentText struct {
+	Title     string `json:"title"`
+	Text      string `json:"text"`
+	PolicyURL string `json:"policy_url"`
+}
+
+// In returns the texts for lang, falling back to the main-language ones.
+func (c ConsentSettings) In(lang string) ConsentText {
+	out := ConsentText{Title: c.Title, Text: c.Text, PolicyURL: c.PolicyURL}
+	if t, ok := c.Texts[lang]; ok {
+		if t.Title != "" {
+			out.Title = t.Title
+		}
+		if t.Text != "" {
+			out.Text = t.Text
+		}
+		if t.PolicyURL != "" {
+			out.PolicyURL = t.PolicyURL
+		}
+	}
+	return out
 }
 
 // SiteText is the translatable part of the settings.

@@ -98,6 +98,8 @@ func settingsFields(c Site) []field[store.Settings] {
 		{"gravatar_commenters", func(s *S) bool { return !s.GravatarCommenters || s.GravatarUsers },
 			func(d, s *S) { d.GravatarCommenters = s.GravatarCommenters }},
 		{"login_path", func(s *S) bool { return signInOK(s, c) }, func(d, s *S) { d.LoginPath = s.LoginPath }},
+		// Settings → Privacy (its own page, same row).
+		{"consent", func(s *S) bool { return consentOK(s) }, func(d, s *S) { d.Consent = s.Consent }},
 		// Not on the page: set by activating a theme.
 		{"active_theme", func(s *S) bool { return Slug.MatchString(s.ActiveTheme) && (c.Theme == nil || c.Theme(s.ActiveTheme)) },
 			func(d, s *S) { d.ActiveTheme = s.ActiveTheme }},
@@ -149,4 +151,37 @@ func Settings(s store.Settings, c Site) []string { return check(settingsFields(c
 // extra languages and their texts keep what is valid of them.
 func CleanSettings(in, cur store.Settings, c Site) (store.Settings, []string) {
 	return clean(settingsFields(c), in, cur, store.DefaultSettings())
+}
+
+// ConsentLink accepts the cookie policy link: a path of the site or an
+// http(s) address, of at most 300 bytes.
+func ConsentLink(u string) bool {
+	return u == "" || len(u) <= 300 && !strings.HasPrefix(u, "#") && !strings.Contains(u, `\`) && MenuURL(u)
+}
+
+// Consent reports whether the cookie consent settings of s are valid
+// (Settings → Privacy).
+func Consent(s store.Settings) bool { return consentOK(&s) }
+
+// MaxConsentRevision bounds Settings.Consent.Revision.
+const MaxConsentRevision = 1_000_000
+
+func consentTextFits(t store.ConsentText) bool {
+	return !TooLong(t.Title, 120) && !TooLong(t.Text, 1000) && ConsentLink(t.PolicyURL)
+}
+
+// consentOK is the rule of the cookie consent settings: texts that fit,
+// links of the site or http(s), translations of extra languages only.
+func consentOK(s *store.Settings) bool {
+	c := s.Consent
+	if !consentTextFits(store.ConsentText{Title: c.Title, Text: c.Text, PolicyURL: c.PolicyURL}) ||
+		c.Revision < 0 || c.Revision > MaxConsentRevision || len(c.Texts) > MaxLanguages {
+		return false
+	}
+	for l, t := range c.Texts {
+		if !slices.Contains(s.Languages, l) || !consentTextFits(t) {
+			return false
+		}
+	}
+	return true
 }
