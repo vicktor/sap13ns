@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	xhtml "golang.org/x/net/html"
 )
 
 // Video is one YouTube or Vimeo video (or YouTube playlist) named in post
@@ -437,27 +439,208 @@ var videoFigure = regexp.MustCompile(`(?s)<figure (?:class="sap-video [^"]*" )?d
 
 // ProtectVideos swaps every player for a text token, so that content
 // filters (which sanitise their output with PluginPolicy, and could embed
-// the link a second time) leave it alone. restore puts the players back: a
-// token a filter wrapped in a paragraph loses the paragraph, one it removed
-// stays removed.
+// the link a second time) leave it alone. restore puts the players back
+// (restoreVideos). The tokens carry a random nonce, new on every call, so
+// post content cannot forge one.
 func ProtectVideos(html string) (protected string, restore func(string) string) {
+	identity := func(s string) string { return s }
 	if !strings.Contains(html, ` data-video-provider="`) {
-		return html, func(s string) string { return s }
+		return html, identity
 	}
-	b := make([]byte, 8)
-	rand.Read(b)
-	nonce := hex.EncodeToString(b)
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return html, identity
+	}
+	prefix := "sapvideo" + hex.EncodeToString(b) + "x"
 	var saved []string
 	protected = videoFigure.ReplaceAllStringFunc(html, func(m string) string {
 		saved = append(saved, m)
-		return fmt.Sprintf("sapvideo%sx%d", nonce, len(saved)-1)
+		return prefix + strconv.Itoa(len(saved)-1)
 	})
-	return protected, func(s string) string {
-		for i := len(saved) - 1; i >= 0; i-- { // x10 before x1
-			token := fmt.Sprintf("sapvideo%sx%d", nonce, i)
-			s = strings.ReplaceAll(s, "<p>"+token+"</p>", token)
-			s = strings.ReplaceAll(s, token, saved[i])
-		}
+	if len(saved) == 0 {
+		return html, identity
+	}
+	return protected, func(s string) string { return restoreVideos(s, prefix, saved) }
+}
+
+// videoParents are the elements a restored player may be in: a filter can
+// wrap the post in a section, a quote or a list, but a player inside a
+// link, a heading or a paragraph of text would not be the core's markup.
+// videoAncestors may be further out (the list or table of an item or cell).
+var (
+	videoParents = map[string]bool{
+		"div": true, "section": true, "article": true, "aside": true, "header": true, "footer": true, "main": true,
+		"blockquote": true, "li": true, "dd": true, "details": true, "td": true, "th": true,
+	}
+	videoAncestors = map[string]bool{
+		"ul": true, "ol": true, "dl": true, "table": true, "thead": true, "tbody": true, "tfoot": true, "tr": true,
+	}
+)
+
+var voidElements = map[string]bool{
+	"area": true, "base": true, "br": true, "col": true, "embed": true, "hr": true, "img": true, "input": true,
+	"link": true, "meta": true, "source": true, "track": true, "wbr": true,
+}
+
+// restoreVideos puts the players saved by ProtectVideos back into filtered
+// HTML, where the filters left their tokens. The filtered HTML is never
+// spliced blindly: it is tokenized, and a token becomes its player only
+//
+//   - in a text node made of tokens and white space alone, or in a <p> that
+//     holds nothing else (a filter that wraps text in paragraphs; the
+//     paragraph goes),
+//   - in one of videoParents, or in none,
+//   - the first time it appears (a token a filter copied stays out).
+//
+// Anywhere else the token is dropped: from other text, and from tags,
+// where an attribute that holds one is removed whole (player markup in an
+// attribute value would break out of it, and a value with the token cut
+// out would be one the sanitizer never checked). A token a filter removed
+// stays removed.
+func restoreVideos(s, prefix string, saved []string) string {
+	if !strings.Contains(s, prefix) {
 		return s
 	}
+	type tok struct {
+		tt   xhtml.TokenType
+		raw  string
+		name string
+		t    xhtml.Token // tags holding a token only
+	}
+	var toks []tok
+	z := xhtml.NewTokenizer(strings.NewReader(s))
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			break // io.EOF: sanitised HTML is well formed
+		}
+		t := tok{tt: tt, raw: string(z.Raw())}
+		switch tt {
+		case xhtml.StartTagToken, xhtml.EndTagToken, xhtml.SelfClosingTagToken:
+			if strings.Contains(t.raw, prefix) {
+				t.t = z.Token()
+				t.name = t.t.Data
+			} else {
+				name, _ := z.TagName()
+				t.name = string(name)
+			}
+		}
+		toks = append(toks, t)
+	}
+	used := make([]bool, len(saved))
+	// text writes a text node: its tokens become players when allowed.
+	text := func(b *strings.Builder, raw string, allowed bool) {
+		allowed = allowed && onlyVideoTokens(raw, prefix)
+		for _, part := range splitVideoTokens(raw, prefix) {
+			switch {
+			case part.index < 0:
+				b.WriteString(part.text)
+			case allowed && part.index < len(saved) && !used[part.index]:
+				used[part.index] = true
+				b.WriteString(saved[part.index])
+			}
+		}
+	}
+	var open []string
+	inFlow := func() bool {
+		for i, name := range open {
+			if !videoParents[name] && (i == len(open)-1 || !videoAncestors[name]) {
+				return false
+			}
+		}
+		return true
+	}
+	var b strings.Builder
+	for i := 0; i < len(toks); i++ {
+		t := toks[i]
+		switch t.tt {
+		case xhtml.TextToken:
+			if strings.Contains(t.raw, prefix) {
+				text(&b, t.raw, inFlow())
+				continue
+			}
+		case xhtml.StartTagToken:
+			if t.name == "p" && !strings.Contains(t.raw, prefix) && i+2 < len(toks) &&
+				toks[i+1].tt == xhtml.TextToken && strings.Contains(toks[i+1].raw, prefix) &&
+				toks[i+2].tt == xhtml.EndTagToken && toks[i+2].name == "p" && inFlow() && onlyVideoTokens(toks[i+1].raw, prefix) {
+				text(&b, toks[i+1].raw, true)
+				i += 2
+				continue
+			}
+			if !voidElements[t.name] {
+				open = append(open, t.name)
+			}
+		case xhtml.EndTagToken:
+			for j := len(open) - 1; j >= 0; j-- {
+				if open[j] == t.name {
+					open = open[:j]
+					break
+				}
+			}
+		}
+		if !strings.Contains(t.raw, prefix) {
+			b.WriteString(t.raw)
+			continue
+		}
+		// A token in markup: drop the attributes that hold it, or the
+		// whole tag or comment when it is anywhere else.
+		switch t.tt {
+		case xhtml.StartTagToken, xhtml.EndTagToken, xhtml.SelfClosingTagToken:
+			if strings.Contains(t.t.Data, prefix) {
+				continue
+			}
+			kept := t.t.Attr[:0]
+			for _, a := range t.t.Attr {
+				if !strings.Contains(a.Key, prefix) && !strings.Contains(a.Val, prefix) && !strings.Contains(a.Namespace, prefix) {
+					kept = append(kept, a)
+				}
+			}
+			t.t.Attr = kept
+			b.WriteString(t.t.String())
+		}
+	}
+	return b.String()
+}
+
+type videoPart struct {
+	text  string
+	index int // the saved player's index, -1 for text
+}
+
+// splitVideoTokens splits text into tokens (prefix and a number) and the
+// text between them.
+func splitVideoTokens(s, prefix string) []videoPart {
+	var parts []videoPart
+	for {
+		i := strings.Index(s, prefix)
+		if i < 0 {
+			if s != "" {
+				parts = append(parts, videoPart{text: s, index: -1})
+			}
+			return parts
+		}
+		if i > 0 {
+			parts = append(parts, videoPart{text: s[:i], index: -1})
+		}
+		j := i + len(prefix)
+		for j < len(s) && j-i-len(prefix) < 6 && s[j] >= '0' && s[j] <= '9' {
+			j++
+		}
+		n, err := strconv.Atoi(s[i+len(prefix) : j])
+		if err != nil {
+			n = len(s) // no number: a token that matches no player
+		}
+		parts = append(parts, videoPart{text: s[i:j], index: n})
+		s = s[j:]
+	}
+}
+
+// onlyVideoTokens reports whether text holds tokens and white space alone.
+func onlyVideoTokens(s, prefix string) bool {
+	for _, part := range splitVideoTokens(s, prefix) {
+		if part.index < 0 && strings.TrimSpace(part.text) != "" {
+			return false
+		}
+	}
+	return true
 }

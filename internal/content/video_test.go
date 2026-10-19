@@ -2,6 +2,7 @@ package content
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -257,19 +258,75 @@ func TestContentPolicyVideoMarkup(t *testing.T) {
 	}
 }
 
+var videoToken = regexp.MustCompile(`sapvideo[0-9a-f]{32}x[0-9]+`)
+
 func TestProtectRestoreVideos(t *testing.T) {
 	html := string(RenderWith("Intro\n\nhttps://youtu.be/dQw4w9WgXcQ\n\nhttps://vimeo.com/22439234\n", Options{Video: testVideoOptions()}))
 	protected, restore := ProtectVideos(html)
 	if HasVideo(protected) || strings.Contains(protected, "youtu") || strings.Count(protected, "sapvideo") != 2 {
 		t.Fatalf("protected: %s", protected)
 	}
-	// A filter that wraps text in paragraphs does not break the players.
-	i := strings.LastIndex(protected, "sapvideo")
-	token := protected[i : i+len("sapvideo")+16+2]
-	filtered := strings.Replace(protected, token, "<p>"+token+"</p>", 1)
-	if got := restore(filtered); got != html {
-		t.Errorf("restore:\n got %s\nwant %s", got, html)
+	tokens := videoToken.FindAllString(protected, -1)
+	if len(tokens) != 2 {
+		t.Fatalf("tokens: %q", tokens)
 	}
+	if again, _ := ProtectVideos(html); again == protected {
+		t.Error("the nonce is the same on every call")
+	}
+	players := videoFigure.FindAllString(html, -1)
+	if got := restore(protected); got != html {
+		t.Errorf("unfiltered:\n got %s\nwant %s", got, html)
+	}
+	// A filter that wraps text in paragraphs, or the post in a section,
+	// does not break the players.
+	filtered := strings.Replace(protected, tokens[1], "<p>"+tokens[1]+"</p>", 1)
+	if got := restore(filtered); got != html {
+		t.Errorf("paragraph:\n got %s\nwant %s", got, html)
+	}
+	if got := restore("<section>" + protected + "</section>"); got != "<section>"+html+"</section>" {
+		t.Errorf("section:\n got %s", got)
+	}
+
+	cases := []struct {
+		name, filtered, want string
+	}{
+		// A token copied into an attribute: the attribute goes, the player
+		// stays where the token was.
+		{"attribute", `<a title="` + tokens[0] + `" href="/x">x</a>` + "\n" + tokens[0] + "\n",
+			`<a href="/x">x</a>` + "\n" + players[0] + "\n"},
+		{"attribute only", `<p><img src="/a.png" alt="` + tokens[0] + `"></p>`, `<p><img src="/a.png"></p>`},
+		{"attribute part", `<a href="https://x.test/` + tokens[0] + `?a=1&amp;b=2" rel="nofollow">x</a>`, `<a rel="nofollow">x</a>`},
+		// A duplicated token: one player.
+		{"duplicate", tokens[0] + "\n" + tokens[0] + "\n<p>" + tokens[0] + "</p>", players[0] + "\n\n"},
+		{"two in a text", tokens[1] + "\n" + tokens[0] + "\n", players[1] + "\n" + players[0] + "\n"},
+		// A token a filter wrapped in other markup is dropped.
+		{"link", `<a href="/x">` + tokens[0] + `</a>`, `<a href="/x"></a>`},
+		{"text", `<p>Watch ` + tokens[0] + ` now</p>`, `<p>Watch  now</p>`},
+		{"top-level text", "Watch " + tokens[0] + "\n", "Watch \n"},
+		{"code", `<pre><code>` + tokens[0] + `</code></pre>`, `<pre><code></code></pre>`},
+		{"strong in paragraph", `<p><strong>` + tokens[0] + `</strong></p>`, `<p><strong></strong></p>`},
+		{"heading", `<h2>` + tokens[0] + `</h2>`, `<h2></h2>`},
+		{"list", `<ul><li>` + tokens[0] + `</li></ul>`, `<ul><li>` + players[0] + `</li></ul>`},
+		{"in a list", `<ul>` + tokens[0] + `</ul>`, `<ul></ul>`},
+		{"comment", `<!-- ` + tokens[0] + ` -->ok`, `ok`},
+		{"unknown number", strings.TrimSuffix(tokens[0], "0") + "7", ``},
+		// Removed stays removed; a forged token is text.
+		{"removed", `<p>Intro</p>`, `<p>Intro</p>`},
+		{"forged", `<p>sapvideo0123456789abcdef0123456789abcdefx0</p>`, `<p>sapvideo0123456789abcdef0123456789abcdefx0</p>`},
+	}
+	for _, c := range cases {
+		got := restore(c.filtered)
+		if got != c.want {
+			t.Errorf("%s:\n got %s\nwant %s", c.name, got, c.want)
+		}
+		if videoToken.MatchString(got) && c.name != "forged" {
+			t.Errorf("%s: a token is left: %s", c.name, got)
+		}
+		if n := strings.Count(got, `<figure class="sap-video `); n > 2 {
+			t.Errorf("%s: %d players", c.name, n)
+		}
+	}
+
 	if p, restore := ProtectVideos("<p>no video</p>"); p != "<p>no video</p>" || restore("x") != "x" {
 		t.Error("ProtectVideos changed a post without videos")
 	}
