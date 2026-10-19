@@ -24,6 +24,10 @@
 <script src="{{asset "ai.js"}}" defer></script>
 {{end}}
 
+{{/* The heading of a sidebar group: a button that collapses and expands
+it (nav-groups.js). Without JavaScript every group stays open. */}}
+{{define "nav-group-head"}}<h3><button type="button" id="nav-{{.ID}}" class="nav-group-toggle" aria-expanded="true" aria-controls="nav-{{.ID}}-items" data-keep-mobile-sidebar-open><span>{{.Label}}</span>{{icon "chevron-down" "nav-group-chevron"}}</button></h3>{{end}}
+
 {{define "nav-item"}}<li><a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{icon .Icon}}<span>{{.Label}}</span>{{if .Badge}}<span class="badge ml-auto" data-variant="secondary">{{.Badge}}</span>{{end}}</a></li>{{end}}
 
 {{define "admin"}}<!doctype html>
@@ -43,9 +47,9 @@
     </header>
     <section class="scrollbar">
       {{if .Portal}}
-      <div role="group" aria-labelledby="nav-network">
-        <h3 id="nav-network">{{T "Network"}}</h3>
-        <ul>
+      <div role="group" class="nav-group" aria-labelledby="nav-network" data-nav-group="network">
+        {{template "nav-group-head" (dict "ID" "network" "Label" (T "Network"))}}
+        <ul id="nav-network-items">
           {{template "nav-item" (dict "URL" "/admin/sites" "Icon" "globe" "Label" (T "My sites") "Current" (.Active "my-sites"))}}
           {{if .NetworkAdmin}}
           {{template "nav-item" (dict "URL" "/admin/network/sites" "Icon" "layers" "Label" (T "Sites") "Current" (.Active "net-sites") "Badge" .NetPending)}}
@@ -58,9 +62,9 @@
       </div>
       {{end}}
       {{if .Can "posts.edit_own"}}
-      <div role="group" aria-labelledby="nav-content">
-        <h3 id="nav-content">{{T "Content"}}</h3>
-        <ul>
+      <div role="group" class="nav-group" aria-labelledby="nav-content" data-nav-group="content">
+        {{template "nav-group-head" (dict "ID" "content" "Label" (T "Content"))}}
+        <ul id="nav-content-items">
           {{template "nav-item" (dict "URL" "/admin/" "Icon" "layout-dashboard" "Label" (T "Dashboard") "Current" (.Active "dashboard"))}}
           {{template "nav-item" (dict "URL" "/admin/posts" "Icon" "file-text" "Label" (T "Posts") "Current" (.Active "posts"))}}
           {{if .Can "pages.manage"}}{{template "nav-item" (dict "URL" "/admin/pages" "Icon" "files" "Label" (T "Pages") "Current" (.Active "pages"))}}{{end}}
@@ -75,9 +79,9 @@
       </div>
       {{end}}
       {{if .Can "appearance.manage"}}
-      <div role="group" aria-labelledby="nav-appearance">
-        <h3 id="nav-appearance">{{T "Appearance"}}</h3>
-        <ul>
+      <div role="group" class="nav-group" aria-labelledby="nav-appearance" data-nav-group="appearance">
+        {{template "nav-group-head" (dict "ID" "appearance" "Label" (T "Appearance"))}}
+        <ul id="nav-appearance-items">
           {{template "nav-item" (dict "URL" "/admin/appearance/themes" "Icon" "palette" "Label" (T "Themes") "Current" (.Active "themes"))}}
           {{template "nav-item" (dict "URL" "/admin/appearance/customize" "Icon" "paintbrush" "Label" (T "Customise") "Current" (.Active "customize"))}}
           {{template "nav-item" (dict "URL" "/admin/appearance/builder" "Icon" "layout-template" "Label" (T "Page builder") "Current" (.Active "builder"))}}
@@ -87,9 +91,9 @@
       </div>
       {{end}}
       {{if or (.Can "users.manage") (.Can "plugins.manage") (.Can "settings.manage")}}
-      <div role="group" aria-labelledby="nav-admin">
-        <h3 id="nav-admin">{{T "Administration"}}</h3>
-        <ul>
+      <div role="group" class="nav-group" aria-labelledby="nav-admin" data-nav-group="admin">
+        {{template "nav-group-head" (dict "ID" "admin" "Label" (T "Administration"))}}
+        <ul id="nav-admin-items">
           {{if .Can "plugins.manage"}}{{template "nav-item" (dict "URL" "/admin/plugins" "Icon" "puzzle" "Label" (T "Plugins") "Current" (.Active "plugins"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings/assistant" "Icon" "message-circle" "Label" (T "Site assistant") "Current" (.Active "assistant"))}}{{end}}
           {{if .Can "users.manage"}}{{template "nav-item" (dict "URL" "/admin/users" "Icon" "users" "Label" (T "Users") "Current" (.Active "users"))}}{{end}}
@@ -125,6 +129,8 @@
     </footer>
   </nav>
 </aside>
+{{/* Not deferred: it restores the collapsed groups before the first paint. */}}
+<script src="{{asset "nav-groups.js"}}"></script>
 <div class="admin-main">
   <header class="topbar">
     <button type="button" class="btn" data-variant="ghost" data-size="icon" data-sidebar-toggle="admin-sidebar" aria-label="{{T "Toggle navigation"}}">{{icon "panel-left"}}</button>
