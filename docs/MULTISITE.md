@@ -232,7 +232,7 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled or unpaid subscription holds the site, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
 
 **Limits.** A plan's limits apply to every site on it:
-- **Storage** counts uploads, their image variants, plugin packages and uploaded themes, but not exports waiting for their download nor backups, which are bounded on their own ([Exporting one site](#exporting-one-site), [Backups](#where-they-are-and-how-long-they-stay)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
+- **Storage** counts uploads, their image variants, users' photos and Gravatar copies, plugin packages and uploaded themes, but not exports waiting for their download nor backups, which are bounded on their own ([Exporting one site](#exporting-one-site), [Backups](#where-they-are-and-how-long-they-stay)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
 - **Custom domains** count verified and unverified ones.
 - **A downgrade** only blocks additions: files, domains, plugins and themes over the new limits stay. A site moved to a plan without theme uploads keeps its uploaded themes, and can delete them, but cannot upload more.
 
@@ -411,7 +411,7 @@ The site's administrators (only they) can:
 
 ### Restoring
 
-A restore replaces the site's posts, pages, comments, terms, media and files, menus, widgets, designs and layouts, redirects, settings, theme options, and the settings of the plugins the site has installed. Users are matched by username (or e-mail address) and created when missing, without a password. They are never deleted, and the administrator restoring is never demoted or disabled.
+A restore replaces the site's posts, pages, comments, terms, media and files, menus, widgets, designs and layouts, redirects, settings, theme options, and the settings of the plugins the site has installed. Users are matched by username (or e-mail address) and created when missing, without a password. They are never deleted, and the administrator restoring is never demoted or disabled. The users of the backup get the photo they had there, decoded and encoded again; the site's other users keep theirs. Gravatar copies are not in backups: the site looks them up again.
 
 What keeps it safe:
 - **All or nothing.** The archive is checked first: the manifest, every member's size and SHA-256, and the extraction limits (no absolute paths, `..`, links or special files, and bounded sizes and counts). A site with content is then backed up ("before a restore"). The database changes in one transaction. The files are staged next to the uploads and swapped in only after the commit. A restore that fails at any point leaves the site as it was.

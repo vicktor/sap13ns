@@ -65,6 +65,7 @@ On a network of sites, a site's administrators are trusted on their own site onl
   - the content type is detected from the bytes and must match the file extension;
   - files are stored under random names and served with `Content-Security-Policy: sandbox` and `nosniff`;
   - anything other than images, audio, video and PDF is served as a download.
+- **Users' photos** (the profile, or a user's page with the users capability) are JPEG, PNG, WebP or GIF images of up to 5 MB and 20 megapixels, sniffed from their bytes. They are decoded and drawn again as square 256, 128 and 64 px JPEG files (PNG when they have transparency), so no metadata survives: no EXIF, GPS or comments. They are stored as `avatars/u<id>-<random>-<size>.<ext>`, and replacing or removing one deletes the old files. Decoding is bounded to two images at a time, and uploads share the media upload rate limit.
 - Archive extraction (backups, the importer, plugin packages, theme uploads) refuses absolute paths, `..`, links and special files, and enforces size limits.
 
 ### Appearance (customiser and page builder)
@@ -108,6 +109,14 @@ The AI API endpoint is chosen by an administrator and is not guarded. Plain `htt
 
 Update checks and release downloads are restricted to GitHub hosts over https with certificate validation. They honour the environment's proxy settings, and they do not use the guard.
 
+**Gravatar.** With **Use Gravatar for users without a photo** (Settings → Discussion, on by default), the server looks up users who have not uploaded a photo. It asks `https://gravatar.com/avatar/<hash>?s=256&d=404`, where the hash is the SHA-256 of the trimmed, lower-cased e-mail address. The address itself is never sent, and neither is any cookie or other detail of the visitor.
+- **Through the guard.** The request goes through the SSRF guard, ignores proxies, follows no redirects, times out after 10 seconds and reads at most 1 MB. A 404 means there is no Gravatar.
+- **Re-encoded and served locally.** An image is checked and re-encoded like an upload, then served from the site's own uploads. Visitors' browsers never contact Gravatar, and no page waits for it.
+- **When.** A lookup happens when a user is created or changes e-mail address, when someone presses **Refresh from Gravatar**, and in a background pass. The pass rechecks each user about once a week, at most 10 users per pass with pauses between them, and retries a failed lookup after a day. Addresses on reserved domains (`example.com`, `.test`, `.invalid`, `.localhost` and the like) are never looked up.
+- **Commenters.** **Show Gravatar images for commenters** is off by default and needs the first option. It looks up the hash of a commenter's address in the background, never while a page renders, and never for spam or trashed comments. The copies are kept for at most 1000 addresses and 32 MB, rechecked after 14 days and dropped after 60 days unused, and lookups are limited to 120 an hour. A registered user who comments shows their own photo.
+- **Turning it off.** Switching either option off sends nothing more and deletes the copies at once.
+- **Development.** `SAP13NS_DEV_GRAVATAR_URL`, read only in development mode (`SAP13NS_DEV=true`), points the lookups at a fake server, which may be on this machine.
+
 ### Plugins
 - Plugins are WebAssembly modules run by wazero:
   - no filesystem, sockets, environment or clock beyond what WASI provides;
@@ -137,13 +146,14 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
   - A `.zip` prepared in the background sits in a directory that is never served. It is downloaded once, by the administrator who asked, through a signed link valid for 24 hours, and then deleted.
   - Background exports cannot fill the disk. A site keeps one waiting, and a new one deletes it. One starts only when its estimate fits the storage of the site's plan (on a network) and the disk keeps twice the estimate free; otherwise it is refused with 413.
 - **Site backups** (Tools → Backups, `sap13ns backup -format site`, and a network's nightly run):
-  - **No secrets.** They never hold password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the MCP token, or the instance and site secrets. They do hold personal data (users' and commenters' e-mail addresses, commenters' IP addresses), so they are written with mode 0600 in 0700 directories that are never served, and encrypted when a passphrase is set.
+  - **No secrets.** They never hold password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the MCP token, or the instance and site secrets. They do hold personal data (users' and commenters' e-mail addresses, commenters' IP addresses, the photos users uploaded), so they are written with mode 0600 in 0700 directories that are never served, and encrypted when a passphrase is set.
   - **Administrators only.** The page needs the settings capability. A download link is signed for the administrator's session and expires after an hour, and each download is audited.
   - **Restores** need the site's name typed and the administrator's current password, or a sign-in of the last few minutes with single sign-on. They are spaced out (one every 10 minutes, 3 an hour, recorded with the backups so a reload does not reset it) and audited. A restore makes a safety backup first, changes the database in one transaction, and swaps the staged files in after the commit, so a failed restore leaves the site as it was. It writes only the site's own schema and directory.
   - **Nothing in an archive is trusted.** Every member is checked against the manifest (size and SHA-256) and the extraction limits. Content goes through the sanitising pipeline. Settings, menus, widgets, theme options, designs, redirects and plugin settings go through the checks of their admin pages, and what fails is reset to the site's value and reported. A restore never takes a secret from an archive, never keeps a key for another provider or address, and never switches local (plain http) models on.
   - **Bounded.** A backup, or what a restore writes, never takes more than half of the free disk. On a network a backup is at most the storage of the site's plan, a site's backups take at most twice it in all, and a site keeps at most 3 safety backups. Backups are not counted toward the site's storage.
 - **Analytics** store only daily aggregates. Visitors are counted with a salt that rotates daily and lives only in memory: no IP address, user agent or identifier is persisted.
-- **Public pages** make no third-party requests and set no tracking cookies.
+- **Public pages** make no third-party requests and set no tracking cookies. Gravatar images are copies served by the site ([Outbound requests](#outbound-requests)).
+- **Photos and Gravatar copies** are left out of content exports. Backups hold the uploaded photos, re-encoded again on restore, but not the Gravatar copies, which a restored site looks up again. Deleting a user deletes their files.
 
 ### Networks of sites
 A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many sites in one process and one database. Each site's administrators control their own site, and nothing else.

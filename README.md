@@ -66,7 +66,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **A `.zip`** with that file, the uploads directory, and a Markdown copy of every post and page (YAML front matter, then the stored Markdown).
 - **No personal data by default.** Commenters' e-mail and IP addresses and authors' e-mail addresses are only exported with **Include commenters' personal data**. Passwords, two-factor secrets, passkeys, sessions, plugin secrets, API keys and the site secret are never exported.
 - **Any size:** exports stream, so a site is never held in memory. A large `.zip` is prepared in the background and downloaded from a link that works once, for the administrator who asked, within 24 hours. A site keeps one such export waiting, and one starts only when the disk, and on a network the plan's storage, has room for it. Every export is in the audit log.
-- **Not exported:** widgets, settings, themes, designs (the customiser exports those), plugins and revisions. A [backup](#operations) holds all of the site.
+- **Not exported:** widgets, settings, themes, designs (the customiser exports those), plugins, users' photos and revisions. A [backup](#operations) holds all of the site.
 
 ### Multilingual
 - Each post can have linked translations, and every language lives under its own prefix (`/en/`, `/es/`…).
@@ -136,6 +136,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 - **Roles:** administrator, editor, author, contributor and subscriber, with capability checks on every admin route.
 - **Passwords:** hashed with Argon2id. Logins are rate-limited and locked out after failures; changing a password closes the user's other sessions.
 - **Two-factor authentication** (TOTP) is mandatory for staff by default. **Passkeys (WebAuthn)** work for passwordless sign-in or as the second factor, with user verification required.
+- **Photos:** users upload a photo, which is cropped to a square and re-encoded without its metadata, or show their Gravatar. The server fetches the Gravatar with a hash of the e-mail address and serves a copy, so visitors' browsers never contact Gravatar. Commenters' Gravatars are opt-in. Without either, the initials are shown.
 - **Hardening:**
   - **Security headers:** a strict CSP with no inline scripts, styles or style attributes, plus HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and COOP.
   - **Request protection:** cross-origin request protection and CSRF tokens; SSRF protection on every outbound request (private, loopback and metadata ranges are blocked).
