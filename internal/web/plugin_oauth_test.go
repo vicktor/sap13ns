@@ -211,6 +211,13 @@ func TestPluginOAuthWeb(t *testing.T) {
 	if list, _ := e.st.PluginOAuthConnections(ctx, ""); len(list) != 0 {
 		t.Fatal("still connected")
 	}
+	// The messages follow the administrator's own language, not the site's.
+	if err := e.st.SetUserLanguage(ctx, e.adminID, "en"); err != nil {
+		t.Fatal(err)
+	}
+	if rec := e.admin(base+"/disconnect", url.Values{}); flashOf(rec) != "success: Disconnected from Demo." {
+		t.Fatalf("disconnect in the admin language: %q", flashOf(rec))
+	}
 	if body := e.do("GET", "/admin/", nil, "", e.cookie).Body.String(); strings.Contains(body, `id="oauth-alerts"`) {
 		t.Fatal("a notice without a connection")
 	}
