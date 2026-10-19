@@ -101,7 +101,7 @@ func TestFrontPageLayout(t *testing.T) {
 		`<li class="sap-plan is-highlighted">`, "El más elegido", "al mes", "<span>One</span>", "<span>Two</span>",
 		`<details class="sap-faq-item" open>`, "<strong>Because</strong>", `<dt class="sap-stat-label">Readers</dt><dd class="sap-stat-value">10k&#43;</dd>`,
 		"Ada Lovelace", `<span class="sap-quote-initial" aria-hidden="true">AL</span>`,
-		`href="#features">Back</a>`, "¿Empezamos?", "Front list post", "onepage.js", `"@type":"WebSite"`,
+		`href="#features">Back</a>`, "¿Empezamos?", "Front list post", "data-sap-onepage", `"@type":"WebSite"`,
 		`href="#pricing">Precios</a>`,
 	} {
 		if !strings.Contains(body, want) {
@@ -249,7 +249,7 @@ func TestOnepageTheme(t *testing.T) {
 	front := get("/")
 	has("/", front, `class="accent-vermilion headings-serif`, `data-sticky`, `id="intro"`, `id="features"`, `id="testimonials"`,
 		`id="pricing"`, `id="faq"`, `id="contact"`, `href="#features">Características</a>`, `href="#pricing">Precios</a>`,
-		`href="#faq">Preguntas</a>`, `href="/blog"`, "onepage.js", "Ver los planes", "Desde el blog", "Onepage post",
+		`href="#faq">Preguntas</a>`, `href="/blog"`, "data-sap-onepage", "Ver los planes", "Desde el blog", "Onepage post",
 		`href="mailto:hello@example.com"`, `<h1 class="op-hero-title">`, `href="https://sap13ns.site">sap13ns</a>`)
 	lacks("/ (visitor)", front, "op-note", "/builder")
 	has("/ (administrator)", get("/", e.cookie), "op-note", `href="/admin/appearance/themes/onepage/builder?region=front&amp;preset=one-page"`)
@@ -258,7 +258,8 @@ func TestOnepageTheme(t *testing.T) {
 	// front page's sections.
 	blog := get("/blog")
 	has("/blog", blog, "sap-fallback", "Onepage post", `href="/#features"`, `href="/#contact"`, "op-footer")
-	lacks("/blog", blog, `id="features"`)
+	lacks("/blog", blog, `id="features"`, "data-sap-onepage")
+	has("/blog", blog, "/static/site.min.js?v=")
 	has("/blog/onepage-post", get("/blog/onepage-post"), "sap-fallback-entry", "Onepage body.", `href="/#pricing"`)
 
 	form := url.Values{"opt_accent": {"emerald"}, "opt_headings": {"sans"}, "opt_hero_title": {"Hello marker"},

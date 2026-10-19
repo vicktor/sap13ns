@@ -33,12 +33,11 @@
 {{with .Site.PreviewTheme}}<meta name="sap-preview-theme" content="{{.}}">
 {{end}}{{with .Site.Custom.CSS}}<link rel="stylesheet" href="{{.}}" data-sap-custom>
 {{end}}{{range .PluginCSS}}<link rel="stylesheet" href="{{.}}">
-{{end}}<script src="{{.Site.Static "site.js"}}" defer></script>
-{{if .Site.Consent}}<script src="{{.Site.Static "consent.js"}}" defer></script>
-{{end}}
-{{if .OnePage}}<script src="{{.Site.Static "onepage.js"}}" defer></script>
-{{end}}{{if .Video}}<script src="{{.Site.Static "video.js"}}" defer></script>
-{{end}}
+{{end}}{{/* The site's scripts in one file (npm run build, scripts/js-bundles.mjs):
+site.js, consent.js, onepage.js, video.js and assistant.js. Each part looks
+for its elements first; onepage.js runs only with data-sap-onepage (not data-onepage, which
+html/template would read as an event handler, on*). Plugin
+scripts come after it, so window.sapConsent is ready for them. */}}<script src="{{.Site.Static "site.min.js"}}" defer{{if .OnePage}} data-sap-onepage{{end}}></script>
 {{range .PluginJS}}<script src="{{.}}" defer></script>
 {{end}}{{end}}
 

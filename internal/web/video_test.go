@@ -91,7 +91,7 @@ func TestVideoEmbedPage(t *testing.T) {
 		`<figure class="sap-video sap-video-youtube" data-video-provider="youtube">`,
 		`data-video-src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&amp;start=90"`,
 		`href="https://www.youtube.com/watch?v=dQw4w9WgXcQ&amp;t=90s"`,
-		`/static/video.js`,
+		`/static/site.min.js?v=`, // its video.js makes the players
 		`<a href="https://vimeo.com/22439234">https://vimeo.com/22439234</a>`,
 	} {
 		if !strings.Contains(body, s) {
@@ -110,10 +110,11 @@ func TestVideoEmbedPage(t *testing.T) {
 		t.Errorf("CSP signed in: %s", c)
 	}
 
-	// Pages without a video keep frame-src 'none' and load no player script.
-	for _, p := range []string{plain, "/"} {
+	// Pages without a video keep frame-src 'none'. The player script is in
+	// the site bundle, never loaded on its own.
+	for _, p := range []string{plain, "/", path} {
 		rec = e.get(p, nil)
-		if c := rec.Header().Get("Content-Security-Policy"); !strings.Contains(c, "frame-src 'none'") || strings.Contains(c, "youtube") {
+		if c := rec.Header().Get("Content-Security-Policy"); p != path && (!strings.Contains(c, "frame-src 'none'") || strings.Contains(c, "youtube")) {
 			t.Errorf("CSP of %s: %s", p, c)
 		}
 		if strings.Contains(rec.Body.String(), "video.js") {

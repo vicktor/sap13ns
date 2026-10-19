@@ -1,6 +1,6 @@
 {{/* shared/assistant: the site assistant's floating button and chat panel.
      Data: PageData. Renders nothing while the assistant is off. Without
-     JavaScript the button links to the /ask page; assistant.js turns it into
+     JavaScript the button links to the /ask page; assistant.js (in site.min.js) turns it into
      a modal chat (native <dialog>: focus trap, Escape closes). Every string
      the script shows comes from the data-t-* attributes. The classes of the
      root place the button (Settings → Site assistant: bottom right or left,
@@ -31,7 +31,6 @@
     </form>
     <p class="sap-assistant-note">{{T "Answers are written by AI from this site's pages and may contain mistakes."}}</p>
   </dialog>
-  <script src="{{.Script}}" defer></script>
 </div>
 {{end}}{{end}}{{end}}
 

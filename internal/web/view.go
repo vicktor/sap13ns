@@ -303,7 +303,7 @@ type SiteView struct {
 // Asset returns the cache-busted URL of a file in the active theme's static/.
 func (s *SiteView) Asset(file string) string { return s.theme.StaticURL(file) }
 
-// Static returns the URL of a core static file (site.js, theme-init.js).
+// Static returns the URL of a core static file (site.min.js, theme-init.js).
 func (s *SiteView) Static(file string) string { return s.server.assetURL(file) }
 
 // Menu returns menu links for a location, falling back to published pages
@@ -656,7 +656,7 @@ type PageData struct {
 	Translations []LangLink
 	IsFront      bool
 	Preview      bool
-	Video        bool     // the page shows a video player: load video.js
+	Video        bool     // the page shows a video player: its CSP allows the players' frames
 	Ask          *AskView // the assistant page without JavaScript (assistant.go)
 	// Blocks: block layouts replacing theme regions (builder.go).
 	Blocks *BlocksView

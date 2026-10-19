@@ -25,7 +25,7 @@ func TestConsentOnPublicPages(t *testing.T) {
 	for _, s := range []string{
 		`<a href="#sap-consent" data-consent-open>`,
 		`<dialog id="sap-consent"`,
-		`/static/consent.js`,
+		`/static/site.min.js?v=`, // with consent.js in it
 		`/static/consent.css`,
 		`data-consent-category="necessary"`,
 		`data-consent-category="media"`,

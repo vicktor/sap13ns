@@ -118,8 +118,8 @@ func (sv *SiteView) Link(u string) string {
 
 // OnePage reports whether the page has sections to scroll to, or menu
 // links to them: the front page, a layout with anchored sections, a menu
-// with #links. shared/head then loads onepage.js, which marks the link of
-// the section in view.
+// with #links. shared/head then marks the site bundle's script with
+// data-sap-onepage, and its onepage.js marks the link of the section in view.
 func (p *PageData) OnePage() bool {
 	if p == nil || p.Site == nil {
 		return false

@@ -17,11 +17,8 @@
 <script src="{{asset "vendor/basecoat/toast.min.js"}}" defer></script>
 <script src="{{asset "vendor/basecoat/select.min.js"}}" defer></script>
 <script src="{{asset "vendor/basecoat/combobox.min.js"}}" defer></script>
-<script type="module" src="{{asset "selects.js"}}"></script>
-<script src="{{asset "admin.js"}}" defer></script>
-<script src="{{asset "autosave.js"}}" defer></script>
-<script src="{{asset "jobs.js"}}" defer></script>
-<script src="{{asset "ai.js"}}" defer></script>
+{{/* selects.js, admin.js, autosave.js, jobs.js and ai.js in one file
+(npm run build, scripts/js-bundles.mjs), after Basecoat's. */}}<script src="{{asset "admin.min.js"}}" defer></script>
 {{end}}
 
 {{/* The heading of a sidebar group: a button that collapses and expands

@@ -149,8 +149,7 @@ type AssistantView struct {
 	Suggestions []string
 	Lang        string
 	Endpoint    string // POST, JSON or a text/event-stream
-	AskURL      string // the page that works without JavaScript
-	Script      string
+	AskURL      string // the page that works without JavaScript; the widget's code is in site.min.js
 	// The chat button: its corner (store.BubbleRight or BubbleLeft), its
 	// height (BubbleNormal, BubbleRaised or BubbleHigh) and the label
 	// beside it, "" for none.
@@ -202,7 +201,7 @@ func (s *Server) assistantView(lang string) *AssistantView {
 	}
 	position, offset := bubblePlace(as)
 	return &AssistantView{Name: name, Greeting: greeting, Suggestions: txt.Suggestions, Lang: lang,
-		Endpoint: "/api/assistant", AskURL: s.langPath(lang, "/ask"), Script: s.assetURL("assistant.js"),
+		Endpoint: "/api/assistant", AskURL: s.langPath(lang, "/ask"),
 		Position: position, Offset: offset, Label: txt.BubbleLabel}
 }
 
