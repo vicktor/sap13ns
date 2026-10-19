@@ -480,6 +480,12 @@ func TestZip(t *testing.T) {
 	if err := os.Symlink(secret, filepath.Join(s.uploads, "link.txt")); err != nil {
 		t.Fatal(err)
 	}
+	// And users' photos and Gravatar copies.
+	if err := os.MkdirAll(filepath.Join(s.uploads, "avatars"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(s.uploads, "avatars", "u1-0123456789abcdef0123-64.jpg"), []byte("a photo"), 0o644)
+	os.WriteFile(filepath.Join(s.uploads, "avatars", "c-0123456789abcdef0123-64.jpg"), []byte("a copy"), 0o644)
 
 	var buf bytes.Buffer
 	rep, err := WriteZip(context.Background(), st, &buf, siteOpts(s))

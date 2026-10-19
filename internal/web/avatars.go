@@ -92,7 +92,9 @@ func commentAvatar(set store.Settings, c *store.Comment) AvatarView {
 	return avatarView(c.AuthorName, c.Gravatar)
 }
 
-func showCommenterGravatars(set store.Settings) bool { return set.GravatarUsers && set.GravatarCommenters }
+func showCommenterGravatars(set store.Settings) bool {
+	return set.GravatarUsers && set.GravatarCommenters
+}
 
 // UserAvatar is the avatar of a user (*store.User or store.User) for the
 // admin templates: {{template "avatar" (dict "A" ($.UserAvatar .) …)}}.

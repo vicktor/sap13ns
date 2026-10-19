@@ -165,3 +165,26 @@ func TestWidgetsAndOptions(t *testing.T) {
 		t.Errorf("theme options: %v %v", out, bad)
 	}
 }
+
+// TestGravatarSettings: Gravatar is on for users by default and off for
+// commenters, whose images need the users' setting; a restore that has
+// them on alone turns them off.
+func TestGravatarSettings(t *testing.T) {
+	def := store.DefaultSettings()
+	if !def.GravatarUsers || def.GravatarCommenters {
+		t.Fatalf("defaults: users %v, commenters %v", def.GravatarUsers, def.GravatarCommenters)
+	}
+	in := def
+	in.GravatarUsers, in.GravatarCommenters = false, true
+	if bad := Settings(in, Site{}); !slices.Equal(bad, []string{"gravatar_commenters"}) {
+		t.Errorf("commenters without users: %v", bad)
+	}
+	out, reset := CleanSettings(in, def, Site{})
+	if !slices.Equal(reset, []string{"gravatar_commenters"}) || out.GravatarCommenters || out.GravatarUsers {
+		t.Errorf("cleaned: %v, users %v, commenters %v", reset, out.GravatarUsers, out.GravatarCommenters)
+	}
+	in.GravatarUsers = true
+	if bad := Settings(in, Site{}); len(bad) > 0 {
+		t.Errorf("both on: %v", bad)
+	}
+}
