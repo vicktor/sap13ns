@@ -41,7 +41,7 @@ func (s *Server) officialOffers(r *http.Request, hidden []string) []officialRow 
 		if slices.Contains(hidden, op.ID) {
 			continue
 		}
-		row := officialRow{OfficialPlugin: op, Perms: s.permSummary(r, op.EffectivePermissions())}
+		row := officialRow{OfficialPlugin: op, Perms: s.permSummary(r, op.Manifest, op.EffectivePermissions())}
 		if p := s.plugins.Get(op.ID); p != nil {
 			if p.Record == nil || p.Record.Source != plugin.SourceOfficial || !op.NewerThan(p.Version) {
 				continue
@@ -56,7 +56,7 @@ func (s *Server) officialOffers(r *http.Request, hidden []string) []officialRow 
 // permSummary describes permissions in plain words, as the review on a
 // plugin's page does, with the hosts of http: in one line and the sources
 // of each csp: directive in another.
-func (s *Server) permSummary(r *http.Request, perms []string) []pluginPerm {
+func (s *Server) permSummary(r *http.Request, m *plugin.Manifest, perms []string) []pluginPerm {
 	type group struct {
 		at    int // its place in out
 		perm  string
@@ -75,7 +75,7 @@ func (s *Server) permSummary(r *http.Request, perms []string) []pluginPerm {
 			key, item = plugin.PermCSP+dir+":", src
 		}
 		if key == "" {
-			out = append(out, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Help: s.permHelp(r, perm)})
+			out = append(out, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Help: s.permHelpFor(r, m, perm)})
 			continue
 		}
 		g := groups[key]

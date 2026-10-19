@@ -149,6 +149,11 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
   - forms are rendered by the host with single-use tokens, a honeypot and rate limits;
   - e-mail only reaches the site's own addresses, at 20 messages per plugin per hour;
   - plugin JavaScript and CSP additions are high-risk permissions.
+- **OAuth connections** ([PLUGINS.md](PLUGINS.md#oauth-connections)) are run by the core, never by the plugin:
+  - a plugin declares its providers, and each needs the medium-risk `oauth:<provider>` permission, with every host the core contacts for it among the plugin's `http:` permissions. Approval pins the whole declaration;
+  - **Connect** is a CSRF-checked POST. Its `state` is random, signed with the site's key over the plugin, the provider and the session, valid 10 minutes, and stored only as a hash bound to the session, the user and the redirect URI. The callback takes it once, so a forged, expired, replayed or foreign state never reaches the provider. PKCE (S256) is used when the provider supports it;
+  - the code exchange, the long-lived token exchange, the account lookup and the renewals go through the SSRF guard and follow no redirect. Their errors keep only the provider's error code and description;
+  - tokens are sealed with the site's key (AES-256-GCM, bound to the plugin and the provider). The plugin receives only an access token, in event, comment and form hooks, never the refresh token, the client secret or the code. Tokens never appear in the admin, logs, site backups or exports, and they are deleted on disconnect and on uninstall.
 
   The full contract is in [PLUGINS.md](PLUGINS.md).
 
@@ -157,12 +162,12 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
 - **Backups** can be encrypted with AES-256-GCM (STREAM construction, Argon2id key derivation). The passphrase is read from a file or the environment, never from a command-line flag.
 - **Updates** install only releases whose `SHA256SUMS` carries a valid Ed25519 signature from the key compiled into the binary.
 - **Content exports** (Tools → Export) need the settings capability, and each one is written to the audit log.
-  - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, AI keys or the instance and site secrets.
+  - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, plugin OAuth tokens, AI keys or the instance and site secrets.
   - E-mail and IP addresses are only included when the administrator asks for them.
   - A `.zip` prepared in the background sits in a directory that is never served. It is downloaded once, by the administrator who asked, through a signed link valid for 24 hours, and then deleted.
   - Background exports cannot fill the disk. A site keeps one waiting, and a new one deletes it. One starts only when its estimate fits the storage of the site's plan (on a network) and the disk keeps twice the estimate free; otherwise it is refused with 413.
 - **Site backups** (Tools → Backups, `sap13ns backup -format site`, and a network's nightly run):
-  - **No secrets.** They never hold password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the MCP token, or the instance and site secrets. They do hold personal data (users' and commenters' e-mail addresses, commenters' IP addresses, the photos users uploaded), so they are written with mode 0600 in 0700 directories that are never served, and encrypted when a passphrase is set.
+  - **No secrets.** They never hold password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets or OAuth connections, AI or embedding keys, the MCP token, or the instance and site secrets. They do hold personal data (users' and commenters' e-mail addresses, commenters' IP addresses, the photos users uploaded), so they are written with mode 0600 in 0700 directories that are never served, and encrypted when a passphrase is set.
   - **Administrators only.** The page needs the settings capability. A download link is signed for the administrator's session and expires after an hour, and each download is audited.
   - **Restores** need the site's name typed and the administrator's current password, or a sign-in of the last few minutes with single sign-on. They are spaced out (one every 10 minutes, 3 an hour, recorded with the backups so a reload does not reset it) and audited. A restore makes a safety backup first, changes the database in one transaction, and swaps the staged files in after the commit, so a failed restore leaves the site as it was. It writes only the site's own schema and directory.
   - **Nothing in an archive is trusted.** Every member is checked against the manifest (size and SHA-256) and the extraction limits. Content goes through the sanitising pipeline. Settings, menus, widgets, theme options, designs, redirects and plugin settings go through the checks of their admin pages, and what fails is reset to the site's value and reported. A restore never takes a secret from an archive, never keeps a key for another provider or address, and never switches local (plain http) models on.

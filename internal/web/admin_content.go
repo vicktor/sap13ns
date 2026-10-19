@@ -11,6 +11,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/content"
 	"sap13ns/internal/media"
+	"sap13ns/internal/plugin"
 	"sap13ns/internal/store"
 )
 
@@ -28,7 +29,10 @@ type dashboardData struct {
 	Theme    string
 	Stats    *dashStats // last 7 days; nil when analytics are off or not allowed
 	Chat     *dashChat  // the chat on the site; nil for those who cannot change it
-	Now      time.Time
+	// OAuth are the plugin connections that must be renewed, for those
+	// who manage plugins.
+	OAuth []plugin.OAuthAlert
+	Now   time.Time
 }
 
 // dashChat is the state of the chat on the site and today's questions.
@@ -107,6 +111,7 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 			d.Plugins++
 		}
 	}
+	d.OAuth = s.oauthAlerts(r)
 	s.renderAdmin(w, r, "dashboard", s.tu(r, "Dashboard"), "dashboard", d)
 }
 

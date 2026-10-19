@@ -15,17 +15,18 @@ This is the full contract between sap13ns and its plugins: the package format, t
 5. [Hooks](#hooks)
 6. [Events](#events)
 7. [Host functions and permissions](#host-functions-and-permissions)
-8. [Limits](#limits)
-9. [Output rules](#output-rules)
-10. [Forms](#forms)
-11. [Assets and the Content-Security-Policy](#assets-and-the-content-security-policy)
-12. [Settings](#settings)
-13. [The scanner](#the-scanner)
-14. [Installing and approving](#installing-and-approving)
-15. [Networks of sites](#networks-of-sites)
-16. [Command line](#command-line)
-17. [Developing and testing](#developing-and-testing)
-18. [Versioning](#versioning)
+8. [OAuth connections](#oauth-connections)
+9. [Limits](#limits)
+10. [Output rules](#output-rules)
+11. [Forms](#forms)
+12. [Assets and the Content-Security-Policy](#assets-and-the-content-security-policy)
+13. [Settings](#settings)
+14. [The scanner](#the-scanner)
+15. [Installing and approving](#installing-and-approving)
+16. [Networks of sites](#networks-of-sites)
+17. [Command line](#command-line)
+18. [Developing and testing](#developing-and-testing)
+19. [Versioning](#versioning)
 
 ## Security model
 
@@ -122,6 +123,7 @@ Extraction checks every entry name before writing anything. It writes into a sta
 | `forms` | up to 5; required with the `form.submit` hook; see [Forms](#forms) |
 | `assets` | up to 5 `css` and 5 `js` paths, each `assets/….css` or `assets/….js`; JavaScript needs `assets:js` |
 | `csp` | `frame-src` and/or `img-src`, 1 to 10 sources each, `https://host` or `https://*.domain` |
+| `oauth` | up to 3 providers the administrator connects the plugin to; see [OAuth connections](#oauth-connections) |
 
 Text shown to visitors, such as form titles, submit labels, field labels and placeholders, may be a string or an object by language: `{"en": "Send", "es": "Enviar"}`. The host uses the page language (or its base language: `es` for `es-MX`), then a plain string or `en`, then any other value.
 
@@ -170,6 +172,7 @@ Build Go plugins as reactors: `GOOS=wasip1 GOARCH=wasm go build -buildmode=c-sha
 | `posts_query` | `(qptr, qlen) -> i32` | length of a JSON array of posts |
 | `http_fetch` | `(rptr, rlen) -> i32` | length of a JSON response |
 | `mail_send` | `(ptr, len) -> i32` | `0` or an error code |
+| `oauth_token` | `(pptr, plen) -> i32` | length of a JSON token of the provider named, or `-1` if it is not connected |
 
 Error codes: `-1` not found, `-2` permission denied, `-3` invalid argument, `-4` storage quota exceeded, `-5` host call failed, `-6` too many host calls in this request, `-7` rate limited. The SDK maps them to `ErrNotFound`, `ErrDenied`, `ErrInvalid`, `ErrQuota`, `ErrFailed`, `ErrLimit` and `ErrRateLimited`.
 
@@ -273,6 +276,7 @@ The payload objects below use these shapes:
 | `comment.approved` | `{"id", "post_id", "author"}` |
 | `user.registered` | `{"username", "role"}` |
 | `cron.hourly` | `{"time"}` (RFC 3339, UTC) |
+| `oauth.connected` | `{"provider"}`, to that plugin only, when an administrator has just connected one of its [OAuth providers](#oauth-connections) |
 
 Plugins hear nothing about a scheduled post before its date: no `post.published`, and no `post.updated` while it is edited.
 
@@ -289,6 +293,7 @@ Plugins hear nothing about a scheduled post before its date: no `post.published`
 | `comments:pii` | **high** | commenters' e-mail, IP address and browser in `comment.check` |
 | `assets:js` | **high** | linking the plugin's JavaScript on every public page |
 | `csp:<directive>:<source>` | **high** | derived from `"csp"`; not written in `permissions` |
+| `oauth:<provider>` | medium | `oauth_token` for a provider declared in `"oauth"`; see [OAuth connections](#oauth-connections) |
 
 High-risk permissions need an explicit confirmation when the plugin is enabled.
 
@@ -338,6 +343,77 @@ High-risk permissions need an explicit confirmation when the plugin is enabled.
 - **Message:** the subject is one line of at most 200 characters, and the body is plain text of at most 64 KiB.
 - **Provenance:** the host appends a footer naming the plugin and the site.
 - **Limits:** at most 5 messages per call and 20 per plugin per hour. Delivery is asynchronous.
+
+## OAuth connections
+
+A plugin has no URL of its own, so it cannot complete an OAuth authorization. It declares the providers it works with instead, and the core runs the OAuth 2.0 authorization code flow ([RFC 6749 §4.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1)) with the administrator, keeps the tokens and renews them. The plugin only ever receives a valid access token, through `oauth_token`. It never sees the refresh token, the client secret or the authorization code. The official `linkedin` and `instagram` plugins use it.
+
+```json
+{
+  "permissions": ["oauth:linkedin", "http:www.linkedin.com", "http:api.linkedin.com"],
+  "settings": [
+    {"key": "client_id", "label": "Client ID", "type": "text"},
+    {"key": "client_secret", "label": "Client secret", "type": "secret"}
+  ],
+  "oauth": [{
+    "id": "linkedin",
+    "name": "LinkedIn",
+    "authorize_url": "https://www.linkedin.com/oauth/v2/authorization",
+    "token_url": "https://www.linkedin.com/oauth/v2/accessToken",
+    "userinfo_url": "https://api.linkedin.com/v2/userinfo",
+    "scopes": ["openid", "profile", "w_member_social"],
+    "client_id_setting": "client_id",
+    "client_secret_setting": "client_secret"
+  }]
+}
+```
+
+| Field | Rules |
+|---|---|
+| `id` | `^[a-z][a-z0-9_-]{0,39}$`. The permission `oauth:<id>` must be in `permissions`, and every `oauth:` permission needs a provider |
+| `name` | shown on the plugin's page; at most 60 characters |
+| `authorize_url`, `token_url` | `https://` on a host name, without a port, credentials or fragment; a query is kept. **The host of every URL must be covered by one of the plugin's `http:` permissions**, so the approval shows every host the core contacts for the plugin |
+| `scopes`, `scope_separator` | up to 30 scopes of printable ASCII, joined with `" "` (the default) or `","` |
+| `pkce` | `true` adds an S256 code challenge ([RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)); required without a client secret |
+| `token_auth` | how the client authenticates at the token endpoint: `body` (`client_id` and `client_secret` in the form, the default) or `basic` (HTTP Basic, RFC 6749 §2.3.1) |
+| `client_id_setting` | a `text` or `secret` setting that holds the client ID |
+| `client_secret_setting` | a `secret` setting that holds the client secret |
+| `userinfo_url`, `userinfo_token` | optional: a GET that names the connected account. The id comes from `sub`, `user_id` or `id`, the name from `name`, `username` or `preferred_username`, also inside `{"data": [...]}`. The token goes in a Bearer header, or in the query as `access_token` with `"userinfo_token": "query"` |
+| `exchange` | optional `{"url", "grant_type"}`: after the code exchange, the token is traded for a long-lived one with `GET url?grant_type=…&client_secret=…&access_token=…` (Instagram) |
+| `refresh` | optional `{"url", "grant_type", "token"}`: how tokens are renewed. Without it, a refresh token is sent to `token_url` (RFC 6749 §6). With `"token": "access_token"`, the current access token is sent instead, in a GET without the client secret (Instagram) |
+
+Approval pins each provider's whole declaration (`oauth-provider:<id>:<digest>`, next to the permissions), so a version that changes a URL or a scope stops until it is approved again.
+
+**Connecting.** The plugin's page has a **Connections** card. For each provider it shows the exact redirect URI to register with the provider, `<site>/admin/plugins/<plugin>/oauth/<provider>/callback`, the connected account, when the token expires and whether it renews itself, with **Connect** and **Disconnect** buttons.
+
+1. **Connect** is a POST with the CSRF token, by someone with the plugins capability, while the plugin is enabled with the permission and its client settings are filled in. It creates a `state`: 32 random bytes signed with the site's key over the plugin, the provider and the session, valid 10 minutes. The core stores the state's SHA-256, bound to the session, the user and the redirect URI, with the PKCE verifier sealed, and sends the browser to the provider.
+2. The provider sends the administrator back to the callback. The core checks the signature, then takes the stored state, **once**, and checks that the same session and user started it for this plugin, provider and redirect URI. A forged, expired, replayed or foreign state is refused before anything is sent to the provider.
+3. The core exchanges the code through the [SSRF guard](SECURITY.md#outbound-requests), following no redirect, then runs `exchange` and `userinfo` if declared. It stores the tokens and sends the plugin an `oauth.connected` event.
+
+The redirect URI is always on the site's primary host. On a network site the session cookie belongs to the host that set it, so **Connect** works from the primary host only; another host says so.
+
+**Renewal.** A connection with a refresh token, or with a `refresh` that sends the access token, is renewed once half of the token's life has passed, and at the latest five minutes before it ends: an hour-long token after half an hour, a 60-day token after 30 days.
+
+- Renewals happen when the plugin asks for the token and from the hourly cron, so a token is renewed even while the plugin is idle. A network wakes an unloaded site for them.
+- One renewal of a connection runs at a time, and a rotated refresh token replaces the old one.
+- A failed renewal is logged in the plugin's activity log and recorded with the connection, then tried again after 15 minutes while the old token lasts. An `invalid_grant` answer stops the renewals.
+
+**Notices.** The Plugins page and the dashboard warn the people who manage plugins when a connection of an enabled plugin has ended, or ends within 7 days and cannot renew itself. That happens when there is no refresh token (LinkedIn's 60-day tokens, for most apps), when a renewal failed, or when the refresh token itself is about to expire. The plugin's page shows the same on its card.
+
+**`oauth_token`.** The SDK call is `pluginsdk.OAuth(provider)`.
+
+- **Request:** the provider id.
+- **Response:** `{"access_token", "token_type": "bearer", "expires_at" (RFC 3339), "account_id", "account_name", "scopes"}`, renewed first when due.
+  - A connection that ended answers `{"error": "expired: …"}`, which the SDK returns as `ErrOAuthExpired`.
+  - A provider nobody connected returns `-1`, which the SDK returns as `ErrNotConnected`.
+- **Where it is available:** only in `event`, `comment.check` and `form.submit`, like `http_fetch`, and never in the scanner's dry run. At most 4 calls per request.
+- **Use:** send the token with `Fetch`, in an `Authorization` header, to a granted host. Never log it.
+
+**What the core keeps.**
+
+- The tokens are sealed with the site's key (AES-256-GCM), bound to the plugin and the provider, in a table of their own.
+- They never appear in the admin, logs, audit entries, site backups or content exports. A full database dump carries them only sealed.
+- Disconnecting deletes them, and so does uninstalling the plugin, with or without its data.
 
 ## Limits
 
@@ -487,7 +563,7 @@ The scanner checks, in order:
 | `perm.http-wildcard` | high | `http:*` |
 | `perm.high-risk` | medium | another high-risk permission (noted; enabling still asks for confirmation) |
 | `perm.unused` | medium | a permission the module never uses |
-| `perm.http-render-only`, `perm.mail-render-only` | medium | the network or e-mail are imported, but no hook can use them |
+| `perm.http-render-only`, `perm.mail-render-only`, `perm.oauth-render-only` | medium | the network, e-mail or OAuth tokens are imported, but no hook can use them |
 | `strings.cloud-metadata` | critical | cloud metadata addresses (`169.254.169.254`, `metadata.google.internal`, …) |
 | `strings.miner` | critical | cryptocurrency miner signatures and pools |
 | `strings.embedded-executable` | critical | an embedded ELF, PE, Mach-O or WebAssembly binary |

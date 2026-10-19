@@ -60,13 +60,17 @@ type pluginsData struct {
 	// Inert: a suspended site opened for an emergency access, whose
 	// plugins do not load (plugin.HostOptions.Inert).
 	Inert bool
+	// OAuth are the providers of the plugin on its page, and OAuthAlerts
+	// the connections that must be renewed, on the list (plugin_oauth.go).
+	OAuth       []oauthRow
+	OAuthAlerts []plugin.OAuthAlert
 }
 
 // pluginsPage is the list of plugins, with the official plugins, the
 // upload form and, on a site of a network, the catalogue.
 func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
 	d := pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Uploads: true,
-		Inert: s.plugins.Inert()}
+		Inert: s.plugins.Inert(), OAuthAlerts: s.oauthAlerts(r)}
 	if s.limits == nil {
 		d.Official = s.officialOffers(r, nil)
 		return d, nil
@@ -175,8 +179,24 @@ func quickEnable(p *plugin.Plugin) bool {
 	return !needsConfirmation(p, currentReport(p))
 }
 
+// permHelpFor describes a permission of the plugin m: an oauth:
+// permission names its provider and scopes.
+func (s *Server) permHelpFor(r *http.Request, m *plugin.Manifest, perm string) string {
+	if id, ok := strings.CutPrefix(perm, plugin.PermOAuth); ok && m != nil {
+		if d := m.OAuthProvider(id); d != nil {
+			if len(d.Scopes) == 0 {
+				return s.tu(r, "Use the %s account you connect on its page.", d.Name)
+			}
+			return s.tu(r, "Use the %s account you connect on its page, with these scopes: %s.", d.Name, strings.Join(d.Scopes, ", "))
+		}
+	}
+	return s.permHelp(r, perm)
+}
+
 func (s *Server) permHelp(r *http.Request, perm string) string {
 	switch {
+	case strings.HasPrefix(perm, plugin.PermOAuth):
+		return s.tu(r, "Use an account you connect on its page.")
 	case perm == plugin.PermKV:
 		return s.tu(r, "Store its own small key-value data.")
 	case perm == plugin.PermPostsRead:
@@ -210,7 +230,8 @@ func (s *Server) adminPlugin(w http.ResponseWriter, r *http.Request) {
 	}
 	var perms []pluginPerm
 	for _, perm := range p.EffectivePermissions() {
-		perms = append(perms, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Granted: slices.Contains(granted, perm), Help: s.permHelp(r, perm)})
+		perms = append(perms, pluginPerm{Name: perm, Risk: plugin.PermissionRisk(perm), Granted: slices.Contains(granted, perm),
+			Help: s.permHelpFor(r, &p.Manifest, perm)})
 	}
 	values := p.SettingValues()
 	loc := s.state.Load().Loc
@@ -229,9 +250,15 @@ func (s *Server) adminPlugin(w http.ResponseWriter, r *http.Request) {
 		title = p.ID
 	}
 	rep := currentReport(p)
+	conns, err := s.oauthRows(r, p)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	d := pluginsData{Plugin: p, Perms: perms, Values: values, Logs: p.Logs(), Report: p.Report,
 		ReportStale: p.Report != nil && rep == nil, NeedsConfirm: needsConfirmation(p, rep),
-		Assets: append(slices.Clone(p.Assets.CSS), p.Assets.JS...)}
+		Assets: append(slices.Clone(p.Assets.CSS), p.Assets.JS...), OAuth: conns}
+	oauthFormAction(w, p)
 	s.renderAdmin(w, r, "plugin", title, "plugins", d)
 }
 

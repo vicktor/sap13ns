@@ -175,6 +175,22 @@
 </div>
 {{end}}
 
+{{/* Plugin OAuth connections that need the administrator ([]plugin.OAuthAlert). */}}
+{{define "oauth-alerts"}}{{if .}}
+<div class="alert" data-variant="warning" role="status" id="oauth-alerts">
+  {{icon "triangle-alert"}}
+  <h2>{{T "Plugin connections to renew"}}</h2>
+  <section>
+    <ul class="oauth-alerts">
+      {{range .}}
+      <li><a href="/admin/plugins/{{.PluginID}}#connections">{{.PluginName}} · {{.ProviderName}}{{with .Account}} ({{.}}){{end}}</a>:
+        {{if .Ended}}{{T "expired on %s; the plugin cannot use the account until you connect it again." (dateTime .EndsAt)}}{{else}}{{T "stops working on %s unless you connect the account again." (dateTime .EndsAt)}}{{end}}</li>
+      {{end}}
+    </ul>
+  </section>
+</div>
+{{end}}{{end}}
+
 {{/* A plugin scanner report (plugin.Report): verdict line, then findings. */}}
 {{define "scan-report"}}{{$r := .}}
 {{template "scan-report-summary" $r}}

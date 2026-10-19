@@ -98,6 +98,54 @@
     </section>
     {{end}}
 
+    {{if $d.OAuth}}
+    <section class="card" id="connections">
+      <header>
+        <h2>{{icon "link"}} {{T "Connections"}}</h2>
+        <p>{{T "The accounts this plugin works with. The site keeps their tokens encrypted and renews them; the plugin only receives an access token while it runs."}}</p>
+      </header>
+      <section class="stack">
+        {{range $d.OAuth}}
+        <div class="oauth-provider">
+          <h3 class="text-sm font-medium mb-2">{{.Name}}</h3>
+          {{if .Conn}}
+          <dl class="meta-list">
+            <div><dt>{{T "Account"}}</dt><dd>{{or .Conn.AccountName .Conn.AccountID (T "Connected")}}</dd></div>
+            {{with .Conn.ExpiresAt}}<div><dt>{{T "Token valid until"}}</dt><dd>{{dateTime .}}</dd></div>{{end}}
+            <div><dt>{{T "Renewal"}}</dt><dd>{{if .Conn.Refreshable}}{{T "Automatic"}}{{else}}{{T "Connect again before the token expires"}}{{end}}</dd></div>
+            {{with .Conn.RefreshExpiresAt}}<div><dt>{{T "Connect again before"}}</dt><dd>{{dateTime .}}</dd></div>{{end}}
+            <div><dt>{{T "Connected"}}</dt><dd>{{dateTime .Conn.ConnectedAt}}{{with .Conn.ConnectedBy}} · {{.}}{{end}}</dd></div>
+            {{with .Conn.Scopes}}<div><dt>{{T "Scopes"}}</dt><dd class="mono text-xs break-all">{{join . " "}}</dd></div>{{end}}
+          </dl>
+          {{if .Ended}}
+          <div class="alert mt-3" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "The connection expired"}}</h2><section><p>{{T "The plugin cannot use this account until you connect it again."}}</p></section></div>
+          {{else if .Ending}}
+          <div class="alert mt-3" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "The connection ends soon"}}</h2><section><p>{{T "It stops working on %s. Connect the account again to renew it." (dateTime .EndsAt)}}</p></section></div>
+          {{end}}
+          {{with .Conn.RefreshError}}<p class="hint mt-2">{{T "The last renewal failed:"}} <span class="mono">{{.}}</span></p>{{end}}
+          {{else}}
+          <p class="muted text-sm">{{T "Not connected."}}</p>
+          {{end}}
+          <div class="field mt-3">
+            <label for="redirect-{{.ID}}">{{T "Redirect URI to register with %s" .Name}}</label>
+            <div class="copy-field"><input class="input mono text-xs" id="redirect-{{.ID}}" type="text" readonly value="{{.RedirectURI}}"><button type="button" class="btn" data-variant="outline" data-size="icon" data-copy="redirect-{{.ID}}" aria-label="{{T "Copy"}}">{{icon "copy"}}</button></div>
+          </div>
+          <div class="form-actions">
+            {{if .Available}}
+            <form method="post" action="/admin/plugins/{{$p.ID}}/oauth/{{.ID}}/connect">{{$.CSRFField}}<button class="btn" type="submit">{{icon "link"}}{{if .Conn}}{{T "Connect again"}}{{else}}{{T "Connect %s" .Name}}{{end}}</button></form>
+            {{else}}
+            <p class="hint">{{T "Enable the plugin, then connect the account."}}</p>
+            {{end}}
+            {{if .Conn}}
+            <form method="post" action="/admin/plugins/{{$p.ID}}/oauth/{{.ID}}/disconnect">{{$.CSRFField}}<button class="btn" data-variant="outline" type="submit" data-confirm="{{T "Disconnect %s? The plugin can no longer use the account." .Name}}">{{icon "unlink"}}{{T "Disconnect"}}</button></form>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+      </section>
+    </section>
+    {{end}}
+
     <section class="card">
       <header><h2>{{T "Activity"}}</h2><p>{{T "Latest messages written by the plugin."}}</p></header>
       <section>

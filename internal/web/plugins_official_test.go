@@ -30,7 +30,7 @@ func TestPermSummary(t *testing.T) {
 	}
 	s := &Server{i18n: cat}
 	s.state.Store(&siteState{S: store.Settings{Language: "en"}})
-	got := s.permSummary(nil, []string{"kv", "http:a.example", "posts:read", "http:b.example", "csp:frame-src:https://x.example",
+	got := s.permSummary(nil, nil, []string{"kv", "http:a.example", "posts:read", "http:b.example", "csp:frame-src:https://x.example",
 		"csp:frame-src:https://y.example", "csp:img-src:https://z.example", "http:*"})
 	want := []pluginPerm{
 		{Name: "kv", Risk: "low", Help: "Store its own small key-value data."},
@@ -43,7 +43,7 @@ func TestPermSummary(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("got  %+v\nwant %+v", got, want)
 	}
-	if got := s.permSummary(nil, []string{"http:a.example"}); len(got) != 1 || got[0].Name != "http:a.example" || got[0].Help != "Make HTTPS requests to this host only." {
+	if got := s.permSummary(nil, nil, []string{"http:a.example"}); len(got) != 1 || got[0].Name != "http:a.example" || got[0].Help != "Make HTTPS requests to this host only." {
 		t.Fatalf("one host: %+v", got)
 	}
 }

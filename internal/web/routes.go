@@ -221,6 +221,9 @@ func (s *Server) routes() *http.ServeMux {
 	admin("POST /admin/plugins/{id}/settings", auth.CapPlugins, s.adminPluginSettings)
 	admin("POST /admin/plugins/{id}/scan", auth.CapPlugins, s.adminPluginScan)
 	admin("POST /admin/plugins/{id}/uninstall", auth.CapPlugins, s.adminPluginUninstall)
+	admin("POST /admin/plugins/{id}/oauth/{provider}/connect", auth.CapPlugins, s.adminPluginOAuthConnect)
+	admin("GET /admin/plugins/{id}/oauth/{provider}/callback", auth.CapPlugins, s.adminPluginOAuthCallback)
+	admin("POST /admin/plugins/{id}/oauth/{provider}/disconnect", auth.CapPlugins, s.adminPluginOAuthDisconnect)
 
 	admin("GET /admin/users", auth.CapManageUsers, s.adminUsers)
 	admin("GET /admin/users/new", auth.CapManageUsers, s.adminUserNew)

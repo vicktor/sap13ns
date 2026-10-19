@@ -17,6 +17,8 @@
 </div>
 {{end}}
 
+{{template "oauth-alerts" $d.OAuthAlerts}}
+
 {{with $d.Refused}}
 <div class="alert" data-variant="destructive" role="alert" id="refused">
   {{icon "octagon-alert"}}
