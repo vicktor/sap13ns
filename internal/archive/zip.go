@@ -9,6 +9,7 @@ package archive
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -46,6 +47,11 @@ type Limits struct {
 	MaxEntries  int    // entries in its directory, folders included
 	MaxUnpacked int64  // all files together, unpacked
 	MaxRatio    uint64 // uncompressed/compressed, for files over 1 MiB
+	// SkipHidden leaves hidden files and folders (a segment that starts
+	// with ".") out of the package instead of refusing the archive: for
+	// archives made elsewhere (a WordPress theme with its .github folder)
+	// that are read, never extracted as they are. ".." is still refused.
+	SkipHidden bool
 }
 
 // Zip is an archive whose names were checked.
@@ -85,6 +91,10 @@ func Open(r io.ReaderAt, size int64, root string, l Limits) (*Zip, error) {
 			continue // macOS archive litter
 		}
 		if err := CheckName(name); err != nil {
+			var ae *Error
+			if l.SkipHidden && errors.As(err, &ae) && ae.Rule == "package.hidden-file" {
+				continue
+			}
 			return nil, err
 		}
 		mode := f.Mode()
