@@ -1,0 +1,45 @@
+{{/* Shared fallbacks (internal/theme): the pages a theme does not ship
+     render with these, inside the theme's own layout. A theme can then be a
+     landing page or a one-page site (templates/front.html) and still show
+     the blog at /blog, posts, pages, archives and search results. They use
+     the shared building blocks and the neutral .sap-fallback styles of
+     shared.css, which follow the theme's tokens. Data: PageData. */}}
+
+{{/* shared/fallback-home: the latest posts (/blog, or / without a front
+     page). */}}
+{{define "shared/fallback-home"}}
+<div class="sap-fallback">
+  <header class="sap-fallback-head">
+    <h1>{{or .Heading .Site.Title}}</h1>
+    {{if .IsFront}}{{with .Site.Tagline}}<p class="sap-fallback-lead">{{.}}</p>{{end}}{{end}}
+  </header>
+  {{if .Posts}}{{template "shared/post-list" (dict "Posts" .Posts "Layout" (or .Site.Custom.HomeLayout "list"))}}{{template "shared/pagination" .Pagination}}
+  {{else}}{{template "shared/no-results" .}}{{end}}
+</div>
+{{end}}
+
+{{/* shared/fallback-single: one post or one page. */}}
+{{define "shared/fallback-single"}}{{with .Post}}
+<article class="sap-fallback sap-fallback-entry">
+  <header class="sap-fallback-head">
+    {{if eq .Type "post"}}{{template "shared/categories" .}}{{end}}
+    <h1>{{.Title}}</h1>
+    {{if eq .Type "post"}}{{template "shared/post-meta" .}}{{else if $.IsFront}}{{with .Summary}}<p class="sap-fallback-lead">{{.}}</p>{{end}}{{end}}
+  </header>
+  {{template "shared/featured-image" .}}
+  {{template "shared/content" .}}
+  {{if eq .Type "post"}}<footer class="sap-fallback-foot">{{template "shared/tags" .}}{{template "shared/share" .}}</footer>{{end}}
+</article>
+{{if eq .Type "post"}}<div class="sap-fallback sap-fallback-entry sap-fallback-after">{{template "shared/post-nav" $}}{{template "shared/comments" $}}</div>{{end}}
+{{end}}{{end}}
+
+{{/* shared/fallback-list: an archive (category, tag, author, month) or the
+     search page. */}}
+{{define "shared/fallback-list"}}
+<div class="sap-fallback">
+  {{template "shared/archive-header" .}}
+  {{if and (eq .Kind "search") (or .Posts (not .Query))}}{{template "shared/search-form" .}}{{end}}
+  {{if .Posts}}{{template "shared/post-list" (dict "Posts" .Posts "Layout" "list")}}{{template "shared/pagination" .Pagination}}
+  {{else if or .Query (ne .Kind "search")}}{{template "shared/no-results" .}}{{end}}
+</div>
+{{end}}

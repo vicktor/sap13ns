@@ -239,10 +239,16 @@ func (m *Manager) validate(r io.ReaderAt, size int64, root string) (*validation,
 		}
 	}
 	checkManifest(v, &man)
-	for _, f := range []string{"templates/layout.html", "templates/home.html", "templates/single.html", "static/theme.css"} {
+	// The layout, the not-found page and a front page (front.html, a
+	// landing, or home.html, the latest posts); every other page falls back
+	// to the shared templates.
+	for _, f := range []string{"templates/layout.html", "templates/404.html", "static/theme.css"} {
 		if !z.Has(f) {
 			v.add(Problem{Code: "layout.missing", File: f})
 		}
+	}
+	if !z.Has("templates/front.html") && !z.Has("templates/home.html") {
+		v.add(Problem{Code: "layout.missing-front", File: "templates/front.html"})
 	}
 	if len(v.problems) > 0 {
 		return v, nil

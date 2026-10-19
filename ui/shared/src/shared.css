@@ -326,6 +326,31 @@
     .sap-posts-bento > .sap-post:nth-last-child(2):nth-child(6n + 5), .sap-posts-bento > .sap-post:last-child:nth-child(6n + 6) { grid-column: span 2; }
   }
 
+  /* Shared fallbacks (shared/fallback-*): the blog pages of a theme that
+     ships only a front page, inside its layout. Neutral, from the tokens;
+     the theme's own .prose, .post-meta and lists still apply. */
+  .sap-fallback { display: flex; flex-direction: column; gap: calc(1.75rem * var(--sap-space-scale, 1)); width: min(100% - 2.5rem, var(--sap-content-width, 72rem)); margin-inline: auto; padding-block: calc(clamp(2.25rem, 6vw, 4.5rem) * var(--sap-space-scale, 1)); }
+  .sap-fallback-entry { width: min(100% - 2.5rem, var(--sap-measure, 44rem)); }
+  .sap-fallback-after { padding-top: 0; }
+  .sap-fallback-head { display: flex; flex-direction: column; gap: 0.75rem; }
+  .sap-fallback-head h1, .sap-fallback .archive-header h1 { margin: 0; font-family: var(--sap-font-heading, inherit); font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance; }
+  .sap-fallback-head .post-categories { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .sap-fallback-lead { max-width: 40rem; margin: 0; color: var(--muted-foreground); font-size: clamp(1.08rem, 2vw, 1.3rem); line-height: 1.5; }
+  .sap-fallback .archive-header { display: flex; flex-direction: column; gap: 0.5rem; }
+  .sap-fallback .archive-header > * { margin: 0; }
+  .sap-fallback .featured-image { margin: 0; }
+  .sap-fallback-foot { display: flex; flex-direction: column; gap: 1rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+  .sap-fallback-foot > * { margin: 0; }
+  .sap-fallback .no-results { padding-block: 2rem; }
+
+  /* One-page sites: sections with an anchor (#features) leave room for a
+     sticky header, which onepage.js measures into --sap-scroll-offset,
+     and a menu link to one glides there unless motion is reduced. */
+  .sap-anchor { scroll-margin-top: var(--sap-scroll-offset, 5rem); }
+  @media (prefers-reduced-motion: no-preference) {
+    html:has(.sap-anchor) { scroll-behavior: smooth; }
+  }
+
   /* Animations end at once, and infinite ones run a single time instead of
      looping at that speed. These !important rules live in a layer, so they
      also beat a theme's own (unlayered) !important. */

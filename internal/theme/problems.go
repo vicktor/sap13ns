@@ -81,8 +81,9 @@ var Messages = map[string]string{
 	"archive.no-manifest":    "theme.json is missing. Put the theme's files in a folder named after its slug, with theme.json inside, and zip that folder.",
 	// The layout of the folder.
 	"layout.not-allowed":   "This file does not belong in a theme. A theme holds theme.json, templates/, i18n/, static/, src/ and its README and LICENSE.",
-	"layout.template-name": "Only the page templates (layout, home, single, page, archive, search, 404 and ask) go in templates/. Put other templates in templates/partials/.",
+	"layout.template-name": "Only the page templates (layout, front, home, single, page, archive, search, 404 and ask) go in templates/. Put other templates in templates/partials/.",
 	"layout.missing":       "This file is required.",
+	"layout.missing-front": "A theme needs a front page: templates/front.html (a landing or a one-page site) or templates/home.html (the latest posts).",
 	"layout.too-many":      "A theme has at most %d templates.",
 	"static.type":          "This type of file cannot be in static/. Allowed: %s.",
 	"static.script":        "Scripts, pages and WebAssembly cannot be in a theme: the site's own JavaScript runs the toggles and menus.",

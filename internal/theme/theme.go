@@ -92,19 +92,32 @@ type Theme struct {
 	byLang    map[string]map[string]*template.Template // per-language clones
 	pools     map[string]*pool                         // uploaded themes: page and language -> slots
 	i18n      map[string]map[string]string             // theme's own strings: lang -> key -> text
+	own       map[string]bool                          // the pages the theme ships itself
 }
 
 // Pages every theme may provide. Missing ones fall back as described below.
-var pageNames = []string{"home", "single", "page", "archive", "search", "404", "ask"}
+// "front" is the theme's own front page (a landing, a one-page site), shown
+// at / when the reading settings ask for it.
+var pageNames = []string{"front", "home", "single", "page", "archive", "search", "404", "ask"}
 
+// fallback: a page the theme lacks renders with another of its pages, when
+// the theme has that one (a blog theme without page.html shows pages with
+// single.html). Without it, the server's shared page is used.
 var fallback = map[string]string{"page": "single", "archive": "home", "search": "home"}
 
-// serverPages are the pages the server adds to every theme: the not-found
-// and assistant pages of a theme without its own, and the page builder's.
+// serverPages are the pages the server adds to a theme that lacks them:
+// plain fallbacks from the shared templates (ui/shared/templates/fallback.html)
+// that render inside the theme's layout, so a theme can be a landing page or
+// a one-page site without any blog template, and the page builder's page.
 var serverPages = map[string]string{
-	"404":    `{{define "content"}}{{template "shared/not-found" .}}{{end}}`,
-	"ask":    `{{define "content"}}{{template "shared/ask" .}}{{end}}`,
-	"blocks": `{{define "content"}}{{template "shared/blocks-main" .}}{{end}}`,
+	"home":    `{{define "content"}}{{template "shared/fallback-home" .}}{{end}}`,
+	"single":  `{{define "content"}}{{template "shared/fallback-single" .}}{{end}}`,
+	"page":    `{{define "content"}}{{template "shared/fallback-single" .}}{{end}}`,
+	"archive": `{{define "content"}}{{template "shared/fallback-list" .}}{{end}}`,
+	"search":  `{{define "content"}}{{template "shared/fallback-list" .}}{{end}}`,
+	"404":     `{{define "content"}}{{template "shared/not-found" .}}{{end}}`,
+	"ask":     `{{define "content"}}{{template "shared/ask" .}}{{end}}`,
+	"blocks":  `{{define "content"}}{{template "shared/blocks-main" .}}{{end}}`,
 }
 
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
@@ -307,6 +320,7 @@ func (m *Manager) parse(t *Theme) error {
 			return err
 		}
 	}
+	t.own = map[string]bool{}
 	for _, name := range pageNames {
 		file := "templates/" + name + ".html"
 		if _, err := fs.Stat(t.fsys, file); err != nil {
@@ -320,14 +334,18 @@ func (m *Manager) parse(t *Theme) error {
 			return fmt.Errorf("%s: %w", file, err)
 		}
 		t.pages[name] = set
+		t.own[name] = true
 	}
-	if t.pages["home"] == nil || t.pages["single"] == nil {
-		return errors.New("templates/home.html and templates/single.html are required")
+	if !t.own["front"] && !t.own["home"] {
+		return errors.New("templates/front.html or templates/home.html is required")
 	}
-	// The not-found and assistant pages of a theme without its own, and
-	// the pages laid out with the block builder.
-	for _, name := range []string{"404", "ask", "blocks"} {
-		if t.pages[name] != nil {
+	// The shared fallbacks of the pages the theme lacks (unless another of
+	// its pages stands in, see fallback), the not-found and assistant pages
+	// of a theme without its own, and the pages laid out with the block
+	// builder. The front page has no fallback: without front.html, the
+	// server shows the latest posts at / (internal/web).
+	for _, name := range []string{"home", "single", "page", "archive", "search", "404", "ask", "blocks"} {
+		if t.pages[name] != nil || t.own[fallback[name]] {
 			continue
 		}
 		set, err := base.Clone()
@@ -596,6 +614,10 @@ func (t *Theme) forLang(page, lang string) (*template.Template, error) {
 	t.byLang[lang][page] = set
 	return set, nil
 }
+
+// Has reports whether the theme ships its own template for page ("front",
+// "home", "single"…), rather than the server's shared fallback.
+func (t *Theme) Has(page string) bool { return t.own[page] }
 
 // Text returns the theme's own translation of key into lang, from its
 // i18n/<lang>.json (themes uploaded at runtime ship their own catalogs).

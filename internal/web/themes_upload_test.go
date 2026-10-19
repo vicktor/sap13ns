@@ -62,6 +62,7 @@ func tinyTheme(marker string) map[string]string {
 		"templates/single.html": `{{define "content"}}<p class="marker">` + marker + `</p>
 {{with .Post}}<article><h1>{{.Title}}</h1>{{template "shared/post-meta" .}}{{template "shared/content" .}}</article>{{end}}
 {{template "shared/comments" .}}{{end}}`,
+		"templates/404.html":           `{{define "content"}}<p class="marker">` + marker + `</p>{{template "shared/not-found" .}}{{end}}`,
 		"templates/partials/bits.html": `{{define "tiny/card"}}<article><h2><a href="{{.URL}}">{{.Title}}</a></h2>{{range .Categories}}<a href="{{.URL}}">{{.Name}}</a>{{end}}</article>{{end}}`,
 		"static/theme.css":             `body{margin:0}.footer-meta{opacity:.8}@font-face{font-family:T;src:url(fonts/t.woff2)}`,
 		"i18n/es.json":                 `{"Main menu": "Menú principal", "%d posts": "%d entradas"}`,
@@ -306,7 +307,8 @@ func TestThemeValidation(t *testing.T) {
 		{"src not css", zipOf(t, "tiny", base, map[string]string{"src/build.sh": "rm -rf /"}), "src.type"},
 		{"stray file", zipOf(t, "tiny", base, map[string]string{"notes.txt": "x"}), "layout.not-allowed"},
 		{"template outside partials", zipOf(t, "tiny", base, map[string]string{"templates/extra.html": "x"}), "layout.template-name"},
-		{"missing single", zipOf(t, "tiny", base, map[string]string{"templates/single.html": ""}), "layout.missing"},
+		{"missing 404", zipOf(t, "tiny", base, map[string]string{"templates/404.html": ""}), "layout.missing"},
+		{"no front page", zipOf(t, "tiny", base, map[string]string{"templates/home.html": ""}), "layout.missing-front"},
 		{"missing stylesheet", zipOf(t, "tiny", base, map[string]string{"static/theme.css": ""}), "layout.missing"},
 		{"bad theme.json", zipOf(t, "tiny", base, map[string]string{"theme.json": `{"name": 5}`}), "manifest.json"},
 		{"option type", zipOf(t, "tiny", base, map[string]string{"theme.json": `{"name": "T", "options": [{"key": "a", "label": "A", "type": "file"}]}`}), "manifest.option-type"},
