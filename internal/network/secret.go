@@ -22,10 +22,13 @@ import (
 
 const secretLen = 32
 
-func sealKeys(master []byte) *auth.Keys {
+func sealKeys(master []byte) *auth.Keys { return auth.NewKeys(subKey(master, "sap13ns:site-secrets")) }
+
+// subKey derives a key for one purpose from the master key.
+func subKey(master []byte, purpose string) []byte {
 	m := hmac.New(sha256.New, master)
-	m.Write([]byte("sap13ns:site-secrets"))
-	return auth.NewKeys(m.Sum(nil))
+	m.Write([]byte(purpose))
+	return m.Sum(nil)
 }
 
 func secretAD(siteID int64) []byte { return []byte("site:" + strconv.FormatInt(siteID, 10)) }

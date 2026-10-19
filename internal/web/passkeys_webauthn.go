@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -56,6 +57,38 @@ func (s *Server) webAuthn() (*webauthn.WebAuthn, error) {
 		// of them is used for any decision here.
 		ExtensionsUnsolicitedOutputPolicy: protocol.UnsolicitedOutputPolicyIgnore,
 	})
+}
+
+// relatedOrigins are the origins listed in /.well-known/webauthn when r
+// asks the RP ID host of a site of a network whose primary host is
+// another one (a custom domain): its passkeys keep their RP ID, the
+// default subdomain, and browsers that support WebAuthn Related Origin
+// Requests accept them on the origins this file lists. Otherwise none.
+func (s *Server) relatedOrigins(r *http.Request) []string {
+	rp := s.cfg.PasskeyRPID
+	if rp == "" || !sameHost(r.Host, rp) {
+		return nil
+	}
+	var out []string
+	for _, o := range s.cfg.PasskeyOrigins {
+		if u, err := url.Parse(o); err == nil && u.Hostname() != rp {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+func (s *Server) handleRelatedOrigins(w http.ResponseWriter, r *http.Request) {
+	origins := s.relatedOrigins(r)
+	if len(origins) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	json.NewEncoder(w).Encode(struct {
+		Origins []string `json:"origins"`
+	}{origins})
 }
 
 // passkeyUser adapts a store.User to webauthn.User.

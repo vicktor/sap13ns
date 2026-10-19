@@ -13,7 +13,9 @@ package network
 //     ones whose plugins handle it (sites.wants_cron), two loads at once;
 //   - every day, each schema is cleaned up as a single site does every 30
 //     minutes (sessions, audit log, analytics), without loading a server,
-//     its storage is measured, and expired SSO codes are purged.
+//     its storage is measured, expired SSO codes are purged, and the
+//     verified custom domains are checked in DNS again (a domain that
+//     keeps failing lapses, and its owner is e-mailed).
 //
 // Loads for this work do not count as uses: a site loaded only for it is
 // unloaded by the next sweep.
@@ -22,9 +24,11 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 
 	"sap13ns/internal/db"
@@ -188,6 +192,7 @@ func (r *Registry) Maintain(ctx context.Context) {
 			log.Error("reconcile the access of network accounts", "err", err)
 		}
 	}
+	r.recheckDomains(ctx)
 	if n, err := r.net.PurgeBillingEvents(ctx); err != nil {
 		if ctx.Err() == nil {
 			r.log.Error("purge billing events", "err", err)
@@ -201,6 +206,53 @@ func (r *Registry) Maintain(ctx context.Context) {
 		}
 	} else if n > 0 {
 		r.log.Info("expired SSO codes purged", "count", n)
+	}
+}
+
+// recheckDomains checks the verified custom domains again, and tells the
+// owners of those that lapsed, through the portal.
+func (r *Registry) recheckDomains(ctx context.Context) {
+	lapses, err := r.net.RecheckDomains(ctx)
+	if err != nil && ctx.Err() == nil {
+		r.log.Error("re-check the custom domains", "err", err)
+	}
+	if len(lapses) > 0 {
+		r.Refresh(ctx) // stop routing them now, not at the next notification
+	}
+	portal := store.New(r.net.DB())
+	for _, l := range lapses {
+		details := map[string]string{"site": strconv.FormatInt(l.SiteID, 10), "host": l.Host, "problem": l.Problem}
+		if l.Fallback != "" {
+			details["primary_now"] = l.Fallback
+		}
+		if err := portal.Audit(ctx, 0, "network.domain_lapsed", l.Host, netip.Addr{}, details); err != nil {
+			r.log.Error("audit a lapsed domain", "host", l.Host, "err", err)
+		}
+		r.domainNotice(ctx, l)
+	}
+}
+
+// domainNotice has the portal e-mail the owner of a site about a lapsed
+// custom domain, in the portal's language.
+func (r *Registry) domainNotice(ctx context.Context, l Lapse) {
+	s, err := r.net.Site(ctx, l.SiteID)
+	if err != nil || s.OwnerID == 0 {
+		r.log.Error("lapsed domain notice", "site", l.SiteID, "err", err)
+		return
+	}
+	t := r.table.Load()
+	if t == nil || t.network == nil {
+		return
+	}
+	e, err := r.acquireFor(ctx, t.network, loadTimeout, false)
+	if err != nil {
+		r.log.Error("lapsed domain notice", "site", l.SiteID, "err", err)
+		return
+	}
+	defer r.releaseFor(e, false)
+	if err := e.app.Server().NotifyDomain(ctx, web.DomainNotice{AccountID: s.OwnerID, SiteID: s.ID, Slug: s.Slug, Host: l.Host,
+		Problem: l.Problem, Fallback: l.Fallback}); err != nil {
+		r.log.Error("lapsed domain notice", "site", l.SiteID, "host", l.Host, "err", err)
 	}
 }
 

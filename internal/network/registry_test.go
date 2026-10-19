@@ -310,7 +310,7 @@ func TestAliases(t *testing.T) {
 	}
 	// ...moves to its custom domain: the old host redirects, and the site
 	// reloads with the new base URL once idle.
-	if err := e.n.SetPrimaryDomain(e.ctx, "www.alpha.example"); err != nil {
+	if err := e.n.SetPrimaryDomain(e.ctx, a.ID, "www.alpha.example"); err != nil {
 		t.Fatal(err)
 	}
 	e.refresh()

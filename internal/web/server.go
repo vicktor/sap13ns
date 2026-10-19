@@ -90,8 +90,10 @@ type Server struct {
 	limits      SiteLimits    // a site of a network: its plan (limits.go)
 	ssoFailures *auth.Limiter // failed single sign-on callbacks, per IP
 	checkout    *auth.Limiter // Checkout and Customer Portal sessions, per account
-	hosts       []string      // other host names of this site (multisite aliases)
-	jobs        atomic.Int32  // background jobs started by requests (Busy)
+	// DNS checks and additions of custom domains, per account
+	domainChecks *auth.Limiter
+	hosts        []string     // other host names of this site (multisite aliases)
+	jobs         atomic.Int32 // background jobs started by requests (Busy)
 }
 
 type Deps struct {
@@ -152,6 +154,8 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 
 		ssoFailures: auth.NewLimiter(10, 15*time.Minute),
 		checkout:    auth.NewLimiter(30, time.Hour),
+		// DNS checks and additions of custom domains, per account.
+		domainChecks: auth.NewLimiter(30, time.Hour),
 	}
 	s.sso, _ = d.Network.(SSOClient)
 	s.portal, _ = d.Network.(Portal)

@@ -1,0 +1,29 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.Site}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/sites">{{icon "arrow-left" "size-3.5"}} {{T "My sites"}}</a></p>
+    <h1>{{T "Domains of %s" $s.Slug}}</h1>
+    <p>{{T "The site is served on its primary domain; its other verified domains redirect there."}}</p>
+  </div>
+  {{if eq $s.Status "active"}}
+  <div class="page-actions"><a class="btn" data-variant="outline" href="{{$s.URL}}/" target="_blank" rel="noopener">{{icon "external-link"}}{{T "View site"}}</a></div>
+  {{end}}
+</div>
+<div class="split">
+  <div class="stack">
+    {{template "site-domains" (dict "V" $d.Domains "CSRF" .CSRFField)}}
+  </div>
+  <div class="stack">
+    <section class="card">
+      <header><h2>{{T "How custom domains work"}}</h2></header>
+      <section class="stack">
+        <p>{{T "The TXT record proves that you control the domain, and the CNAME or address records send its visitors to the network. Both are checked when you verify the domain, and again every day."}}</p>
+        <p>{{T "A domain that keeps failing its daily check for three days is no longer served, and you are told by e-mail. If it was the primary domain, the site goes back to its address on the network."}}</p>
+        <p>{{T "Passkeys stay tied to the site's address on the network. On a custom primary domain, browsers that support related origins accept them too; in others, sign in with your password or your sap13ns account."}}</p>
+      </section>
+    </section>
+  </div>
+</div>
+{{end}}

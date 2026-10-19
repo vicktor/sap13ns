@@ -72,6 +72,23 @@ type Config struct {
 	TLS            string        // "proxy" (nginx or Caddy terminate TLS) or "autocert"
 	Stripe         Stripe        // billing; off when Stripe.SecretKey is empty
 
+	// Custom domains point to the network with a CNAME to DomainTarget (by
+	// default the BaseURL host), or with A/AAAA records: the addresses in
+	// DomainAddresses, or those DomainTarget resolves to when it is empty.
+	DomainTarget    string
+	DomainAddresses []netip.Addr
+
+	// SAP13NS_TLS=autocert: the process terminates TLS on Listen. TLSCert
+	// and TLSKey hold the static (wildcard) certificate of the portal host
+	// and the default subdomains; the built-in ACME client gets one for
+	// each verified custom domain. HTTPListen ("" = off) answers HTTP-01
+	// challenges and redirects to https.
+	TLSCert       string
+	TLSKey        string
+	ACMEEmail     string
+	ACMEDirectory string // "" = Let's Encrypt
+	HTTPListen    string
+
 	// Set by ForSite for one site of a network. The zero values keep the
 	// single-site behaviour: HSTS covers subdomains, and passkeys use the
 	// BaseURL host as RP ID and the BaseURL origin.
@@ -318,6 +335,20 @@ func (c *Config) loadMultisite() error {
 	if err != nil || c.MemoryLimitMB < 0 || c.MemoryLimitMB > 0 && c.MemoryLimitMB < 64 {
 		return errors.New("SAP13NS_MEMORY_LIMIT_MB must be 0 (no limit) or at least 64")
 	}
+	c.DomainTarget = strings.ToLower(env("DOMAIN_TARGET", c.BaseURL.Hostname()))
+	if !ValidHost(c.DomainTarget) {
+		return fmt.Errorf("SAP13NS_DOMAIN_TARGET must be a host name in lower-case ASCII, without port, got %q", c.DomainTarget)
+	}
+	for _, a := range strings.Split(env("DOMAIN_ADDRESSES", ""), ",") {
+		if a = strings.TrimSpace(a); a == "" {
+			continue
+		}
+		ip, err := netip.ParseAddr(a)
+		if err != nil || ip.Zone() != "" || !ip.IsGlobalUnicast() {
+			return fmt.Errorf("SAP13NS_DOMAIN_ADDRESSES must be comma-separated unicast IP addresses (not loopback or link-local), got %q", a)
+		}
+		c.DomainAddresses = append(c.DomainAddresses, ip.Unmap())
+	}
 	c.TLS = env("TLS", "proxy")
 	switch {
 	case c.TLS != "proxy" && c.TLS != "autocert":
@@ -325,8 +356,43 @@ func (c *Config) loadMultisite() error {
 	case c.TLS == "autocert" && c.BaseURL.Scheme != "https":
 		return errors.New("SAP13NS_TLS=autocert needs an https SAP13NS_BASE_URL")
 	}
+	if c.TLS == "autocert" {
+		if err := c.loadAutocert(); err != nil {
+			return err
+		}
+	}
 	c.Stripe, err = loadStripe()
 	return err
+}
+
+// loadAutocert reads the settings of a network that terminates TLS itself.
+func (c *Config) loadAutocert() error {
+	c.TLSCert, c.TLSKey = env("TLS_CERT", ""), env("TLS_KEY", "")
+	if c.TLSCert == "" || c.TLSKey == "" {
+		return errors.New("SAP13NS_TLS=autocert needs SAP13NS_TLS_CERT and SAP13NS_TLS_KEY: the wildcard certificate of the portal host and *." + c.SitesDomain)
+	}
+	if strings.HasPrefix(c.Listen, "unix:") {
+		return errors.New("SAP13NS_TLS=autocert terminates TLS itself: SAP13NS_LISTEN must be a TCP address such as :443")
+	}
+	c.ACMEEmail = env("ACME_EMAIL", "")
+	if c.ACMEEmail != "" && (!strings.Contains(c.ACMEEmail, "@") || strings.ContainsAny(c.ACMEEmail, " \t\r\n,<>")) {
+		return fmt.Errorf("SAP13NS_ACME_EMAIL must be an e-mail address, got %q", c.ACMEEmail)
+	}
+	c.ACMEDirectory = env("ACME_DIRECTORY", "")
+	if c.ACMEDirectory != "" {
+		u, err := url.Parse(c.ACMEDirectory)
+		if err != nil || u.Scheme != "https" || u.Host == "" {
+			return fmt.Errorf("SAP13NS_ACME_DIRECTORY must be an https URL, got %q", c.ACMEDirectory)
+		}
+	}
+	c.HTTPListen = env("HTTP_LISTEN", ":80")
+	switch {
+	case c.HTTPListen == "off":
+		c.HTTPListen = ""
+	case strings.HasPrefix(c.HTTPListen, "unix:"):
+		return errors.New("SAP13NS_HTTP_LISTEN must be a TCP address such as :80, or off")
+	}
+	return nil
 }
 
 var (
@@ -460,6 +526,7 @@ func ForSite(base *Config, p SiteParams) (*Config, error) {
 	c := *base
 	c.Stripe = Stripe{}
 	c.TrustedProxies = slices.Clone(base.TrustedProxies)
+	c.DomainAddresses = slices.Clone(base.DomainAddresses)
 	c.SecretKey = slices.Clone(p.Secret)
 	origin := func(host string) *url.URL {
 		u := &url.URL{Scheme: base.BaseURL.Scheme, Host: host}
@@ -503,6 +570,7 @@ func ForNetwork(base *Config, id int64, secret []byte) (*Config, error) {
 	u := *base.BaseURL
 	c.BaseURL = &u
 	c.TrustedProxies = slices.Clone(base.TrustedProxies)
+	c.DomainAddresses = slices.Clone(base.DomainAddresses)
 	c.SecretKey = slices.Clone(secret)
 	c.Stripe.WebhookSecrets = slices.Clone(base.Stripe.WebhookSecrets)
 	if base.Stripe.Prices != nil {

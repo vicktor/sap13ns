@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -237,7 +238,7 @@ func serve(args []string) error {
 		if err := app.Close(sctx); err != nil {
 			log.Error("analytics final flush", "err", err)
 		}
-	})
+	}, nil)
 }
 
 // uiFS is the embedded UI, or ui/ from disk in development mode when run
@@ -251,26 +252,70 @@ func uiFS(cfg *config.Config) fs.FS {
 	return ui.FS
 }
 
-// runHTTP serves h on SAP13NS_LISTEN until ctx ends or the server fails.
-// Then it shuts the HTTP server down and calls closeApp, in every case.
-func runHTTP(ctx context.Context, cfg *config.Config, log *slog.Logger, h http.Handler, closeApp func(context.Context)) error {
+// tlsServe is a process that terminates TLS itself (SAP13NS_TLS=autocert):
+// the TLS configuration of SAP13NS_LISTEN, and the plain HTTP handler of
+// SAP13NS_HTTP_LISTEN ("" for none).
+type tlsServe struct {
+	config     *tls.Config
+	http       http.Handler
+	httpListen string
+}
+
+func newHTTPServer(ctx context.Context, log *slog.Logger, h http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       2 * time.Minute, // large uploads on slow links
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
+		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
+		BaseContext:       func(net.Listener) context.Context { return ctx },
+	}
+}
+
+// runHTTP serves h on SAP13NS_LISTEN (over TLS with ts, plus its plain
+// HTTP listener) until ctx ends or a server fails. Then it shuts the HTTP
+// servers down and calls closeApp, in every case.
+func runHTTP(ctx context.Context, cfg *config.Config, log *slog.Logger, h http.Handler, closeApp func(context.Context), ts *tlsServe) error {
+	type served struct {
+		hs   *http.Server
+		ln   net.Listener
+		addr string
+		tls  bool
+	}
+	var all []served
 	ln, err := listen(cfg.Listen, cfg.SocketGroup)
 	if err == nil {
-		hs := &http.Server{
-			Handler:           h,
-			ReadHeaderTimeout: 10 * time.Second,
-			ReadTimeout:       2 * time.Minute, // large uploads on slow links
-			WriteTimeout:      2 * time.Minute,
-			IdleTimeout:       2 * time.Minute,
-			MaxHeaderBytes:    64 << 10,
-			ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
-			BaseContext:       func(net.Listener) context.Context { return ctx },
+		hs := newHTTPServer(ctx, log, h)
+		all = append(all, served{hs: hs, ln: ln, addr: cfg.Listen})
+		if ts != nil {
+			hs.TLSConfig = ts.config
+			all[0].tls = true
+			if ts.httpListen != "" {
+				var pln net.Listener
+				if pln, err = net.Listen("tcp", ts.httpListen); err == nil {
+					ps := newHTTPServer(ctx, log, ts.http)
+					ps.ReadTimeout, ps.WriteTimeout = 30*time.Second, 30*time.Second
+					all = append(all, served{hs: ps, ln: pln, addr: ts.httpListen})
+				} else {
+					ln.Close()
+				}
+			}
 		}
-		errc := make(chan error, 1)
-		go func() {
-			log.Info("sap13ns listening", "addr", cfg.Listen, "url", cfg.BaseURL.String(), "version", web.Version)
-			errc <- hs.Serve(ln)
-		}()
+	}
+	if err == nil {
+		errc := make(chan error, len(all))
+		for _, s := range all {
+			go func() {
+				log.Info("sap13ns listening", "addr", s.addr, "tls", s.tls, "url", cfg.BaseURL.String(), "version", web.Version)
+				if s.tls {
+					errc <- s.hs.ServeTLS(s.ln, "", "")
+				} else {
+					errc <- s.hs.Serve(s.ln)
+				}
+			}()
+		}
 		select {
 		case err = <-errc:
 			if errors.Is(err, http.ErrServerClosed) {
@@ -278,10 +323,12 @@ func runHTTP(ctx context.Context, cfg *config.Config, log *slog.Logger, h http.H
 			}
 		case <-ctx.Done():
 			log.Info("shutting down")
-			sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
-			defer cancel()
-			if err := hs.Shutdown(sctx); err != nil {
-				log.Error("shutdown", "err", err)
+		}
+		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+		defer cancel()
+		for _, s := range all {
+			if err := s.hs.Shutdown(sctx); err != nil {
+				log.Error("shutdown", "addr", s.addr, "err", err)
 			}
 		}
 	}

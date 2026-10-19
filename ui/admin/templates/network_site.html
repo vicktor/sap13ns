@@ -49,21 +49,7 @@
     </section>
     {{end}}
 
-    <section class="card table-wrap">
-      <header><h2>{{T "Domains"}}</h2></header>
-      <table class="table">
-        <thead><tr><th>{{T "Host"}}</th><th>{{T "Type"}}</th><th class="max-sm:hidden">{{T "Verified"}}</th></tr></thead>
-        <tbody>
-          {{range $d.Domains}}
-          <tr>
-            <td><span class="mono break-all">{{.Host}}</span>{{if .Primary}} <span class="badge" data-variant="secondary">{{T "Primary"}}</span>{{end}}</td>
-            <td>{{if eq .Kind "custom"}}{{T "Custom domain"}}{{else}}{{T "Default"}}{{end}}</td>
-            <td class="max-sm:hidden muted nowrap">{{with .VerifiedAt}}{{shortDate .}}{{else}}{{T "Not verified"}}{{end}}</td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </section>
+    {{template "site-domains" (dict "V" $d.DomainCard "CSRF" .CSRFField)}}
 
     <section class="card table-wrap" id="members">
       <header><h2>{{T "Members"}}</h2><p>{{T "Their role here decides what they can do on the site, which they open with their sap13ns account."}}</p></header>

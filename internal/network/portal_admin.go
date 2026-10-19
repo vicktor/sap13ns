@@ -21,6 +21,10 @@ func webErr(err error) error {
 		return errors.Join(web.ErrNetworkInvalid, err)
 	case errors.Is(err, ErrState):
 		return errors.Join(web.ErrNetworkState, err)
+	case errors.Is(err, ErrLimit):
+		return errors.Join(web.ErrNetworkLimit, err)
+	case errors.Is(err, ErrClaimed):
+		return errors.Join(web.ErrDomainClaimed, err)
 	}
 	return err
 }
@@ -123,8 +127,8 @@ func (h portalHooks) SiteDetail(ctx context.Context, siteID int64) (*web.NetSite
 	if err != nil {
 		return nil, err
 	}
-	for _, x := range domains {
-		d.Domains = append(d.Domains, web.NetDomain{Host: x.Host, Kind: x.Kind, Primary: x.Primary, VerifiedAt: x.VerifiedAt})
+	for i := range domains {
+		d.Domains = append(d.Domains, netDomain(&domains[i]))
 	}
 	members, err := h.r.net.Members(ctx, siteID)
 	if err != nil {
@@ -331,4 +335,73 @@ func (h portalHooks) RetryBillingEvent(ctx context.Context, id string) error {
 		b.Wake()
 	}
 	return nil
+}
+
+// ------------------------------------------------------------- domains --
+
+var _ web.PortalDomains = portalHooks{}
+
+func netDomain(d *Domain) web.NetDomain {
+	out := web.NetDomain{Host: d.Host, Kind: d.Kind, Primary: d.Primary, VerifiedAt: d.VerifiedAt, CheckedAt: d.CheckedAt,
+		CheckError: d.CheckError, CheckFailures: d.CheckFailures, LapsedAt: d.LapsedAt, TakenFrom: d.TakenFrom != 0}
+	if d.Kind == DomainCustom {
+		out.TXTName, out.TXTValue = TXTName(d.Host), TXTValue(d.VerifyToken)
+	}
+	return out
+}
+
+// tenant fails with ErrNotFound unless siteID is a tenant site.
+func (h portalHooks) tenant(ctx context.Context, siteID int64) error {
+	s, err := h.r.net.Site(ctx, siteID)
+	if err == nil && s.Kind != KindTenant {
+		err = store.ErrNotFound
+	}
+	return err
+}
+
+func (h portalHooks) DomainTarget() web.NetDomainTarget {
+	t := web.NetDomainTarget{Host: h.r.net.target}
+	for _, a := range h.r.net.targetAddrs {
+		t.Addresses = append(t.Addresses, a.String())
+	}
+	return t
+}
+
+func (h portalHooks) AddDomain(ctx context.Context, siteID int64, host string) (*web.NetDomain, error) {
+	if err := h.tenant(ctx, siteID); err != nil {
+		return nil, err
+	}
+	d, err := h.r.net.AddDomain(ctx, siteID, host)
+	if errors.Is(err, ErrClaimed) {
+		// The record that takes the host over for this site.
+		c, cerr := h.r.net.CustomHost(host)
+		if cerr != nil {
+			return nil, webErr(cerr)
+		}
+		claim := netDomain(&Domain{Host: c, Kind: DomainCustom, VerifyToken: h.r.net.ClaimToken(siteID, c)})
+		return &claim, webErr(err)
+	}
+	if err != nil {
+		return nil, webErr(err)
+	}
+	out := netDomain(d)
+	return &out, nil
+}
+
+func (h portalHooks) CheckDomain(ctx context.Context, siteID int64, host string) (*web.NetDomain, error) {
+	d, chk, err := h.r.net.CheckDomain(ctx, siteID, host)
+	if err != nil {
+		return nil, webErr(err)
+	}
+	out := netDomain(d)
+	out.CheckError = chk.Problem // this check's, also for a verified domain
+	return &out, nil
+}
+
+func (h portalHooks) SetPrimaryDomain(ctx context.Context, siteID int64, host string) error {
+	return webErr(h.r.net.SetPrimaryDomain(ctx, siteID, host))
+}
+
+func (h portalHooks) RemoveDomain(ctx context.Context, siteID int64, host string) error {
+	return webErr(h.r.net.RemoveDomain(ctx, siteID, host))
 }

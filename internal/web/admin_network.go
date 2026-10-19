@@ -51,6 +51,9 @@ type PortalAdmin interface {
 	// ErrConflict for a taken one, ErrNetworkState when the account has
 	// one already.
 	RequestSite(ctx context.Context, accountID int64, slug string) (*NetSite, error)
+
+	// The custom domains of tenant sites (admin_domains.go).
+	PortalDomains
 }
 
 // A NetSite is a tenant site of the network.
@@ -91,11 +94,24 @@ type NetSiteQuery struct {
 }
 
 type NetDomain struct {
-	Host       string
-	Kind       string // default or custom
-	Primary    bool
-	VerifiedAt *time.Time
+	Host          string
+	Kind          string // default or custom
+	Primary       bool
+	VerifiedAt    *time.Time // nil: not routed
+	CheckedAt     *time.Time
+	CheckError    string // the outcome of the last DNS check: "", txt_missing, not_pointing or dns_error
+	CheckFailures int    // failed daily checks in a row of a verified domain
+	LapsedAt      *time.Time
+	TXTName       string // the verification record of a custom domain
+	TXTValue      string
+	TakenFrom     bool // AddDomain moved it from a site that had not verified it
 }
+
+func (d NetDomain) Custom() bool { return d.Kind == "custom" }
+
+// Pending reports a custom domain whose DNS records need the owner's
+// attention: not verified yet, or failing its daily checks.
+func (d NetDomain) Pending() bool { return d.Custom() && (d.VerifiedAt == nil || d.CheckFailures > 0) }
 
 type NetMember struct {
 	AccountID int64
@@ -198,7 +214,8 @@ func (s *Server) adminNetSites(w http.ResponseWriter, r *http.Request) {
 
 type netSiteData struct {
 	*NetSiteDetail
-	Roles []string
+	Roles      []string
+	DomainCard domainsView
 }
 
 // loadNetSite reads the site of the request, or answers 404.
@@ -225,7 +242,7 @@ func (s *Server) adminNetSite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.renderAdmin(w, r, "network_site", d.Site.Slug, "net-sites", netSiteData{NetSiteDetail: d, Roles: assignableRoles})
+	s.renderNetSite(w, r, http.StatusOK, d, "", "", nil)
 }
 
 func (s *Server) adminNetSiteAction(w http.ResponseWriter, r *http.Request) {

@@ -34,6 +34,10 @@ var out io.Writer = os.Stdout
 
 var errNotNetwork = errors.New("this command needs a network (SAP13NS_MULTISITE=true)")
 
+// dnsResolver, when set, answers the DNS checks of custom domains instead
+// of the system's resolver; tests set a fake.
+var dnsResolver network.Resolver
+
 // openNetwork opens the shared pool of a network and migrates the network
 // schema (with the portal's tables).
 func openNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger, conns int32) (*pgxpool.Pool, *network.Network, error) {
@@ -52,6 +56,9 @@ func openNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger, conn
 	if err != nil {
 		pool.Close()
 		return nil, nil, err
+	}
+	if dnsResolver != nil {
+		n.SetResolver(dnsResolver)
 	}
 	return pool, n, nil
 }
@@ -194,6 +201,16 @@ func serveNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger) err
 	if err != nil {
 		return err
 	}
+	// SAP13NS_TLS=autocert: the wildcard certificate must load before
+	// anything is served.
+	var ts *tlsServe
+	if cfg.TLS == "autocert" {
+		ac, err := reg.NewAutocert()
+		if err != nil {
+			return errors.Join(err, reg.Close(ctx))
+		}
+		ts = &tlsServe{config: ac.TLSConfig(), http: ac.HTTPHandler(), httpListen: cfg.HTTPListen}
+	}
 	if err := reg.Start(ctx); err != nil {
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
 		defer cancel()
@@ -204,7 +221,7 @@ func serveNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger) err
 		if err := reg.Close(sctx); err != nil {
 			log.Error("close the sites", "err", err)
 		}
-	})
+	}, ts)
 }
 
 // ---------------------------------------------------------------- network --
@@ -262,6 +279,36 @@ func networkCmd(args []string) error {
 	return nil
 }
 
+// pointAddrs are the addresses a custom domain may have.
+func pointAddrs(cfg *config.Config) string {
+	if len(cfg.DomainAddresses) == 0 {
+		return "the addresses of " + cfg.DomainTarget
+	}
+	var list []string
+	for _, a := range cfg.DomainAddresses {
+		list = append(list, a.String())
+	}
+	return strings.Join(list, ", ")
+}
+
+// pointHelp tells how a custom domain points to the network.
+func pointHelp(cfg *config.Config, host string) string {
+	return fmt.Sprintf("and points %s to the network: a CNAME to %s, or A/AAAA records with %s only.", host, cfg.DomainTarget, pointAddrs(cfg))
+}
+
+// checkProblem explains why the DNS check of a custom domain failed.
+func checkProblem(cfg *config.Config, d *network.Domain, chk network.DomainCheck) error {
+	switch chk.Problem {
+	case network.CheckTXT:
+		return fmt.Errorf("%s is not verified: no TXT record %s with the value \"%s\"",
+			d.Host, network.TXTName(d.Host), network.TXTValue(d.VerifyToken))
+	case network.CheckAddress:
+		return fmt.Errorf("%s is not verified: it does not point to the network. It needs a CNAME to %s, or A/AAAA records with %s",
+			d.Host, cfg.DomainTarget, pointAddrs(cfg))
+	}
+	return fmt.Errorf("%s is not verified: the DNS lookup failed; try again later (or verify it with -force)", d.Host)
+}
+
 // createUser creates a local user with a password read from stdin, or a
 // generated one (then returned to print once).
 func createUser(ctx context.Context, st *store.Store, username, email, name, role string) (int64, string, bool, error) {
@@ -298,7 +345,7 @@ func createUser(ctx context.Context, st *store.Store, username, email, name, rol
 const siteUsage = `usage: sap13ns site create -slug S -owner EMAIL [-plan P] [-title T] [-lang L]
        sap13ns site list [-status S] [-json]
        sap13ns site suspend -slug S -reason R | resume -slug S | delete -slug S -yes
-       sap13ns site domain add -slug S HOST | verify HOST | primary HOST | remove HOST`
+       sap13ns site domain add -slug S HOST | verify [-force] HOST | primary HOST | remove HOST`
 
 // siteCmd implements "sap13ns site …". Running servers pick the changes
 // up at once (they listen on sap13ns_network).
@@ -317,7 +364,7 @@ func siteCmd(args []string) error {
 		}
 	}
 	var slug, owner, plan, title, lang, status, reason string
-	var asJSON, yes bool
+	var asJSON, yes, force bool
 	cfg, log, fs, err := setup("site "+sub, args, true, func(f *flag.FlagSet) {
 		switch sub {
 		case "create", "suspend", "resume", "delete", "domain add":
@@ -336,6 +383,8 @@ func siteCmd(args []string) error {
 			f.StringVar(&reason, "reason", "", "why, shown to the owner")
 		case "delete":
 			f.BoolVar(&yes, "yes", false, "confirm")
+		case "domain verify":
+			f.BoolVar(&force, "force", false, "record the domain as verified without the DNS check")
 		}
 	})
 	if err != nil {
@@ -407,26 +456,47 @@ func siteCmd(args []string) error {
 			return err
 		}
 		d, err := n.AddDomain(ctx, s.ID, h)
+		if errors.Is(err, network.ErrClaimed) {
+			return fmt.Errorf("another site added %s and has not verified it. To take it over, publish\n"+
+				"  %s TXT \"%s\"\nand add it again", h, network.TXTName(h), network.TXTValue(n.ClaimToken(s.ID, h)))
+		}
 		if err != nil {
 			return err
 		}
+		if d.TakenFrom != 0 {
+			fmt.Fprintf(out, "%s was waiting for verification on site #%d: the TXT record proved control, so it moved to %s\n",
+				d.Host, d.TakenFrom, s.Slug)
+		}
 		fmt.Fprintf(out, "added %s to %s; it is routed once verified. The owner proves control with the DNS record\n"+
-			"  _sap13ns-verify.%s TXT \"sap13ns-site-verification=%s\"\n"+
-			"and points the host to the network. Then run: sap13ns site domain verify %s\n", d.Host, s.Slug, d.Host, d.VerifyToken, d.Host)
+			"  %s TXT \"%s\"\n%s\nThen run: sap13ns site domain verify %s\n",
+			d.Host, s.Slug, network.TXTName(d.Host), network.TXTValue(d.VerifyToken), pointHelp(cfg, d.Host), d.Host)
 		return nil
 	case "domain verify", "domain primary", "domain remove":
 		h, err := host()
 		if err != nil {
 			return err
 		}
+		d, err := n.Domain(ctx, h)
+		if errors.Is(err, store.ErrNotFound) {
+			return fmt.Errorf("no site has the host %s", h)
+		}
+		if err != nil {
+			return err
+		}
 		switch sub {
 		case "domain verify":
-			// The DNS check is the operator's for now; this records it.
-			err = n.VerifyDomain(ctx, h)
+			if force {
+				err = n.VerifyDomain(ctx, h)
+				break
+			}
+			var chk network.DomainCheck
+			if d, chk, err = n.CheckDomain(ctx, d.SiteID, h); err == nil && !chk.OK() {
+				return checkProblem(cfg, d, chk)
+			}
 		case "domain primary":
-			err = n.SetPrimaryDomain(ctx, h)
+			err = n.SetPrimaryDomain(ctx, d.SiteID, h)
 		case "domain remove":
-			err = n.RemoveDomain(ctx, h)
+			err = n.RemoveDomain(ctx, d.SiteID, h)
 		}
 		if errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("no site has the host %s", h)
@@ -434,7 +504,14 @@ func siteCmd(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "%s: %s done\n", h, strings.TrimPrefix(sub, "domain "))
+		switch {
+		case sub == "domain verify" && force:
+			fmt.Fprintf(out, "%s: recorded as verified without a DNS check\n", h)
+		case sub == "domain verify":
+			fmt.Fprintf(out, "%s: verified; the network serves it\n", h)
+		default:
+			fmt.Fprintf(out, "%s: %s done\n", h, strings.TrimPrefix(sub, "domain "))
+		}
 		return nil
 	}
 	return errors.New(siteUsage)

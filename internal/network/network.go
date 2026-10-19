@@ -11,11 +11,15 @@
 package network
 
 import (
+	"cmp"
 	"context"
 	"embed"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -85,6 +89,14 @@ type Network struct {
 	baseHost    string
 	grace       time.Duration // of a failed renewal before a paid site is held
 	log         *slog.Logger
+	now         func() time.Time // the registry's clock once it runs
+
+	// Custom domains (verify.go): the resolver of their DNS checks, what
+	// they must point to, and the key of their verification tokens.
+	resolver    Resolver
+	target      string
+	targetAddrs []netip.Addr
+	domainKey   []byte
 
 	// hook runs after each provisioning step; tests make it fail.
 	hook func(step string) error
@@ -104,10 +116,13 @@ func New(pool *pgxpool.Pool, cfg *config.Config, log *slog.Logger) (*Network, er
 	if err != nil {
 		return nil, err
 	}
-	return &Network{
+	n := &Network{
 		pool: pool, db: h, keys: sealKeys(cfg.SecretKey), dataDir: cfg.DataDir,
-		sitesDomain: cfg.SitesDomain, baseHost: cfg.BaseURL.Hostname(), grace: graceOf(cfg.Stripe), log: log,
-	}, nil
+		sitesDomain: cfg.SitesDomain, baseHost: cfg.BaseURL.Hostname(), grace: graceOf(cfg.Stripe), log: log, now: time.Now,
+		resolver: net.DefaultResolver, target: cmp.Or(cfg.DomainTarget, cfg.BaseURL.Hostname()),
+		targetAddrs: slices.Clone(cfg.DomainAddresses), domainKey: subKey(cfg.SecretKey, "sap13ns:domain-verification"),
+	}
+	return n, nil
 }
 
 // DB is the network schema, for the portal site's store.

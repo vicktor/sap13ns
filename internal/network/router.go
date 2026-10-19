@@ -13,7 +13,8 @@ import (
 
 // ServeHTTP routes a request of a multisite install to its site:
 //
-//  1. /healthz answers on any host (DEPLOY.md checks it with Host: x);
+//  1. /healthz answers on any host (DEPLOY.md checks it with Host: x), and
+//     so does AskPath, to loopback and the trusted proxies only (tls.go);
 //  2. the host is canonicalised (lower case, no port or trailing dot,
 //     A-label) and looked up in the host table;
 //  3. an unknown host gets a 404 page, or a 302 to the network with
@@ -27,8 +28,12 @@ import (
 //  6. otherwise the site, loaded if needed, serves the request, with at
 //     most MaxInflight requests at once.
 func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/healthz" {
+	switch req.URL.Path {
+	case "/healthz":
 		r.health(w, req)
+		return
+	case AskPath:
+		r.ask(w, req)
 		return
 	}
 	t := r.table.Load()

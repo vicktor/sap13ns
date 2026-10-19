@@ -143,3 +143,69 @@
   {{if not $r.ScannedAt.IsZero}}<span class="muted text-xs">· {{dateTime $r.ScannedAt}}</span>{{end}}
 </div>
 {{end}}
+
+{{/* The custom domains of a site of the network (web.NetDomain). */}}
+{{define "domain-status"}}{{if .VerifiedAt}}{{if gt .CheckFailures 0}}<span class="badge" data-variant="warning">{{T "Check failing"}}</span>{{else}}<span class="badge" data-variant="success">{{T "Verified"}}</span>{{end}}{{else if .LapsedAt}}<span class="badge" data-variant="destructive">{{T "Lapsed"}}</span>{{else}}<span class="badge" data-variant="secondary">{{T "Waiting for DNS"}}</span>{{end}}{{end}}
+
+{{define "domain-problem"}}{{if eq . "txt_missing"}}{{T "Last check: the TXT record is missing or has another value."}}{{else if eq . "not_pointing"}}{{T "Last check: the domain does not point to the network."}}{{else if eq . "dns_error"}}{{T "Last check: the DNS lookup failed."}}{{end}}{{end}}
+
+{{/* The records that verify a custom domain: (dict "D" web.NetDomain "T" web.NetDomainTarget "I" a unique suffix). */}}
+{{define "domain-records"}}
+<dl class="meta-list">
+  <div><dt>{{T "TXT record"}}</dt><dd class="stack">
+    <div class="copy-field"><input class="input mono" id="txt-name-{{.I}}" type="text" readonly value="{{.D.TXTName}}" aria-label="{{T "Name of the TXT record"}}"><button type="button" class="btn" data-variant="outline" data-size="icon" data-copy="txt-name-{{.I}}" aria-label="{{T "Copy"}}">{{icon "copy"}}</button></div>
+    <div class="copy-field"><input class="input mono" id="txt-value-{{.I}}" type="text" readonly value="{{.D.TXTValue}}" aria-label="{{T "Value of the TXT record"}}"><button type="button" class="btn" data-variant="outline" data-size="icon" data-copy="txt-value-{{.I}}" aria-label="{{T "Copy"}}">{{icon "copy"}}</button></div>
+  </dd></div>
+  <div><dt>{{T "Address"}}</dt><dd>{{T "A CNAME record from %s to %s." .D.Host .T.Host}} {{if .T.Addresses}}{{T "For a domain without a subdomain (example.com), A and AAAA records with %s instead, and no other addresses." (join .T.Addresses ", ")}}{{else}}{{T "For a domain without a subdomain (example.com), A and AAAA records with the addresses of %s instead, and no other addresses." .T.Host}}{{end}}</dd></div>
+</dl>
+{{end}}
+
+{{/* The domains card and its forms: (dict "V" web.domainsView "CSRF" .CSRFField). */}}
+{{define "site-domains"}}{{$v := .V}}{{$csrf := .CSRF}}
+<section class="card table-wrap" id="domains">
+  <header><h2>{{T "Domains"}}</h2><p>{{T "Custom domains: %d of %d allowed by the plan." $v.Custom $v.Limit}}</p></header>
+  <table class="table">
+    <thead><tr><th>{{T "Host"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Last check"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+    <tbody>
+      {{range $v.Domains}}
+      <tr>
+        <td><span class="mono break-all">{{.Host}}</span>{{if .Primary}} <span class="badge" data-variant="secondary">{{T "Primary"}}</span>{{end}}<div class="row-sub muted">{{if .Custom}}{{T "Custom domain"}}{{else}}{{T "Default"}}{{end}}</div></td>
+        <td>{{template "domain-status" .}}</td>
+        <td class="max-md:hidden muted nowrap">{{if .Custom}}{{with .CheckedAt}}{{ago .}}{{else}}—{{end}}{{else}}—{{end}}</td>
+        <td class="text-right nowrap">
+          {{if $v.Editable}}
+          {{if .Custom}}<form method="post" action="{{$v.Base}}/check" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{if .VerifiedAt}}{{T "Check"}}{{else}}{{T "Verify"}}{{end}}</button></form>{{end}}
+          {{if and .VerifiedAt (not .Primary)}}<form method="post" action="{{$v.Base}}/primary" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Serve the site on %s? Its other domains redirect there." .Host}}">{{icon "star"}}{{T "Make primary"}}</button></form>{{end}}
+          {{if and .Custom (not .Primary)}}<form method="post" action="{{$v.Base}}/remove" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Remove %s" .Host}}" data-confirm="{{T "Remove %s from this site?" .Host}}">{{icon "trash-2"}}</button></form>{{end}}
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+{{range $i, $d := $v.Domains}}{{if $d.Pending}}
+<section class="card">
+  <header><h2>{{T "DNS records for %s" $d.Host}}</h2><p>{{if $d.CheckError}}{{template "domain-problem" $d.CheckError}}{{else}}{{T "Create these records at your DNS provider, then verify the domain."}}{{end}}</p></header>
+  <section>{{template "domain-records" (dict "D" $d "T" $v.Target "I" $i)}}</section>
+</section>
+{{end}}{{end}}
+{{if $v.Editable}}
+<section class="card">
+  <header><h2>{{T "Add a custom domain"}}</h2><p>{{if gt $v.Room 0}}{{T "A domain you control, such as www.example.com. It is served once its DNS records are verified."}}{{else}}{{T "The plan of this site has no room for another custom domain."}}{{end}}</p></header>
+  {{if or (gt $v.Room 0) $v.Error}}
+  <section class="stack">
+    {{template "form-error" $v.Error}}
+    {{with $v.Claim}}{{template "domain-records" (dict "D" . "T" $v.Target "I" "claim")}}{{end}}
+    {{if gt $v.Room 0}}
+    <form method="post" action="{{$v.Base}}" class="form">
+      {{$csrf}}
+      <div class="field"><label for="domain-host">{{T "Domain"}}</label><input class="input mono" id="domain-host" name="host" value="{{$v.Host}}" required maxlength="253" placeholder="www.example.com" autocapitalize="none" spellcheck="false" autocomplete="off"></div>
+      <div><button class="btn" type="submit">{{icon "plus"}}{{T "Add domain"}}</button></div>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+</section>
+{{end}}
+{{end}}

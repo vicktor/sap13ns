@@ -184,6 +184,16 @@ const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 's
 	"media-src 'self' https:; font-src 'self'; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; " +
 	"base-uri 'self'; form-action 'self'; object-src 'none'; manifest-src 'self'; worker-src 'none'"
 
+// sameHost reports whether a Host header names host, whatever its port,
+// case or trailing dot.
+func sameHost(hostport, host string) bool {
+	h := hostport
+	if hh, _, err := net.SplitHostPort(hostport); err == nil {
+		h = hh
+	}
+	return host != "" && strings.EqualFold(strings.TrimSuffix(h, "."), host)
+}
+
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	policy := csp
 	if s.cfg.BaseURL.Scheme == "https" {
@@ -196,6 +206,13 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		hsts = "max-age=63072000"
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hsts := hsts
+		if s.cfg.Multisite && !sameHost(r.Host, s.cfg.BaseURL.Hostname()) {
+			// A site of a network answers a few paths on its other hosts
+			// too (ACME challenges, the WebAuthn related origins file),
+			// which can be a customer's domain: never with subdomains.
+			hsts = "max-age=63072000"
+		}
 		h := w.Header()
 		if strings.HasPrefix(r.URL.Path, "/admin") {
 			p := policy

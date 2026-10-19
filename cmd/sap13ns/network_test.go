@@ -8,9 +8,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +34,46 @@ type netCLI struct {
 	pool *pgxpool.Pool
 	out  *bytes.Buffer
 	data string
+	dns  *cliDNS
+}
+
+// cliDNS answers the DNS checks of the commands: no test asks a real DNS
+// server.
+type cliDNS struct {
+	mu    sync.Mutex
+	txt   map[string][]string
+	cname map[string]string
+}
+
+func (d *cliDNS) LookupTXT(_ context.Context, name string) ([]string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if v, ok := d.txt[name]; ok {
+		return v, nil
+	}
+	return nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
+}
+
+func (d *cliDNS) LookupCNAME(_ context.Context, host string) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if c, ok := d.cname[host]; ok {
+		return c + ".", nil
+	}
+	return "", &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
+}
+
+func (d *cliDNS) LookupNetIP(_ context.Context, _, host string) ([]netip.Addr, error) {
+	if host == "sap13ns.test" {
+		return []netip.Addr{netip.MustParseAddr("192.0.2.80")}, nil
+	}
+	return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
+}
+
+func (d *cliDNS) set(change func(*cliDNS)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	change(d)
 }
 
 func newNetCLI(t *testing.T) *netCLI {
@@ -45,10 +87,11 @@ func newNetCLI(t *testing.T) *netCLI {
 		t.Setenv("SAP13NS_"+k, v)
 	}
 	buf := &bytes.Buffer{}
-	prev := out
-	out = buf
-	t.Cleanup(func() { out = prev })
-	return &netCLI{t: t, pool: pool, out: buf, data: data}
+	prev, prevDNS := out, dnsResolver
+	dns := &cliDNS{txt: map[string][]string{}, cname: map[string]string{}}
+	out, dnsResolver = buf, dns
+	t.Cleanup(func() { out, dnsResolver = prev, prevDNS })
+	return &netCLI{t: t, pool: pool, out: buf, data: data, dns: dns}
 }
 
 // run runs a command with stdin (the password) and returns its output.
@@ -183,7 +226,28 @@ func TestNetworkCLI(t *testing.T) {
 		t.Fatalf("domain add: %v %q", err, got)
 	}
 	c.fails("not verified", siteCmd, "domain", "primary", "www.alpha.example")
-	c.must("", siteCmd, "domain", "verify", "www.alpha.example")
+	// verify runs the DNS check: the TXT record, then the address.
+	c.fails(`no TXT record _sap13ns-verify.www.alpha.example with the value "sap13ns-site-verification=`+d.VerifyToken+`"`,
+		siteCmd, "domain", "verify", "www.alpha.example")
+	c.dns.set(func(c *cliDNS) {
+		c.txt["_sap13ns-verify.www.alpha.example"] = []string{"sap13ns-site-verification=" + d.VerifyToken}
+	})
+	c.fails("does not point to the network. It needs a CNAME to sap13ns.test, or A/AAAA records with the addresses of sap13ns.test",
+		siteCmd, "domain", "verify", "www.alpha.example")
+	if d, _ := n.Domain(ctx, "www.alpha.example"); d.VerifiedAt != nil || d.CheckError != network.CheckAddress {
+		t.Fatalf("after a failed check: %+v", d)
+	}
+	c.dns.set(func(c *cliDNS) { c.cname["www.alpha.example"] = "sap13ns.test" })
+	if got := c.must("", siteCmd, "domain", "verify", "www.alpha.example"); !strings.Contains(got, "verified") {
+		t.Fatalf("domain verify: %q", got)
+	}
+	// -force records it without a check.
+	c.must("", siteCmd, "domain", "add", "shop.alpha.example", "-slug", "alpha")
+	c.must("", siteCmd, "domain", "verify", "shop.alpha.example", "-force")
+	if d, _ := n.Domain(ctx, "shop.alpha.example"); d.VerifiedAt == nil {
+		t.Fatalf("-force: %+v", d)
+	}
+	c.must("", siteCmd, "domain", "remove", "shop.alpha.example")
 	c.must("", siteCmd, "domain", "primary", "www.alpha.example")
 	if s, _ := n.Site(ctx, alpha.ID); s.PrimaryHost != "www.alpha.example" {
 		t.Fatalf("primary %s", s.PrimaryHost)

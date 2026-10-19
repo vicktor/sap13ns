@@ -154,6 +154,7 @@ func NewRegistry(o RegistryOptions) (*Registry, error) {
 	if o.Billing != nil {
 		o.Billing.now = o.Now
 	}
+	o.Network.now = o.Now // the domain checks
 	pages, err := web.NewStatusPages(o.UI)
 	if err != nil {
 		return nil, err

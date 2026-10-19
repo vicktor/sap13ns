@@ -26,6 +26,7 @@
             {{if eq .Status "active"}}<a class="btn" data-variant="ghost" data-size="icon-sm" href="{{.URL}}/" target="_blank" rel="noopener" aria-label="{{T "View %s" .Slug}}" title="{{T "View site"}}">{{icon "external-link"}}</a>{{end}}
             <a class="btn" data-size="sm" href="{{.AdminURL}}">{{icon "log-in"}}{{T "Go to admin"}}</a>
             {{end}}
+            {{if eq .OwnerID $.User.ID}}<a class="btn" data-variant="outline" data-size="sm" href="/admin/sites/{{.ID}}/domains">{{icon "globe"}}{{T "Domains"}}</a>{{end}}
             {{if and $d.Billing (eq .OwnerID $.User.ID) .Billing}}{{if .Billing.Manageable}}
             <form method="post" action="/admin/sites/{{.ID}}/billing" class="inline-flex">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Manage billing"}}</button></form>
             {{end}}{{end}}

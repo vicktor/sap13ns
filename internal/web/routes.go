@@ -40,6 +40,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /llms.txt", c(s.handleLLMs))
 	mux.HandleFunc("GET /llms-full.txt", c(s.handleLLMsFull))
 	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("GET /.well-known/webauthn", s.handleRelatedOrigins) // a site of a network on a custom domain
 	mux.HandleFunc("GET /static/{path...}", s.serveStatic)
 	mux.HandleFunc("GET /themes/{theme}/static/{path...}", s.handleThemeStatic)
 	mux.HandleFunc("GET /plugin-assets/{id}/{version}/{path...}", s.handlePluginAsset)
@@ -86,6 +87,8 @@ func (s *Server) routes() *http.ServeMux {
 		network("GET /admin/network/sites/{id}", s.adminNetSite)
 		network("POST /admin/network/sites/{id}/members", s.adminNetMemberSet)
 		network("POST /admin/network/sites/{id}/members/{account}/delete", s.adminNetMemberRemove)
+		network("POST /admin/network/sites/{id}/domains", s.adminNetDomainAdd)
+		network("POST /admin/network/sites/{id}/domains/{op}", s.adminNetDomainAction)
 		network("POST /admin/network/sites/{id}/{action}", s.adminNetSiteAction)
 		network("GET /admin/network/admins", s.adminNetAdmins)
 		network("POST /admin/network/admins", s.adminNetAdminAdd)
@@ -97,6 +100,10 @@ func (s *Server) routes() *http.ServeMux {
 		}
 		admin("GET /admin/sites", auth.CapAdminPanel, s.adminMySites)
 		admin("POST /admin/sites/request", auth.CapAdminPanel, s.adminSiteRequest)
+		// The custom domains of the account's own sites (admin_domains.go).
+		admin("GET /admin/sites/{id}/domains", auth.CapAdminPanel, s.adminMyDomains)
+		admin("POST /admin/sites/{id}/domains", auth.CapAdminPanel, s.adminMyDomainAdd)
+		admin("POST /admin/sites/{id}/domains/{op}", auth.CapAdminPanel, s.adminMyDomainAction)
 
 		// Billing (billing.go), with a Stripe key only. Stripe calls the
 		// webhook without a session; the signature authenticates it.

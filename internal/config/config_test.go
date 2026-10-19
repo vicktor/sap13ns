@@ -146,6 +146,11 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 				"SITE_IDLE":             "soon",
 				"MEMORY_LIMIT_MB":       "1",
 				"TLS":                   "autocert",
+				"TLS_CERT":              "/etc/ssl/wildcard.pem",
+				"DOMAIN_TARGET":         "Edge.Example.com",
+				"DOMAIN_ADDRESSES":      "nonsense",
+				"ACME_EMAIL":            "ops@example.com",
+				"HTTP_LISTEN":           "unix:/x",
 				"STRIPE_SECRET_KEY":     "sk_test_0123456789",
 				"STRIPE_WEBHOOK_SECRET": "whsec_0123456789",
 				"STRIPE_PRICE_PRO":      "price_0123456789",
@@ -178,7 +183,8 @@ func TestLoadMultisite(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !c.Multisite || c.SitesDomain != "sap13ns.site" || c.UnknownHost != "404" || c.MaxLoadedSites != 50 ||
-		c.SiteIdle != 15*time.Minute || c.MemoryLimitMB != 0 || c.TLS != "proxy" || c.DBMaxConns != 32 || c.Stripe.Enabled() {
+		c.SiteIdle != 15*time.Minute || c.MemoryLimitMB != 0 || c.TLS != "proxy" || c.DBMaxConns != 32 || c.Stripe.Enabled() ||
+		c.DomainTarget != "sap13ns.site" || c.DomainAddresses != nil || c.TLSCert != "" || c.HTTPListen != "" {
 		t.Fatalf("defaults: %+v", c)
 	}
 
@@ -189,6 +195,11 @@ func TestLoadMultisite(t *testing.T) {
 		"SITE_IDLE":                     "30m",
 		"MEMORY_LIMIT_MB":               "2048",
 		"TLS":                           "autocert",
+		"TLS_CERT":                      "/etc/sap13ns/tls/wildcard.pem",
+		"TLS_KEY":                       "/etc/sap13ns/tls/wildcard.key",
+		"ACME_EMAIL":                    "ops@example.com",
+		"DOMAIN_TARGET":                 "Sites.Example.COM",
+		"DOMAIN_ADDRESSES":              "192.0.2.10, 2001:db8::10,::ffff:198.51.100.7",
 		"DB_MAX_CONNS":                  "64",
 		"STRIPE_SECRET_KEY":             "rk_live_0123456789abc",
 		"STRIPE_WEBHOOK_SECRET":         "whsec_newnewnewnew, whsec_oldoldoldold",
@@ -211,6 +222,13 @@ func TestLoadMultisite(t *testing.T) {
 	if c.SitesDomain != "sites.example.com" || c.UnknownHost != "redirect" || c.MaxLoadedSites != 200 ||
 		c.SiteIdle != 30*time.Minute || c.MemoryLimitMB != 2048 || c.TLS != "autocert" || c.DBMaxConns != 64 {
 		t.Fatalf("settings: %+v", c)
+	}
+	wantAddrs := []netip.Addr{netip.MustParseAddr("192.0.2.10"), netip.MustParseAddr("2001:db8::10"), netip.MustParseAddr("198.51.100.7")}
+	if c.DomainTarget != "sites.example.com" || !reflect.DeepEqual(c.DomainAddresses, wantAddrs) ||
+		c.TLSCert != "/etc/sap13ns/tls/wildcard.pem" || c.TLSKey != "/etc/sap13ns/tls/wildcard.key" ||
+		c.ACMEEmail != "ops@example.com" || c.ACMEDirectory != "" || c.HTTPListen != ":80" {
+		t.Fatalf("domains and TLS: target %q addrs %v cert %q key %q email %q dir %q http %q", c.DomainTarget, c.DomainAddresses,
+			c.TLSCert, c.TLSKey, c.ACMEEmail, c.ACMEDirectory, c.HTTPListen)
 	}
 	want := Stripe{
 		SecretKey:      "rk_live_0123456789abc",
@@ -255,6 +273,14 @@ func TestLoadMultisiteErrors(t *testing.T) {
 		{"memory limit too small", map[string]string{"MEMORY_LIMIT_MB": "16"}, false, "SAP13NS_MEMORY_LIMIT_MB"},
 		{"tls mode", map[string]string{"TLS": "on"}, false, "SAP13NS_TLS"},
 		{"autocert over http", map[string]string{"TLS": "autocert", "BASE_URL": "http://localhost:8137"}, false, "SAP13NS_TLS"},
+		{"autocert without certificate", map[string]string{"TLS": "autocert", "TLS_KEY": "/k"}, false, "SAP13NS_TLS_CERT"},
+		{"autocert on a socket", map[string]string{"TLS": "autocert", "TLS_CERT": "/c", "TLS_KEY": "/k", "LISTEN": "unix:/run/x.sock"}, false, "SAP13NS_LISTEN"},
+		{"autocert bad e-mail", map[string]string{"TLS": "autocert", "TLS_CERT": "/c", "TLS_KEY": "/k", "ACME_EMAIL": "ops"}, false, "SAP13NS_ACME_EMAIL"},
+		{"autocert http directory", map[string]string{"TLS": "autocert", "TLS_CERT": "/c", "TLS_KEY": "/k", "ACME_DIRECTORY": "http://acme.example/dir"}, false, "SAP13NS_ACME_DIRECTORY"},
+		{"autocert http on a socket", map[string]string{"TLS": "autocert", "TLS_CERT": "/c", "TLS_KEY": "/k", "HTTP_LISTEN": "unix:/x"}, false, "SAP13NS_HTTP_LISTEN"},
+		{"domain target with port", map[string]string{"DOMAIN_TARGET": "edge.example.com:443"}, false, "SAP13NS_DOMAIN_TARGET"},
+		{"domain address not an IP", map[string]string{"DOMAIN_ADDRESSES": "192.0.2.1, edge.example.com"}, false, "SAP13NS_DOMAIN_ADDRESSES"},
+		{"domain address private", map[string]string{"DOMAIN_ADDRESSES": "127.0.0.1"}, false, "SAP13NS_DOMAIN_ADDRESSES"},
 		{"publishable key", map[string]string{"STRIPE_SECRET_KEY": "pk_live_0123456789"}, true, "SAP13NS_STRIPE_SECRET_KEY"},
 		{"no webhook secret", map[string]string{"STRIPE_WEBHOOK_SECRET": " , "}, true, "SAP13NS_STRIPE_WEBHOOK_SECRET"},
 		{"bad webhook secret", map[string]string{"STRIPE_WEBHOOK_SECRET": "whsec_0123456789,sk_test_x"}, true, "SAP13NS_STRIPE_WEBHOOK_SECRET"},

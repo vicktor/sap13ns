@@ -30,6 +30,7 @@ type fixture struct {
 	n      *Network
 	portal *store.Store // the network schema: accounts
 	cfg    *config.Config
+	dns    *fakeDNS // the network's resolver
 }
 
 func setup(t *testing.T) *fixture {
@@ -46,7 +47,9 @@ func setup(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &fixture{t: t, ctx: ctx, pool: pool, n: n, portal: store.New(n.DB()), cfg: cfg}
+	dns := newFakeDNS()
+	n.SetResolver(dns)
+	return &fixture{t: t, ctx: ctx, pool: pool, n: n, portal: store.New(n.DB()), cfg: cfg, dns: dns}
 }
 
 // account creates a network account.
@@ -152,7 +155,7 @@ func TestMigrate(t *testing.T) {
 	}
 	var site, net int
 	if err := f.n.db.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM schema_migrations), (SELECT count(*) FROM network_migrations)`).
-		Scan(&site, &net); err != nil || site < 10 || net != 3 {
+		Scan(&site, &net); err != nil || site < 10 || net != 4 {
 		t.Fatalf("migrations: site %d, network %d, %v", site, net, err)
 	}
 }
@@ -431,13 +434,13 @@ func TestDomains(t *testing.T) {
 		t.Fatalf("missing site: %v", err)
 	}
 
-	if err := f.n.SetPrimaryDomain(f.ctx, "www.example.org"); !errors.Is(err, ErrState) {
+	if err := f.n.SetPrimaryDomain(f.ctx, a.ID, "www.example.org"); !errors.Is(err, ErrState) {
 		t.Fatalf("unverified primary: %v", err)
 	}
 	if err := f.n.VerifyDomain(f.ctx, "www.example.org"); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.n.SetPrimaryDomain(f.ctx, "www.example.org"); err != nil {
+	if err := f.n.SetPrimaryDomain(f.ctx, a.ID, "www.example.org"); err != nil {
 		t.Fatal(err)
 	}
 	s, _ := f.n.Site(f.ctx, a.ID)
@@ -450,17 +453,17 @@ func TestDomains(t *testing.T) {
 	}
 
 	for _, host := range []string{"www.example.org", "blog.sap13ns.site"} {
-		if err := f.n.RemoveDomain(f.ctx, host); !errors.Is(err, ErrState) {
+		if err := f.n.RemoveDomain(f.ctx, a.ID, host); !errors.Is(err, ErrState) {
 			t.Errorf("RemoveDomain(%s) = %v, want ErrState", host, err)
 		}
 	}
-	if err := f.n.SetPrimaryDomain(f.ctx, "blog.sap13ns.site"); err != nil {
+	if err := f.n.SetPrimaryDomain(f.ctx, a.ID, "blog.sap13ns.site"); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.n.RemoveDomain(f.ctx, "www.example.org"); err != nil {
+	if err := f.n.RemoveDomain(f.ctx, a.ID, "www.example.org"); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.n.RemoveDomain(f.ctx, "www.example.org"); !errors.Is(err, store.ErrNotFound) {
+	if err := f.n.RemoveDomain(f.ctx, a.ID, "www.example.org"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("removing twice: %v", err)
 	}
 	// Removed, the host can go to another site.
