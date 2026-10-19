@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -127,8 +128,8 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 	}
 	opts := wpimport.Options{DryRun: r.FormValue("dry_run") == "1", DownloadMedia: r.FormValue("media") == "1",
 		SkipExisting: r.FormValue("skip_existing") == "1", DefaultAuthorID: authorID,
-		MaxMediaBytes: s.cfg.MaxUploadBytes,
-		PostURL:       func(typ, slug string) string { return s.langPath(lang, postPath(typ, slug)) }}
+		MaxMediaBytes: s.cfg.MaxUploadBytes, Language: lang, Languages: s.siteLangs(),
+		PostURL: func(typ, l, slug string) string { return s.langPath(cmp.Or(l, lang), postPath(typ, slug)) }}
 	for _, h := range strings.Fields(strings.ReplaceAll(r.FormValue("media_hosts"), ",", " ")) {
 		opts.MediaHosts = append(opts.MediaHosts, strings.ToLower(h))
 	}
@@ -213,20 +214,35 @@ func (k *wpSink) EnsureTerm(ctx context.Context, taxonomy string, t wpimport.Ter
 	if taxonomy != wpimport.TaxonomyCategory {
 		parentID = nil
 	}
-	return k.s.store.CreateTerm(ctx, store.TermInput{Taxonomy: taxonomy, Name: t.Name, Slug: t.Slug, Description: t.Description, ParentID: parentID})
+	var i18n map[string]store.TermText
+	for lang, tt := range t.I18n {
+		if i18n == nil {
+			i18n = map[string]store.TermText{}
+		}
+		i18n[lang] = store.TermText{Name: tt.Name, Description: tt.Description}
+	}
+	return k.s.store.CreateTerm(ctx, store.TermInput{Taxonomy: taxonomy, Name: t.Name, Slug: t.Slug, Description: t.Description,
+		ParentID: parentID, I18n: i18n})
 }
 
-func (k *wpSink) PostExists(ctx context.Context, typ, slug string) (bool, error) {
+func (k *wpSink) PostExists(ctx context.Context, typ, lang, slug string) (bool, error) {
 	if typ == store.TypePage && (reservedSlugs[slug] || validLang(slug)) {
 		return true, nil
 	}
-	return k.s.store.SlugExists(ctx, typ, k.lang, slug, 0)
+	return k.s.store.SlugExists(ctx, typ, cmp.Or(lang, k.lang), slug, 0)
 }
 
 func (k *wpSink) CreatePost(ctx context.Context, p wpimport.Post) (int64, error) {
-	return k.s.store.CreatePost(ctx, store.PostInput{Type: p.Type, Status: p.Status, Title: p.Title, Slug: p.Slug, Lang: k.lang,
-		Excerpt: p.Excerpt, Content: p.Content, AuthorID: p.AuthorID, ParentID: p.ParentID, MenuOrder: p.MenuOrder,
-		FeaturedMediaID: p.FeaturedMediaID, CommentStatus: p.CommentStatus, PublishedAt: p.PublishedAt, TermIDs: p.TermIDs})
+	in := store.PostInput{Type: p.Type, Status: p.Status, Title: p.Title, Slug: p.Slug, Lang: cmp.Or(p.Lang, k.lang),
+		TranslationOf: p.TranslationOf, Excerpt: p.Excerpt, Content: p.Content, AuthorID: p.AuthorID, ParentID: p.ParentID,
+		MenuOrder: p.MenuOrder, FeaturedMediaID: p.FeaturedMediaID, CommentStatus: p.CommentStatus,
+		MetaDescription: p.MetaDescription, PublishedAt: p.PublishedAt, TermIDs: p.TermIDs, AssistantExclude: p.AssistantExclude}
+	id, err := k.s.store.CreatePost(ctx, in)
+	if errors.Is(err, store.ErrTranslationExists) {
+		in.TranslationOf = 0 // the importer prevents this; never lose the post over it
+		id, err = k.s.store.CreatePost(ctx, in)
+	}
+	return id, err
 }
 
 func (k *wpSink) CreateComment(ctx context.Context, postID int64, c wpimport.Comment, parentID *int64) (int64, error) {
@@ -267,10 +283,10 @@ func (k *wpSink) StoreMedia(ctx context.Context, name string, r io.Reader, alt s
 	return m.ID, m.URL(), nil
 }
 
-func (k *wpSink) AddRedirect(ctx context.Context, from, to string) error {
-	src, dst, ok := normalizeRedirect(from, to, http.StatusMovedPermanently)
+func (k *wpSink) AddRedirect(ctx context.Context, from, to string, status int) error {
+	src, dst, ok := normalizeRedirect(from, to, status)
 	if !ok {
 		return fmt.Errorf("unusable redirect %q → %q", from, to)
 	}
-	return k.s.store.SaveRedirect(ctx, src, dst, http.StatusMovedPermanently, true)
+	return k.s.store.SaveRedirect(ctx, src, dst, status, true)
 }

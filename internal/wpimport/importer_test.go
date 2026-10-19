@@ -73,8 +73,11 @@ func (s *fakeSink) EnsureTerm(_ context.Context, taxonomy string, t Term, parent
 	return id, nil
 }
 
-func (s *fakeSink) PostExists(_ context.Context, typ, slug string) (bool, error) {
+func (s *fakeSink) PostExists(_ context.Context, typ, lang, slug string) (bool, error) {
 	s.checks++
+	if lang != "" {
+		return s.exists[typ+"/"+lang+"/"+slug], nil
+	}
 	return s.exists[typ+"/"+slug], nil
 }
 
@@ -117,7 +120,10 @@ func (s *fakeSink) StoreMedia(_ context.Context, name string, r io.Reader, alt s
 	return id, fmt.Sprintf("/uploads/%d/%s", id, name), nil
 }
 
-func (s *fakeSink) AddRedirect(_ context.Context, from, to string) error {
+func (s *fakeSink) AddRedirect(_ context.Context, from, to string, status int) error {
+	if status != 301 {
+		to = fmt.Sprintf("%d %s", status, to)
+	}
 	s.redirects[from] = to
 	return nil
 }

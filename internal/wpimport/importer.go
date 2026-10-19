@@ -41,13 +41,15 @@ const (
 // Column limits of the sap13ns schema; longer values are truncated rather
 // than failing the item.
 const (
-	maxTitleRunes   = 300
-	maxExcerptRunes = 2000
-	maxAltRunes     = 500
-	maxCommentRunes = 10000
-	maxNameRunes    = 100
-	maxWarnings     = 500
-	defaultMaxFiles = 2000
+	maxTitleRunes    = 300
+	maxExcerptRunes  = 2000
+	maxAltRunes      = 500
+	maxCommentRunes  = 10000
+	maxNameRunes     = 100
+	maxDescRunes     = 1000 // term descriptions
+	maxMetaDescRunes = 300
+	maxWarnings      = 500
+	defaultMaxFiles  = 2000
 )
 
 // Sink receives the imported content. The web layer implements it on top of
@@ -60,9 +62,10 @@ type Sink interface {
 	// or TaxonomyTag), creating it under parentID when missing. t.Slug is
 	// already sanitised; t.Parent is the parent's WordPress nicename.
 	EnsureTerm(ctx context.Context, taxonomy string, t Term, parentID *int64) (int64, error)
-	// PostExists reports whether slug is taken for typ (TypePost, TypePage).
-	// Slugs that would clash with routes may be reported as taken too.
-	PostExists(ctx context.Context, typ, slug string) (bool, error)
+	// PostExists reports whether slug is taken for typ (TypePost, TypePage)
+	// in lang ("" is the language of the import). Slugs that would clash
+	// with routes may be reported as taken too.
+	PostExists(ctx context.Context, typ, lang, slug string) (bool, error)
 	CreatePost(ctx context.Context, p Post) (int64, error)
 	// CreateComment stores c under postID; c.Status, c.Text, c.Date and
 	// c.NewUserID are the fields to persist.
@@ -70,9 +73,11 @@ type Sink interface {
 	// StoreMedia validates and stores a downloaded file and returns its ID
 	// and public URL. r fails with ErrMediaTooLarge past the size limit.
 	StoreMedia(ctx context.Context, name string, r io.Reader, alt string) (id int64, url string, err error)
-	// AddRedirect records a permanent redirect from an old path (with its
-	// query for sites on plain permalinks, "/?p=12") to a new URL or path.
-	AddRedirect(ctx context.Context, from, to string) error
+	// AddRedirect records a redirect from an old path (with its query for
+	// sites on plain permalinks, "/?p=12") to a new URL or path. status is
+	// 301 for old permalinks; a sap13ns export carries its own rules (301,
+	// 302, 307, 308, or 410 with an empty target).
+	AddRedirect(ctx context.Context, from, to string, status int) error
 }
 
 // Post is a post or a page ready to be stored.
@@ -95,6 +100,15 @@ type Post struct {
 	OldURL          string // WordPress permalink
 	OldID           int64  // WordPress post ID
 	Template        string // _wp_page_template, "" for the default template
+
+	// Lang is the language, "" for the language of the import. A sap13ns
+	// export keeps each post's language.
+	Lang string
+	// TranslationOf is the ID of an imported post this one translates, 0
+	// for none: the translations of a sap13ns export stay linked.
+	TranslationOf    int64
+	MetaDescription  string // plain text
+	AssistantExclude bool
 }
 
 type Options struct {
@@ -113,9 +127,16 @@ type Options struct {
 	// export's hosts and MediaHosts.
 	Fetcher Fetcher
 	Now     func() time.Time
-	// PostURL returns the new public URL of a post or page; nil means
-	// "/blog/<slug>" for posts and "/<slug>" for pages.
-	PostURL func(typ, slug string) string
+	// PostURL returns the new public URL of a post or page in lang ("" is
+	// Language); nil means "/blog/<slug>" for posts and "/<slug>" for pages.
+	PostURL func(typ, lang, slug string) string
+	// Language is the language of content that has none of its own: every
+	// WordPress post, and posts of a sap13ns export in its main language.
+	// "" leaves it to the sink.
+	Language string
+	// Languages are the languages the site offers; content of a sap13ns
+	// export in another one is imported with a warning. Nil skips the check.
+	Languages []string
 }
 
 // Count tallies one kind of object. For users and terms, Created counts the
@@ -203,12 +224,20 @@ type mediaRef struct {
 type plan struct {
 	it      *Item
 	status  string
+	lang    string // "" is Options.Language
 	slug    string
 	url     string
 	skip    bool
 	newID   int64
 	created bool
 	public  bool // published with a date that has passed
+}
+
+// group is a translation group of a sap13ns export as it is imported: the
+// first member created anchors it, the others translate that one.
+type group struct {
+	anchor int64
+	langs  map[string]bool
 }
 
 type importer struct {
@@ -236,6 +265,8 @@ type importer struct {
 	plans        map[int64]*plan   // planned by WordPress ID
 	order        []*plan           // created pages and posts, in creation order
 	redirected   map[string]bool
+	groups       map[int64]*group // by the export's translation group
+	foreignLangs map[string]bool  // languages the site does not offer, already reported
 }
 
 // Import writes exp to sink in dependency order: authors, terms (parents
@@ -250,7 +281,7 @@ func Import(ctx context.Context, exp *Export, sink Sink, opts Options) (*Report,
 		usersByLogin: map[string]int64{}, usersByWPID: map[int64]int64{}, unknownUsers: map[string]bool{},
 		terms: map[string]int64{}, failedTerms: map[string]bool{}, attachments: map[int64]*Item{}, media: map[int64]mediaRef{},
 		mediaURLs: map[string]string{}, mediaStems: map[string]string{}, links: map[string]string{},
-		plans: map[int64]*plan{}, redirected: map[string]bool{},
+		plans: map[int64]*plan{}, redirected: map[string]bool{}, groups: map[int64]*group{}, foreignLangs: map[string]bool{},
 	}
 	if im.opts.Now == nil {
 		im.opts.Now = time.Now
@@ -299,7 +330,7 @@ func Import(ctx context.Context, exp *Export, sink Sink, opts Options) (*Report,
 
 	for _, step := range []func(context.Context) error{
 		im.importUsers, im.importTerms, im.importMedia, im.plan, im.importPages, im.importPosts,
-		im.importComments, im.importRedirects,
+		im.importComments, im.importRedirects, im.importRules,
 	} {
 		if err := ctx.Err(); err != nil {
 			return im.finish(), err
@@ -311,11 +342,34 @@ func Import(ctx context.Context, exp *Export, sink Sink, opts Options) (*Report,
 	return im.finish(), nil
 }
 
-func defaultPostURL(typ, slug string) string {
+func defaultPostURL(typ, _, slug string) string {
 	if typ == TypePage {
 		return "/" + slug
 	}
 	return "/blog/" + slug
+}
+
+// langCode is the format of a language code in the sap13ns schema.
+var langCode = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
+
+// itemLang returns the language an item is imported in, "" for
+// Options.Language: always for WordPress items, and for sap13ns items in
+// the export's main language, so that content moves with the site's main
+// language. Other languages are kept.
+func (im *importer) itemLang(it *Item) string {
+	l := it.Lang
+	if l == "" || l == strings.ToLower(im.exp.Site.Language) || l == im.opts.Language {
+		return ""
+	}
+	if !langCode.MatchString(l) {
+		im.warn("%s %q has an invalid language %q; imported in the language of the import", it.Type, plainTextOf(it.Title), l)
+		return ""
+	}
+	if im.opts.Languages != nil && !slices.Contains(im.opts.Languages, l) && !im.foreignLangs[l] {
+		im.foreignLangs[l] = true
+		im.warn("content in %q is imported, but the site does not offer that language: add it in Settings to publish it", l)
+	}
+	return l
 }
 
 func (im *importer) finish() *Report {
@@ -426,7 +480,8 @@ func (im *importer) ensureTerm(ctx context.Context, taxonomy string, t Term, par
 	if t.Name == "" {
 		t.Name = t.Slug
 	}
-	t.Description = plainTextOf(t.Description)
+	t.Description = truncateRunes(plainTextOf(t.Description), maxDescRunes)
+	t.I18n = cleanTermI18n(t.I18n)
 	id = im.fake()
 	if !im.opts.DryRun {
 		if id, err = im.sink.EnsureTerm(ctx, taxonomy, t, parentID); err != nil {
@@ -438,6 +493,23 @@ func (im *importer) ensureTerm(ctx context.Context, taxonomy string, t Term, par
 	im.terms[key] = id
 	im.rep.Mapping.Terms[key] = id
 	return id, true, nil
+}
+
+// cleanTermI18n keeps the translations with a valid language code and a
+// name, cut to the column limits.
+func cleanTermI18n(in map[string]TermText) map[string]TermText {
+	var out map[string]TermText
+	for lang, tt := range in {
+		name := truncateRunes(strings.TrimSpace(tt.Name), maxNameRunes)
+		if !langCode.MatchString(lang) || name == "" {
+			continue
+		}
+		if out == nil {
+			out = map[string]TermText{}
+		}
+		out[lang] = TermText{Name: name, Description: truncateRunes(strings.TrimSpace(tt.Description), maxDescRunes)}
+	}
+	return out
 }
 
 func (im *importer) importTerms(ctx context.Context) error {
@@ -675,6 +747,54 @@ func (im *importer) rewriteURL(raw string) string {
 	return raw
 }
 
+// reMarkdownURL finds addresses in Markdown: link and image destinations,
+// reference definitions, src and href attributes of inline HTML, autolinks
+// (group 1), and bare absolute URLs (group 2).
+var reMarkdownURL = regexp.MustCompile(`(?:\]\(\s*<?|\]:[ \t]*<?|\b(?:src|href)=["']|<)((?:https?://|/)[^\s"'<>()]*)|(https?://[^\s"'<>()\[\]]+)`)
+
+// rewriteMarkdown points the addresses of imported media and posts in the
+// Markdown source of a sap13ns export at their new URLs. Site-relative
+// addresses are read against the exported site; a media file that was not
+// imported keeps loading from there, other relative links stay as they are.
+func (im *importer) rewriteMarkdown(md string) string {
+	base, err := url.Parse(im.baseURL)
+	if err != nil || base.Host == "" {
+		base = nil
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range reMarkdownURL.FindAllStringSubmatchIndex(md, -1) {
+		s, e := m[2], m[3]
+		if s < 0 {
+			s, e = m[4], m[5]
+		}
+		raw := md[s:e]
+		abs := raw
+		if strings.HasPrefix(raw, "/") {
+			if strings.HasPrefix(raw, "//") || base == nil {
+				continue
+			}
+			u, err := base.Parse(raw)
+			if err != nil {
+				continue
+			}
+			abs = u.String()
+		}
+		v := im.rewriteURL(abs)
+		if v == abs && (abs == raw || !strings.HasPrefix(raw, "/uploads/")) {
+			continue
+		}
+		b.WriteString(md[last:s])
+		b.WriteString(v)
+		last = e
+	}
+	if last == 0 {
+		return md
+	}
+	b.WriteString(md[last:])
+	return b.String()
+}
+
 func (im *importer) mapStatus(it *Item) (status string, ok bool) {
 	what := fmt.Sprintf("%s %q", it.Type, plainTextOf(it.Title))
 	switch it.Status {
@@ -740,6 +860,8 @@ func (im *importer) plan(ctx context.Context) error {
 			continue
 		}
 		p.status = status
+		p.lang = im.itemLang(it)
+		key := it.Type + "/" + p.lang + "/"
 		base := Slugify(strings.TrimSuffix(it.Slug, "__trashed"))
 		if base == "" {
 			base = Slugify(it.Title)
@@ -750,9 +872,9 @@ func (im *importer) plan(ctx context.Context) error {
 		slug := base
 		for n := 2; ; n++ {
 			exists := false
-			if !taken[it.Type+"/"+slug] {
+			if !taken[key+slug] {
 				var err error
-				if exists, err = im.sink.PostExists(ctx, it.Type, slug); err != nil {
+				if exists, err = im.sink.PostExists(ctx, it.Type, p.lang, slug); err != nil {
 					if err := im.failed(ctx, c, "%s %q: %v", it.Type, it.Title, err); err != nil {
 						return err
 					}
@@ -763,7 +885,7 @@ func (im *importer) plan(ctx context.Context) error {
 					// Already imported: keep links pointing at it.
 					c.Skipped++
 					im.rep.Counts.Comments.Skipped += len(it.Comments)
-					im.addLinks(it, im.opts.PostURL(it.Type, slug))
+					im.addLinks(it, im.opts.PostURL(it.Type, p.lang, slug))
 					slug = ""
 					break
 				}
@@ -786,9 +908,9 @@ func (im *importer) plan(ctx context.Context) error {
 		if slug != base {
 			im.warn("%s %q: slug %q is taken, using %q", it.Type, it.Title, base, slug)
 		}
-		taken[it.Type+"/"+slug] = true
+		taken[key+slug] = true
 		p.slug, p.skip = slug, false
-		p.url = im.opts.PostURL(it.Type, slug)
+		p.url = im.opts.PostURL(it.Type, p.lang, slug)
 		im.addLinks(it, p.url)
 	}
 	return nil
@@ -821,10 +943,24 @@ func (im *importer) importPages(ctx context.Context) error {
 		}
 	}
 	visited := map[*plan]bool{}
+	parentDone := func(p *plan) bool {
+		parent := im.plans[p.it.ParentID]
+		return p.it.ParentID == 0 || p.it.ParentID == p.it.ID || parent == nil || parent.skip || parent.it.Type != TypePage || visited[parent]
+	}
 	var visit func(p *plan) error
 	visit = func(p *plan) error {
 		if visited[p] {
 			return nil
+		}
+		// The original of a translation group first, when its parent
+		// allows, so that it stays the original.
+		if o := im.original(p); o != nil && !visited[o] && parentDone(o) {
+			if err := visit(o); err != nil {
+				return err
+			}
+			if visited[p] {
+				return nil
+			}
 		}
 		visited[p] = true
 		if err := im.create(ctx, p); err != nil {
@@ -863,10 +999,32 @@ func (im *importer) importPosts(ctx context.Context) error {
 	slices.SortStableFunc(posts, func(a, b *plan) int {
 		return cmp.Or(a.it.Date.Compare(b.it.Date), cmp.Compare(a.it.ID, b.it.ID))
 	})
+	done := map[*plan]bool{}
 	for _, p := range posts {
-		if err := im.create(ctx, p); err != nil {
-			return err
+		// The original of a translation group comes first, so that the
+		// translations link to it.
+		for _, q := range []*plan{im.original(p), p} {
+			if q != nil && !done[q] {
+				done[q] = true
+				if err := im.create(ctx, q); err != nil {
+					return err
+				}
+			}
 		}
+	}
+	return nil
+}
+
+// original returns the plan of the post a sap13ns translation group is
+// named after, when p is another member of it and it is imported with p's
+// type; the group of an export is the ID of its original.
+func (im *importer) original(p *plan) *plan {
+	g := p.it.TranslationGroup
+	if g == 0 || g == p.it.ID {
+		return nil
+	}
+	if o := im.plans[g]; o != nil && !o.skip && o.it.Type == p.it.Type && o.it.TranslationGroup == g {
+		return o
 	}
 	return nil
 }
@@ -905,12 +1063,19 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 	c := im.count(it.Type)
 	title := truncateRunes(plainTextOf(it.Title), maxTitleRunes)
 	what := fmt.Sprintf("%s %q", it.Type, title)
-	md, teaser := ToMarkdown(it.Content, ConvertOptions{
-		BaseURL:    im.baseURL,
-		RewriteURL: im.rewriteURL,
-		Gallery:    im.gallery(it.ID),
-		Warn:       func(msg string) { im.warn("%s: %s", what, msg) },
-	})
+	var md, teaser string
+	if strings.TrimSpace(it.Markdown) != "" {
+		// A sap13ns export carries the source: no conversion, only the
+		// addresses of imported media and posts change.
+		md = im.rewriteMarkdown(it.Markdown)
+	} else {
+		md, teaser = ToMarkdown(it.Content, ConvertOptions{
+			BaseURL:    im.baseURL,
+			RewriteURL: im.rewriteURL,
+			Gallery:    im.gallery(it.ID),
+			Warn:       func(msg string) { im.warn("%s: %s", what, msg) },
+		})
+	}
 	excerpt := HTMLToText(it.Excerpt)
 	if excerpt == "" {
 		excerpt = teaser
@@ -924,6 +1089,10 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 		Sticky:        it.Sticky && it.Type == TypePost,
 		OldURL:        it.Link,
 		OldID:         it.ID,
+		Lang:          p.lang,
+		MetaDescription: truncateRunes(strings.Join(strings.Fields(plainTextOf(it.MetaDescription)), " "),
+			maxMetaDescRunes),
+		AssistantExclude: it.AssistantExclude,
 	}
 	if it.CommentStatus == "open" {
 		post.CommentStatus = "open"
@@ -989,6 +1158,15 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 		}
 	}
 
+	g := im.groups[it.TranslationGroup]
+	if g != nil {
+		if g.langs[p.lang] {
+			im.warn("%s: its translation group already has a post in that language; imported unlinked", what)
+		} else {
+			post.TranslationOf = g.anchor
+		}
+	}
+
 	id := im.fake()
 	if !im.opts.DryRun {
 		var err error
@@ -996,6 +1174,13 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 			im.rep.Counts.Comments.Skipped += len(it.Comments)
 			return im.failed(ctx, c, "%s: %v", what, err)
 		}
+	}
+	switch {
+	case it.TranslationGroup == 0:
+	case g == nil:
+		im.groups[it.TranslationGroup] = &group{anchor: id, langs: map[string]bool{p.lang: true}}
+	case post.TranslationOf != 0:
+		g.langs[p.lang] = true
 	}
 	c.Created++
 	p.newID, p.created = id, true
@@ -1165,11 +1350,49 @@ func (im *importer) redirect(ctx context.Context, from, to string) error {
 	}
 	im.redirected[from] = true
 	if !im.opts.DryRun {
-		if err := im.sink.AddRedirect(ctx, from, to); err != nil {
+		if err := im.sink.AddRedirect(ctx, from, to, 301); err != nil {
 			return im.failed(ctx, c, "redirect %s → %s: %v", from, to, err)
 		}
 	}
 	c.Created++
+	return nil
+}
+
+// importRules adds the redirect rules of a sap13ns export, after the
+// redirects from old permalinks, which win for the same path.
+func (im *importer) importRules(ctx context.Context) error {
+	c := &im.rep.Counts.Redirects
+	for _, rd := range im.exp.Redirects {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		from, to := strings.TrimSpace(rd.Source), strings.TrimSpace(rd.Target)
+		switch {
+		case !strings.HasPrefix(from, "/") || im.redirected[from]:
+			c.Skipped++
+			continue
+		case !slices.Contains([]int{301, 302, 307, 308, 410}, rd.Status):
+			c.Failed++
+			im.warn("redirect %s: unknown status %d", from, rd.Status)
+			continue
+		case rd.Status == 410:
+			to = ""
+		case to == "":
+			c.Failed++
+			im.warn("redirect %s has no target", from)
+			continue
+		}
+		im.redirected[from] = true
+		if !im.opts.DryRun {
+			if err := im.sink.AddRedirect(ctx, from, to, rd.Status); err != nil {
+				if err := im.failed(ctx, c, "redirect %s → %s: %v", from, to, err); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		c.Created++
+	}
 	return nil
 }
 

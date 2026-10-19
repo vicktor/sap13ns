@@ -23,7 +23,8 @@
         <div class="field"><label for="author_id">{{T "Author for content without a matching user"}}</label>
           <select class="select w-full" id="author_id" name="author_id">{{range $d.Authors}}<option value="{{.ID}}"{{if eq .ID $.User.ID}} selected{{end}}>{{.Name}} ({{roleLabel .Role}})</option>{{end}}</select></div>
         {{with $d.Langs}}<div class="field"><label for="lang">{{T "Language of the imported content"}}</label>
-          <select class="select w-full" id="lang" name="lang">{{range .}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</select></div>{{end}}
+          <select class="select w-full" id="lang" name="lang">{{range .}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</select>
+          <p class="hint">{{T "A sap13ns export keeps the language of each translation, and the links between them; this language applies to its main language."}}</p></div>{{end}}
         <label class="check"><input type="checkbox" class="input" role="switch" name="media" value="1" checked> {{T "Download images and attachments"}}</label>
         <div class="field"><label for="media_hosts">{{T "Extra media hosts"}}</label><input class="input mono" id="media_hosts" name="media_hosts" placeholder="cdn.example.com" maxlength="500" spellcheck="false" autocapitalize="none"><p class="hint">{{T "Only files on the exported site's own domain are downloaded, plus these hosts (a CDN, for example)."}}</p></div>
         <label class="check"><input type="checkbox" class="input" role="switch" name="skip_existing" value="1"> {{T "Skip posts whose address already exists (otherwise a new address is chosen)"}}</label>

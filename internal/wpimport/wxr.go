@@ -9,6 +9,7 @@
 package wpimport
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -39,10 +40,35 @@ type Export struct {
 	Tags       []Term
 	// Items holds posts, pages and attachments in file order.
 	Items []Item
+	// Redirects are the redirect rules of a sap13ns export
+	// (<sap13ns:redirect> in the channel); WordPress has none in WXR.
+	Redirects []Redirect
 	// Ignored counts the items of other post types (nav_menu_item, revision,
 	// wp_block, custom_css, products of plugins…) by type.
 	Ignored map[string]int
 }
+
+// Redirect is a redirect rule of a sap13ns export.
+type Redirect struct {
+	Source string // site path, with its language prefix and query
+	Target string // site path or absolute URL; empty for 410
+	Status int    // 301, 302, 307, 308 or 410
+}
+
+// Postmeta and termmeta keys written by sap13ns exports (internal/export).
+// WordPress keeps unknown keys as custom fields, hidden when they start
+// with "_".
+const (
+	MetaMarkdown         = "_sap13ns_markdown"          // the Markdown source of a post
+	MetaLang             = "_sap13ns_lang"              // its language code
+	MetaTranslationGroup = "_sap13ns_translation_group" // WXR id shared by the translations of one post
+	MetaAssistantExclude = "_sap13ns_assistant_exclude" // "1": hidden from the site assistant
+	MetaTermI18n         = "_sap13ns_i18n"              // JSON {"lang": {"name": "", "description": ""}}
+	MetaDescription      = "_yoast_wpseo_metadesc"      // meta description, under Yoast SEO's key
+)
+
+// Namespace is the XML namespace of the <sap13ns:…> channel elements.
+const Namespace = "https://sap13ns.site/export/1.0/"
 
 type Site struct {
 	Title       string
@@ -70,6 +96,15 @@ type Term struct {
 	Name        string
 	Parent      string // nicename of the parent category, "" at the top level
 	Description string
+	// I18n holds the name and description in other languages, as plain
+	// text (sap13ns exports only).
+	I18n map[string]TermText
+}
+
+// TermText is a term's name and description in one language.
+type TermText struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // ItemTerm is a category or tag assigned to an item.
@@ -104,6 +139,13 @@ type Item struct {
 	AttachmentAlt string // _wp_attachment_image_alt
 	PageTemplate  string // _wp_page_template
 	AttachmentURL string
+
+	// Set by sap13ns exports (the Meta* keys), empty in WordPress files.
+	Markdown         string // the Markdown source, used instead of Content
+	Lang             string
+	TranslationGroup int64
+	MetaDescription  string
+	AssistantExclude bool
 
 	Comments []Comment
 }
@@ -258,6 +300,7 @@ const (
 	nsContent
 	nsExcerpt
 	nsDC
+	nsSap13ns
 	nsOther
 )
 
@@ -277,6 +320,8 @@ func nsOf(space string) nsKind {
 		return nsExcerpt
 	case space == "dc" || strings.HasPrefix(s, "purl.org/dc/elements/"):
 		return nsDC
+	case space == "sap13ns" || strings.HasPrefix(s, "sap13ns.site/export/"):
+		return nsSap13ns
 	case strings.HasPrefix(s, "wordpress.org/export/"):
 		if strings.HasSuffix(strings.TrimSuffix(s, "/"), "/excerpt") {
 			return nsExcerpt
@@ -341,6 +386,12 @@ func (p *parser) children(fn func(se xml.StartElement) error) error {
 // text returns the character data of the current element (CDATA sections
 // included), trimmed.
 func (p *parser) text() (string, error) {
+	s, err := p.rawText()
+	return strings.TrimSpace(s), err
+}
+
+// rawText is text without trimming.
+func (p *parser) rawText() (string, error) {
 	var b strings.Builder
 	level := 0
 	for {
@@ -358,7 +409,7 @@ func (p *parser) text() (string, error) {
 			level++
 		case xml.EndElement:
 			if level == 0 {
-				return strings.TrimSpace(b.String()), nil
+				return b.String(), nil
 			}
 			level--
 		}
@@ -394,6 +445,12 @@ func (p *parser) channel(exp *Export) error {
 			return p.textInto(&exp.Site.Language)
 		case ns == nsNone && local == "item":
 			return p.item(exp)
+		case ns == nsSap13ns && local == "redirect":
+			rd, err := p.redirect()
+			if err == nil && rd.Source != "" {
+				exp.Redirects = append(exp.Redirects, rd)
+			}
+			return err
 		case ns != nsWP:
 			return p.skip()
 		}
@@ -471,10 +528,48 @@ func (p *parser) term(slugEl, nameEl, parentEl, descEl string) (Term, error) {
 			if parentEl != "" {
 				return p.textInto(&t.Parent)
 			}
+		case "termmeta":
+			key, value, err := p.meta()
+			if key == MetaTermI18n {
+				t.I18n = termI18n(value)
+			}
+			return err
 		}
 		return p.skip()
 	})
 	return t, err
+}
+
+// termI18n decodes the translations of a term. Malformed JSON is dropped
+// rather than failing the import.
+func termI18n(value string) map[string]TermText {
+	var m map[string]TermText
+	if json.Unmarshal([]byte(value), &m) != nil || len(m) == 0 {
+		return nil
+	}
+	return m
+}
+
+func (p *parser) redirect() (Redirect, error) {
+	var rd Redirect
+	err := p.children(func(se xml.StartElement) error {
+		if nsOf(se.Name.Space) != nsSap13ns {
+			return p.skip()
+		}
+		switch se.Name.Local {
+		case "source":
+			return p.textInto(&rd.Source)
+		case "target":
+			return p.textInto(&rd.Target)
+		case "status":
+			var n int64
+			err := p.int64Into(&n)
+			rd.Status = int(n)
+			return err
+		}
+		return p.skip()
+	})
+	return rd, err
 }
 
 func (p *parser) item(exp *Export) error {
@@ -572,6 +667,16 @@ func (p *parser) item(exp *Export) error {
 					it.AttachmentAlt = value
 				case "_wp_page_template":
 					it.PageTemplate = value
+				case MetaMarkdown:
+					it.Markdown = value
+				case MetaLang:
+					it.Lang = strings.ToLower(value)
+				case MetaTranslationGroup:
+					it.TranslationGroup, _ = strconv.ParseInt(value, 10, 64)
+				case MetaDescription:
+					it.MetaDescription = value
+				case MetaAssistantExclude:
+					it.AssistantExclude = value == "1"
 				}
 				return err
 			case "comment":
@@ -605,6 +710,9 @@ func (p *parser) item(exp *Export) error {
 	return nil
 }
 
+// meta reads a postmeta, termmeta or commentmeta element. Values are
+// trimmed, except the Markdown source (an indented code block may open
+// it); sap13ns writes the key before the value.
 func (p *parser) meta() (key, value string, err error) {
 	err = p.children(func(se xml.StartElement) error {
 		if nsOf(se.Name.Space) == nsWP {
@@ -612,7 +720,12 @@ func (p *parser) meta() (key, value string, err error) {
 			case "meta_key":
 				return p.textInto(&key)
 			case "meta_value":
-				return p.textInto(&value)
+				v, err := p.rawText()
+				value = v
+				if key != MetaMarkdown {
+					value = strings.TrimSpace(v)
+				}
+				return err
 			}
 		}
 		return p.skip()
