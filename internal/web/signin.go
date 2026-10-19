@@ -23,6 +23,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"sap13ns/internal/sitecheck"
@@ -72,6 +73,17 @@ func (s *Server) visibleSignIn() string {
 
 // SignInURL is the absolute address of the site's sign-in page.
 func (s *Server) SignInURL() string { return s.cfg.AbsURL(s.signInBase()) }
+
+// adminLink is the absolute address of an admin page for an e-mail: the
+// page itself, or, with the administration hidden from visitors, the
+// sign-in page that goes on to it, since a reader who is not signed in
+// would get the page-not-found page there.
+func (s *Server) adminLink(p string) string {
+	if !s.settings().HideAdmin {
+		return s.cfg.AbsURL(p)
+	}
+	return s.cfg.AbsURL(s.auth().Login + "?next=" + url.QueryEscape(p))
+}
 
 // signInRouter serves the sign-in pages at one base.
 type signInRouter struct {

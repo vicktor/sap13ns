@@ -395,8 +395,20 @@ func TestSignInHideAdmin(t *testing.T) {
 	if rec := e.get("/admin/posts", &http.Cookie{Name: e.s.cookieName(), Value: token}); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/entrar/2fa" {
 		t.Errorf("halfway: %d %q", rec.Code, rec.Header().Get("Location"))
 	}
+	// E-mails link to the admin through the sign-in page, which goes on
+	// to it at once for someone signed in.
+	if got := e.s.adminLink("/admin/sites"); got != "http://example.test/entrar?next=%2Fadmin%2Fsites" {
+		t.Errorf("e-mail link %s", got)
+	}
+	if rec := e.get("/entrar?next=%2Fadmin%2Fsettings", e.admin); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/settings" {
+		t.Errorf("signed in, the e-mail link: %d %s", rec.Code, rec.Header().Get("Location"))
+	}
+
 	// Off again: the way to the sign-in page is back.
 	e.setSignIn("/entrar", false)
+	if got := e.s.adminLink("/admin/sites"); got != "http://example.test/admin/sites" {
+		t.Errorf("e-mail link %s", got)
+	}
 	if rec := e.get("/admin/posts", nil); rec.Header().Get("Location") != "/entrar?next=%2Fadmin%2Fposts" {
 		t.Errorf("not hidden: %d %q", rec.Code, rec.Header().Get("Location"))
 	}

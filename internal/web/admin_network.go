@@ -343,7 +343,7 @@ func (s *Server) adminNetSiteAction(w http.ResponseWriter, r *http.Request) {
 	case "reject":
 		if !s.mailOwner(ctx, &site, s.t("Your site %s was not approved", site.Slug),
 			s.t("Your request for the site %s on %s was not approved.", site.Host, s.settings().SiteTitle)+"\n\n"+
-				s.t("Your sites:")+"\n"+s.cfg.AbsURL("/admin/sites")) {
+				s.t("Your sites:")+"\n"+s.adminLink("/admin/sites")) {
 			kind, done = "warning", s.t("The site %s was rejected, but its owner could not be told by e-mail.", site.Slug)
 		}
 	}

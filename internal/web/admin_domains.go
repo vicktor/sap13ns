@@ -355,7 +355,7 @@ func (s *Server) NotifyDomain(ctx context.Context, n DomainNotice) error {
 	if n.Fallback != "" {
 		body += "\n\n" + s.t("Your site is served on %s again.", n.Fallback)
 	}
-	body += "\n\n" + s.t("Check its DNS records and verify it again from your sites:") + "\n" + s.cfg.AbsURL(myDomainsBase(n.SiteID))
+	body += "\n\n" + s.t("Check its DNS records and verify it again from your sites:") + "\n" + s.adminLink(myDomainsBase(n.SiteID))
 	return s.mailer.Send(u.Email, s.t("Your domain %s is no longer served", n.Host)+" · "+title, body)
 }
 

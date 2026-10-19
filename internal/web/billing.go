@@ -151,7 +151,7 @@ func (s *Server) NotifyBilling(ctx context.Context, n BillingNotice) error {
 	if n.GraceDays > 0 {
 		body += " " + s.t("The site stays open for %d days while the payment is retried.", n.GraceDays)
 	}
-	body += "\n\n" + s.t("Update your payment method from your sites, with “Manage billing”:") + "\n" + s.cfg.AbsURL("/admin/sites")
+	body += "\n\n" + s.t("Update your payment method from your sites, with “Manage billing”:") + "\n" + s.adminLink("/admin/sites")
 	return s.mailer.Send(u.Email, subject+" · "+title, body)
 }
 
