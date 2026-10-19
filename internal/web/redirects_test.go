@@ -1,9 +1,13 @@
 package web
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"sap13ns/internal/store"
+	"sap13ns/internal/testutil"
 )
 
 func TestMatchRedirect(t *testing.T) {
@@ -47,6 +51,45 @@ func TestMatchRedirect(t *testing.T) {
 		}
 		if got != c.want {
 			t.Errorf("matchRedirect(%q, %q) = %q, want %q", c.path, c.query, got, c.want)
+		}
+	}
+}
+
+// TestCheckRestoredRedirect: a restored redirect meets the rules of the
+// redirects page and may not hide a post of the restored site.
+func TestCheckRestoredRedirect(t *testing.T) {
+	st := testutil.Store(t)
+	ctx := context.Background()
+	author, err := st.CreateUser(ctx, store.NewUser{Username: "rita", Email: "rita@example.com", Role: "admin", PasswordHash: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if _, err := st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: "Hola", Slug: "hola", Lang: "en",
+		AuthorID: author, CommentStatus: "open", PublishedAt: &now}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		src, dst string
+		status   int
+		ok       bool
+	}{
+		{"/viejo", "/blog/hola", 301, true},
+		{"https://old.example/viejo?x=1", "https://elsewhere.example/", 302, true},
+		{"/gone", "", 410, true},
+		{"/blog/hola", "/elsewhere", 301, false}, // the post answers there
+		{"/blog/hola/", "/blog/hola", 301, true}, // a variant of its own address
+		{"/admin/x", "/", 301, false},            // reserved
+		{"//evil.example", "/", 301, false},
+		{"/a", "javascript:alert(1)", 301, false},
+		{"/a", "/b", 200, false},
+	} {
+		src, _, err := CheckRestoredRedirect(ctx, st, "en", c.src, c.dst, c.status)
+		if (err == nil) != c.ok {
+			t.Errorf("%s → %s (%d): err = %v, want ok %v", c.src, c.dst, c.status, err, c.ok)
+		}
+		if err == nil && !strings.HasPrefix(src, "/") {
+			t.Errorf("%s: source %q not normalised", c.src, src)
 		}
 	}
 }

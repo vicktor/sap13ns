@@ -3,9 +3,13 @@
 // or a .zip with that file, the uploads directory and a Markdown copy of
 // every post and page.
 //
-// The WXR file follows what WordPress writes (Tools → Export), plus a few
-// keys of its own that WordPress keeps as hidden custom fields and the
-// sap13ns importer reads back (wpimport.Meta*):
+// The WXR file follows what WordPress writes (Tools → Export), so that the
+// WordPress Importer creates the authors, the categories with their
+// parents, the tags, the posts and pages with their featured images, the
+// threaded comments, the media library and the menus (as nav_menu terms
+// and nav_menu_item posts). It adds a few keys of its own that WordPress
+// keeps as hidden custom fields and the sap13ns importer reads back
+// (wpimport.Meta*):
 //
 //   - the Markdown source of each post, so that sap13ns does not convert
 //     the rendered HTML back;
@@ -52,8 +56,10 @@ const (
 
 // Options choose what an export holds.
 type Options struct {
-	Types    []string // store.TypePost, store.TypePage; nil means both
-	Statuses []string // nil means published only (scheduled posts included)
+	Types []string // store.TypePost, store.TypePage; nil means both
+	// Statuses nil means published only (scheduled posts included).
+	// Trashed posts are exported only when it lists store.StatusTrash.
+	Statuses []string
 	// From and To bound the date of posts (published, or created for
 	// drafts); zero leaves that side open. To is exclusive.
 	From, To time.Time
@@ -68,6 +74,16 @@ type Options struct {
 	// PersonalData adds commenters' e-mail and IP addresses and authors'
 	// e-mail addresses. Without it the file has neither.
 	PersonalData bool
+	// NoMenus leaves the menus out; otherwise each menu of the site (one
+	// per location and language) is a WordPress menu.
+	NoMenus bool
+	// WPBase is the address of a WordPress site the content moves to
+	// (https://new.example). The uploaded files are then listed at
+	// <WPBase>/wp-content/uploads/<path>, in the attachments and in the
+	// links of the content, which is where the owner copies the
+	// wp-content/uploads folder of a backup before importing the file. ""
+	// keeps them on Site.URL.
+	WPBase string
 
 	Site Site
 	Now  func() time.Time
@@ -92,6 +108,7 @@ type Site struct {
 type Report struct {
 	Posts, Pages, Attachments, Comments  int
 	Authors, Categories, Tags, Redirects int
+	Menus, MenuItems                     int
 	Files                                int   // uploads in a .zip
 	Bytes                                int64 // the WXR file, before compression
 }
@@ -110,6 +127,7 @@ func (o Options) withDefaults() Options {
 		o.Site.Location = time.UTC
 	}
 	o.Site.URL = strings.TrimRight(o.Site.URL, "/")
+	o.WPBase = strings.TrimRight(o.WPBase, "/")
 	o.MaxXMLBytes = cmp.Or(o.MaxXMLBytes, DefaultMaxXMLBytes)
 	o.MaxFiles = cmp.Or(o.MaxFiles, DefaultMaxFiles)
 	o.MaxBytes = cmp.Or(o.MaxBytes, DefaultMaxBytes)

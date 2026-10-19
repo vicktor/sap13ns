@@ -280,10 +280,32 @@ func sourceKey(source string) string {
 // contentAt reports whether a post or page answers at a redirect source.
 // A source with a query only matches that query, and shadows no post.
 func (s *Server) contentAt(ctx context.Context, source string) (bool, error) {
+	return contentIn(ctx, s.store, s.mainLang(), source)
+}
+
+// CheckRestoredRedirect applies to a redirect that a backup restores the
+// rules of the redirects page, and of imports: no reserved source, and no
+// source where a post or page of st (the restore's transaction) answers.
+// It returns the rule normalised. Targets may be absolute, as an
+// administrator may make them.
+func CheckRestoredRedirect(ctx context.Context, st *store.Store, mainLang, source, target string, status int) (string, string, error) {
+	src, dst, err := checkRedirect(source, target, status)
+	if err != nil {
+		return "", "", err
+	}
+	if taken, err := contentIn(ctx, st, mainLang, src); err != nil {
+		return "", "", err
+	} else if taken && sourceKey(dst) != sourceKey(src) {
+		return "", "", errors.New("a post or page has this address")
+	}
+	return src, dst, nil
+}
+
+func contentIn(ctx context.Context, st *store.Store, mainLang, source string) (bool, error) {
 	if strings.Contains(source, "?") {
 		return false, nil
 	}
-	lang, rest := s.mainLang(), strings.TrimPrefix(sourceKey(source), "/")
+	lang, rest := mainLang, strings.TrimPrefix(sourceKey(source), "/")
 	if code, after, ok := strings.Cut(rest, "/"); ok && validLang(code) {
 		lang, rest = code, after
 	}
@@ -294,7 +316,7 @@ func (s *Server) contentAt(ctx context.Context, source string) (bool, error) {
 	if slug == "" || strings.Contains(slug, "/") {
 		return false, nil
 	}
-	return s.store.SlugExists(ctx, typ, lang, slug, 0)
+	return st.SlugExists(ctx, typ, lang, slug, 0)
 }
 
 // ------------------------------------------------------------------ admin --

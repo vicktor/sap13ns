@@ -15,7 +15,7 @@ import (
 // ExportFilter selects the posts and pages of an export.
 type ExportFilter struct {
 	Types    []string // TypePost, TypePage
-	Statuses []string // trashed posts are never exported
+	Statuses []string // trashed posts only when it lists StatusTrash
 	AuthorID int64    // 0: every author
 	// From and To bound coalesce(published_at, created_at); To is
 	// exclusive. Nil leaves that side open.
@@ -25,7 +25,6 @@ type ExportFilter struct {
 func (f ExportFilter) where(w *whereBuilder) {
 	w.add(`p.type = ANY(?)`, f.Types)
 	w.add(`p.status = ANY(?)`, f.Statuses)
-	w.add(`p.status <> 'trash'`)
 	if f.AuthorID > 0 {
 		w.add(`p.author_id = ?`, f.AuthorID)
 	}
@@ -190,4 +189,52 @@ func (s *Store) ExportMedia(ctx context.Context, featuredOf *ExportFilter, after
 func (s *Store) ExportTerms(ctx context.Context) ([]Term, error) {
 	return collect[Term](s.DB.Query(ctx, `SELECT id, taxonomy, name, slug, description, parent_id, created_at, i18n, 0 AS count
 		FROM terms ORDER BY id`))
+}
+
+// ExportFeaturedParents maps each media item that a post or page of f has
+// as its featured image to the first of those posts, by id: WordPress
+// attaches an attachment to that post.
+func (s *Store) ExportFeaturedParents(ctx context.Context, f ExportFilter) (map[int64]int64, error) {
+	w := &whereBuilder{}
+	f.where(w)
+	w.add(`p.featured_media_id IS NOT NULL`)
+	rows, err := s.DB.Query(ctx, `SELECT p.featured_media_id, min(p.id) FROM posts p`+w.sql()+` GROUP BY 1`, w.args...)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]int64{}
+	err = forEachRow(rows, func(r pgx.Rows) (bool, error) {
+		var media, post int64
+		err := r.Scan(&media, &post)
+		out[media] = post
+		return true, err
+	})
+	return out, err
+}
+
+// ExportIDBounds returns the highest media and term ids, 0 without any.
+// Exports number the WXR items of menus after the media items, and the
+// menus after the categories and tags.
+func (s *Store) ExportIDBounds(ctx context.Context) (maxMedia, maxTerm int64, err error) {
+	err = s.DB.QueryRow(ctx, `SELECT (SELECT coalesce(max(id), 0) FROM media), (SELECT coalesce(max(id), 0) FROM terms)`).
+		Scan(&maxMedia, &maxTerm)
+	return maxMedia, maxTerm, err
+}
+
+// CommentParents maps every comment of a post, whatever its status, to its
+// parent (0 at the top level). An export attaches a reply whose parent it
+// leaves out to the nearest ancestor it keeps.
+func (s *Store) CommentParents(ctx context.Context, postID int64) (map[int64]int64, error) {
+	rows, err := s.DB.Query(ctx, `SELECT id, coalesce(parent_id, 0) FROM comments WHERE post_id = $1`, postID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]int64{}
+	err = forEachRow(rows, func(r pgx.Rows) (bool, error) {
+		var id, parent int64
+		err := r.Scan(&id, &parent)
+		out[id] = parent
+		return true, err
+	})
+	return out, err
 }

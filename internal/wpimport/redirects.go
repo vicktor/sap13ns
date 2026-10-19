@@ -78,6 +78,9 @@ func oldPath(raw string) string {
 // importRedirects maps old permalinks of public content (a redirect for a
 // draft or a scheduled post would reveal its new slug) and old media files.
 func (im *importer) importRedirects(ctx context.Context) error {
+	if im.opts.KeepAddresses {
+		return nil
+	}
 	for _, p := range im.order {
 		if err := ctx.Err(); err != nil {
 			return err

@@ -58,12 +58,14 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **A WordPress export file (WXR 1.2)** that WordPress and sap13ns both import. It holds:
   - posts and pages, published and scheduled ones by default, with drafts, pending and private ones on request, narrowed by dates or an author if needed;
   - categories and tags, the authors (username, display name), approved comments (pending ones on request);
-  - the featured images and the media library, as attachments with their URLs.
+  - the featured images and the media library, as attachments with their URLs, each attached to the post it illustrates;
+  - the menus, as WordPress menus (one per location and language): links to exported posts, pages, categories and tags point at the imported ones;
+  - replies to a comment that is left out (pending, spam) hang from the nearest exported one.
 - **What WordPress ignores, sap13ns keeps.** Extra fields carry the Markdown source, each post's language and its links to its translations, term translations, meta descriptions and redirects. A move between two sap13ns sites keeps all of them.
 - **A `.zip`** with that file, the uploads directory, and a Markdown copy of every post and page (YAML front matter, then the stored Markdown).
 - **No personal data by default.** Commenters' e-mail and IP addresses and authors' e-mail addresses are only exported with **Include commenters' personal data**. Passwords, two-factor secrets, passkeys, sessions, plugin secrets, API keys and the site secret are never exported.
 - **Any size:** exports stream, so a site is never held in memory. A large `.zip` is prepared in the background and downloaded from a link that works once, for the administrator who asked, within 24 hours. A site keeps one such export waiting, and one starts only when the disk, and on a network the plan's storage, has room for it. Every export is in the audit log.
-- **Not exported:** menus, widgets, settings, themes, designs (the customiser exports those), plugins and revisions.
+- **Not exported:** widgets, settings, themes, designs (the customiser exports those), plugins and revisions.
 
 ### Multilingual
 - Each post can have linked translations, and every language lives under its own prefix (`/en/`, `/es/`…).

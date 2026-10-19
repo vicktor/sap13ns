@@ -28,6 +28,7 @@ const (
 	StatusDraft     = "draft"
 	StatusPending   = "pending"
 	StatusTrash     = "trash"
+	StatusPrivate   = "private" // only with Options.KeepPrivate
 
 	CommentApproved = "approved"
 	CommentPending  = "pending"
@@ -86,6 +87,15 @@ type Sink interface {
 	CheckRedirect(ctx context.Context, from, to string, status int) error
 }
 
+// AttachmentSink is implemented by a sink that has the files of the
+// attachments already, such as the restore of a backup that carries them:
+// Import then hands it each attachment instead of downloading the file and
+// calling StoreMedia, and needs no Fetcher. src is the attachment's
+// address in the export. It returns the media item and its public URL.
+type AttachmentSink interface {
+	StoreAttachment(ctx context.Context, it *Item, src string) (id int64, url string, err error)
+}
+
 // The reasons a sink refuses a redirect.
 var (
 	// ErrRedirectReserved: the source is an address the site itself
@@ -104,13 +114,13 @@ var (
 // Post is a post or a page ready to be stored.
 type Post struct {
 	Type            string // TypePost or TypePage
-	Status          string // StatusPublished (PublishedAt may lie in the future), StatusDraft, StatusPending, StatusTrash
+	Status          string // StatusPublished (PublishedAt may lie in the future), StatusDraft, StatusPending, StatusTrash, StatusPrivate
 	Title           string // plain text
 	Slug            string // [a-z0-9-], unique for Type within the import
 	Excerpt         string // plain text
 	Content         string // Markdown
 	AuthorID        int64
-	PublishedAt     *time.Time // nil for drafts and pending posts
+	PublishedAt     *time.Time // nil for drafts and pending posts, and private posts without a date
 	ModifiedAt      *time.Time
 	ParentID        *int64 // pages only
 	MenuOrder       int
@@ -160,8 +170,19 @@ type Options struct {
 	Languages []string
 	// RedirectRules imports the redirect rules a sap13ns export carries.
 	// Off, they are listed in the report as not imported. The redirects
-	// from the old addresses of the imported content are always made.
+	// from the old addresses of the imported content are made unless
+	// KeepAddresses.
 	RedirectRules bool
+
+	// KeepPrivate imports private posts as private (sap13ns has the
+	// status) instead of as drafts.
+	KeepPrivate bool
+	// KeepAddresses is for content that keeps its addresses, as when a
+	// sap13ns backup is restored: the Markdown of a sap13ns export is
+	// stored as it is, without pointing its links at new addresses, and no
+	// redirects from the old addresses are made. WordPress content is
+	// converted as always.
+	KeepAddresses bool
 }
 
 // Count tallies one kind of object. For users and terms, Created counts the
@@ -657,8 +678,9 @@ func (im *importer) importMedia(ctx context.Context) error {
 		c.Skipped += len(atts)
 		return nil
 	}
+	attSink, hasFiles := im.sink.(AttachmentSink)
 	fetcher := im.opts.Fetcher
-	if fetcher == nil && !im.opts.DryRun {
+	if fetcher == nil && !im.opts.DryRun && !hasFiles {
 		hosts := slices.Clone(im.opts.MediaHosts)
 		for h := range im.siteHosts {
 			hosts = append(hosts, h)
@@ -696,7 +718,11 @@ func (im *importer) importMedia(ctx context.Context) error {
 		files++
 		ref := mediaRef{id: im.fake()}
 		if !im.opts.DryRun {
-			ref.id, ref.url, err = im.download(ctx, fetcher, u, truncateRunes(it.AttachmentAlt, maxAltRunes))
+			if hasFiles {
+				ref.id, ref.url, err = attSink.StoreAttachment(ctx, it, src)
+			} else {
+				ref.id, ref.url, err = im.download(ctx, fetcher, u, truncateRunes(it.AttachmentAlt, maxAltRunes))
+			}
 			if err != nil {
 				if err := im.failed(ctx, c, "media %s: %v", u.Redacted(), err); err != nil {
 					return err
@@ -839,6 +865,10 @@ func (im *importer) mapStatus(it *Item) (status string, ok bool) {
 	case "pending":
 		status = StatusPending
 	case "private":
+		if im.opts.KeepPrivate {
+			status = StatusPrivate
+			break
+		}
 		status = StatusDraft
 		im.warn("%s was private; imported as a draft", what)
 	case "trash":
@@ -1096,11 +1126,14 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 	title := truncateRunes(plainTextOf(it.Title), maxTitleRunes)
 	what := fmt.Sprintf("%s %q", it.Type, title)
 	var md, teaser string
-	if strings.TrimSpace(it.Markdown) != "" {
+	switch {
+	case strings.TrimSpace(it.Markdown) != "" && im.opts.KeepAddresses:
+		md = it.Markdown
+	case strings.TrimSpace(it.Markdown) != "":
 		// A sap13ns export carries the source: no conversion, only the
 		// addresses of imported media and posts change.
 		md = im.rewriteMarkdown(it.Markdown)
-	} else {
+	default:
 		md, teaser = ToMarkdown(it.Content, ConvertOptions{
 			BaseURL:    im.baseURL,
 			RewriteURL: im.rewriteURL,
@@ -1139,8 +1172,9 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 		im.warn("author %q was not imported; their content goes to the default author", it.Creator)
 	}
 
-	switch p.status {
-	case StatusPublished, StatusTrash:
+	switch {
+	case p.status == StatusPrivate && it.Date.IsZero():
+	case p.status == StatusPublished, p.status == StatusTrash, p.status == StatusPrivate:
 		date := it.Date
 		if date.IsZero() {
 			date = im.now

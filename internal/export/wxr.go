@@ -70,13 +70,26 @@ type exporter struct {
 	rep *Report
 	now time.Time
 
-	authors   map[int64]bool // exported users
-	mediaBase int64          // attachment ids are mediaBase + media id
+	authors   map[int64]bool  // exported users
+	mediaBase int64           // attachment ids are mediaBase + media id
+	parents   map[int64]int64 // media id → the first exported post featuring it
+	// variants maps the path of a resized copy of an exported image
+	// ("2026/10/x-medium.png") to its original ("2026/10/x.png").
+	variants map[string]string
+
+	// Menus (menus.go): WXR item ids of menu items follow the attachments
+	// (menuBase + n), and nav_menu term ids follow the categories and tags.
+	menus    []menu
+	menuBase int64
+	termIDs  map[string]int64 // "category/slug", "tag/slug" → term id
+	posts    map[string]int64 // public path of an exported post or page → its id
+	postType map[int64]string
 }
 
 func newExporter(st *store.Store, o Options) *exporter {
 	o = o.withDefaults()
-	return &exporter{st: st, o: o, f: o.filter(), rep: &Report{}, now: o.Now(), authors: map[int64]bool{}}
+	return &exporter{st: st, o: o, f: o.filter(), rep: &Report{}, now: o.Now(), authors: map[int64]bool{},
+		termIDs: map[string]int64{}, posts: map[string]int64{}, postType: map[int64]string{}, variants: map[string]string{}}
 }
 
 func (e *exporter) wxr(ctx context.Context, x *xmlWriter) error {
@@ -97,6 +110,9 @@ func (e *exporter) wxr(ctx context.Context, x *xmlWriter) error {
 	if err := e.writeTerms(ctx, x); err != nil {
 		return err
 	}
+	if err := e.writeMenuTerms(ctx, x); err != nil {
+		return err
+	}
 	if err := e.writeRedirects(ctx, x); err != nil {
 		return err
 	}
@@ -106,6 +122,11 @@ func (e *exporter) wxr(ctx context.Context, x *xmlWriter) error {
 		return err
 	}
 	if err := e.eachPost(ctx, true, func(p *store.Post, comments int) error { return e.writePost(ctx, x, p, comments) }); err != nil {
+		return err
+	}
+	// Menu items come last: the WordPress Importer links an item to its
+	// post or page once that one is imported.
+	if err := e.writeMenuItems(x); err != nil {
 		return err
 	}
 	x.raw("</channel>\n</rss>\n")
@@ -172,6 +193,7 @@ func (e *exporter) writeTerms(ctx context.Context, x *xmlWriter) error {
 	slugs := make(map[int64]string, len(terms))
 	for _, t := range terms {
 		slugs[t.ID] = t.Slug
+		e.termIDs[t.Taxonomy+"/"+t.Slug] = t.ID
 	}
 	for _, t := range sortTerms(terms) {
 		switch t.Taxonomy {
@@ -259,14 +281,29 @@ func (e *exporter) eachMedia(ctx context.Context, fn func(*store.Media) error) e
 	}
 }
 
+// mediaURL is the address of an uploaded file in the export: on the site,
+// or with WPBase where WordPress keeps its uploads.
+func (e *exporter) mediaURL(path string) string {
+	if e.o.WPBase != "" {
+		return e.o.WPBase + "/wp-content/uploads/" + path
+	}
+	return e.o.Site.URL + "/uploads/" + path
+}
+
 func (e *exporter) writeMedia(ctx context.Context, x *xmlWriter) error {
 	base, err := e.st.MaxPostID(ctx)
 	if err != nil {
 		return err
 	}
 	e.mediaBase = base
+	if e.parents, err = e.st.ExportFeaturedParents(ctx, e.f); err != nil {
+		return err
+	}
 	return e.eachMedia(ctx, func(m *store.Media) error {
-		fileURL := e.o.Site.URL + m.URL()
+		fileURL := e.mediaURL(m.Path)
+		for _, v := range m.Variants {
+			e.variants[v.Path] = m.Path
+		}
 		name := m.OriginalName
 		if name == "" {
 			name = m.Path[strings.LastIndexByte(m.Path, '/')+1:]
@@ -289,7 +326,9 @@ func (e *exporter) writeMedia(ctx context.Context, x *xmlWriter) error {
 		x.cdataEl("wp:ping_status", "closed")
 		x.cdataEl("wp:post_name", content.Slugify(strings.TrimSuffix(name, fileExt(name))))
 		x.cdataEl("wp:status", "inherit")
-		x.intEl("wp:post_parent", 0)
+		// Attached to the post it is the featured image of, as WordPress
+		// does with an image uploaded in the editor.
+		x.intEl("wp:post_parent", e.parents[m.ID])
 		x.intEl("wp:menu_order", 0)
 		x.cdataEl("wp:post_type", "attachment")
 		x.cdataEl("wp:post_password", "")
@@ -365,7 +404,7 @@ func (e *exporter) wpStatus(p *store.Post) string {
 			return "future"
 		}
 		return "publish"
-	case store.StatusDraft, store.StatusPending, store.StatusPrivate:
+	case store.StatusDraft, store.StatusPending, store.StatusPrivate, store.StatusTrash:
 		return p.Status
 	}
 	return "draft"
@@ -377,13 +416,37 @@ var rootURL = regexp.MustCompile(`(\s(?:src|href|poster)=")(/[^/"][^"]*|/)"`)
 // renderHTML renders a post for content:encoded, with absolute addresses:
 // the WordPress importer swaps the URLs of the files it downloads, and
 // only finds them absolute.
+// uploadPath matches the address of an uploaded file in rendered HTML.
+var uploadPath = regexp.MustCompile(`/uploads/[0-9]{4}/[0-9]{2}/[^"'\s?#<>]+`)
+
 func (e *exporter) renderHTML(md string) string {
 	h := string(content.RenderPlain(md))
-	return rootURL.ReplaceAllString(h, `${1}`+strings.ReplaceAll(e.o.Site.URL, "$", "$$")+`${2}"`)
+	h = rootURL.ReplaceAllString(h, `${1}`+strings.ReplaceAll(e.o.Site.URL, "$", "$$")+`${2}"`)
+	if len(e.variants) > 0 {
+		// The editor inserts the medium copy of an image. WordPress makes
+		// copies of its own, with other names, and its importer only swaps
+		// the addresses of the files it imports: point at the original.
+		h = uploadPath.ReplaceAllStringFunc(h, func(s string) string {
+			if orig, ok := e.variants[s[len("/uploads/"):]]; ok {
+				return "/uploads/" + orig
+			}
+			return s
+		})
+	}
+	if e.o.WPBase != "" {
+		// The files move with the content: point at where WordPress
+		// serves them, so that its importer finds and swaps them.
+		h = strings.ReplaceAll(h, e.o.Site.URL+"/uploads/", e.o.WPBase+"/wp-content/uploads/")
+	}
+	return h
 }
 
 func (e *exporter) writePost(ctx context.Context, x *xmlWriter, p *store.Post, comments int) error {
 	link := e.o.Site.URL + e.path(p)
+	if !e.o.NoMenus {
+		e.posts[e.path(p)] = p.ID
+		e.postType[p.ID] = p.Type
+	}
 	date := p.PublishedAt
 	if date == nil {
 		date = &p.CreatedAt
@@ -419,7 +482,7 @@ func (e *exporter) writePost(ctx context.Context, x *xmlWriter, p *store.Post, c
 	x.intEl("wp:menu_order", int64(p.MenuOrder))
 	x.cdataEl("wp:post_type", p.Type)
 	x.cdataEl("wp:post_password", "")
-	x.intEl("wp:is_sticky", 0)
+	x.intEl("wp:is_sticky", 0) // sap13ns has no sticky posts
 	for _, t := range p.Terms {
 		domain := "category"
 		if t.Taxonomy == "tag" {
@@ -445,6 +508,11 @@ func (e *exporter) writePost(ctx context.Context, x *xmlWriter, p *store.Post, c
 	if p.AssistantExclude {
 		x.meta(wpimport.MetaAssistantExclude, "1")
 	}
+	if p.Status == store.StatusTrash {
+		// What WordPress keeps for "Restore" from the trash.
+		x.meta("_wp_trash_meta_status", "draft")
+		x.meta("_wp_trash_meta_time", strconv.FormatInt(p.UpdatedAt.Unix(), 10))
+	}
 	if comments > 0 {
 		if err := e.writeComments(ctx, x, p.ID); err != nil {
 			return err
@@ -461,6 +529,27 @@ func (e *exporter) writePost(ctx context.Context, x *xmlWriter, p *store.Post, c
 
 func (e *exporter) writeComments(ctx context.Context, x *xmlWriter, postID int64) error {
 	var after int64
+	// Comments come by id, so a parent always precedes its replies, as the
+	// WordPress Importer needs. A reply whose parent is left out (spam,
+	// trash, or pending without PendingComments) is attached to its
+	// nearest exported ancestor instead, never to an id the file lacks.
+	written := map[int64]bool{}
+	var parents map[int64]int64
+	parentOf := func(id int64) (int64, error) {
+		for hops := 0; id != 0 && hops < 1000; hops++ {
+			if written[id] {
+				return id, nil
+			}
+			if parents == nil {
+				var err error
+				if parents, err = e.st.CommentParents(ctx, postID); err != nil {
+					return 0, err
+				}
+			}
+			id = parents[id]
+		}
+		return 0, nil
+	}
 	for {
 		list, err := e.st.ExportComments(ctx, postID, e.o.commentStatuses(), after, commentBatch)
 		if err != nil || len(list) == 0 {
@@ -480,7 +569,9 @@ func (e *exporter) writeComments(ctx context.Context, x *xmlWriter, postID int64
 			}
 			var parent, user int64
 			if c.ParentID != nil {
-				parent = *c.ParentID
+				if parent, err = parentOf(*c.ParentID); err != nil {
+					return err
+				}
 			}
 			if c.UserID != nil && e.authors[*c.UserID] {
 				user = *c.UserID
@@ -498,6 +589,7 @@ func (e *exporter) writeComments(ctx context.Context, x *xmlWriter, postID int64
 			x.intEl("wp:comment_parent", parent)
 			x.intEl("wp:comment_user_id", user)
 			x.raw("</wp:comment>")
+			written[c.ID] = true
 			e.rep.Comments++
 		}
 		if x.err != nil {

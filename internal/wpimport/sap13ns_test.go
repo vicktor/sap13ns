@@ -259,3 +259,87 @@ func TestImportRedirectRules(t *testing.T) {
 		t.Errorf("report: %d listed, %d dropped", len(rep.Redirects), rep.RedirectsDropped)
 	}
 }
+
+// attSink is a sink that has the files of the attachments, as the restore
+// of a backup has.
+type attSink struct {
+	*fakeSink
+	srcs []string
+}
+
+func (s *attSink) StoreAttachment(_ context.Context, it *Item, src string) (int64, string, error) {
+	s.srcs = append(s.srcs, src)
+	return it.ID, "/uploads/2026/10/pic.png", nil
+}
+
+// TestImportKeepAddresses covers the options of a restore: the Markdown
+// is stored as it is, no redirects from old addresses are made, private
+// posts stay private and the attachments come from the sink.
+func TestImportKeepAddresses(t *testing.T) {
+	const doc = `<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wp="http://wordpress.org/export/1.2/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel><title>Old</title><link>https://old.example</link><language>en</language><wp:wxr_version>1.2</wp:wxr_version>
+	<item><title>pic</title><wp:post_id>5</wp:post_id><wp:post_type><![CDATA[attachment]]></wp:post_type><wp:status><![CDATA[inherit]]></wp:status>
+		<wp:attachment_url><![CDATA[https://old.example/uploads/2026/10/pic.png]]></wp:attachment_url></item>
+	<item><title>Hello</title><link>https://old.example/blog/hello</link><wp:post_id>10</wp:post_id><wp:post_name><![CDATA[hello]]></wp:post_name>
+		<wp:post_type><![CDATA[post]]></wp:post_type><wp:status><![CDATA[publish]]></wp:status><wp:post_date_gmt><![CDATA[2026-03-04 10:00:00]]></wp:post_date_gmt>
+		<wp:postmeta><wp:meta_key><![CDATA[_sap13ns_markdown]]></wp:meta_key><wp:meta_value><![CDATA[![pic](/uploads/2026/10/pic.png) [secret](/blog/secret)]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key><wp:meta_value><![CDATA[5]]></wp:meta_value></wp:postmeta></item>
+	<item><title>Secret</title><link>https://old.example/blog/secret</link><wp:post_id>11</wp:post_id><wp:post_name><![CDATA[secret]]></wp:post_name>
+		<wp:post_type><![CDATA[post]]></wp:post_type><wp:status><![CDATA[private]]></wp:status><wp:post_date_gmt><![CDATA[2026-03-05 10:00:00]]></wp:post_date_gmt>
+		<wp:postmeta><wp:meta_key><![CDATA[_sap13ns_markdown]]></wp:meta_key><wp:meta_value><![CDATA[Only for us.]]></wp:meta_value></wp:postmeta></item>
+	<item><title>Undated</title><wp:post_id>12</wp:post_id><wp:post_name><![CDATA[undated]]></wp:post_name>
+		<wp:post_type><![CDATA[post]]></wp:post_type><wp:status><![CDATA[private]]></wp:status></item>
+</channel></rss>`
+	run := func(keep bool) (*attSink, *Report) {
+		t.Helper()
+		exp, err := Parse(strings.NewReader(doc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sink := &attSink{fakeSink: newFakeSink()}
+		rep, err := Import(context.Background(), exp, sink, Options{DefaultAuthorID: 1, Language: "en", DownloadMedia: true,
+			KeepAddresses: keep, KeepPrivate: keep, PostURL: func(typ, lang, slug string) string { return "/blog/" + slug }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sink, rep
+	}
+
+	sink, rep := run(true)
+	if len(sink.srcs) != 1 || sink.srcs[0] != "https://old.example/uploads/2026/10/pic.png" || len(sink.media) != 0 {
+		t.Fatalf("attachments = %v, downloaded %v", sink.srcs, sink.media)
+	}
+	if rep.Counts.Media.Created != 1 || rep.Mapping.Media[5] != 5 {
+		t.Errorf("media = %+v, mapping %v", rep.Counts.Media, rep.Mapping.Media)
+	}
+	_, hello := sink.postBySlug(t, TypePost, "hello")
+	if hello.Content != "![pic](/uploads/2026/10/pic.png) [secret](/blog/secret)" {
+		t.Errorf("content = %q", hello.Content)
+	}
+	if hello.FeaturedMediaID == nil || *hello.FeaturedMediaID != 5 {
+		t.Errorf("featured = %v", hello.FeaturedMediaID)
+	}
+	_, secret := sink.postBySlug(t, TypePost, "secret")
+	if secret.Status != StatusPrivate || secret.PublishedAt == nil || !secret.PublishedAt.Equal(time.Date(2026, 3, 5, 10, 0, 0, 0, time.UTC)) {
+		t.Errorf("secret = %s %v", secret.Status, secret.PublishedAt)
+	}
+	if _, undated := sink.postBySlug(t, TypePost, "undated"); undated.Status != StatusPrivate || undated.PublishedAt != nil {
+		t.Errorf("undated = %s %v", undated.Status, undated.PublishedAt)
+	}
+	if len(sink.redirects) != 0 {
+		t.Errorf("redirects = %v", sink.redirects)
+	}
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, "private") {
+			t.Errorf("warning %q", w)
+		}
+	}
+
+	// Without the options the same file imports as before: the private
+	// posts become drafts.
+	sink, _ = run(false)
+	if _, secret := sink.postBySlug(t, TypePost, "secret"); secret.Status != StatusDraft {
+		t.Errorf("secret = %s", secret.Status)
+	}
+}
