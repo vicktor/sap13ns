@@ -51,7 +51,10 @@ type Region struct {
 
 // Section is a row of 1–3 columns.
 type Section struct {
-	ID      string            `json:"id"`
+	ID string `json:"id"`
+	// Anchor is the section's id on the page (#pricing), for menu links
+	// and buttons that scroll to it: a slug, unique on the page.
+	Anchor  string            `json:"anchor,omitempty"`
 	Layout  string            `json:"layout"` // a Presets key
 	Style   map[string]string `json:"style,omitempty"`
 	Columns [][]Block         `json:"columns"`
@@ -59,9 +62,18 @@ type Section struct {
 
 // Block is one block. Settings hold the main language's values; I18n the
 // translations of translatable fields (lang -> field -> text), like terms.
+// Items are the entries of a block that repeats some (Type.Items).
 type Block struct {
 	ID       string                       `json:"id"`
 	Type     string                       `json:"type"`
+	Settings map[string]string            `json:"settings,omitempty"`
+	I18n     map[string]map[string]string `json:"i18n,omitempty"`
+	Items    []Item                       `json:"items,omitempty"`
+}
+
+// Item is one entry of a block's list (a feature, a question, a plan), with
+// its settings and translations as a block has them.
+type Item struct {
 	Settings map[string]string            `json:"settings,omitempty"`
 	I18n     map[string]map[string]string `json:"i18n,omitempty"`
 }
@@ -206,6 +218,20 @@ func ImageIDs(data []byte) []int64 {
 							add(tr[f.Key])
 						}
 					}
+					if t.Items == nil {
+						continue
+					}
+					for _, f := range t.Items.Fields {
+						if f.Type != "image" {
+							continue
+						}
+						for _, it := range b.Items {
+							add(it.Settings[f.Key])
+							for _, tr := range it.I18n {
+								add(tr[f.Key])
+							}
+						}
+					}
 				}
 			}
 		}
@@ -213,7 +239,18 @@ func ImageIDs(data []byte) []int64 {
 	return ids
 }
 
-var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+var (
+	idRe     = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+	anchorRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
+)
+
+// ValidAnchor reports whether a can be a section's anchor: 1 to 40
+// lower-case letters, digits and hyphens starting with a letter, neither an
+// id the core's own markup uses (main, comments…) nor with the sap- prefix
+// of the sections without an anchor.
+func ValidAnchor(a string) bool {
+	return anchorRe.MatchString(a) && !strings.HasPrefix(a, "sap-") && !reservedAnchors[a]
+}
 
 func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 	var errs Errors
@@ -262,6 +299,32 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 			*id = newID(prefix)
 		default:
 			seen[*id] = true
+		}
+	}
+
+	// Anchors are unique on a page: those of the header and the footer,
+	// which show on every page, and those of one main region.
+	shared := map[string]bool{}
+	checkAnchors := func(path string, r *Region, taken map[string]bool) {
+		if r == nil {
+			return
+		}
+		for si := range r.Sections {
+			s := &r.Sections[si]
+			if s.Anchor == "" {
+				continue
+			}
+			field := fmt.Sprintf("%s.sections[%d].anchor", path, si)
+			switch {
+			case !ValidAnchor(s.Anchor):
+				add(field, "use 1–40 lower-case letters, digits and hyphens, starting with a letter (not main, comments or sap-…)")
+				s.Anchor = ""
+			case taken[s.Anchor]:
+				add(field, "%q is already the anchor of another section on this page", s.Anchor)
+				s.Anchor = ""
+			default:
+				taken[s.Anchor] = true
+			}
 		}
 	}
 
@@ -385,6 +448,8 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 
 	l.Header = region("header", l.Header)
 	l.Footer = region("footer", l.Footer)
+	checkAnchors("header", l.Header, shared)
+	checkAnchors("footer", l.Footer, shared)
 	pages := map[string]*Region{}
 	keys := make([]string, 0, len(l.Pages))
 	for k := range l.Pages {
@@ -397,6 +462,11 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 			continue
 		}
 		if r := region(k, l.Pages[k]); r != nil {
+			taken := map[string]bool{}
+			for a := range shared {
+				taken[a] = true
+			}
+			checkAnchors("pages."+k, r, taken)
 			pages[k] = r
 		}
 	}
@@ -445,25 +515,70 @@ func fitColumns(cols [][]Block, n int) [][]Block {
 
 var langRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
 
-// cleanBlock validates a block's settings against its type.
+// cleanBlock validates a block's settings and items against its type.
 func cleanBlock(path string, b *Block, t *Type, c Context) Errors {
 	var errs Errors
-	add := func(field, format string, args ...any) {
-		errs = append(errs, FieldError{Field: path + "." + field, Message: fmt.Sprintf(format, args...)})
+	b.Settings, b.I18n, errs = cleanValues(path, b.Settings, b.I18n, t.Field, t.Label, c)
+	if t.Items == nil {
+		if len(b.Items) > 0 {
+			errs = append(errs, FieldError{Field: path + ".items", Message: fmt.Sprintf("%s has no items", t.Label)})
+		}
+		b.Items = nil
+		return errs
+	}
+	if len(b.Items) > t.Items.Max {
+		errs = append(errs, FieldError{Field: path + ".items", Message: fmt.Sprintf("at most %d items", t.Items.Max)})
+		b.Items = b.Items[:t.Items.Max]
+	}
+	one := map[string]bool{} // the bools only one item may have on
+	for i := range b.Items {
+		it := &b.Items[i]
+		ip := fmt.Sprintf("%s.items[%d]", path, i)
+		var ierrs Errors
+		it.Settings, it.I18n, ierrs = cleanValues(ip, it.Settings, it.I18n, t.Items.Field, t.Items.Label, c)
+		errs = append(errs, ierrs...)
+		for _, f := range t.Items.Fields {
+			if !f.One || it.Settings[f.Key] != "true" {
+				continue
+			}
+			if one[f.Key] {
+				errs = append(errs, FieldError{Field: ip + ".settings." + f.Key, Message: "only one item can have this on"})
+				delete(it.Settings, f.Key)
+				if len(it.Settings) == 0 {
+					it.Settings = nil
+				}
+			}
+			one[f.Key] = true
+		}
+	}
+	if len(b.Items) == 0 {
+		b.Items = nil
+	}
+	return errs
+}
+
+// cleanValues validates the settings and the translations of a block or
+// of an item against its fields; path is its place in the layouts, label
+// its type's name for the messages.
+func cleanValues(path string, settings map[string]string, i18n map[string]map[string]string, field func(string) (*Field, bool),
+	label string, c Context) (map[string]string, map[string]map[string]string, Errors) {
+	var errs Errors
+	add := func(f, format string, args ...any) {
+		errs = append(errs, FieldError{Field: path + "." + f, Message: fmt.Sprintf(format, args...)})
 	}
 	out := map[string]string{}
-	keys := make([]string, 0, len(b.Settings))
-	for k := range b.Settings {
+	keys := make([]string, 0, len(settings))
+	for k := range settings {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		f, ok := t.Field(k)
+		f, ok := field(k)
 		if !ok {
-			add("settings."+k, "%s has no setting %q", t.Label, k)
+			add("settings."+k, "%s has no setting %q", label, k)
 			continue
 		}
-		v, msg := cleanValue(f, b.Settings[k], c)
+		v, msg := cleanValue(f, settings[k], c)
 		if msg != "" {
 			add("settings."+k, "%s", msg)
 			continue
@@ -475,11 +590,10 @@ func cleanBlock(path string, b *Block, t *Type, c Context) Errors {
 	if len(out) == 0 {
 		out = nil
 	}
-	b.Settings = out
 
 	tr := map[string]map[string]string{}
-	langs := make([]string, 0, len(b.I18n))
-	for lang := range b.I18n {
+	langs := make([]string, 0, len(i18n))
+	for lang := range i18n {
 		langs = append(langs, lang)
 	}
 	sort.Strings(langs)
@@ -489,13 +603,18 @@ func cleanBlock(path string, b *Block, t *Type, c Context) Errors {
 			continue
 		}
 		m := map[string]string{}
-		for k, v := range b.I18n[lang] {
-			f, ok := t.Field(k)
+		ks := make([]string, 0, len(i18n[lang]))
+		for k := range i18n[lang] {
+			ks = append(ks, k)
+		}
+		sort.Strings(ks)
+		for _, k := range ks {
+			f, ok := field(k)
 			if !ok || !f.I18n {
 				add("i18n."+lang+"."+k, "this setting is not translatable")
 				continue
 			}
-			v, msg := cleanValue(f, v, c)
+			v, msg := cleanValue(f, i18n[lang][k], c)
 			if msg != "" {
 				add("i18n."+lang+"."+k, "%s", msg)
 				continue
@@ -511,8 +630,7 @@ func cleanBlock(path string, b *Block, t *Type, c Context) Errors {
 	if len(tr) == 0 {
 		tr = nil
 	}
-	b.I18n = tr
-	return errs
+	return out, tr, errs
 }
 
 // imageOK reports whether image id exists; one that could not be checked
@@ -543,7 +661,7 @@ func cleanValue(f *Field, v string, c Context) (string, string) {
 		if f.Max > 0 && utf8.RuneCountInString(v) > f.Max {
 			return "", fmt.Sprintf("at most %d characters", f.Max)
 		}
-	case "select":
+	case "select", "icon":
 		ok := false
 		for _, ch := range f.Choices {
 			ok = ok || ch.Value == v
@@ -631,6 +749,17 @@ func (b *Block) Value(key, lang string) string {
 		}
 	}
 	return ""
+}
+
+// Value returns an item's setting in lang, as Block.Value does a block's.
+func (it *Item) Value(f *Field, lang string) string {
+	if v := it.I18n[lang][f.Key]; v != "" {
+		return v
+	}
+	if v := it.Settings[f.Key]; v != "" {
+		return v
+	}
+	return f.Default
 }
 
 func contains(list []string, v string) bool {

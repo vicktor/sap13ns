@@ -5,14 +5,17 @@ package builder
 // only take their listed values, links must be safe and media must exist.
 type Field struct {
 	Key     string   `json:"key"`
-	Type    string   `json:"type"` // text | textarea | markdown | select | bool | int | url | email | image | menu | area
+	Type    string   `json:"type"` // text | textarea | markdown | select | icon | bool | int | url | email | image | menu | area
 	Label   string   `json:"label"`
 	Help    string   `json:"help,omitempty"`
-	Choices []Choice `json:"choices,omitempty"`
+	Choices []Choice `json:"choices,omitempty"` // select and icon: the values allowed
 	Default string   `json:"default,omitempty"`
 	Min     int      `json:"min,omitempty"`
 	Max     int      `json:"max,omitempty"` // characters, or the largest int
 	I18n    bool     `json:"i18n,omitempty"`
+	// One (a bool of an item): at most one item of the block has it on,
+	// such as the highlighted plan of a pricing table.
+	One bool `json:"one,omitempty"`
 }
 
 type Choice struct {
@@ -23,20 +26,46 @@ type Choice struct {
 // Type is a block type. Where lists the regions it may be placed in ("*"
 // for every region); Once means at most one per region.
 type Type struct {
-	Type   string   `json:"type"`
-	Label  string   `json:"label"`
-	Icon   string   `json:"icon"`
-	Help   string   `json:"help,omitempty"`
-	Where  []string `json:"where"`
-	Once   bool     `json:"once,omitempty"`
-	Fields []Field  `json:"fields"`
+	Type   string      `json:"type"`
+	Label  string      `json:"label"`
+	Icon   string      `json:"icon"`
+	Help   string      `json:"help,omitempty"`
+	Where  []string    `json:"where"`
+	Once   bool        `json:"once,omitempty"`
+	Fields []Field     `json:"fields"`
+	Items  *ItemSchema `json:"items,omitempty"`
+}
+
+// ItemSchema is the list a block repeats: the features of a feature grid,
+// the questions of a FAQ. Each item has its own settings and translations,
+// checked against Fields like a block's.
+type ItemSchema struct {
+	Label  string  `json:"label"` // one item, such as "Feature"
+	Add    string  `json:"add"`   // the editor's button, such as "Add a feature"
+	Max    int     `json:"max"`
+	Fields []Field `json:"fields"`
+}
+
+// Field returns the item field named key.
+func (s *ItemSchema) Field(key string) (*Field, bool) {
+	for i := range s.Fields {
+		if s.Fields[i].Key == key {
+			return &s.Fields[i], true
+		}
+	}
+	return nil, false
 }
 
 // Regions: the global header and footer, and one main area per page type.
+// "front" is the front page as a landing (Settings → Reading), which a
+// layout can build in any theme.
 var (
-	PageKinds = []string{"home", "single", "page", "archive", "search", "404"}
+	PageKinds = []string{"front", "home", "single", "page", "archive", "search", "404"}
 	Regions   = append([]string{"header", "footer"}, PageKinds...)
 )
+
+// Section anchors (#features): an id a menu link or a button can point to.
+var reservedAnchors = map[string]bool{"main": true, "menu": true, "primary-menu": true, "comments": true, "respond": true, "search": true}
 
 // Column presets of a section (relative widths).
 var Presets = map[string]int{"1": 1, "1-1": 2, "2-1": 2, "1-2": 2, "1-1-1": 3}
@@ -69,9 +98,30 @@ var (
 	sizesSML  = choices("small", "Small", "medium", "Medium", "large", "Large")
 	onOff     = func(key, label, def string) Field { return Field{Key: key, Type: "bool", Label: label, Default: def} }
 	everwhere = []string{"*"}
-	listing   = []string{"home", "archive", "search"}
+	listing   = []string{"front", "home", "archive", "search"}
 	content   = []string{"single", "page"}
+
+	// The heading and introduction of the landing blocks.
+	heading = Field{Key: "title", Type: "text", Label: "Heading", Max: 160, I18n: true}
+	intro   = Field{Key: "intro", Type: "textarea", Label: "Introduction", Max: 500, I18n: true}
 )
+
+// Icons are the Lucide icons a block can show (a feature's icon): a curated
+// set, each compiled into the binary (scripts/icons.txt).
+var Icons = choices(
+	"sparkles", "Sparkles", "zap", "Lightning", "rocket", "Rocket", "shield-check", "Shield", "lock", "Lock",
+	"gauge", "Gauge", "timer", "Timer", "chart-line", "Line chart", "trending-up", "Growth", "target", "Target",
+	"layers", "Layers", "puzzle", "Puzzle piece", "plug", "Plug", "code", "Code", "terminal", "Terminal",
+	"server", "Server", "database", "Database", "cloud", "Cloud", "globe", "Globe", "languages", "Languages",
+	"smartphone", "Phone", "palette", "Palette", "wand-sparkles", "Magic wand", "lightbulb", "Light bulb", "heart", "Heart",
+	"handshake", "Handshake", "users", "People", "message-circle", "Chat", "headphones", "Headphones", "mail", "E-mail",
+	"calendar", "Calendar", "map-pin", "Map pin", "truck", "Delivery", "shopping-bag", "Shopping bag", "credit-card", "Card payment",
+	"gift", "Gift", "award", "Award", "star", "Star", "leaf", "Leaf", "graduation-cap", "Education",
+	"briefcase", "Briefcase", "coffee", "Coffee",
+)
+
+// MaxItems bounds the items of any block.
+const MaxItems = 30
 
 // Types are the block types, in the order the editor offers them.
 var Types = []Type{
@@ -187,6 +237,82 @@ var Types = []Type{
 			{Key: "email", Type: "email", Label: "E-mail"},
 			onOff("rss", "RSS feed", "true"),
 			{Key: "align", Type: "select", Label: "Alignment", Default: "left", Choices: alignLCR},
+		}},
+	// Landing blocks: the sections of a landing page or a one-page site.
+	{Type: "features", Label: "Features", Icon: "grid-2x2", Where: everwhere,
+		Help: "A grid of features, each with an icon, a title and a short text.",
+		Fields: []Field{heading, intro,
+			{Key: "columns", Type: "select", Label: "Columns", Default: "3", Choices: choices("2", "Two", "3", "Three", "4", "Four")},
+			{Key: "style", Type: "select", Label: "Style", Default: "cards", Choices: choices("cards", "Cards", "plain", "Plain")},
+			{Key: "align", Type: "select", Label: "Alignment", Default: "left", Choices: alignLC},
+		},
+		Items: &ItemSchema{Label: "Feature", Add: "Add a feature", Max: 12, Fields: []Field{
+			{Key: "icon", Type: "icon", Label: "Icon", Default: "sparkles", Choices: Icons},
+			{Key: "title", Type: "text", Label: "Title", Max: 100, I18n: true},
+			{Key: "text", Type: "textarea", Label: "Text", Max: 400, I18n: true},
+		}}},
+	{Type: "stats", Label: "Stats", Icon: "chart-column", Where: everwhere,
+		Help:   "Key figures, each a large value with a label.",
+		Fields: []Field{heading, intro, {Key: "align", Type: "select", Label: "Alignment", Default: "center", Choices: alignLC}},
+		Items: &ItemSchema{Label: "Figure", Add: "Add a figure", Max: 8, Fields: []Field{
+			{Key: "value", Type: "text", Label: "Value", Max: 24, I18n: true, Help: "Such as 10k+, 4.9/5 or 24/7."},
+			{Key: "label", Type: "text", Label: "Label", Max: 100, I18n: true},
+		}}},
+	{Type: "testimonials", Label: "Testimonials", Icon: "quote", Where: everwhere,
+		Help: "Quotes from customers or readers, with their name, role and photo.",
+		Fields: []Field{heading, intro,
+			{Key: "columns", Type: "select", Label: "Columns", Default: "3", Choices: choices("1", "One", "2", "Two", "3", "Three")},
+		},
+		Items: &ItemSchema{Label: "Testimonial", Add: "Add a testimonial", Max: 12, Fields: []Field{
+			{Key: "quote", Type: "textarea", Label: "Quote", Max: 600, I18n: true},
+			{Key: "name", Type: "text", Label: "Name", Max: 80},
+			{Key: "role", Type: "text", Label: "Role", Max: 120, I18n: true, Help: "Such as their job and company."},
+			{Key: "image", Type: "image", Label: "Photo"},
+		}}},
+	{Type: "pricing", Label: "Pricing", Icon: "tag", Where: everwhere,
+		Help: "Plans you write yourself: name, price, features and a button. One can be highlighted.",
+		Fields: []Field{heading, intro,
+			{Key: "badge", Type: "text", Label: "Label of the highlighted plan", Max: 40, I18n: true, Default: "Most popular"},
+		},
+		Items: &ItemSchema{Label: "Plan", Add: "Add a plan", Max: 6, Fields: []Field{
+			{Key: "name", Type: "text", Label: "Name", Max: 60, I18n: true},
+			{Key: "price", Type: "text", Label: "Price", Max: 30, I18n: true, Help: "Such as 19 € or Free."},
+			{Key: "period", Type: "text", Label: "Period", Max: 40, I18n: true, Help: "Such as per month."},
+			{Key: "description", Type: "textarea", Label: "Description", Max: 300, I18n: true},
+			{Key: "features", Type: "textarea", Label: "Features", Max: 1500, I18n: true, Help: "One per line."},
+			{Key: "button_label", Type: "text", Label: "Button label", Max: 60, I18n: true},
+			{Key: "button_url", Type: "url", Label: "Button link"},
+			{Key: "highlight", Type: "bool", Label: "Highlight this plan", Default: "false", One: true},
+		}}},
+	{Type: "faq", Label: "Questions and answers", Icon: "circle-question-mark", Where: everwhere,
+		Help:   "Frequently asked questions; each answer opens under its question, without JavaScript.",
+		Fields: []Field{heading, intro, onOff("first_open", "Open the first answer", "false")},
+		Items: &ItemSchema{Label: "Question", Add: "Add a question", Max: MaxItems, Fields: []Field{
+			{Key: "question", Type: "text", Label: "Question", Max: 200, I18n: true},
+			{Key: "answer", Type: "markdown", Label: "Answer", Max: 3000, I18n: true, Help: "Markdown: **bold**, _italic_, [links](https://…) and lists."},
+		}}},
+	{Type: "logos", Label: "Logos", Icon: "images", Where: everwhere,
+		Help: "A row of client or partner logos from the media library.",
+		Fields: []Field{heading,
+			{Key: "size", Type: "select", Label: "Size", Default: "medium", Choices: sizesSML},
+			onOff("muted", "Grey until pointed at", "true"),
+		},
+		Items: &ItemSchema{Label: "Logo", Add: "Add a logo", Max: 24, Fields: []Field{
+			{Key: "image", Type: "image", Label: "Logo"},
+			{Key: "alt", Type: "text", Label: "Name", Max: 120, I18n: true, Help: "Whose logo it is, for people who cannot see it. Empty uses the media library's text."},
+			{Key: "link", Type: "url", Label: "Link"},
+		}}},
+	{Type: "cta", Label: "Call to action", Icon: "megaphone", Where: everwhere,
+		Help: "A heading, a short text and one or two buttons.",
+		Fields: []Field{
+			{Key: "title", Type: "text", Label: "Heading", Max: 160, I18n: true, Default: "Ready to start?"},
+			{Key: "text", Type: "textarea", Label: "Text", Max: 500, I18n: true},
+			{Key: "primary_label", Type: "text", Label: "Main button label", Max: 60, I18n: true, Default: "Get started"},
+			{Key: "primary_url", Type: "url", Label: "Main button link", Default: "/"},
+			{Key: "secondary_label", Type: "text", Label: "Second button label", Max: 60, I18n: true},
+			{Key: "secondary_url", Type: "url", Label: "Second button link"},
+			{Key: "style", Type: "select", Label: "Style", Default: "panel", Choices: choices("panel", "Panel", "plain", "Plain")},
+			{Key: "align", Type: "select", Label: "Alignment", Default: "center", Choices: alignLC},
 		}},
 	{Type: "footer-meta", Label: "Footer line and credits", Icon: "badge-check", Where: []string{"footer"}, Once: true,
 		Help: "Copyright, feed and the sap13ns credit the licence requires. Always shown in the footer.", Fields: []Field{}},
