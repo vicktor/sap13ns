@@ -24,6 +24,7 @@ import (
 
 	"sap13ns/internal/backup"
 	"sap13ns/internal/export"
+	"sap13ns/internal/media"
 	"sap13ns/internal/store"
 )
 
@@ -95,6 +96,10 @@ type (
 		NetworkAccountID *int64    `json:"network_account_id,omitempty"`
 		NetworkOperator  bool      `json:"network_operator,omitempty"`
 		CreatedAt        time.Time `json:"created_at"`
+		// Avatar names the user's photo (media.AvatarFile gives its
+		// files under wp-content/uploads/). Gravatar copies are not
+		// backed up: a restored site looks them up again.
+		Avatar string `json:"avatar,omitempty"`
 	}
 	sideAppearance struct {
 		Custom    []sideCustom                `json:"custom"`
@@ -380,7 +385,9 @@ func (w *writer) content(ctx context.Context, st *store.Store, o Options, set st
 
 // uploads adds the regular files of the uploads directory under
 // wp-content/uploads/. Symbolic links, special files, the uploader's
-// temporary files and names an archive cannot carry are left out.
+// temporary files, names an archive cannot carry and the Gravatar copies
+// (avatars/g… and avatars/c-…, looked up again after a restore) are left
+// out; users' photos (avatars/u…) are kept.
 func (w *writer) uploads(ctx context.Context, dir string) (int, error) {
 	if dir == "" {
 		return 0, nil
@@ -412,7 +419,8 @@ func (w *writer) uploads(ctx context.Context, dir string) (int, error) {
 				return fs.SkipDir
 			}
 			return nil
-		case !t.IsRegular(), strings.HasSuffix(rel, ".tmp"), strings.HasPrefix(path.Base(rel), "."), !backup.SafeName(DirUploads + rel):
+		case !t.IsRegular(), strings.HasSuffix(rel, ".tmp"), strings.HasPrefix(path.Base(rel), "."), !backup.SafeName(DirUploads + rel),
+			path.Dir(rel) == media.AvatarDir && !strings.HasPrefix(path.Base(rel), "u"):
 			return nil
 		}
 		if n >= maxFiles {
@@ -496,7 +504,7 @@ func (w *writer) sidecar(ctx context.Context, st *store.Store, o Options, m *Man
 	for _, u := range users {
 		su = append(su, sideUser{ID: u.ID, Username: u.Username, Email: u.Email, DisplayName: u.DisplayName, Bio: u.Bio,
 			Website: u.Website, Role: u.Role, Status: u.Status, SSOOnly: u.SSOOnly(), NetworkAccountID: u.NetworkAccountID,
-			NetworkOperator: u.NetworkOperator, CreatedAt: u.CreatedAt})
+			NetworkOperator: u.NetworkOperator, CreatedAt: u.CreatedAt, Avatar: u.Avatar})
 	}
 	m.Counts.Users = len(su)
 	if err := w.json(nameUsers, su); err != nil {

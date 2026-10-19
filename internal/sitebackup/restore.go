@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,6 +80,7 @@ type RestoreReport struct {
 	UsersCreated, UsersMatched           int
 	MenuItems, Widgets, Designs          int
 	Redirects, RedirectsRefused, Plugins int
+	Photos                               int      // users' photos restored
 	Pruned                               []string // older backups removed after the safety backup
 	Warnings                             []string
 }
@@ -217,6 +219,9 @@ func Restore(ctx context.Context, st *store.Store, file string, o RestoreOptions
 	users, logins, err := restoreUsers(ctx, ts, side.users, o.ActorID, sameSite, rep)
 	if err != nil {
 		return nil, fmt.Errorf("users: %w", err)
+	}
+	if err := restorePhotos(ctx, r, ts, staging, o.UploadsDir, side.users, users, rep); err != nil {
+		return nil, fmt.Errorf("photos: %w", err)
 	}
 	author := o.ActorID
 	if author == 0 {
@@ -600,6 +605,127 @@ func restoreUsers(ctx context.Context, st *store.Store, list []sideUser, actor i
 		rep.UsersCreated++
 	}
 	return ids, logins, nil
+}
+
+// restorePhotos gives the users of the backup the photo they had there,
+// decoded and encoded again like an upload, under a new name in staging.
+// The site's users the backup does not have keep theirs: the uploads
+// directory is replaced, so their files are copied into staging. Gravatar
+// copies are not in backups, and every lookup is forgotten: the site looks
+// them up again.
+func restorePhotos(ctx context.Context, r *reader, st *store.Store, staging, uploads string, list []sideUser, ids map[int64]int64, rep *RestoreReport) error {
+	current, err := st.AllUsers(ctx)
+	if err != nil {
+		return err
+	}
+	if err := st.ResetAvatars(ctx); err != nil {
+		return err
+	}
+	p := &media.Processor{Dir: staging} // the daily measurement counts restored files on a network
+	inBackup := map[int64]bool{}
+	for _, u := range list {
+		id, ok := ids[u.ID]
+		if !ok {
+			continue
+		}
+		inBackup[id] = true
+		if u.Avatar == "" {
+			continue
+		}
+		key, err := restorePhoto(ctx, r, p, u.Avatar, id)
+		if err != nil {
+			if errors.Is(err, backup.ErrCorrupt) || ctx.Err() != nil {
+				return err
+			}
+			rep.warn("the photo of %q was not restored: %v", u.Username, err)
+			continue
+		}
+		old, err := st.SetUserAvatar(ctx, id, key)
+		if err != nil {
+			return err
+		}
+		if old != "" {
+			// Two users of the backup matched the same one here.
+			for _, size := range media.AvatarSizes {
+				os.Remove(filepath.Join(staging, filepath.FromSlash(media.AvatarFile(old, size))))
+			}
+		}
+		rep.Photos++
+	}
+	var src *os.Root
+	for _, u := range current {
+		if u.Avatar == "" || inBackup[u.ID] || !media.ValidAvatarKey(u.Avatar) {
+			continue
+		}
+		if src == nil {
+			if src, err = os.OpenRoot(uploads); err != nil {
+				rep.warn("the photos of the site's other users were not kept: %v", err)
+				return nil
+			}
+			defer src.Close()
+		}
+		if err := keepPhoto(src, staging, u.Avatar); err != nil {
+			rep.warn("the photo of %q was not kept: %v", u.Username, err)
+			continue
+		}
+		if _, err := st.SetUserAvatar(ctx, u.ID, u.Avatar); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// restorePhoto stores the photo key of the backup again for user id, from
+// its largest file, and returns its new key.
+func restorePhoto(ctx context.Context, r *reader, p *media.Processor, key string, id int64) (string, error) {
+	if !media.ValidAvatarKey(key) || !strings.HasPrefix(key, media.AvatarDir+"/u") {
+		return "", fmt.Errorf("%q does not name a photo", key)
+	}
+	member := DirUploads + media.AvatarFile(key, media.AvatarSizes[len(media.AvatarSizes)-1])
+	if !r.has(member) {
+		return "", fmt.Errorf("%s is missing from the backup", member)
+	}
+	rc, err := r.member(member)
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+	a, err := media.MakeAvatar(ctx, rc, media.AvatarMaxBytes)
+	if err != nil {
+		return "", err
+	}
+	return p.SaveAvatar(ctx, a, "u"+strconv.FormatInt(id, 10))
+}
+
+// keepPhoto copies the files of the photo key from the uploads (src) into
+// staging.
+func keepPhoto(src *os.Root, staging, key string) error {
+	dst, err := os.OpenRoot(staging)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+	if err := dst.MkdirAll(media.AvatarDir, 0o755); err != nil {
+		return err
+	}
+	for _, size := range media.AvatarSizes {
+		name := media.AvatarFile(key, size)
+		info, err := src.Lstat(name)
+		switch {
+		case err != nil:
+			return err
+		case !info.Mode().IsRegular() || info.Size() > media.AvatarMaxBytes:
+			return fmt.Errorf("%s is not a photo", name)
+		}
+		b, err := src.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		if err := dst.WriteFile(name, b, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func firstAdmin(list []sideUser, ids map[int64]int64) int64 {

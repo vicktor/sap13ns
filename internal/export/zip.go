@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"sap13ns/internal/media"
 	"sap13ns/internal/store"
 )
 
@@ -169,7 +170,9 @@ func (e *exporter) markdown(w *bytes.Buffer, p *store.Post) {
 
 // zipUploads adds the regular files of the uploads directory. Symlinks,
 // special files, the importer's temporary files and names that could not
-// be extracted safely are left out, as backups do.
+// be extracted safely are left out, as backups do, and so are the photos
+// of users and the Gravatar copies (media.AvatarDir): they are not
+// content, and nothing in the export names them.
 func (e *exporter) zipUploads(ctx context.Context, z *zipper) error {
 	root, err := os.OpenRoot(e.o.Site.UploadsDir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -193,7 +196,7 @@ func (e *exporter) zipUploads(ctx context.Context, z *zipper) error {
 		case rel == ".":
 			return nil
 		case t.IsDir():
-			if rel == ".tmp" {
+			if rel == ".tmp" || rel == media.AvatarDir {
 				return fs.SkipDir
 			}
 			return nil
