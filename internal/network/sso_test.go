@@ -394,7 +394,12 @@ func TestSSOCallbackChecks(t *testing.T) {
 	b := e.browser()
 	b.portalSignIn(e.owner)
 	cbURL := b.authorize(b.startSSO("alpha.sap13ns.site", "/admin/"))
-	forged := "https://alpha.sap13ns.site/sso/callback?" + url.Values{"code": {query(t, cbURL, "code")}, "state": {"x" + query(t, cbURL, "state")[1:]}}.Encode()
+	state := query(t, cbURL, "state")
+	first := "x"
+	if state[0] == 'x' { // the forged state must differ from the real one
+		first = "y"
+	}
+	forged := "https://alpha.sap13ns.site/sso/callback?" + url.Values{"code": {query(t, cbURL, "code")}, "state": {first + state[1:]}}.Encode()
 	if rec := b.get(forged); rec.Code != http.StatusBadRequest || b.cookie("alpha.sap13ns.site", "__Host-sap13ns") != nil {
 		t.Fatalf("state mismatch: %d", rec.Code)
 	}
