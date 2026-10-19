@@ -183,7 +183,7 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled or unpaid subscription holds the site, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
 
 **Limits.** A plan's limits apply to every site on it:
-- **Storage** counts uploads, their image variants and plugin packages, but not exports waiting for their download. Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
+- **Storage** counts uploads, their image variants and plugin packages, but not exports waiting for their download, which are bounded on their own ([Exporting one site](#exporting-one-site)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
 - **Custom domains** count verified and unverified ones.
 - **A downgrade** only blocks additions: files, domains and plugins over the new limits stay.
 
@@ -309,7 +309,12 @@ The `.zip` holds the WXR file, the site's uploads and a Markdown copy of each po
 
 An export is not a backup. It leaves out users (apart from the authors' names), settings, menus, themes, designs and plugins, and it cannot be restored over the site.
 
-A large `.zip` waits for its download in the site's `exports/` directory. It is not counted in the site's storage, and the hourly sweep deletes it after 24 hours.
+A large `.zip` waits for its download in the site's `exports/` directory. It is not counted in the site's storage, since it is temporary, and the hourly sweep deletes it after 24 hours. It is bounded instead:
+- **One export waits per site.** Starting a new one deletes the site's earlier export that nobody downloaded, whoever started it, and only one runs at a time.
+- **It fits the plan.** Before a background export starts, its size is estimated: the uploads plus three copies of the text of the exported posts, pages and comments, before compression. An estimate larger than the storage of the site's plan is refused with 413. The site can still download a WXR file, or a `.zip` without the media library.
+- **It fits the disk.** The export is also refused when the disk of the data directory has less than twice the estimate free, counting the export it replaces. This check also applies on a single site, where no quota does.
+
+So a site's exports take at most one finished file and one being written, each no larger than its plan's storage.
 
 ## Limitations
 

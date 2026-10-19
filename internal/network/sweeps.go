@@ -303,7 +303,9 @@ func (r *Registry) measure(ctx context.Context, s *Site) error {
 // dirBytes adds up the sizes of the regular files under dir. Symbolic
 // links are not followed; a directory that does not exist is empty. The
 // site's exports are left out: they are temporary, and an export of a
-// site at its quota must not push it over.
+// site at its quota must not push it over. They are bounded instead: one
+// waits per site, and none starts larger than the plan's storage or
+// without twice its size free on the disk (web.Server.exportFits).
 func dirBytes(dir string) (int64, error) {
 	var n int64
 	exports := export.Dir(dir)

@@ -51,7 +51,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **Media library:** uploads are checked by content type, given image variants, and stored by hash so duplicates are detected. Uploaded files are served with a sandboxing CSP.
 - **Comments:** threaded, with moderation, per-post open/closed settings and rate limiting.
 - **Menus and widgets** per theme location and per language.
-- **WordPress importer:** reads a WXR export as it uploads. It brings in authors, categories, tags, posts, pages, comments and media, and creates redirects from the old URLs. It runs in the background, with a dry-run mode and a report. It also reads sap13ns exports, and keeps what they add (see [Export](#export)).
+- **WordPress importer:** reads a WXR export as it uploads. It brings in authors, categories, tags, posts, pages, comments and media, and creates redirects from the old URLs. It runs in the background, with a dry-run mode and a report. It also reads sap13ns exports, and keeps what they add (see [Export](#export)); their redirect rules are an option of the import, and only those that lead to the site's own addresses are kept.
 
 ### Export
 **Tools → Export**, for the site's administrators, and `sap13ns export` take a site's content out: leaving should be as easy as arriving.
@@ -62,7 +62,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **What WordPress ignores, sap13ns keeps.** Extra fields carry the Markdown source, each post's language and its links to its translations, term translations, meta descriptions and redirects. A move between two sap13ns sites keeps all of them.
 - **A `.zip`** with that file, the uploads directory, and a Markdown copy of every post and page (YAML front matter, then the stored Markdown).
 - **No personal data by default.** Commenters' e-mail and IP addresses and authors' e-mail addresses are only exported with **Include commenters' personal data**. Passwords, two-factor secrets, passkeys, sessions, plugin secrets, API keys and the site secret are never exported.
-- **Any size:** exports stream, so a site is never held in memory. A large `.zip` is prepared in the background and downloaded from a link that works once, for the administrator who asked, within 24 hours. Every export is in the audit log.
+- **Any size:** exports stream, so a site is never held in memory. A large `.zip` is prepared in the background and downloaded from a link that works once, for the administrator who asked, within 24 hours. A site keeps one such export waiting, and one starts only when the disk, and on a network the plan's storage, has room for it. Every export is in the audit log.
 - **Not exported:** menus, widgets, settings, themes, designs (the customiser exports those), plugins and revisions.
 
 ### Multilingual

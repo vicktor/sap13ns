@@ -26,6 +26,9 @@ type SiteLimits interface {
 	// The storage of the plan: Reserve fails with media.ErrQuota when the
 	// bytes do not fit.
 	media.Quota
+	// StorageQuota is the storage of the plan, in bytes. A background
+	// export larger than it is refused (Tools → Export).
+	StorageQuota(ctx context.Context) (int64, error)
 	// PluginPolicy is what the plan allows now: a downgrade applies at
 	// once, to additions only.
 	PluginPolicy(ctx context.Context) (PluginPolicy, error)

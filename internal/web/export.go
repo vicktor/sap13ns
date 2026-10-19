@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,11 @@ import (
 // downloaded once from a signed link that expires after export.TTL. The
 // export directory is not served, a network does not count it in a
 // site's storage, and the maintenance sweeps remove what expired.
+//
+// Since exports are not counted, they are bounded instead: a site keeps
+// one export waiting (a new one replaces it, whoever asked for it), and a
+// background export starts only when its estimate fits the storage of the
+// site's plan and the disk keeps twice the estimate free.
 
 // exportDirectBytes is the most uploads a .zip may carry and still be
 // written during the request. Tests lower it.
@@ -41,6 +47,9 @@ type exportJob struct {
 	userID   int64
 	report   *export.Report
 	err      string
+	// freeSpace measures the disk of the export directory: export.FreeSpace
+	// when nil. Tests replace it.
+	freeSpace func(dir string) (int64, error)
 }
 
 type exportForm struct {
@@ -289,21 +298,46 @@ func (s *Server) startExportJob(w http.ResponseWriter, r *http.Request, form exp
 	}
 	u := currentUser(r)
 	j := &s.exports
+	busy := func() bool {
+		j.mu.Lock()
+		defer j.mu.Unlock()
+		return j.running
+	}
+	running := func() {
+		s.renderExport(w, r, http.StatusConflict, form, s.t("An export is already running. Try again when it has finished."))
+	}
+	if busy() {
+		running()
+		return
+	}
+	if msg, err := s.exportFits(r.Context(), dir, opts); err != nil {
+		s.serverError(w, r, err)
+		return
+	} else if msg != "" {
+		s.renderExport(w, r, http.StatusRequestEntityTooLarge, form, msg)
+		return
+	}
 	j.mu.Lock()
 	if j.running {
 		j.mu.Unlock()
-		s.renderExport(w, r, http.StatusConflict, form, s.t("An export is already running. Try again when it has finished."))
+		running()
 		return
 	}
 	now := time.Now()
 	j.running, j.started, j.finished, j.user, j.userID, j.report, j.err = true, now, time.Time{}, u.Name(), u.ID, nil, ""
 	j.mu.Unlock()
+	// The site keeps one export waiting: this one replaces it.
+	if n, err := export.RemoveReady(dir); err != nil {
+		s.log.Warn("remove the earlier exports", "err", err)
+	} else if n > 0 {
+		details["replaced"] = strconv.Itoa(n)
+	}
 	s.audit(r, u.ID, "export.created", form.Format, details)
 	name := export.NewName(u.ID, now)
 	s.goJob(func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Hour)
 		defer cancel()
-		rep, err := s.writeExportFile(ctx, dir, name, u.ID, opts)
+		rep, err := s.writeExportFile(ctx, dir, name, opts)
 		j.mu.Lock()
 		j.running, j.finished, j.report = false, time.Now(), rep
 		if err != nil {
@@ -322,9 +356,60 @@ func (s *Server) startExportJob(w http.ResponseWriter, r *http.Request, form exp
 	s.redirect(w, r, "/admin/tools/export", "success", s.t("The export is being prepared. This page shows the download link when it is ready."))
 }
 
-// writeExportFile writes a .zip export to dir/name through a partial file,
-// and keeps only the newest finished export of the user.
-func (s *Server) writeExportFile(ctx context.Context, dir, name string, userID int64, opts export.Options) (*export.Report, error) {
+// exportFits checks that a background export of opts may start: its
+// estimate within the export limit and the storage of the site's plan,
+// and the disk of dir with twice the estimate free, counting the export
+// it replaces. msg explains a refusal.
+func (s *Server) exportFits(ctx context.Context, dir string, opts export.Options) (msg string, err error) {
+	est, err := export.Estimate(ctx, s.store, opts)
+	if err != nil {
+		return "", err
+	}
+	if est > cmp.Or(opts.MaxBytes, export.DefaultMaxBytes) {
+		return s.t("The export is larger than the export limit. Leave out the media library, or export part of the content."), nil
+	}
+	if s.limits != nil {
+		quota, err := s.limits.StorageQuota(ctx)
+		if err != nil {
+			return "", err
+		}
+		if est > quota {
+			return s.t("This export would take about %s, more than the storage of the site's plan (%s). Leave out the media library.",
+				filesize(est), filesize(quota)), nil
+		}
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	freeSpace := s.exports.freeSpace
+	if freeSpace == nil {
+		freeSpace = export.FreeSpace
+	}
+	free, err := freeSpace(dir)
+	if err != nil {
+		return "", err
+	}
+	if free < 0 {
+		return "", nil // the system cannot tell
+	}
+	waiting, err := export.List(dir, time.Now())
+	if err != nil {
+		return "", err
+	}
+	for _, e := range waiting {
+		free += e.Size // removed when this export starts
+	}
+	if free < 2*est {
+		s.log.Warn("export refused: not enough free disk space", "dir", dir, "estimate", est, "free", free)
+		return s.t("The server does not have enough free disk space for this export, which would take about %s. Try again later, or leave out the media library.",
+			filesize(est)), nil
+	}
+	return "", nil
+}
+
+// writeExportFile writes a .zip export to dir/name through a partial file.
+// It is the site's only finished export: any other goes.
+func (s *Server) writeExportFile(ctx context.Context, dir, name string, opts export.Options) (*export.Report, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -344,11 +429,8 @@ func (s *Server) writeExportFile(ctx context.Context, dir, name string, userID i
 		os.Remove(part)
 		return rep, err
 	}
-	older, _ := export.List(dir, time.Now())
-	for _, e := range older {
-		if e.UserID == userID {
-			os.Remove(filepath.Join(dir, e.Name))
-		}
+	if _, err := export.RemoveReady(dir); err != nil {
+		s.log.Warn("remove the earlier exports", "err", err)
 	}
 	return rep, os.Rename(part, filepath.Join(dir, name))
 }

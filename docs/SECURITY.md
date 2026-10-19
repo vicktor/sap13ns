@@ -54,6 +54,9 @@ On a network of sites, a site's administrators are trusted on their own site onl
   - images and media may come from any `https:` address (`img-src 'self' data: https:`, `media-src 'self' https:`), so posts can embed external images. The other site learns that a page was viewed, by whom (IP address and browser) and, through `Referrer-Policy: strict-origin-when-cross-origin`, only from which site, not which page. Plugins can return external images too; the `csp` `img-src` permission adds nothing under this policy;
   - also HSTS (over https), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and `Cross-Origin-Opener-Policy`.
 - **Redirects:** after sign-in, only local paths are accepted. They are parsed, and control characters and backslashes are rejected.
+- **Redirect rules** (Tools → Redirects, and imports) never take an address the site serves itself: the home page and the language roots, sign-in and the other account pages, the admin, `/sso`, `/api`, `/mcp`, feeds, sitemaps, `robots.txt`, `llms*.txt`, `/.well-known/`, static files, themes, uploads, `/healthz`, search and the assistant. Creating a rule never replaces an existing one.
+  - **Imported rules** are an option of the import, off by default. A rule is kept only when its target is a path of this site (an absolute URL on the exported site's own host is rewritten to its path) and its source is not the address of a post or page; every rule is listed in the report, with the reason for each one that was skipped.
+  - The redirects that an import makes from the old addresses of posts and files pass the same checks.
 - **Forwarded headers:** `X-Forwarded-For` is honoured only from configured proxies or over the Unix socket.
 
 ### Content
@@ -111,6 +114,7 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
   - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, AI keys or the instance and site secrets.
   - E-mail and IP addresses are only included when the administrator asks for them.
   - A `.zip` prepared in the background sits in a directory that is never served. It is downloaded once, by the administrator who asked, through a signed link valid for 24 hours, and then deleted.
+  - Background exports cannot fill the disk. A site keeps one waiting, and a new one deletes it. One starts only when its estimate fits the storage of the site's plan (on a network) and the disk keeps twice the estimate free; otherwise it is refused with 413.
 - **Analytics** store only daily aggregates. Visitors are counted with a salt that rotates daily and lives only in memory: no IP address, user agent or identifier is persisted.
 - **Public pages** make no third-party requests and set no tracking cookies.
 
@@ -141,7 +145,7 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
   - On a paid plan, an uploaded plugin is held until a network administrator approves that exact build: its module, its assets and the permissions it pins. A build that asks for more is reviewed again.
   - Personal sites can only install the operator's catalogue.
   - Either way, the site's administrator still approves the permissions before enabling the plugin.
-- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota.
+- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota. Exports are temporary and not counted, so they are bounded instead: one waiting per site, and none larger than the plan's storage ([MULTISITE.md](MULTISITE.md#exporting-one-site)).
 - **Custom domains.**
   - **Proving control.** A host is routed only after a DNS check finds its TXT record with a token derived for that site and host, and finds that the host points to the network. Unverified hosts get a 404.
   - **Untrusted answers.** DNS answers are untrusted: names are normalised, only the exact value counts, and nothing from an answer is stored.

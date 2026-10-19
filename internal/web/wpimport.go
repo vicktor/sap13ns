@@ -39,26 +39,82 @@ type importJob struct {
 }
 
 type importStatus struct {
-	Running  bool
-	Started  time.Time
-	Finished time.Time
-	User     string
-	File     string
-	Summary  string
-	Warnings []string
-	Dropped  int
-	DryRun   bool
-	Error    string
+	Running          bool
+	Started          time.Time
+	Finished         time.Time
+	User             string
+	File             string
+	Summary          string
+	Warnings         []string
+	Dropped          int
+	DryRun           bool
+	Error            string
+	Redirects        []importRedirect
+	RedirectsDropped int
 }
 
-func (j *importJob) status() importStatus {
+// importRedirect is a line of the import report about one redirect.
+type importRedirect struct {
+	wpimport.RedirectResult
+	OriginLabel string
+	Result      string
+}
+
+func (s *Server) importStatus() importStatus {
+	j := &s.imports
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	st := importStatus{Running: j.running, Started: j.started, Finished: j.finished, User: j.user, File: j.file, Error: j.err}
-	if j.report != nil {
-		st.Summary, st.Warnings, st.Dropped, st.DryRun = j.report.Summary(), j.report.Warnings, j.report.WarningsDropped, j.report.DryRun
+	if rep := j.report; rep != nil {
+		st.Summary, st.Warnings, st.Dropped, st.DryRun = rep.Summary(), rep.Warnings, rep.WarningsDropped, rep.DryRun
+		st.RedirectsDropped = rep.RedirectsDropped
+		for _, r := range rep.Redirects {
+			st.Redirects = append(st.Redirects, importRedirect{RedirectResult: r, OriginLabel: s.redirectOrigin(r.Origin),
+				Result: s.redirectResult(r.Reason, rep.DryRun)})
+		}
 	}
 	return st
+}
+
+func (s *Server) redirectOrigin(origin string) string {
+	switch origin {
+	case wpimport.RedirectRule:
+		return s.t("Rule of the export")
+	case wpimport.RedirectFile:
+		return s.t("Old address of a file")
+	}
+	return s.t("Old address of a post or page")
+}
+
+func (s *Server) redirectResult(reason string, dryRun bool) string {
+	switch reason {
+	case "":
+		if dryRun {
+			return s.t("Would be imported")
+		}
+		return s.t("Imported")
+	case wpimport.SkipDisabled:
+		return s.t("Not imported: the option was off")
+	case wpimport.SkipSource:
+		return s.t("Skipped: the source is not a path of this site")
+	case wpimport.SkipStatus:
+		return s.t("Skipped: unknown redirect type")
+	case wpimport.SkipTarget:
+		return s.t("Skipped: no usable target")
+	case wpimport.SkipOffSite:
+		return s.t("Skipped: the target is on another site")
+	case wpimport.SkipDuplicate:
+		return s.t("Skipped: an earlier redirect of the import has this source")
+	case wpimport.SkipReserved:
+		return s.t("Skipped: the site serves this address itself")
+	case wpimport.SkipContent:
+		return s.t("Skipped: a post or page has this address")
+	case wpimport.SkipExists:
+		return s.t("Skipped: the site already has a redirect for this address")
+	case wpimport.SkipInvalid:
+		return s.t("Skipped: the rule is not valid")
+	}
+	return s.t("Failed: see the warnings")
 }
 
 type importData struct {
@@ -79,7 +135,7 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, status int
 		return
 	}
 	s.renderAdminStatus(w, r, status, "import", s.t("Import from WordPress"), "import",
-		importData{Status: s.imports.status(), Authors: authors, Langs: s.adminLangs(), Error: msg})
+		importData{Status: s.importStatus(), Authors: authors, Langs: s.adminLangs(), Error: msg})
 }
 
 func (s *Server) authorChoices(r *http.Request) ([]store.User, error) {
@@ -127,7 +183,7 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 		lang = s.mainLang()
 	}
 	opts := wpimport.Options{DryRun: r.FormValue("dry_run") == "1", DownloadMedia: r.FormValue("media") == "1",
-		SkipExisting: r.FormValue("skip_existing") == "1", DefaultAuthorID: authorID,
+		SkipExisting: r.FormValue("skip_existing") == "1", DefaultAuthorID: authorID, RedirectRules: r.FormValue("redirect_rules") == "1",
 		MaxMediaBytes: s.cfg.MaxUploadBytes, Language: lang, Languages: s.siteLangs(),
 		PostURL: func(typ, l, slug string) string { return s.langPath(cmp.Or(l, lang), postPath(typ, slug)) }}
 	for _, h := range strings.Fields(strings.ReplaceAll(r.FormValue("media_hosts"), ",", " ")) {
@@ -144,7 +200,8 @@ func (s *Server) adminImportStart(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	j.running, j.started, j.finished, j.user, j.file, j.report, j.err = true, time.Now(), time.Time{}, u.Name(), hdr.Filename, nil, ""
 	j.mu.Unlock()
-	s.audit(r, u.ID, "import.started", hdr.Filename, map[string]string{"dry_run": fmt.Sprint(opts.DryRun)})
+	s.audit(r, u.ID, "import.started", hdr.Filename, map[string]string{"dry_run": fmt.Sprint(opts.DryRun),
+		"redirect_rules": fmt.Sprint(opts.RedirectRules)})
 
 	sink := &wpSink{s: s, lang: lang, uploader: u.ID}
 	s.goJob(func() {
@@ -171,6 +228,7 @@ type wpSink struct {
 	s        *Server
 	lang     string
 	uploader int64
+	existing map[string]bool // the sources of the site's redirects, by sourceKey; loaded once
 }
 
 var nonUsername = regexp.MustCompile(`[^a-z0-9_.-]+`)
@@ -283,10 +341,60 @@ func (k *wpSink) StoreMedia(ctx context.Context, name string, r io.Reader, alt s
 	return m.ID, m.URL(), nil
 }
 
+// AddRedirect adds an imported redirect, never over an existing one.
 func (k *wpSink) AddRedirect(ctx context.Context, from, to string, status int) error {
-	src, dst, ok := normalizeRedirect(from, to, status)
-	if !ok {
-		return fmt.Errorf("unusable redirect %q → %q", from, to)
+	src, dst, err := k.checkRedirect(ctx, from, to, status)
+	if err != nil {
+		return err
 	}
-	return k.s.store.SaveRedirect(ctx, src, dst, status, true)
+	added, err := k.s.store.AddRedirect(ctx, src, dst, status, true)
+	switch {
+	case err != nil:
+		return err
+	case !added:
+		return wpimport.ErrRedirectExists
+	}
+	k.existing[sourceKey(src)] = true
+	return nil
+}
+
+func (k *wpSink) CheckRedirect(ctx context.Context, from, to string, status int) error {
+	_, _, err := k.checkRedirect(ctx, from, to, status)
+	return err
+}
+
+// checkRedirect applies the rules of the redirects page, and more: an
+// imported redirect stays on the site, and takes neither the address of a
+// post or page nor that of a redirect the site has (with or without its
+// trailing slash).
+func (k *wpSink) checkRedirect(ctx context.Context, from, to string, status int) (string, string, error) {
+	src, dst, err := checkRedirect(from, to, status)
+	switch {
+	case errors.Is(err, errRedirectReserved):
+		return "", "", wpimport.ErrRedirectReserved
+	case err != nil:
+		return "", "", wpimport.ErrRedirectInvalid
+	case dst != "" && !localRedirectTarget(dst):
+		return "", "", wpimport.ErrRedirectOffSite
+	}
+	key := sourceKey(src)
+	if taken, err := k.s.contentAt(ctx, src); err != nil {
+		return "", "", err
+	} else if taken && sourceKey(dst) != key {
+		return "", "", wpimport.ErrRedirectContent
+	}
+	if k.existing == nil {
+		list, err := k.s.store.Redirects(ctx)
+		if err != nil {
+			return "", "", err
+		}
+		k.existing = make(map[string]bool, len(list))
+		for _, r := range list {
+			k.existing[sourceKey(r.Source)] = true
+		}
+	}
+	if k.existing[key] {
+		return "", "", wpimport.ErrRedirectExists
+	}
+	return src, dst, nil
 }

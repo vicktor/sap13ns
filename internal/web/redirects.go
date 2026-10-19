@@ -2,13 +2,16 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"sap13ns/internal/store"
 )
@@ -164,33 +167,134 @@ func (s *Server) withRedirects(next http.Handler) http.Handler {
 	})
 }
 
-// normalizeRedirect validates an admin-entered rule. Sources are local
-// paths; targets are local paths or http(s) URLs.
-func normalizeRedirect(source, target string, status int) (string, string, bool) {
+var (
+	errRedirectInvalid  = errors.New("invalid redirect")
+	errRedirectReserved = errors.New("the site serves this address itself")
+)
+
+// checkRedirect validates a rule, from the redirects page or an import,
+// and returns it normalised. Sources are local paths that are not
+// reserved (errRedirectReserved); targets are local paths or http(s)
+// URLs, which an import does not accept (wpSink).
+func checkRedirect(source, target string, status int) (string, string, error) {
 	source, target = strings.TrimSpace(source), strings.TrimSpace(target)
 	if u, err := url.Parse(source); err == nil && u.IsAbs() {
 		source = u.EscapedPath()
+		if u.RawQuery != "" {
+			source += "?" + u.RawQuery
+		}
 	}
 	if !strings.HasPrefix(source, "/") || strings.HasPrefix(source, "//") || len(source) > 1000 ||
-		strings.ContainsAny(source, " \t\r\n#") || strings.Count(source, "?") > 1 || strings.HasPrefix(source, "/admin") || strings.HasPrefix(source, "/static/") {
-		return "", "", false
+		strings.ContainsAny(source, " #\\") || strings.ContainsFunc(source, unicode.IsControl) || strings.Count(source, "?") > 1 {
+		return "", "", errRedirectInvalid
+	}
+	if reservedRedirectSource(source) {
+		return "", "", errRedirectReserved
 	}
 	if !slices.Contains([]int{301, 302, 307, 308, 410}, status) {
-		return "", "", false
+		return "", "", errRedirectInvalid
 	}
 	if status == http.StatusGone {
-		return source, "", true
+		return source, "", nil
 	}
-	if len(target) > 2000 || strings.ContainsAny(target, "\r\n") || target == source {
-		return "", "", false
+	if len(target) > 2000 || strings.ContainsRune(target, '\\') || strings.ContainsFunc(target, unicode.IsControl) || target == source {
+		return "", "", errRedirectInvalid
 	}
-	if strings.HasPrefix(target, "/") && !strings.HasPrefix(target, "//") {
-		return source, target, true
+	if localRedirectTarget(target) {
+		return source, target, nil
 	}
 	if !validHTTPURL(target) {
-		return "", "", false
+		return "", "", errRedirectInvalid
 	}
-	return source, target, true
+	return source, target, nil
+}
+
+// localRedirectTarget reports whether target is a path of the site, also
+// once percent-decoded: one leading slash, no backslash ("/\host" is
+// "//host" to a browser).
+func localRedirectTarget(target string) bool {
+	local := func(s string) bool {
+		return strings.HasPrefix(s, "/") && !strings.HasPrefix(s, "//") && !strings.ContainsRune(s, '\\')
+	}
+	if !local(target) {
+		return false
+	}
+	p, _, _ := strings.Cut(target, "?")
+	p, _, _ = strings.Cut(p, "#")
+	d, err := url.PathUnescape(p)
+	return err == nil && local(d) && !strings.ContainsFunc(d, unicode.IsControl)
+}
+
+// reservedRoutes are the first path segments of the addresses the site
+// serves itself (routes.go), which no redirect may take.
+var reservedRoutes = map[string]bool{
+	"admin": true, "login": true, "logout": true, "register": true, "setup": true, "forgot-password": true,
+	"reset-password": true, "sso": true, "api": true, "mcp": true, "billing": true, "static": true, "themes": true,
+	"uploads": true, "plugin-assets": true, "plugin-forms": true, "og": true, "healthz": true, "search": true,
+	"ask": true, "feed": true, ".well-known": true, "robots.txt": true, "manifest.webmanifest": true,
+}
+
+// reservedRedirectSource reports whether a redirect from source would take
+// an address the site serves itself: the home page and the language roots,
+// sign-in and the other account pages, the admin, single sign-on, the APIs,
+// feeds, sitemaps, robots.txt, llms.txt, /.well-known/, assets and uploads,
+// the health check, search and the assistant, also under a language
+// prefix. Redirects are matched before routing, so such a rule would
+// hijack the route. The path is read the way requests match it: decoded,
+// cleaned and in any case. A query on the home page or a language root
+// (WordPress's plain permalinks, /?p=12) only matches that query, and is
+// allowed.
+func reservedRedirectSource(source string) bool {
+	p, query, _ := strings.Cut(source, "?")
+	if d, err := url.PathUnescape(p); err == nil {
+		p = d
+	}
+	p = strings.ToLower(path.Clean("/" + p))
+	segs := strings.Split(strings.TrimPrefix(p, "/"), "/")
+	if validLang(segs[0]) {
+		segs = segs[1:]
+	}
+	if len(segs) == 0 || segs[0] == "" {
+		return query == ""
+	}
+	first, last := segs[0], segs[len(segs)-1]
+	_, firstFeed := feedTypes[first]
+	_, lastFeed := feedTypes[last]
+	return reservedRoutes[first] || firstFeed || lastFeed || (first == "blog" && len(segs) == 1) ||
+		strings.HasPrefix(first, "sitemap") || (strings.HasPrefix(first, "llms") && strings.HasSuffix(first, ".txt"))
+}
+
+// sourceKey identifies the sources that the same requests match:
+// matchRedirect tries a path with and without its trailing slash.
+func sourceKey(source string) string {
+	p, q, hasQuery := strings.Cut(redirectKey(source), "?")
+	if len(p) > 1 {
+		p = strings.TrimSuffix(p, "/")
+	}
+	if hasQuery {
+		return p + "?" + q
+	}
+	return p
+}
+
+// contentAt reports whether a post or page answers at a redirect source.
+// A source with a query only matches that query, and shadows no post.
+func (s *Server) contentAt(ctx context.Context, source string) (bool, error) {
+	if strings.Contains(source, "?") {
+		return false, nil
+	}
+	lang, rest := s.mainLang(), strings.TrimPrefix(sourceKey(source), "/")
+	if code, after, ok := strings.Cut(rest, "/"); ok && validLang(code) {
+		lang, rest = code, after
+	}
+	typ, slug := store.TypePage, rest
+	if post, ok := strings.CutPrefix(rest, "blog/"); ok {
+		typ, slug = store.TypePost, post
+	}
+	if slug == "" || strings.Contains(slug, "/") {
+		return false, nil
+	}
+	return s.store.SlugExists(ctx, typ, lang, slug, 0)
 }
 
 // ------------------------------------------------------------------ admin --
@@ -217,19 +321,24 @@ func (s *Server) renderRedirects(w http.ResponseWriter, r *http.Request, status 
 func (s *Server) adminRedirectSave(w http.ResponseWriter, r *http.Request) {
 	status, _ := strconv.Atoi(r.FormValue("status"))
 	form := store.Redirect{Source: r.FormValue("source"), Target: r.FormValue("target"), Status: status}
-	src, dst, ok := normalizeRedirect(form.Source, form.Target, status)
-	if !ok {
+	src, dst, err := checkRedirect(form.Source, form.Target, status)
+	switch {
+	case errors.Is(err, errRedirectReserved):
+		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form,
+			s.t("The site serves this address itself (its home page, sign-in, admin, feeds or files), so it cannot be redirected."))
+		return
+	case err != nil:
 		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form,
 			s.t("Use a path starting with / as the source, and a path or an http(s) address as the target."))
 		return
 	}
-	var err error
+	added := true
 	if id, ok := pathID(r); ok {
 		err = s.store.UpdateRedirect(r.Context(), id, src, dst, status)
 	} else {
-		err = s.store.SaveRedirect(r.Context(), src, dst, status, false)
+		added, err = s.store.AddRedirect(r.Context(), src, dst, status, false)
 	}
-	if err != nil {
+	if err != nil || !added {
 		s.renderRedirects(w, r, http.StatusUnprocessableEntity, form, s.t("A redirect for that path already exists."))
 		return
 	}

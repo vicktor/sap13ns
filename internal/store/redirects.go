@@ -34,6 +34,17 @@ func (s *Store) RedirectByID(ctx context.Context, id int64) (*Redirect, error) {
 	return &rs[0], nil
 }
 
+// AddRedirect creates the redirect for source, unless one exists: it never
+// replaces a redirect, and reports whether it added one.
+func (s *Store) AddRedirect(ctx context.Context, source, target string, status int, auto bool) (bool, error) {
+	tag, err := s.DB.Exec(ctx, `INSERT INTO redirects (source, target, status, auto) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (source) DO NOTHING`, source, target, status, auto)
+	if err != nil {
+		return false, mapErr(err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // SaveRedirect creates or replaces the redirect for source.
 func (s *Store) SaveRedirect(ctx context.Context, source, target string, status int, auto bool) error {
 	_, err := s.DB.Exec(ctx, `INSERT INTO redirects (source, target, status, auto) VALUES ($1, $2, $3, $4)

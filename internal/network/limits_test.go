@@ -148,6 +148,18 @@ func TestStorageQuota(t *testing.T) {
 	b, csrf := e.siteAdmin(s, "admin")
 	const js = "application/json"
 	host := "https://" + s.PrimaryHost
+	// The plan's storage also bounds a background export (web.exportFits).
+	quota := func() int64 {
+		t.Helper()
+		q, err := siteHooks{hooks{r: e.reg, id: s.ID}}.StorageQuota(e.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return q
+	}
+	if q := quota(); q != 10_000 {
+		t.Fatalf("quota %d, want 10000", q)
+	}
 
 	var ids []int64
 	for i := range 3 {
@@ -201,6 +213,9 @@ func TestStorageQuota(t *testing.T) {
 
 	// A downgrade keeps what is there and blocks additions.
 	e.setPlan(s, "mini")
+	if q := quota(); q != 5_000 {
+		t.Fatalf("quota after the downgrade %d, want 5000", q)
+	}
 	if rec := b.send(s, "/admin/media", csrf, "file", "small.txt", text(10, 100), js); rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("over the new plan: %d %s", rec.Code, rec.Body.String())
 	}

@@ -23,6 +23,7 @@ package export
 
 import (
 	"cmp"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -260,6 +261,63 @@ func Sweep(dir string, now time.Time) (int, error) {
 		n++
 	}
 	return n, errors.Join(errs...)
+}
+
+// RemoveReady removes every finished export in dir, whoever asked for it:
+// a site keeps one export waiting for its download. Partial files and
+// claims are left to Sweep. It returns how many files it removed.
+func RemoveReady(dir string) (int, error) {
+	des, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	var errs []error
+	for _, d := range des {
+		if _, _, ok := ParseName(d.Name()); !ok || !d.Type().IsRegular() {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, d.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			errs = append(errs, err)
+			continue
+		}
+		n++
+	}
+	return n, errors.Join(errs...)
+}
+
+// The estimate gives itemBytes to the markup of each post, page, comment
+// and media item, and headBytes to the rest of the WXR file (channel,
+// authors, terms, redirects).
+const (
+	itemBytes = 2 << 10
+	headBytes = 256 << 10
+)
+
+// Estimate is about what a .zip export of o takes before compression,
+// erring on the large side: with Media the uploads directory, plus three
+// copies of the text of the posts and pages (the HTML and the Markdown in
+// the WXR file, and the Markdown copy), their comments, and the markup of
+// each item. It stops counting uploads once the total passes the export's
+// MaxBytes, which such an export could not be written within anyway.
+func Estimate(ctx context.Context, st *store.Store, o Options) (int64, error) {
+	o = o.withDefaults()
+	text, items, err := st.ExportTextBytes(ctx, o.filter(), o.commentStatuses())
+	if err != nil {
+		return 0, err
+	}
+	n := headBytes + 3*text + items*itemBytes
+	if o.Media {
+		up, err := UploadsSize(o.Site.UploadsDir, o.MaxBytes)
+		if err != nil {
+			return 0, err
+		}
+		n += up
+	}
+	return n, nil
 }
 
 // UploadsSize adds up the sizes of the regular files under dir, stopping

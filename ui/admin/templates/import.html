@@ -28,6 +28,8 @@
         <label class="check"><input type="checkbox" class="input" role="switch" name="media" value="1" checked> {{T "Download images and attachments"}}</label>
         <div class="field"><label for="media_hosts">{{T "Extra media hosts"}}</label><input class="input mono" id="media_hosts" name="media_hosts" placeholder="cdn.example.com" maxlength="500" spellcheck="false" autocapitalize="none"><p class="hint">{{T "Only files on the exported site's own domain are downloaded, plus these hosts (a CDN, for example)."}}</p></div>
         <label class="check"><input type="checkbox" class="input" role="switch" name="skip_existing" value="1"> {{T "Skip posts whose address already exists (otherwise a new address is chosen)"}}</label>
+        <div class="field"><label class="check"><input type="checkbox" class="input" role="switch" name="redirect_rules" value="1"> {{T "Import the redirect rules of a sap13ns export"}}</label>
+          <p class="hint">{{T "A rule is only imported when it leads to an address of this site, replaces no redirect the site has, and takes no address of the site itself or of a post or page. The report lists every rule."}}</p></div>
         <label class="check"><input type="checkbox" class="input" role="switch" name="dry_run" value="1" checked> {{T "Dry run: show what would be imported without changing anything"}}</label>
         <button class="btn" type="submit">{{icon "file-input"}}{{T "Start"}}</button>
       </form>
@@ -55,6 +57,17 @@
     {{if $st.Warnings}}
     <details><summary>{{T "%d warnings" (len $st.Warnings)}}{{if $st.Dropped}} (+{{$st.Dropped}}){{end}}</summary>
       <ul class="warnings">{{range $st.Warnings}}<li>{{.}}</li>{{end}}</ul></details>
+    {{end}}
+    {{if $st.Redirects}}
+    <details><summary>{{T "Redirect details (%d)" (len $st.Redirects)}}{{if $st.RedirectsDropped}} (+{{$st.RedirectsDropped}}){{end}}</summary>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{T "From"}}</th><th>{{T "To"}}</th><th>{{T "Result"}}</th></tr></thead>
+        <tbody>{{range $st.Redirects}}<tr>
+          <td><span class="mono text-sm break-all">{{.Source}}</span></td>
+          <td><span class="badge" data-variant="outline">{{.Status}}</span> <span class="mono text-sm break-all">{{if eq .Status 410}}{{T "Gone"}}{{else}}{{.Target}}{{end}}</span></td>
+          <td>{{.Result}}<div class="row-sub muted">{{.OriginLabel}}</div></td>
+        </tr>{{end}}</tbody>
+      </table></div></details>
     {{end}}
   </section>
 </section>

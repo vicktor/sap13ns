@@ -2,8 +2,10 @@ package wpimport
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A sap13ns export: WXR plus the sap13ns namespace and postmeta.
@@ -114,17 +116,146 @@ func TestImportSap13nsExport(t *testing.T) {
 		t.Errorf("term i18n = %+v", tc.Term.I18n)
 	}
 
-	// Redirects: statuses kept, a 410 has no target, the first rule for a
-	// path wins, unknown statuses and non-paths are refused.
+	// The redirect rules of the export are off by default: none is made,
+	// and the report lists each one.
+	if len(sink.redirects) != 0 || rep.Counts.Redirects.Created != 0 || len(rep.Redirects) != 5 {
+		t.Errorf("redirects = %v, report %+v", sink.redirects, rep.Redirects)
+	}
+	for _, r := range rep.Redirects {
+		if r.Origin != RedirectRule || r.Reason != SkipDisabled {
+			t.Errorf("rule %+v", r)
+		}
+	}
+
+	// With the option: statuses kept, a 410 has no target, the first rule
+	// for a path wins, unknown statuses and non-paths are skipped.
+	sink = newFakeSink()
+	rep, err = Import(context.Background(), exp, sink, Options{DefaultAuthorID: 1, Language: "es", RedirectRules: true,
+		PostURL: func(typ, lang, slug string) string {
+			if lang != "" {
+				return "/" + lang + defaultPostURL(typ, "", slug)
+			}
+			return defaultPostURL(typ, "", slug)
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for from, to := range map[string]string{"/viejo": "302 /blog/hola", "/gone": "410 "} {
 		if sink.redirects[from] != to {
 			t.Errorf("redirect %s = %q, want %q", from, sink.redirects[from], to)
 		}
 	}
-	if _, ok := sink.redirects["/odd"]; ok || len(sink.redirects) != 2 || !hasWarning(rep, "/odd", "unknown status 299") {
+	if len(sink.redirects) != 2 {
 		t.Errorf("redirects = %v", sink.redirects)
 	}
-	if c := rep.Counts.Redirects; c.Created != 2 || c.Failed != 1 || c.Skipped != 2 {
+	reasons := map[string]string{}
+	for _, r := range rep.Redirects {
+		reasons[r.Source+" "+r.Target] = r.Reason
+	}
+	for rule, want := range map[string]string{"/viejo /blog/hola": "", "/gone ": "", "/odd /x": SkipStatus,
+		"https://evil.example/ /x": SkipSource, "/viejo /again": SkipDuplicate} {
+		if got, ok := reasons[rule]; !ok || got != want {
+			t.Errorf("rule %q: reason %q (listed %v), want %q", rule, got, ok, want)
+		}
+	}
+	if c := rep.Counts.Redirects; c.Created != 2 || c.Failed != 0 || c.Skipped != 3 {
 		t.Errorf("redirect counts = %+v", c)
+	}
+}
+
+// TestImportRedirectRules covers what a crafted export may try with its
+// redirect rules.
+func TestImportRedirectRules(t *testing.T) {
+	rule := func(source, target string, status int) Redirect {
+		return Redirect{Source: source, Target: target, Status: status}
+	}
+	exp := &Export{
+		Site: Site{Link: "https://old.example", BaseSiteURL: "https://old.example"},
+		Items: []Item{{ID: 1, Type: TypePost, Status: "publish", Title: "Hola", Slug: "hola", Link: "https://old.example/2020/hola/",
+			Date: time.Date(2026, 3, 4, 10, 0, 0, 0, time.UTC)}},
+		Redirects: []Redirect{
+			rule("/a", "https://evil.example/phish", 302),         // off-site
+			rule("/b", "//evil.example/phish", 301),               // protocol-relative
+			rule("/c", `/\evil.example`, 301),                     // a backslash, which browsers read as a slash
+			rule("/d", "/%2F%2Fevil.example", 301),                // "//" once decoded
+			rule("/e", "javascript:alert(1)", 301),                // another scheme
+			rule("/f", "https://old.example/blog/hola?x=1", 308),  // the exported site: rewritten to its path
+			rule("/g", "https://OLD.example:8443/contacto", 307),  // the same host, another port
+			rule("/h", "/ok\r\nSet-Cookie: x=1", 301),             // a control character
+			rule("/blog/hola", "/elsewhere", 301),                 // the address of an imported post
+			rule("/blog/hola/", "/elsewhere", 301),                // a variant of it
+			rule("/existing", "/new", 301),                        // a redirect the site has
+			rule("/reserved", "/new", 301),                        // refused by the sink
+			rule("/i", "", 301),                                   // no target
+			rule("/j", "/j", 301),                                 // itself
+			rule("/k#frag", "/x", 301),                            // a fragment never reaches the server
+			rule("/2020/hola/", "/blog/otra", 301),                // the post's own redirect came first
+			rule(`\evil`, "/x", 301),                              // not a path
+			rule("/l", "/fine?ref=import#top", 301),               // a local path, kept as is
+			rule("/m", "https://old.example.evil.example/x", 301), // a look-alike host
+		},
+	}
+	sink := newFakeSink()
+	sink.redirects["/existing"] = "/kept"
+	sink.refuse = map[string]error{"/reserved": ErrRedirectReserved}
+	rep, err := Import(context.Background(), exp, sink, Options{DefaultAuthorID: 1, RedirectRules: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"/a": SkipOffSite, "/b": SkipOffSite, "/c": SkipOffSite, "/d": SkipOffSite, "/e": SkipOffSite, "/f": "", "/g": "",
+		"/h": SkipTarget, "/blog/hola": SkipContent, "/blog/hola/": SkipContent, "/existing": SkipExists, "/reserved": SkipReserved,
+		"/i": SkipTarget, "/j": SkipTarget, "/k#frag": SkipSource, "/2020/hola/": SkipDuplicate, `\evil`: SkipSource, "/l": "",
+		"/m": SkipOffSite,
+	}
+	got := map[string]RedirectResult{}
+	for _, r := range rep.Redirects {
+		if r.Origin == RedirectRule {
+			got[r.Source] = r
+		}
+	}
+	for src, reason := range want {
+		if r, ok := got[src]; !ok || r.Reason != reason {
+			t.Errorf("rule %q: %+v (listed %v), want reason %q", src, r, ok, reason)
+		}
+	}
+	for from, to := range map[string]string{
+		"/f": "308 /blog/hola?x=1", "/g": "307 /contacto", "/l": "/fine?ref=import#top", "/existing": "/kept", "/2020/hola/": "/blog/hola",
+	} {
+		if sink.redirects[from] != to {
+			t.Errorf("redirect %s = %q, want %q", from, sink.redirects[from], to)
+		}
+	}
+	if len(sink.redirects) != 5 {
+		t.Errorf("redirects = %v", sink.redirects)
+	}
+	if c := rep.Counts.Redirects; c.Created != 4 || c.Skipped != len(want)-3 || c.Failed != 0 {
+		t.Errorf("counts = %+v", c)
+	}
+
+	// A dry run asks the sink too, and writes nothing.
+	sink = newFakeSink()
+	sink.refuse = map[string]error{"/reserved": ErrRedirectReserved}
+	rep, err = Import(context.Background(), exp, sink, Options{DefaultAuthorID: 1, RedirectRules: true, DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sink.redirects) != 0 {
+		t.Errorf("dry run wrote %v", sink.redirects)
+	}
+	for _, r := range rep.Redirects {
+		if r.Source == "/reserved" && r.Reason != SkipReserved {
+			t.Errorf("dry run: %+v", r)
+		}
+	}
+
+	// The report is bounded.
+	exp.Redirects = nil
+	for i := range maxRedirectResults + 10 {
+		exp.Redirects = append(exp.Redirects, rule(fmt.Sprintf("/r%d", i), "/x", 301))
+	}
+	rep, _ = Import(context.Background(), exp, newFakeSink(), Options{DefaultAuthorID: 1})
+	if len(rep.Redirects) != maxRedirectResults || rep.RedirectsDropped != 10 {
+		t.Errorf("report: %d listed, %d dropped", len(rep.Redirects), rep.RedirectsDropped)
 	}
 }

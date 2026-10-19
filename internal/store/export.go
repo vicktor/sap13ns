@@ -103,6 +103,21 @@ func (s *Store) CountExportPosts(ctx context.Context, f ExportFilter) (int, erro
 	return n, err
 }
 
+// ExportTextBytes adds up the text of the posts and pages of f (title,
+// excerpt and Markdown) and of their comments with one of statuses, and
+// counts the items an export of f may hold: those posts, pages and
+// comments, and every media item. The estimate of an export uses them.
+func (s *Store) ExportTextBytes(ctx context.Context, f ExportFilter, statuses []string) (bytes, items int64, err error) {
+	w := &whereBuilder{}
+	f.where(w)
+	err = s.DB.QueryRow(ctx, `WITH p AS (
+			SELECT p.id, octet_length(p.title) + octet_length(p.excerpt) + octet_length(p.content) AS n FROM posts p`+w.sql()+`),
+		c AS (SELECT octet_length(c.content) AS n FROM comments c WHERE c.post_id IN (SELECT id FROM p) AND c.status = ANY(`+w.arg(statuses)+`))
+		SELECT coalesce((SELECT sum(n) FROM p), 0)::bigint + coalesce((SELECT sum(n) FROM c), 0)::bigint,
+			(SELECT count(*) FROM p) + (SELECT count(*) FROM c) + (SELECT count(*) FROM media)`, w.args...).Scan(&bytes, &items)
+	return bytes, items, err
+}
+
 // MaxPostID is the highest post id, 0 without posts. Exports number media
 // items after it, since WXR shares one id space between posts and files.
 func (s *Store) MaxPostID(ctx context.Context) (int64, error) {

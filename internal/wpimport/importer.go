@@ -74,11 +74,32 @@ type Sink interface {
 	// and public URL. r fails with ErrMediaTooLarge past the size limit.
 	StoreMedia(ctx context.Context, name string, r io.Reader, alt string) (id int64, url string, err error)
 	// AddRedirect records a redirect from an old path (with its query for
-	// sites on plain permalinks, "/?p=12") to a new URL or path. status is
-	// 301 for old permalinks; a sap13ns export carries its own rules (301,
-	// 302, 307, 308, or 410 with an empty target).
+	// sites on plain permalinks, "/?p=12") to a local path. status is 301
+	// for old permalinks; a sap13ns export carries its own rules (301, 302,
+	// 307, 308, or 410 with an empty target). It never replaces a redirect,
+	// and refuses what CheckRedirect refuses.
 	AddRedirect(ctx context.Context, from, to string, status int) error
+	// CheckRedirect reports whether AddRedirect would accept the rule,
+	// without writing anything (a dry run calls it instead): nil, or an
+	// error that wraps ErrRedirectReserved, ErrRedirectContent,
+	// ErrRedirectExists, ErrRedirectOffSite or ErrRedirectInvalid.
+	CheckRedirect(ctx context.Context, from, to string, status int) error
 }
+
+// The reasons a sink refuses a redirect.
+var (
+	// ErrRedirectReserved: the source is an address the site itself
+	// serves, such as its home page, sign-in, admin, feeds or files.
+	ErrRedirectReserved = errors.New("the source is an address of the site itself")
+	// ErrRedirectContent: a post or page answers at the source.
+	ErrRedirectContent = errors.New("a post or page has this address")
+	// ErrRedirectExists: the site already has a redirect for the source.
+	ErrRedirectExists = errors.New("a redirect for this address already exists")
+	// ErrRedirectOffSite: the target is not a path of the site.
+	ErrRedirectOffSite = errors.New("the target is on another site")
+	// ErrRedirectInvalid: the rule is malformed.
+	ErrRedirectInvalid = errors.New("invalid redirect")
+)
 
 // Post is a post or a page ready to be stored.
 type Post struct {
@@ -137,6 +158,10 @@ type Options struct {
 	// Languages are the languages the site offers; content of a sap13ns
 	// export in another one is imported with a warning. Nil skips the check.
 	Languages []string
+	// RedirectRules imports the redirect rules a sap13ns export carries.
+	// Off, they are listed in the report as not imported. The redirects
+	// from the old addresses of the imported content are always made.
+	RedirectRules bool
 }
 
 // Count tallies one kind of object. For users and terms, Created counts the
@@ -180,6 +205,11 @@ type Report struct {
 	Warnings        []string // at most 500
 	WarningsDropped int
 	Mapping         Mapping
+	// Redirects lists every redirect rule of a sap13ns export, imported or
+	// not, and every redirect from an old address that was not made, each
+	// with its reason; at most 1000, then RedirectsDropped counts them.
+	Redirects        []RedirectResult
+	RedirectsDropped int
 }
 
 // Summary renders the counts as text, one kind per line.
@@ -264,9 +294,10 @@ type importer struct {
 	planned      []*plan           // pages and posts, in export order
 	plans        map[int64]*plan   // planned by WordPress ID
 	order        []*plan           // created pages and posts, in creation order
-	redirected   map[string]bool
-	groups       map[int64]*group // by the export's translation group
-	foreignLangs map[string]bool  // languages the site does not offer, already reported
+	redirected   map[string]bool   // redirect sources of this import, by redirectKey
+	contentURLs  map[string]bool   // the new addresses of the imported posts and pages, by redirectKey
+	groups       map[int64]*group  // by the export's translation group
+	foreignLangs map[string]bool   // languages the site does not offer, already reported
 }
 
 // Import writes exp to sink in dependency order: authors, terms (parents
@@ -281,7 +312,8 @@ func Import(ctx context.Context, exp *Export, sink Sink, opts Options) (*Report,
 		usersByLogin: map[string]int64{}, usersByWPID: map[int64]int64{}, unknownUsers: map[string]bool{},
 		terms: map[string]int64{}, failedTerms: map[string]bool{}, attachments: map[int64]*Item{}, media: map[int64]mediaRef{},
 		mediaURLs: map[string]string{}, mediaStems: map[string]string{}, links: map[string]string{},
-		plans: map[int64]*plan{}, redirected: map[string]bool{}, groups: map[int64]*group{}, foreignLangs: map[string]bool{},
+		plans: map[int64]*plan{}, redirected: map[string]bool{}, contentURLs: map[string]bool{}, groups: map[int64]*group{},
+		foreignLangs: map[string]bool{},
 	}
 	if im.opts.Now == nil {
 		im.opts.Now = time.Now
@@ -1184,6 +1216,7 @@ func (im *importer) create(ctx context.Context, p *plan) error {
 	}
 	c.Created++
 	p.newID, p.created = id, true
+	im.contentURLs[redirectKey(p.url)] = true
 	im.order = append(im.order, p)
 	im.rep.Mapping.Posts[it.ID] = id
 	return nil
@@ -1317,105 +1350,6 @@ func (im *importer) importComments(ctx context.Context) error {
 			cnt.Created++
 			newIDs[c.ID] = id
 			im.rep.Mapping.Comments[c.ID] = id
-		}
-	}
-	return nil
-}
-
-// - - - redirects - - -
-
-// oldPath returns the path (and query) a visitor of the old site requested.
-func oldPath(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	p := u.EscapedPath()
-	if p == "" {
-		p = "/"
-	}
-	if u.RawQuery != "" {
-		p += "?" + u.RawQuery
-	}
-	return p
-}
-
-func (im *importer) redirect(ctx context.Context, from, to string) error {
-	c := &im.rep.Counts.Redirects
-	if from == "" || from == "/" || to == "" || from == to || im.redirected[from] {
-		return nil
-	}
-	if u, err := url.Parse(to); err == nil && u.Host == "" && u.Path == from {
-		return nil
-	}
-	im.redirected[from] = true
-	if !im.opts.DryRun {
-		if err := im.sink.AddRedirect(ctx, from, to, 301); err != nil {
-			return im.failed(ctx, c, "redirect %s → %s: %v", from, to, err)
-		}
-	}
-	c.Created++
-	return nil
-}
-
-// importRules adds the redirect rules of a sap13ns export, after the
-// redirects from old permalinks, which win for the same path.
-func (im *importer) importRules(ctx context.Context) error {
-	c := &im.rep.Counts.Redirects
-	for _, rd := range im.exp.Redirects {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		from, to := strings.TrimSpace(rd.Source), strings.TrimSpace(rd.Target)
-		switch {
-		case !strings.HasPrefix(from, "/") || im.redirected[from]:
-			c.Skipped++
-			continue
-		case !slices.Contains([]int{301, 302, 307, 308, 410}, rd.Status):
-			c.Failed++
-			im.warn("redirect %s: unknown status %d", from, rd.Status)
-			continue
-		case rd.Status == 410:
-			to = ""
-		case to == "":
-			c.Failed++
-			im.warn("redirect %s has no target", from)
-			continue
-		}
-		im.redirected[from] = true
-		if !im.opts.DryRun {
-			if err := im.sink.AddRedirect(ctx, from, to, rd.Status); err != nil {
-				if err := im.failed(ctx, c, "redirect %s → %s: %v", from, to, err); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		c.Created++
-	}
-	return nil
-}
-
-// importRedirects maps old permalinks of public content (a redirect for a
-// draft or a scheduled post would reveal its new slug) and old media files.
-func (im *importer) importRedirects(ctx context.Context) error {
-	for _, p := range im.order {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !p.public {
-			continue
-		}
-		if err := im.redirect(ctx, oldPath(p.it.Link), p.url); err != nil {
-			return err
-		}
-	}
-	for i := range im.exp.Items {
-		it := &im.exp.Items[i]
-		if ref, ok := im.media[it.ID]; ok && it.Type == "attachment" && ref.url != "" {
-			if err := im.redirect(ctx, oldPath(it.AttachmentURL), ref.url); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

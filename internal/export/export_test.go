@@ -128,7 +128,86 @@ func TestNamesAndSweep(t *testing.T) {
 	}
 }
 
+// TestRemoveReady: a site keeps one export waiting, whoever asked for it.
+func TestRemoveReady(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	write := func(name string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	mine, theirs := write(NewName(1, now)), write(NewName(2, now.Add(-time.Hour)))
+	part, claim, other := write(NewName(3, now)+PartSuffix), write(NewName(4, now)+ClaimSuffix), write("notes.txt")
+	if err := os.Mkdir(filepath.Join(dir, NewName(5, now)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := RemoveReady(dir); n != 2 || err != nil {
+		t.Fatalf("RemoveReady = %d, %v; want 2", n, err)
+	}
+	for p, want := range map[string]bool{mine: false, theirs: false, part: true, claim: true, other: true} {
+		if _, err := os.Stat(p); (err == nil) != want {
+			t.Errorf("%s exists = %v, want %v", filepath.Base(p), err == nil, want)
+		}
+	}
+	if n, err := RemoveReady(filepath.Join(dir, "missing")); n != 0 || err != nil {
+		t.Errorf("RemoveReady of a missing directory = %d, %v", n, err)
+	}
+}
+
+func TestFreeSpace(t *testing.T) {
+	free, err := FreeSpace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		if free <= 0 {
+			t.Errorf("FreeSpace = %d", free)
+		}
+	} else if free != -1 {
+		t.Errorf("FreeSpace = %d, want -1 (unknown)", free)
+	}
+	if _, err := FreeSpace(filepath.Join(t.TempDir(), "missing")); err == nil && free >= 0 {
+		t.Error("FreeSpace of a missing directory did not fail")
+	}
+}
+
 // - - - with a database - - -
+
+// TestEstimate: the estimate covers what a .zip export holds before
+// compression, uploads included with Media.
+func TestEstimate(t *testing.T) {
+	st := testutil.Store(t)
+	s := seed(t, st, "est")
+	ctx := context.Background()
+	o := siteOpts(s)
+	est, err := Estimate(ctx, st, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	rep, err := WriteZip(ctx, st, &buf, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uploads, err := UploadsSize(s.uploads, 1<<40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if est < rep.Bytes+uploads || est < int64(buf.Len()) {
+		t.Errorf("estimate %d, below the WXR file (%d) plus the uploads (%d), or the .zip (%d)", est, rep.Bytes, uploads, buf.Len())
+	}
+	o.Media = false
+	if bare, err := Estimate(ctx, st, o); err != nil || est-bare != uploads {
+		t.Errorf("without the media library: %d (%v), want %d", bare, err, est-uploads)
+	}
+	o.Statuses = []string{store.StatusPublished, store.StatusDraft}
+	if drafts, err := Estimate(ctx, st, o); err != nil || drafts <= est-uploads {
+		t.Errorf("with the drafts: %d (%v)", drafts, err)
+	}
+}
 
 type seeded struct {
 	admin, author int64

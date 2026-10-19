@@ -172,7 +172,8 @@ func seedExport(e *customEnv) {
 		t.Fatal(err)
 	}
 	for _, r := range []store.Redirect{{Source: "/viejo-hola", Target: "/blog/hola", Status: 301},
-		{Source: "/temporal", Target: "https://example.org/x", Status: 302}, {Source: "/borrado", Status: 410}} {
+		{Source: "/temporal", Target: "https://example.org/x", Status: 302}, {Source: "/borrado", Status: 410},
+		{Source: "/propio", Target: "http://example.test/nosotros", Status: 307}} {
 		if err := st.SaveRedirect(ctx, r.Source, r.Target, r.Status, false); err != nil {
 			t.Fatal(err)
 		}
@@ -230,7 +231,7 @@ func TestExportRoundTrip(t *testing.T) {
 	admin := dst.userID("admin")
 	rep, err := wpimport.Import(ctx, exp, &wpSink{s: dst.s, lang: "es", uploader: admin}, wpimport.Options{
 		DownloadMedia: true, DefaultAuthorID: admin, MaxMediaBytes: 10 << 20, Language: "es", Languages: dst.s.siteLangs(),
-		Fetcher: dirFetcher{src.s.cfg.UploadsDir},
+		Fetcher: dirFetcher{src.s.cfg.UploadsDir}, RedirectRules: true,
 		PostURL: func(typ, l, slug string) string { return dst.s.langPath(cmp.Or(l, "es"), postPath(typ, slug)) },
 	})
 	if err != nil {
@@ -373,7 +374,8 @@ func TestExportRoundTrip(t *testing.T) {
 		t.Errorf("reply %+v, pending %+v", reply, pending)
 	}
 
-	// Redirects keep their status.
+	// Redirects keep their status, and stay on the site: a rule to another
+	// site is skipped, one to the old site's own host becomes a path.
 	rules, err := dst.st.Redirects(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -382,10 +384,17 @@ func TestExportRoundTrip(t *testing.T) {
 	for _, r := range rules {
 		got[r.Source] = r.Target + " " + strconv.Itoa(r.Status)
 	}
-	for src, want := range map[string]string{"/viejo-hola": "/blog/hola 301", "/temporal": "https://example.org/x 302", "/borrado": " 410"} {
+	for src, want := range map[string]string{"/viejo-hola": "/blog/hola 301", "/borrado": " 410", "/propio": "/nosotros 307", "/temporal": ""} {
 		if got[src] != want {
 			t.Errorf("redirect %s = %q, want %q (all: %v)", src, got[src], want, got)
 		}
+	}
+	reasons := map[string]string{}
+	for _, r := range rep.Redirects {
+		reasons[r.Source] = r.Reason
+	}
+	if reasons["/temporal"] != wpimport.SkipOffSite || reasons["/viejo-hola"] != "" || len(rules) != 3 {
+		t.Errorf("report: %+v", rep.Redirects)
 	}
 }
 

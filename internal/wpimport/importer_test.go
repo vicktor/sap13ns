@@ -49,6 +49,7 @@ type fakeSink struct {
 
 	failPost  func(Post) error
 	failMedia func(name string) error
+	refuse    map[string]error // redirect source → the sink's refusal
 	onPost    func(n int)
 }
 
@@ -120,11 +121,25 @@ func (s *fakeSink) StoreMedia(_ context.Context, name string, r io.Reader, alt s
 	return id, fmt.Sprintf("/uploads/%d/%s", id, name), nil
 }
 
-func (s *fakeSink) AddRedirect(_ context.Context, from, to string, status int) error {
+func (s *fakeSink) AddRedirect(ctx context.Context, from, to string, status int) error {
+	if err := s.CheckRedirect(ctx, from, to, status); err != nil {
+		return err
+	}
 	if status != 301 {
 		to = fmt.Sprintf("%d %s", status, to)
 	}
 	s.redirects[from] = to
+	return nil
+}
+
+// CheckRedirect refuses what refuse says, and existing redirects.
+func (s *fakeSink) CheckRedirect(_ context.Context, from, to string, status int) error {
+	if err := s.refuse[from]; err != nil {
+		return err
+	}
+	if _, ok := s.redirects[from]; ok {
+		return ErrRedirectExists
+	}
 	return nil
 }
 

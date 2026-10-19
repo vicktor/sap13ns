@@ -87,6 +87,18 @@ func (h siteHooks) Release(ctx context.Context, n int64) {
 	}
 }
 
+func (h siteHooks) StorageQuota(ctx context.Context) (int64, error) {
+	s, err := h.r.net.Site(ctx, h.id)
+	if err != nil {
+		return 0, err
+	}
+	p, err := h.r.net.Plan(ctx, s.Plan)
+	if err != nil {
+		return 0, err
+	}
+	return p.StorageBytes, nil
+}
+
 func (h siteHooks) PluginPolicy(ctx context.Context) (web.PluginPolicy, error) {
 	s, err := h.r.net.Site(ctx, h.id)
 	if err != nil {
