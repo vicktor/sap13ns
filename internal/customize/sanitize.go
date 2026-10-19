@@ -45,6 +45,36 @@ func SanitizeCSS(src string) (string, error) {
 	return src, nil
 }
 
+// CSSRules relax the rules of SanitizeCSS for a stylesheet that is not the
+// operator's custom CSS: the compiled stylesheet of an uploaded theme.
+type CSSRules struct {
+	// RelativeURLs accepts url() paths relative to the stylesheet
+	// ("fonts/x.woff2") and fragments ("#filter"), besides site paths.
+	// Neither has a scheme or a host, so neither leaves the site.
+	RelativeURLs bool
+	// DataImages accepts url("data:image/…"), which compiled stylesheets
+	// use for small icons. An image, SVG included, never runs scripts when
+	// CSS draws it, and the CSP allows data: for images only.
+	DataImages bool
+	// FooterMeta lets the stylesheet name footer-meta: a theme styles the
+	// credit line too (shared.css does). Hiding the credit still breaches
+	// the licence; the operator answers for that, as with custom CSS.
+	FooterMeta bool
+}
+
+// CheckCSS applies the rules of SanitizeCSS, relaxed by r, to a whole
+// stylesheet. It has no size limit: the caller sets one.
+func CheckCSS(src string, r CSSRules) error {
+	if !utf8.ValidString(src) {
+		return fmt.Errorf("the stylesheet must be UTF-8 text")
+	}
+	if strings.ContainsRune(src, 0) {
+		return fmt.Errorf("the stylesheet contains a NUL byte")
+	}
+	t := &cssTokenizer{src: src, line: 1, rules: r}
+	return t.check()
+}
+
 var allowedAtRules = map[string]bool{
 	"media": true, "supports": true, "container": true, "layer": true, "scope": true, "starting-style": true,
 	"keyframes": true, "-webkit-keyframes": true, "font-face": true, "property": true, "counter-style": true,
@@ -70,6 +100,7 @@ type cssTokenizer struct {
 	pos   int
 	line  int
 	stack []byte
+	rules CSSRules
 }
 
 func (t *cssTokenizer) errf(format string, args ...any) error {
@@ -184,20 +215,38 @@ func (t *cssTokenizer) str(q byte) (string, error) {
 	return "", t.errf("unterminated string")
 }
 
-// checkURL enforces site paths only.
+// checkURL enforces site paths only (with a theme's rules, also relative
+// paths, fragments and data: images).
 func (t *cssTokenizer) checkURL(u string) error {
 	if u == "" {
 		return t.errf("empty url()")
+	}
+	if t.rules.DataImages && len(u) > len("data:image/") && strings.EqualFold(u[:len("data:image/")], "data:image/") {
+		return nil
 	}
 	for _, r := range u {
 		if r <= 0x20 || r == 0x7f || r == '\\' {
 			return t.errf("url() may not contain spaces, control characters or backslashes")
 		}
 	}
-	if u[0] != '/' || strings.HasPrefix(u, "//") {
-		return t.errf("url() must point to a file on this site, such as /uploads/… (got %q)", truncate(u, 60))
+	switch {
+	case strings.HasPrefix(u, "//"):
+	case u[0] == '/':
+		return nil
+	case t.rules.RelativeURLs && !hasScheme(u):
+		return nil
 	}
-	return nil
+	return t.errf("url() must point to a file on this site, such as /uploads/… (got %q)", truncate(u, 60))
+}
+
+// hasScheme reports whether a URL reference starts with a scheme: a colon
+// before any slash, question mark or hash.
+func hasScheme(u string) bool {
+	end := strings.IndexAny(u, "/?#")
+	if end < 0 {
+		end = len(u)
+	}
+	return strings.Contains(u[:end], ":")
 }
 
 // unquotedURL consumes the rest of url( with an unquoted argument.
@@ -251,7 +300,7 @@ func (t *cssTokenizer) checkName(n string) error {
 	if blockedIdents[l] {
 		return t.errf("%s is not allowed", l)
 	}
-	if strings.Contains(l, "footer-meta") {
+	if !t.rules.FooterMeta && strings.Contains(l, "footer-meta") {
 		return t.errf("the footer attribution (footer-meta) cannot be restyled")
 	}
 	return nil
@@ -286,7 +335,7 @@ func (t *cssTokenizer) check() error {
 					return err
 				}
 			}
-			if strings.Contains(strings.ToLower(s), "footer-meta") {
+			if !t.rules.FooterMeta && strings.Contains(strings.ToLower(s), "footer-meta") {
 				return t.errf("the footer attribution (footer-meta) cannot be restyled")
 			}
 		case c == '@':

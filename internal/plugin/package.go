@@ -19,8 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
+	"sap13ns/internal/archive"
 	"sap13ns/internal/store"
 )
 
@@ -46,88 +46,26 @@ const (
 	maxRatio          = 100 // uncompressed/compressed, for entries over 1 MiB
 )
 
+var packageLimits = archive.Limits{MaxBytes: MaxPackageBytes, MaxEntries: maxPackageEntries, MaxUnpacked: maxUnpackedBytes, MaxRatio: maxRatio}
+
 var docFiles = []string{"README.md", "LICENSE", "LICENSE.md", "LICENSE.txt", "CHANGELOG.md"}
 
 // PackageError is a reason to refuse an archive before scanning it.
-type PackageError struct {
-	Rule  string // scanner rule id, e.g. "package.zip-slip"
-	Entry string
-	Msg   string
-}
-
-func (e *PackageError) Error() string {
-	if e.Entry == "" {
-		return e.Msg
-	}
-	return fmt.Sprintf("%s: %s", e.Entry, e.Msg)
-}
+type PackageError = archive.Error
 
 func pkgErr(rule, entry, format string, args ...any) *PackageError {
-	return &PackageError{Rule: rule, Entry: entry, Msg: fmt.Sprintf(format, args...)}
+	return archive.Errf(rule, entry, format, args...)
 }
 
 // ExtractPackage safely unpacks a plugin archive into dest, which must be an
 // empty directory. Errors are *PackageError for refused archives.
 func ExtractPackage(r io.ReaderAt, size int64, dest string) error {
-	if size > MaxPackageBytes {
-		return pkgErr("package.too-large", "", "the archive is larger than %d MiB", MaxPackageBytes>>20)
-	}
-	zr, err := zip.NewReader(r, size)
+	z, err := archive.Open(r, size, "plugin.json", packageLimits)
 	if err != nil {
-		return pkgErr("package.invalid", "", "not a valid .zip archive: %v", err)
-	}
-	if len(zr.File) > maxPackageEntries {
-		return pkgErr("package.too-many-entries", "", "the archive has %d entries (at most %d)", len(zr.File), maxPackageEntries)
-	}
-
-	// Names are checked before anything is written.
-	type entry struct {
-		f    *zip.File
-		name string // cleaned, relative to the plugin root
-	}
-	var entries []entry
-	for _, f := range zr.File {
-		name := f.Name
-		if strings.HasPrefix(name, "__MACOSX/") || path.Base(name) == ".DS_Store" {
-			continue // macOS archive litter
-		}
-		if err := checkEntryName(name); err != nil {
-			return err
-		}
-		mode := f.Mode()
-		switch {
-		case mode&fs.ModeSymlink != 0:
-			return pkgErr("package.symlink", name, "symbolic links are not allowed")
-		case mode&(fs.ModeDevice|fs.ModeCharDevice|fs.ModeNamedPipe|fs.ModeSocket|fs.ModeIrregular) != 0:
-			return pkgErr("package.special-file", name, "special files are not allowed")
-		case mode&(fs.ModeSetuid|fs.ModeSetgid) != 0:
-			return pkgErr("package.special-file", name, "setuid and setgid files are not allowed")
-		}
-		entries = append(entries, entry{f: f, name: strings.TrimSuffix(name, "/")})
-	}
-
-	// Accept archives whose content sits inside a single top-level folder.
-	prefix := ""
-	hasRoot := slices.ContainsFunc(entries, func(e entry) bool { return e.name == "plugin.json" })
-	if !hasRoot && len(entries) > 0 {
-		top, _, _ := strings.Cut(entries[0].name, "/")
-		if slices.ContainsFunc(entries, func(e entry) bool { return e.name == top+"/plugin.json" }) &&
-			!slices.ContainsFunc(entries, func(e entry) bool { return e.name != top && !strings.HasPrefix(e.name, top+"/") }) {
-			prefix = top + "/"
-		}
-	}
-
-	var manifest *zip.File
-	for _, e := range entries {
-		if strings.TrimPrefix(e.name, prefix) == "plugin.json" {
-			manifest = e.f
-		}
-	}
-	if manifest == nil {
-		return pkgErr("package.no-manifest", "", "plugin.json is missing at the root of the archive")
+		return err
 	}
 	wasmName := "plugin.wasm"
-	if raw, err := readZipFile(manifest, 64<<10); err != nil {
+	if raw, err := z.ReadFile("plugin.json", 64<<10); err != nil {
 		return pkgErr("package.invalid", "plugin.json", "%v", err)
 	} else {
 		var m struct {
@@ -137,86 +75,15 @@ func ExtractPackage(r io.ReaderAt, size int64, dest string) error {
 			wasmName = m.Wasm
 		}
 	}
-
-	seen := map[string]bool{}
-	var declared uint64
-	hasWasm := false
-	for i := range entries {
-		e := &entries[i]
-		e.name = strings.TrimPrefix(e.name, prefix)
-		if e.f.FileInfo().IsDir() || e.name == "" || e.name+"/" == prefix {
-			continue
-		}
-		key := strings.ToLower(e.name)
-		if seen[key] {
-			return pkgErr("package.duplicate", e.name, "duplicate entry (names are compared without case)")
-		}
-		seen[key] = true
-		limit, err := entryLimit(e.name, wasmName)
-		if err != nil {
-			return err
-		}
-		if e.name == wasmName {
-			hasWasm = true
-		}
-		if e.f.Method != zip.Store && e.f.Method != zip.Deflate {
-			return pkgErr("package.invalid", e.name, "unsupported compression method %d", e.f.Method)
-		}
-		if e.f.UncompressedSize64 > uint64(limit) {
-			return pkgErr("package.too-large-file", e.name, "%d bytes; at most %d", e.f.UncompressedSize64, limit)
-		}
-		if declared += e.f.UncompressedSize64; declared > maxUnpackedBytes {
-			return pkgErr("package.zip-bomb", e.name, "the archive unpacks to more than %d MiB", maxUnpackedBytes>>20)
-		}
-		if e.f.UncompressedSize64 > 1<<20 && e.f.UncompressedSize64 > uint64(maxRatio)*max(e.f.CompressedSize64, 1) {
-			return pkgErr("package.zip-bomb", e.name, "compression ratio above %d:1", maxRatio)
-		}
+	allow := func(name string) (int64, error) { return entryLimit(name, wasmName) }
+	if err := z.Check(allow); err != nil {
+		return err
 	}
-	if !hasWasm {
+	if !z.Has(wasmName) {
 		return pkgErr("package.no-wasm", wasmName, "the WebAssembly module named in plugin.json is missing")
 	}
-
-	var written int64
-	for _, e := range entries {
-		if e.f.FileInfo().IsDir() || e.name == "" || !seen[strings.ToLower(e.name)] {
-			continue
-		}
-		limit, _ := entryLimit(e.name, wasmName)
-		n, err := extractEntry(e.f, dest, e.name, limit)
-		if err != nil {
-			return err
-		}
-		if written += n; written > maxUnpackedBytes {
-			return pkgErr("package.zip-bomb", e.name, "the archive unpacks to more than %d MiB", maxUnpackedBytes>>20)
-		}
-	}
-	return nil
-}
-
-func checkEntryName(name string) error {
-	switch {
-	case name == "" || len(name) > 300:
-		return pkgErr("package.bad-name", name, "invalid entry name")
-	case strings.HasPrefix(name, "/") || strings.Contains(name, "\\") || (len(name) > 1 && name[1] == ':'):
-		return pkgErr("package.zip-slip", name, "absolute paths are not allowed")
-	}
-	for _, r := range name {
-		if unicode.IsControl(r) || r == 0xfffd {
-			return pkgErr("package.bad-name", name, "control characters in the name")
-		}
-	}
-	segs := strings.Split(strings.TrimSuffix(name, "/"), "/")
-	for _, seg := range segs {
-		switch {
-		case seg == "..":
-			return pkgErr("package.zip-slip", name, `".." in the path`)
-		case seg == "" || seg == ".":
-			return pkgErr("package.bad-name", name, "empty path segment")
-		case strings.HasPrefix(seg, "."):
-			return pkgErr("package.hidden-file", name, "hidden files are not allowed")
-		}
-	}
-	return nil
+	_, err = z.Extract(dest, allow)
+	return err
 }
 
 // entryLimit enforces the file allowlist and returns the size cap.
@@ -235,52 +102,6 @@ func entryLimit(name, wasmName string) (int64, error) {
 		return maxAssetBytes, nil
 	}
 	return 0, pkgErr("package.disallowed-file", name, "not part of a plugin package (plugin.json, %s, assets/, README.md, LICENSE, CHANGELOG.md)", wasmName)
-}
-
-func readZipFile(f *zip.File, limit int64) ([]byte, error) {
-	rc, err := f.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	b, err := io.ReadAll(io.LimitReader(rc, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(b)) > limit {
-		return nil, fmt.Errorf("larger than %d bytes", limit)
-	}
-	return b, nil
-}
-
-func extractEntry(f *zip.File, dest, name string, limit int64) (int64, error) {
-	target := filepath.Join(dest, filepath.FromSlash(name))
-	if rel, err := filepath.Rel(dest, target); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return 0, pkgErr("package.zip-slip", name, "path escapes the plugin directory")
-	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
-		return 0, pkgErr("package.invalid", name, "%v", err)
-	}
-	rc, err := f.Open()
-	if err != nil {
-		return 0, pkgErr("package.invalid", name, "%v", err)
-	}
-	defer rc.Close()
-	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o640)
-	if err != nil {
-		return 0, pkgErr("package.invalid", name, "%v", err)
-	}
-	n, err := io.Copy(out, io.LimitReader(rc, limit+1))
-	if cerr := out.Close(); err == nil {
-		err = cerr
-	}
-	switch {
-	case n > limit:
-		return n, pkgErr("package.zip-bomb", name, "unpacks to more than its declared size")
-	case err != nil:
-		return n, pkgErr("package.invalid", name, "%v", err)
-	}
-	return n, nil
 }
 
 // --------------------------------------------------------------- install --
@@ -537,7 +358,7 @@ func Pack(dir string, w io.Writer) (*Manifest, error) {
 	zw := zip.NewWriter(w)
 	var total int64
 	for _, name := range names {
-		if err := checkEntryName(name); err != nil {
+		if err := archive.CheckName(name); err != nil {
 			return nil, err
 		}
 		limit, err := entryLimit(name, m.Wasm)

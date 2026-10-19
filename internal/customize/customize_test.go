@@ -2,6 +2,8 @@ package customize
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -183,6 +185,57 @@ func TestSanitizeCSS(t *testing.T) {
 		if _, err := SanitizeCSS(css); err == nil {
 			t.Errorf("accepted %q", css)
 		}
+	}
+}
+
+// TestCheckThemeCSS: the stylesheet of an uploaded theme follows the custom
+// CSS rules, with relative paths, data: images and footer-meta allowed.
+// Every built-in theme's compiled stylesheet passes.
+func TestCheckThemeCSS(t *testing.T) {
+	rules := CSSRules{RelativeURLs: true, DataImages: true, FooterMeta: true}
+	files, _ := filepath.Glob("../../ui/themes/*/static/theme.css")
+	if len(files) == 0 {
+		t.Fatal("no built-in stylesheets")
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckCSS(string(b), rules); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
+	}
+	for _, css := range []string{
+		`@font-face { font-family: X; src: url(fonts/x.woff2) format("woff2"); }`,
+		`.a { background: url("../img/a.png") }`,
+		`.a { filter: url(#noise) }`,
+		`.a { background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'></svg>") }`,
+		`.footer-meta { gap: 1rem }`,
+	} {
+		if err := CheckCSS(css, rules); err != nil {
+			t.Errorf("rejected %q: %v", css, err)
+		}
+	}
+	for _, css := range []string{
+		`@import url(theme2.css);`,
+		`.a { background: url(https://evil.example/x.png) }`,
+		`.a { background: url(//evil.example/x.png) }`,
+		`.a { background: url(javascript:alert(1)) }`,
+		`.a { background: url("data:text/html,<script>alert(1)</script>") }`,
+		`@font-face { src: url(data:font/woff2;base64,AAAA) }`,
+		`.a { background: image-set("x.png" 1x) }`,
+		`.a { behavior: url(x.htc) }`,
+		`.a { background: url(c:/x.png) }`,
+		"\xff",
+	} {
+		if err := CheckCSS(css, rules); err == nil {
+			t.Errorf("accepted %q", css)
+		}
+	}
+	// The custom CSS rules are unchanged.
+	if _, err := SanitizeCSS(`.a { background: url(fonts/x.woff2) }`); err == nil {
+		t.Error("custom CSS accepted a relative url()")
 	}
 }
 

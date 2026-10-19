@@ -144,7 +144,7 @@ func (p *Processor) Save(ctx context.Context, r io.Reader) (*Result, error) {
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	mime := sniff(head[:k]) // a shorter file is not padded with zeros
+	mime := Sniff(head[:k]) // a shorter file is not padded with zeros
 	ext, ok := Allowed[mime]
 	if !ok {
 		return nil, ErrUnsupported
@@ -231,7 +231,10 @@ func (p *Processor) store(tmp *os.File, mime, ext string, n int64, h hash.Hash) 
 	return res, nil
 }
 
-func sniff(head []byte) string {
+// Sniff detects the type of a file from its first bytes (at most 512 are
+// read), never from its name: http.DetectContentType, plus AVIF, without
+// parameters ("text/plain", not "text/plain; charset=utf-8").
+func Sniff(head []byte) string {
 	mime := http.DetectContentType(head)
 	if i := strings.IndexByte(mime, ';'); i >= 0 {
 		mime = mime[:i]
