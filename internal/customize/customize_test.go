@@ -159,8 +159,25 @@ func TestSanitizeCSS(t *testing.T) {
 		`.a { background: url("/	/evil.example") }`,
 		`.a { background: u\72l(https://evil.example/x.png) }`,
 		`.a { background: U\52L("http://evil.example") }`,
-		`.a { background: url(data:image/png;base64,AAAA) }`,
 		`.a { background: url(javascript:alert(1)) }`,
+		`.a { background: url("JavaScript:alert(1)") }`,
+		`.a { background: url(j\61vascript:alert(1)) }`,
+		`.a { content: "javascript:alert(1)" }`,
+		`.a { content: "\6a avascript:x" }`,
+		`.a { background: url(vbscript:msgbox(1)) }`,
+		`.a { background: url("data:text/html,<script>alert(1)</script>") }`,
+		`.a { background: url(data:image/svg+xml,javascript:alert(1)) }`,
+		`.a { background: url(c:/x.png) }`,
+		`</style><script>alert(1)</script>`,
+		`.a { content: "</STYLE><script>alert(1)</script>" }`,
+		`.a { content: "\3c/style>" }`,
+		`.a { color: red; behavior: url(x.htc) }`,
+		`.a { BEHAVIOR: url(x.htc) }`,
+		`.a { be\68 avior: url(x.htc) }`,
+		`.a { -MOZ-binding: url(x.xml) }`,
+		`.a { width: EXPRESSION(alert(1)) }`,
+		`.a { width: expr\65ssion(alert(1)) }`,
+		`@import "https://evil.example/x.css";`,
 		`.a { background: image-set("https://evil.example/x.png" 1x) }`,
 		`.a { background: -webkit-image-set(url(/a.png) 1x) }`,
 		`.a { background: image("https://evil.example/x.png") }`,
@@ -233,9 +250,27 @@ func TestCheckThemeCSS(t *testing.T) {
 			t.Errorf("accepted %q", css)
 		}
 	}
-	// The custom CSS rules are unchanged.
-	if _, err := SanitizeCSS(`.a { background: url(fonts/x.woff2) }`); err == nil {
-		t.Error("custom CSS accepted a relative url()")
+}
+
+// TestSanitizeCSSURLs: custom CSS may point to this site (a path, a path
+// relative to the stylesheet, a fragment) and use data: images.
+func TestSanitizeCSSURLs(t *testing.T) {
+	for _, css := range []string{
+		`.a { background: url(/uploads/2026/10/a.png) }`,
+		`.a { background: url(img/a.png) }`,
+		`.a { background: url("../a.png") }`,
+		`.a { filter: url(#noise) }`,
+		`.a { background: url(data:image/png;base64,AAAA) }`,
+		`.a { background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'></svg>") }`,
+		`html { scroll-behavior: smooth }`,
+		`.a { transition: opacity .2s } .b { scroll-behavior: auto; overscroll-behavior: contain }`,
+	} {
+		if _, err := SanitizeCSS(css); err != nil {
+			t.Errorf("rejected %q: %v", css, err)
+		}
+	}
+	if _, err := SanitizeCSS(strings.Repeat("a{}", MaxCSS/3)); err != nil {
+		t.Errorf("rejected %d bytes: %v", MaxCSS/3*3, err)
 	}
 }
 

@@ -2,6 +2,7 @@ package customize
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -13,8 +14,11 @@ import (
 // such as "@\69mport" or "u\72l(" are caught. Rules:
 //
 //   - only the at-rules in allowedAtRules (no @import, @charset, @namespace);
-//   - url() only for site paths ("/uploads/x.png"): no schemes, no
+//   - url() only for site paths ("/uploads/x.png"), paths relative to the
+//     stylesheet, fragments and data: images: no other schemes, no
 //     protocol-relative "//host", no backslashes or whitespace;
+//   - no javascript: or vbscript: and no "</style" anywhere, escaped or not
+//     (the stylesheet is never inlined, but it stays inert if it ever is);
 //   - no functions that fetch or build resources from strings (image(),
 //     image-set(), cross-fade(), element(), src()) and no expression();
 //   - no legacy script hooks (behavior, -moz-binding);
@@ -38,12 +42,25 @@ func SanitizeCSS(src string) (string, error) {
 	if strings.ContainsRune(src, 0) {
 		return "", fmt.Errorf("custom CSS contains a NUL byte")
 	}
-	t := &cssTokenizer{src: src, line: 1}
+	if m := scriptText.FindString(src); m != "" {
+		return "", fmt.Errorf("line %d: %s is not allowed", 1+strings.Count(src[:strings.Index(src, m)], "\n"), strings.ToLower(m))
+	}
+	t := &cssTokenizer{src: src, line: 1, rules: customRules}
 	if err := t.check(); err != nil {
 		return "", err
 	}
 	return src, nil
 }
+
+// customRules are the url() rules of the operator's custom CSS: a relative
+// path or a fragment has neither scheme nor host, so it stays on this site,
+// and a data: image never runs scripts when CSS draws it.
+var customRules = CSSRules{RelativeURLs: true, DataImages: true, scriptText: true}
+
+// scriptText is text that has no business in a stylesheet: script URLs and
+// the end of an inline <style> element. The tokenizer also checks decoded
+// strings and names for it, so escapes do not hide it.
+var scriptText = regexp.MustCompile(`(?i)javascript:|vbscript:|</style`)
 
 // CSSRules relax the rules of SanitizeCSS for a stylesheet that is not the
 // operator's custom CSS: the compiled stylesheet of an uploaded theme.
@@ -60,6 +77,9 @@ type CSSRules struct {
 	// credit line too (shared.css does). Hiding the credit still breaches
 	// the licence; the operator answers for that, as with custom CSS.
 	FooterMeta bool
+	// scriptText rejects javascript:, vbscript: and </style in decoded
+	// strings and names too (SanitizeCSS).
+	scriptText bool
 }
 
 // CheckCSS applies the rules of SanitizeCSS, relaxed by r, to a whole
@@ -303,6 +323,16 @@ func (t *cssTokenizer) checkName(n string) error {
 	if !t.rules.FooterMeta && strings.Contains(l, "footer-meta") {
 		return t.errf("the footer attribution (footer-meta) cannot be restyled")
 	}
+	return t.checkText(n)
+}
+
+// checkText applies scriptText to decoded text.
+func (t *cssTokenizer) checkText(s string) error {
+	if t.rules.scriptText {
+		if m := scriptText.FindString(s); m != "" {
+			return t.errf("%s is not allowed", strings.ToLower(m))
+		}
+	}
 	return nil
 }
 
@@ -337,6 +367,9 @@ func (t *cssTokenizer) check() error {
 			}
 			if !t.rules.FooterMeta && strings.Contains(strings.ToLower(s), "footer-meta") {
 				return t.errf("the footer attribution (footer-meta) cannot be restyled")
+			}
+			if err := t.checkText(s); err != nil {
+				return err
 			}
 		case c == '@':
 			t.next()
@@ -389,6 +422,9 @@ func (t *cssTokenizer) check() error {
 					}
 					u, err := t.unquotedURL()
 					if err != nil {
+						return err
+					}
+					if err := t.checkText(u); err != nil {
 						return err
 					}
 					if err := t.checkURL(u); err != nil {

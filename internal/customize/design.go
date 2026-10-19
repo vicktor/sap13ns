@@ -55,7 +55,7 @@ var (
 
 // Limits.
 const (
-	MaxCSS        = 32 << 10 // custom CSS bytes
+	MaxCSS        = 64 << 10 // custom CSS bytes
 	MaxFooterText = 500      // characters, per language
 	MaxPerPage    = 50
 	MaxFooterCols = 4
