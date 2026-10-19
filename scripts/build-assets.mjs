@@ -1,11 +1,15 @@
 // Build-time asset pipeline. Outputs are committed and embedded in the Go
 // binary, so production servers never need Node.js.
 //
-//   npm run build   -> icons, Basecoat JS, minified CSS for admin and every theme
-//   npm run watch   -> rebuild CSS on template changes
+//   npm run build   -> icons, Basecoat JS, the JavaScript bundles, minified CSS
+//                      for admin and every theme
+//   npm run watch   -> rebuild the bundles on script changes and the CSS on
+//                      template changes
 import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import * as esbuild from "esbuild";
+import { bundles, options } from "./js-bundles.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const watch = process.argv.includes("--watch");
@@ -37,7 +41,27 @@ function copyBasecoatJS() {
   console.log("basecoat js: copied");
 }
 
-// 3. Tailwind CSS: admin panel and one stylesheet per theme.
+// 3. JavaScript bundles (scripts/js-bundles.mjs): the vanilla scripts of each
+// context joined and minified by esbuild. Watch mode rebuilds a bundle when
+// one of its sources changes, with the same options, so the file it writes
+// is the one to commit.
+async function buildBundles() {
+  for (const b of bundles) {
+    if (watch) {
+      const ctx = await esbuild.context({
+        ...options(root, b),
+        plugins: [{ name: "log", setup(build) { build.onEnd((r) => { if (!r.errors.length) console.log(`js ${b.name}: rebuilt`); }); } }],
+      });
+      await ctx.watch();
+      continue;
+    }
+    await esbuild.build(options(root, b));
+    const size = readFileSync(join(root, b.out)).length;
+    console.log(`js ${b.name}: ${(size / 1024).toFixed(1)} KiB (${b.sources.length} files)`);
+  }
+}
+
+// 4. Tailwind CSS: admin panel and one stylesheet per theme.
 function cssTargets() {
   const targets = [
     { name: "admin", input: "ui/admin/src/admin.css", output: "ui/static/admin.css" },
@@ -59,9 +83,13 @@ const tailwind = join(root, "node_modules/.bin/tailwindcss");
 if (!process.argv.includes("--css-only")) {
   buildIcons();
   copyBasecoatJS();
+  await buildBundles();
 }
 
-if (process.argv.includes("--no-css")) process.exit(0);
+if (process.argv.includes("--no-css")) {
+  if (!watch) process.exit(0);
+  await new Promise(() => {}); // the bundles' watchers keep running
+}
 
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
 const targets = cssTargets().filter((t) => !only || t.name === only || t.name === `theme:${only}`);

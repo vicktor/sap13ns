@@ -81,8 +81,9 @@
 
   function start() {
     enhance(document);
-    // Content shown later (the editor's preview) gets buttons too.
-    if (window.MutationObserver) {
+    // Content shown later (the editor's preview) gets buttons too. A public
+    // page (site.min.js) without players has nothing to watch.
+    if (window.MutationObserver && document.querySelector("figure.sap-video, .sap-video-link, [data-editor-visual]")) {
       new MutationObserver(function (records) {
         for (var i = 0; i < records.length; i++) {
           for (var j = 0; j < records[i].addedNodes.length; j++) {

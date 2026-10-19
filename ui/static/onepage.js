@@ -1,5 +1,7 @@
-// sap13ns one-page sites: the menu follows the reader. Loaded by shared/head
-// on pages with sections to scroll to (PageData.OnePage). A menu link to a
+// sap13ns one-page sites: the menu follows the reader. Part of site.min.js
+// (scripts/js-bundles.mjs); it runs only on pages with sections to scroll
+// to (PageData.OnePage), whose bundle script tag shared/head marks with
+// data-sap-onepage. A menu link to a
 // section of this page (#features) gets aria-current="true" while that
 // section is in view, and --sap-scroll-offset keeps the sections clear of a
 // sticky header when a link scrolls to them (shared.css: .sap-anchor). The
@@ -7,6 +9,8 @@
 // asked for reduced motion (CSS). Vanilla, CSP-safe, no inline code.
 (() => {
   "use strict";
+  // document.currentScript is the bundle's tag while it runs (synchronously).
+  if (!document.currentScript?.hasAttribute("data-sap-onepage")) return;
   const root = document.documentElement;
 
   // ------------------------------------------------------- sticky header --
