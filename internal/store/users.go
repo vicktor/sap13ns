@@ -37,6 +37,9 @@ type User struct {
 	// Gravatar: avatar keys (media.AvatarFile), "" for none.
 	Avatar   string `db:"avatar"`
 	Gravatar string `db:"gravatar"`
+	// Language is the language of the admin panel the user chose; "" is
+	// the site's main language.
+	Language string `db:"ui_language"`
 }
 
 // SSOPasswordHash is the password hash of users created by single sign-on.
@@ -63,7 +66,7 @@ const userCols = `id, username, email, display_name, bio, website, role, status,
 	totp_secret, totp_enabled, totp_last_step, recovery_codes, failed_logins, locked_until,
 	created_at, updated_at, last_login_at,
 	(SELECT count(*)::int FROM passkeys k WHERE k.user_id = users.id) AS passkey_count,
-	network_account_id, network_operator, avatar, gravatar`
+	network_account_id, network_operator, avatar, gravatar, ui_language`
 
 func (s *Store) userBy(ctx context.Context, where string, arg any) (*User, error) {
 	rows, err := s.DB.Query(ctx, `SELECT `+userCols+` FROM users WHERE `+where, arg)
@@ -300,6 +303,13 @@ func (s *Store) UpdateUserProfile(ctx context.Context, id int64, p UserProfile) 
 	_, err := s.DB.Exec(ctx, `UPDATE users SET email = $2, display_name = $3, bio = $4, website = $5, updated_at = now(),
 		`+gravatarOnEmail+` WHERE id = $1`,
 		id, p.Email, p.DisplayName, p.Bio, p.Website)
+	return mapErr(err)
+}
+
+// SetUserLanguage records the admin language a user chose ("" follows the
+// site's main language).
+func (s *Store) SetUserLanguage(ctx context.Context, id int64, lang string) error {
+	_, err := s.DB.Exec(ctx, `UPDATE users SET ui_language = $2, updated_at = now() WHERE id = $1`, id, lang)
 	return mapErr(err)
 }
 
