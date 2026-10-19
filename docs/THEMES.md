@@ -19,11 +19,12 @@ This is the contract between sap13ns and its themes: the folder layout, the mani
 9. [Translations](#translations)
 10. [CSS and design tokens](#css-and-design-tokens)
 11. [Light and dark](#light-and-dark)
-12. [Content Security Policy](#content-security-policy)
-13. [Accessibility](#accessibility)
-14. [The customiser](#the-customiser)
-15. [The page builder](#the-page-builder)
-16. [Checklist](#checklist)
+12. [Videos and images in posts](#videos-and-images-in-posts)
+13. [Content Security Policy](#content-security-policy)
+14. [Accessibility](#accessibility)
+15. [The customiser](#the-customiser)
+16. [The page builder](#the-page-builder)
+17. [Checklist](#checklist)
 
 ## Folder layout
 
@@ -416,6 +417,7 @@ Each theme has one stylesheet, `static/theme.css`, compiled from `src/theme.css`
 
 - **Basecoat UI** gives the base styles, the `dark:` variant (`html.dark`) and the components that plugin output may use (alerts, badges, buttons, cards, `kbd`).
 - **`shared.css`** styles what the shared templates render (skip link, toggles, the language switch, prose, post lists, comments, the assistant, the page builder's blocks). Its rules are in `@layer components`, so the theme's own rules win.
+- **Videos and image layout** come from `shared/src/media.css`, which `shared.css` imports **outside** the layer: themes style `.prose img` and `.prose a` without a layer, and those rules must not reach into the video player. Its selectors pair an element with a class (`figure.sap-video`, `img.align-left`), so a theme's `.prose img` loses to them while the theme's own, more specific rules still win. See [Videos and images in posts](#videos-and-images-in-posts).
 - **The assistant's button** is fixed to a bottom corner. The site owner picks the corner and the height in **Settings → Site assistant**, and `shared/assistant` writes them as classes on its root: `sap-assistant-right` or `sap-assistant-left`, and `sap-assistant-offset-normal`, `-raised` or `-high`. Those classes set two custom properties, `--sap-fab-side` (the distance from the side) and `--sap-fab-bottom` (the distance from the bottom), which place both the button and the chat window. A theme with a fixed element in a bottom corner or along a side moves the button by setting them, not by restyling it. The Dashboard theme, whose sidebar is fixed on the left from 1024px, does this:
 
   ```css
@@ -478,6 +480,39 @@ Every theme must work in both modes.
 - **Define light values on `:root` and dark values on `.dark`.** Use Tailwind's `dark:` variant for anything else. `shared/head` already sets `<meta name="color-scheme" content="light dark">`.
 - **Check contrast in both modes.** Body text, muted text, links, buttons and focus rings must stay readable on every surface.
 
+## Videos and images in posts
+
+Post content can hold two things a theme should check in both modes and at phone width.
+
+**The video player.** A YouTube or Vimeo link alone on a line, or the `[video url=… start=… title=…]` shortcode, renders as a click-to-load player (the site setting **Settings → Videos** can turn it off). Without JavaScript it is a link to the video page; `video.js` makes it a button and, on a click, swaps in the provider's iframe.
+
+```html
+<figure class="sap-video sap-video-youtube" data-video-provider="youtube">        <!-- + sap-video-portrait for Shorts -->
+  <a class="sap-video-link" href="https://www.youtube.com/watch?v=…" data-video-src="…">  <!-- a <button> once video.js runs -->
+    <img class="sap-video-poster" src="/video-thumbs/yt-….jpg" alt="" width="1280" height="720"> <!-- when cached -->
+    <span class="sap-video-play" aria-hidden="true"></span>
+    <span class="sap-video-caption"><span class="sap-video-title">…</span><span class="sap-video-source">Watch on YouTube</span></span>
+  </a>
+</figure>
+<!-- playing: figure.is-playing > iframe.sap-video-frame -->
+```
+
+- The player is 16:9 (`sap-video-portrait`: 9:16, at most 22rem wide), fills the column, and stays dark in both modes, as the posters and the players are. The play button turns `--primary` on hover and focus, and the focus ring is `--ring`; most themes need nothing else.
+- Change it with selectors at least as specific as the shared ones, for example `.prose figure.sap-video { border-radius: 0; }`.
+- **Feeds** get a plain figure: the poster linked to the video, and the title.
+
+**Image size and alignment.** `![alt](src){width=480 align=left}` sets the image's `width` (and `height`, from the media library's original) and one class:
+
+| Class | Layout |
+| --- | --- |
+| `align-left`, `align-right` | Floats, at most 60% of the column, with the text around it |
+| `align-center` | A block, centred |
+| `align-full` | The column's whole width |
+
+- `.entry-content` (from `shared/content`) is a `flow-root`, so a floated image never hangs out of the post, and headings, rules, code, tables and videos start below a floated image.
+- **Below 640px** floats stop and the image takes the column's width.
+- A width without an alignment keeps the image inline. A theme that styles `.prose img` should keep `height: auto` and `max-width: 100%`, so that images with a `width` stay in proportion.
+
 ## Content Security Policy
 
 Public pages are served with a strict policy:
@@ -491,6 +526,7 @@ media-src 'self' https:; font-src 'self'; connect-src 'self'; frame-src 'none'; 
 - **No inline styles.** No `<style>` elements and no `style=""` attributes. Every look is a class in `theme.css`.
 - **No JavaScript of its own.** The core's `site.js` handles the colour toggle, the small-screen menu (it toggles `.is-open` on the element a `shared/nav-toggle` controls, and `nav-open` on `<html>`; Escape, a click outside, following a menu link or growing to the width where the toggle is hidden close it), the language switch and comment replies.
 - **No external fonts or stylesheets.** Fonts and styles are same-origin. Images and media may be external (`https:`).
+- **No frames,** except the video players of the core: a page that shows one also allows `https://www.youtube-nocookie.com` and `https://player.vimeo.com` in `frame-src`, and loads `video.js` (`shared/head` does it). Plugins can add their own sources.
 
 ## Accessibility
 
@@ -592,5 +628,6 @@ A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-are
 - [ ] `.BlocksHeader` and `.BlocksFooter` in the layout.
 - [ ] No inline script or style, no external fonts or stylesheets.
 - [ ] Light and dark checked at phone and desktop widths, with visible focus and reduced motion respected.
+- [ ] A post with a video and with images floated left and right looks right ([Videos and images in posts](#videos-and-images-in-posts)).
 - [ ] `static/theme.css` built and committed.
 - [ ] To upload it: zip the folder with only the files of [Uploading a theme](#uploading-a-theme) (no `node_modules`, scripts or SVG), and upload it to a test site first; the refusal lists every problem.

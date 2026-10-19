@@ -47,6 +47,8 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **Editor:** visual, Markdown and preview modes over the same Markdown source.
   - Pasting from Word, Google Docs, LibreOffice or a web page keeps headings, lists, tables, links, images and emphasis, and drops fonts, colours and stray markup.
   - Keyboard shortcuts and Markdown autoformatting, plus its own undo stack.
+  - **Videos:** a YouTube or Vimeo link alone on a line (or the **Video** button, or the `[video]` shortcode) becomes a responsive click-to-load player with its poster and title. Nothing loads from YouTube or Vimeo until the visitor presses play, and then from youtube-nocookie.com or Vimeo with do not track. No plugin needed.
+  - **Images:** drag a corner to resize an image (in tenths of the column, keeping its shape), and float it left or right with the text around it, centre it or make it full width: `![alt](src){width=480 align=left}` in Markdown.
   - Output is sanitised HTML (goldmark + bluemonday).
   - Autosave every few seconds, an edit lock with takeover so two people never overwrite each other, and conflict detection on save.
 - **Media library:** uploads are checked by content type, given image variants, and stored by hash so duplicates are detected. Uploaded files are served with a sandboxing CSP.

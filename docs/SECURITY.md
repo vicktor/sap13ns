@@ -58,6 +58,7 @@ On a network of sites, a site's administrators are trusted on their own site onl
 - **Response headers:**
   - a strict Content Security Policy: `script-src 'self'`, `style-src 'self'`, no inline scripts, styles or style attributes anywhere, `frame-ancestors 'none'`, `object-src 'none'`;
   - images and media may come from any `https:` address (`img-src 'self' data: https:`, `media-src 'self' https:`), so posts can embed external images. The other site learns that a page was viewed, by whom (IP address and browser) and, through `Referrer-Policy: strict-origin-when-cross-origin`, only from which site, not which page. Plugins can return external images too; the `csp` `img-src` permission adds nothing under this policy;
+  - `frame-src 'none'`, plus the sources that enabled plugins declared. **Video players** are the one exception of the core: only a page that shows a YouTube or Vimeo player (and the post editor with its preview) also allows `https://www.youtube-nocookie.com` and `https://player.vimeo.com`. The page cache stores each page's policy with its body, so a cached page keeps its own. Before the visitor presses play, the page requests nothing from YouTube or Vimeo; the player's URL must match one pattern (`content.PlayerURLPattern`) both in the sanitizer and in `static/video.js`, and its iframe is sandboxed (`allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox`, which the players need to play, go full screen and open the video's page);
   - also HSTS (over https), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and `Cross-Origin-Opener-Policy`.
 - **Redirects:** after sign-in, only local paths are accepted. They are parsed, and control characters and backslashes are rejected.
 - **Redirect rules** (Tools → Redirects, and imports) never take an address the site serves itself: the home page and the language roots, sign-in and the other account pages, the admin, `/sso`, `/api`, `/mcp`, feeds, sitemaps, `robots.txt`, `llms*.txt`, `/.well-known/`, static files, themes, uploads, `/healthz`, search and the assistant. Creating a rule never replaces an existing one.
@@ -67,6 +68,8 @@ On a network of sites, a site's administrators are trusted on their own site onl
 
 ### Content
 - Markdown is rendered with goldmark and sanitised with bluemonday. The same applies to plugin output, AI answers and imported WordPress content.
+  - **Videos:** iframes written by authors are removed. The sanitizer keeps only the player markup the core renders: `figure.sap-video`, a link to the video page whose `data-video-src` matches the player pattern, the poster from this site's cache, and fixed classes. Content filters never see a player (it is swapped for a token while they run), so a plugin cannot embed it twice or rewrite it.
+  - **Image layout:** `{width=… align=…}` becomes `width` and `height` attributes (whole numbers from 1 to 16384), a `srcset` made only of the media library's own `/uploads/` files, and one of the classes `align-left`, `align-right`, `align-center` or `align-full`. Never a `style` attribute, and no other class.
 - **Uploads:**
   - the content type is detected from the bytes and must match the file extension;
   - files are stored under random names and served with `Content-Security-Policy: sandbox` and `nosniff`;
@@ -110,6 +113,13 @@ Plugin HTTP calls, imported media, AI image downloads and WebSub pings go throug
 
 - loopback, private, link-local, CGNAT, multicast, cloud metadata, documentation, benchmarking and reserved addresses;
 - IPv6 ranges that embed or translate to IPv4 (IPv4-mapped and -compatible, NAT64, 6to4, Teredo), as well as site-local and unique-local addresses.
+
+**Video posters and titles** (**Settings → Videos**, "Player with a preview") are fetched by the server through the same guard, so that visitors' browsers do not have to contact the provider:
+
+- only YouTube's and Vimeo's oEmbed endpoints and their image hosts (`www.youtube.com`, `i.ytimg.com`, `vimeo.com`, `i.vimeocdn.com`, over https) are contacted, an allowlist checked again on every redirect (at most three);
+- oEmbed answers are capped at 256 KB and pictures at 4 MB. A picture must sniff as an image (`internal/media`), decode within 4096 pixels a side, and is re-encoded as a JPEG at most 1280 pixels wide: nothing the provider sent is served as it came, and posters are served from this site with `Content-Security-Policy: default-src 'none'; sandbox`;
+- the cache (`$SAP13NS_DATA_DIR/cache/video-thumbs`) holds at most 1000 videos and 64 MB, oldest out first. Entries are refreshed after 30 days and failures retried after an hour. At most two fetches run at once and 32 wait; the rest are dropped until the next view;
+- rendering never waits for a fetch, so a slow provider cannot slow a page down. "Player without a preview" never contacts the providers, and "Off" leaves video links as links.
 
 The AI API endpoint is chosen by an administrator and is not guarded. Plain `http://` is accepted only to this machine, with **Allow plain http:// to this machine** (for LM Studio and similar). With that option, image downloads may reach loopback too.
 

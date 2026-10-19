@@ -201,6 +201,7 @@ The payload objects below use these shapes:
   - The post's rendered body is cached (see [content.filter](#contentfilter)). Output that changes on its own, such as a list the plugin refreshes in the background, sets `max_age` in seconds (`pluginsdk.HTMLMaxAge`): the body is rendered again after that long. The host keeps it between 60 seconds and one day.
   - Shortcodes inside code blocks are not expanded.
   - If two enabled plugins declare the same shortcode, only one of them gets it. The scanner warns about it.
+  - `[video]` is the core's while **Settings → Videos** is on (the default): a plugin's `video` shortcode only runs when it is off.
 
 ### content.filter
 
@@ -210,6 +211,7 @@ The payload objects below use these shapes:
 - **Response:** `{"html": "…"}`
   - The output replaces the HTML and is sanitized again.
   - Form placeholders that were already in the input are kept. A filter can only add its own forms.
+- **The core's video players are not in the input.** With **Settings → Videos** on, the core renders a YouTube or Vimeo link alone on a line, and the `[video]` shortcode, as its own click-to-load player (or, in feeds, a linked poster), and swaps each one for a placeholder while the filters run. A filter can neither see nor change them, and a filter that embeds videos cannot embed them twice. It still gets everything the core leaves as a link: titled links (`[Keynote](https://youtu.be/…)`), links in lists, quotes or next to other text, other providers, and every video link when the setting is off.
 
 ### widget
 
@@ -559,6 +561,9 @@ The plugins the sap13ns team maintains (`plugins/` in the repository, MIT-licens
 - **Uninstalling** puts the plugin back in the list. Installing it again over kept data works as for any package (`manifest.retained-data`).
 - **Another plugin with the same id**, uploaded or copied by hand, is not replaced: the section leaves it out, and an install asks you to uninstall it first.
 - **How the bundle is made.** `make plugins` (which `make build` and the release workflow run first) builds every official plugin, packs it with the packer of `sap13ns plugin pack`, scans it, and writes `internal/plugin/bundled/packs/<id>.zip`, which the binary embeds. The packages are generated and ignored by git. A plain `go build` from a fresh clone embeds none, and the section does not show. In development mode (`SAP13NS_DEV=true`), a server run from a checkout reads that directory from disk, so `make plugins` shows without a rebuild.
+- **Videos in the core and in `embeds` and `youtube`.** The core embeds bare YouTube and Vimeo links itself (see [content.filter](#contentfilter)), so the two plugins work beside it without doing anything twice:
+  - **`embeds` (1.1.0)** turns into players what the core leaves as links: TikTok links, titled YouTube and Vimeo links, and every YouTube and Vimeo link when **Settings → Videos** is off. Its own settings (`youtube`, `vimeo`, `tiktok`) still decide what it embeds.
+  - **`youtube`** shows a channel's or playlist's gallery with `[youtube_videos]`, a shortcode of its own: the core's `[video]` and bare links do not touch it, and its players are its own markup, which the core leaves alone.
 - **Size.** The official modules are built with `-ldflags="-s -w"`, which only drops the WebAssembly `name` section (function names in trap traces): about 1.7% smaller. The eleven packages add about 18 MB to the binary.
 
 ## Networks of sites

@@ -19,6 +19,8 @@ links into click-to-load video players.
   as a card with a play icon, the title and "Watch on YouTube".
 - English and Spanish texts follow the post's language.
 
+> **With the core's video embeds** (sap13ns embeds bare YouTube and Vimeo links itself while **Settings → Videos** is on), this filter never sees those players and embeds what the core leaves as links: TikTok links, titled links, and every link when the setting is off ([PLUGINS.md](../../docs/PLUGINS.md#official-plugins)).
+
 ## What is embedded
 
 Only top-level paragraphs that contain nothing but one link to a video, or one
