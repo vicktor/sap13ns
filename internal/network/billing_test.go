@@ -870,6 +870,68 @@ func TestBillingGrace(t *testing.T) {
 	}
 }
 
+// TestBillingFailureNoticeOnce: Smart Retries send invoice.payment_failed
+// for every attempt that fails; the owner is e-mailed once per grace
+// period, at the first failure, whatever event started the grace.
+func TestBillingFailureNoticeOnce(t *testing.T) {
+	e, fs, box := newBillingEnv(t)
+	a := e.personal("alpha")
+	md := e.subscribe(fs, a, "pro:month", "sub_test0020", "price_pro_month")
+	mails := func() int { return strings.Count(box.String(), "Ha fallado el pago de alpha.sap13ns.site") }
+	// The processor applies events one after the other and sends the
+	// e-mails of one before the next: once a later event is done, the
+	// e-mails of the earlier ones are sent.
+	n := 0
+	settle := func() {
+		t.Helper()
+		n++
+		id := "evt_settle_" + strconv.Itoa(n)
+		e.mustHook(id, "customer.created", 999, `{"id":"cus_test0001","object":"customer"}`)
+		e.result(id)
+	}
+
+	// The subscription's update arrives first and starts the grace; the
+	// invoice's failure still tells the owner.
+	fs.set("sub_test0020", "past_due", "price_pro_month")
+	e.mustHook("evt_updated", "customer.subscription.updated", 20, subJSON("sub_test0020", "past_due", md))
+	e.result("evt_updated")
+	e.mustHook("evt_fail_1", "invoice.payment_failed", 21, invoiceJSON("in_1", "sub_test0020", md))
+	e.result("evt_fail_1")
+	settle()
+	one := mails()
+	if one == 0 {
+		t.Fatalf("no e-mail for the first failure:\n%s", box.String())
+	}
+	// Three retries fail: no more e-mails.
+	for i := range 3 {
+		e.clock.add(24 * time.Hour)
+		id := "evt_retry_" + strconv.Itoa(i)
+		e.mustHook(id, "invoice.payment_failed", 22+i, invoiceJSON("in_1", "sub_test0020", md))
+		if res := e.result(id); res != resultApplied {
+			t.Fatalf("retry %d: %s", i, res)
+		}
+	}
+	settle()
+	if got := mails(); got != one {
+		t.Fatalf("%d e-mails after the retries, want %d", got, one)
+	}
+
+	// Paid, then a later renewal fails: another grace, another e-mail.
+	fs.set("sub_test0020", "active", "price_pro_month")
+	e.mustHook("evt_paid", "invoice.paid", 30, invoiceJSON("in_1", "sub_test0020", md))
+	e.result("evt_paid")
+	e.clock.add(30 * 24 * time.Hour)
+	fs.set("sub_test0020", "past_due", "price_pro_month")
+	e.mustHook("evt_fail_2", "invoice.payment_failed", 40, invoiceJSON("in_2", "sub_test0020", md))
+	e.result("evt_fail_2")
+	e.mustHook("evt_fail_2b", "invoice.payment_failed", 41, invoiceJSON("in_2", "sub_test0020", md))
+	e.result("evt_fail_2b")
+	settle()
+	if got := mails(); got != 2*one {
+		t.Fatalf("%d e-mails after the second grace, want %d", got, 2*one)
+	}
+}
+
 // TestBillingCanceledEarly: a subscription canceled at once (from the
 // Stripe Dashboard) keeps its site served until the end of the period it
 // paid for, and the host table holds it once that end passes; one that

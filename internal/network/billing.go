@@ -859,6 +859,16 @@ func (a *applyRun) invoice(e *billing.Event) (string, error) {
 	if err != nil || e.Type != billing.EventInvoicePaymentFailed || a.state != string(billing.StateGrace) {
 		return result, err
 	}
+	// Once per grace period: Smart Retries send this event again for
+	// every attempt that fails.
+	var first bool
+	err = a.tx.QueryRow(a.ctx, `UPDATE subscriptions SET failure_noticed_for = grace_since
+		WHERE id = $1 AND grace_since IS NOT NULL AND failure_noticed_for IS DISTINCT FROM grace_since RETURNING true`, row.ID).Scan(&first)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return result, nil
+	} else if err != nil {
+		return "", err
+	}
 	// The owner is told, with a link to the portal's "My sites", where
 	// "Manage billing" opens a fresh Customer Portal session.
 	rows, err := a.tx.Query(a.ctx, `SELECT s.id, s.slug, coalesce((SELECT d.host FROM domains d WHERE d.site_id = s.id AND d.is_primary), '')
