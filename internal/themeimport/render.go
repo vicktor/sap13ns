@@ -74,6 +74,9 @@ var droppedBlocks = map[string]bool{
 }
 
 func (e *emitter) block(b *Block) string {
+	if !e.c.spend(1, 0) {
+		return "" // past the conversion's budget: writeTemplates fails
+	}
 	if b.BadJSON {
 		e.note("block.bad-json", b.Name)
 	}
@@ -210,6 +213,15 @@ func hasHTML(b *Block) bool {
 func (e *emitter) static(b *Block, first []string, extra map[string][]string) (string, *fragment) {
 	var src strings.Builder
 	holes := make([]string, len(b.Inner))
+	own := 0
+	for _, p := range b.Parts {
+		if p.Block < 0 {
+			own += len(p.HTML)
+		}
+	}
+	if !e.c.spend(0, own) {
+		return "", &fragment{}
+	}
 	for _, p := range b.Parts {
 		if p.Block >= 0 {
 			holes[p.Block] = e.block(b.Inner[p.Block])

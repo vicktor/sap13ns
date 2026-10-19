@@ -148,7 +148,42 @@ type converter struct {
 	lightTokens, darkTokens map[string]string
 	lightPalette            palette
 	variationTokens         map[string][2]map[string]string // slug -> light, dark
+
+	spent budget
 }
+
+// budget is the work of the whole conversion: the blocks written or
+// flattened and the bytes of their own HTML, across every template, part
+// and pattern. The stack of patterns stops cycles and deep nesting, but
+// patterns that each include several others multiply within it; the
+// budget bounds the total, and a conversion that passes it fails.
+type budget struct {
+	blocks int
+	bytes  int
+	over   bool
+}
+
+const (
+	maxEmitBlocks = maxBlocks
+	maxEmitBytes  = 8 * maxTmplOut
+)
+
+// spend counts blocks and bytes of HTML, and reports whether the
+// conversion is still within its budget.
+func (c *converter) spend(blocks, bytes int) bool {
+	if c.spent.over {
+		return false
+	}
+	c.spent.blocks += blocks
+	c.spent.bytes += bytes
+	if c.spent.blocks > maxEmitBlocks || c.spent.bytes > maxEmitBytes {
+		c.spent.over = true
+	}
+	return !c.spent.over
+}
+
+var errBudget = fmt.Errorf("the theme's templates, parts and patterns expand to more than %d blocks or %d KiB of markup; it cannot be converted",
+	maxEmitBlocks, maxEmitBytes>>10)
 
 // Convert converts a WordPress block theme archive.
 func Convert(r io.ReaderAt, size int64, opt Options) (*Result, error) {
@@ -840,8 +875,14 @@ func (c *converter) writeTemplates() error {
 		}
 		return b.String()
 	}
+	if c.spent.over {
+		return errBudget
+	}
 	header := chain(func(p *pageTemplate) string { return p.headerKey }, defH, func(p *pageTemplate) []*Block { return p.header }, "header")
 	footer := chain(func(p *pageTemplate) string { return p.footerKey }, defF, func(p *pageTemplate) []*Block { return p.footer }, "footer")
+	if c.spent.over {
+		return errBudget
+	}
 	styleClass := ""
 	if len(c.theme.variations) > 0 {
 		styleClass = ` wp-style-{{index .Site.Options "style"}}`
@@ -879,6 +920,9 @@ func (c *converter) writeTemplates() error {
 			e.post = "page"
 		}
 		body := e.blocks(p.body)
+		if c.spent.over {
+			return errBudget
+		}
 		if p.page == "front" && blank(body) {
 			// Its blocks were all left out (patterns registered from PHP):
 			// the home page's template shows the front page instead.
@@ -930,6 +974,9 @@ func (c *converter) flatten(bs []*Block, depth int, seen []string) []*Block {
 			slug := attrString(b.Attrs, "slug")
 			if p := c.patterns[slug]; p != nil && !slices.Contains(seen, slug) {
 				if inner, err := c.parsed("pattern:"+slug, p.Markup); err == nil {
+					if !c.spend(len(inner), 0) {
+						return out
+					}
 					out = append(out, c.flatten(inner, depth+1, append(slices.Clone(seen), slug))...)
 					continue
 				}

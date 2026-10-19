@@ -241,6 +241,7 @@ func cssFontFamily(s string) string {
 // its selector cannot close that rule and write others.
 func balanced(s string) bool {
 	var stack []byte
+	braces := 0
 	for i := 0; i < len(s); i++ {
 		switch c := s[i]; c {
 		case '"', '\'':
@@ -257,7 +258,18 @@ func balanced(s string) bool {
 			i = j
 		case '{', '(', '[':
 			stack = append(stack, c)
+			if c == '{' {
+				if braces++; braces > maxCSSNest {
+					return false
+				}
+			}
+			if len(stack) > 4*maxCSSNest {
+				return false
+			}
 		case '}', ')', ']':
+			if c == '}' {
+				braces--
+			}
 			want := map[byte]byte{'}': '{', ')': '(', ']': '['}[c]
 			if len(stack) == 0 || stack[len(stack)-1] != want {
 				return false
@@ -266,6 +278,31 @@ func balanced(s string) bool {
 		}
 	}
 	return len(stack) == 0
+}
+
+// cssDepth is how deep the blocks of a CSS text nest, outside strings.
+func cssDepth(s string) int {
+	depth, most := 0, 0
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '\'':
+			j := i + 1
+			for j < len(s) && s[j] != c && s[j] != '\n' {
+				if s[j] == '\\' {
+					j++
+				}
+				j++
+			}
+			i = j
+		case '{':
+			if depth++; depth > most {
+				most = depth
+			}
+		case '}':
+			depth--
+		}
+	}
+	return most
 }
 
 // styleDecls converts a theme.json style object (or a block's "style"
@@ -413,7 +450,7 @@ func cleanCSS(src string, resolve func(string) (string, bool)) (string, int) {
 		// is left out, and so is anything that reads as the end of an HTML
 		// element, whatever the stylesheet ends up inside.
 		complete := strings.HasSuffix(st, "}") || st[0] == '@' && strings.HasSuffix(st, ";")
-		if !complete || strings.Contains(st, "</") || strings.Contains(st, "<!") ||
+		if !complete || cssDepth(st) > maxCSSNest || strings.Contains(st, "</") || strings.Contains(st, "<!") ||
 			strings.HasPrefix(lower, "@import") || strings.HasPrefix(lower, "@charset") || strings.HasPrefix(lower, "@namespace") ||
 			strings.Contains(lower, "footer-meta") {
 			dropped++
@@ -551,6 +588,19 @@ func isNameByte(c byte) bool {
 // whose own colours are dark). Rules inside @media and @supports are
 // followed; others are left.
 func modeRules(css string, f func(rgba) rgba, dark bool) string {
+	return modeRulesIn(css, f, dark, 0)
+}
+
+// maxCSSNest is how deep blocks may nest in a stylesheet of the theme (a
+// rule in @media in @supports in @layer, and a little more): cleanCSS
+// drops a deeper statement, balanced refuses a deeper text, and modeRules
+// stops there.
+const maxCSSNest = 6
+
+func modeRulesIn(css string, f func(rgba) rgba, dark bool, depth int) string {
+	if depth >= maxCSSNest {
+		return ""
+	}
 	var out strings.Builder
 	for _, st := range cssStatements(css) {
 		st = strings.TrimSpace(st)
@@ -563,7 +613,7 @@ func modeRules(css string, f func(rgba) rgba, dark bool) string {
 		lower := strings.ToLower(head)
 		switch {
 		case strings.HasPrefix(lower, "@media"), strings.HasPrefix(lower, "@supports"), strings.HasPrefix(lower, "@layer"):
-			if inner := modeRules(body, f, dark); inner != "" {
+			if inner := modeRulesIn(body, f, dark, depth+1); inner != "" {
 				out.WriteString(head + "{" + inner + "}\n")
 			}
 		case strings.HasPrefix(lower, "@"), strings.Contains(lower, ".dark"):

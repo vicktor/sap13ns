@@ -101,6 +101,9 @@ const (
 	maxPHPDepth   = 32
 	maxPHPOutput  = 64 << 10
 	maxPatternOut = 512 << 10
+	// maxPHPSegments is how many <?php … ?> segments one pattern may have
+	// (the official themes' largest has a few dozen).
+	maxPHPSegments = 1000
 )
 
 // parsePattern reads a pattern's header and evaluates its PHP.
@@ -114,6 +117,10 @@ func parsePattern(file, src string) *pattern {
 	var out strings.Builder
 	vars := map[string]string{}
 	pos := 0
+	// The line of each segment, for the report, is counted from the last
+	// one: counting from the start every time would be quadratic.
+	line, counted := 1, 0
+	segments := 0
 	for pos < len(src) {
 		i := strings.Index(src[pos:], "<?")
 		if i < 0 {
@@ -122,6 +129,14 @@ func parsePattern(file, src string) *pattern {
 		}
 		out.WriteString(src[pos : pos+i])
 		start := pos + i
+		line += strings.Count(src[counted:start], "\n")
+		counted = start
+		if segments++; segments > maxPHPSegments {
+			// Past the bound, the rest of the pattern is left out: its
+			// text could hold more PHP that was not read.
+			p.Skipped = append(p.Skipped, line)
+			break
+		}
 		code := start + 2
 		switch {
 		case strings.HasPrefix(src[code:], "php"):
@@ -131,7 +146,6 @@ func parsePattern(file, src string) *pattern {
 		}
 		end, next := phpSegmentEnd(src, code)
 		seg := src[code:end]
-		line := strings.Count(src[:start], "\n") + 1
 		if p.Slug == "" && p.Title == "" {
 			p.readHeader(seg)
 		}
