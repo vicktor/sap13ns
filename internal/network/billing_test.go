@@ -825,8 +825,12 @@ func TestBillingGrace(t *testing.T) {
 	if err := st.SaveSettings(e.ctx, set); err != nil {
 		t.Fatal(err)
 	}
+	// Stale, they are served once more while they are read again.
 	e.clock.add(siteLangsTTL)
 	e.refresh()
+	waitFor(t, "the languages read again", func() bool {
+		return strings.Contains(e.do("GET", "https://"+a.PrimaryHost+"/").Body.String(), "This site is paused")
+	})
 	for accept, want := range map[string]string{"": "This site is paused", "fr-FR,fr;q=0.9": "This site is paused",
 		"es-ES,es;q=0.9": "Este sitio está en pausa", "de,es;q=0.5": "Este sitio está en pausa"} {
 		rec := e.do("GET", "https://"+a.PrimaryHost+"/blog/x", func(r *http.Request) { r.Header.Set("Accept-Language", accept) })
