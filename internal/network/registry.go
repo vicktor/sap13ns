@@ -20,6 +20,13 @@ package network
 //     running server. A site that is no longer served (suspended, deleted)
 //     is unloaded at once, after its requests in flight; a site whose hosts
 //     changed is reloaded when idle.
+//   - A suspended site is served only during an emergency access, and then
+//     inert (siteapp.Params.Inert): none of its plugins loads and none of
+//     its background loops runs. An instance of the wrong kind never stays
+//     loaded: a site suspended while loaded is unloaded, one resumed while
+//     inert is unloaded too, and the next request loads the right one. So
+//     is an inert one when the emergency ends, or within a minute (the
+//     next reload of the host table) of its expiry.
 //   - The work that must reach unloaded sites (scheduled posts, the plugin
 //     cron, daily maintenance and storage accounting) is in sweeps.go.
 
@@ -136,6 +143,7 @@ type entry struct {
 	inflight int
 	closing  bool
 	stale    bool // its hosts changed: reload when idle
+	inert    bool // a suspended site opened for an emergency access (siteRoute.inert)
 }
 
 // NewRegistry prepares the registry of a network. Start loads the host
@@ -330,8 +338,21 @@ func (r *Registry) acquireFor(ctx context.Context, rt *siteRoute, wait time.Dura
 				return nil, ctx.Err()
 			}
 		}
+		if e != nil && e.app != nil && e.inert != rt.inert() {
+			// Loaded as the other kind: the site was suspended or resumed
+			// and reconcile has not caught up yet. Close it and load the
+			// right one.
+			e.closing = true
+			r.wg.Add(1)
+			go func() {
+				defer r.wg.Done()
+				r.unload(r.ctx, e)
+			}()
+			r.mu.Unlock()
+			continue
+		}
 		if e == nil {
-			e = &entry{id: rt.ID, kind: rt.Kind, key: rt.key(), ready: make(chan struct{}), closed: make(chan struct{})}
+			e = &entry{id: rt.ID, kind: rt.Kind, key: rt.key(), inert: rt.inert(), ready: make(chan struct{}), closed: make(chan struct{})}
 			r.entries[rt.ID] = e
 			r.wg.Add(1)
 			go r.load(e, rt)
@@ -358,6 +379,10 @@ func (r *Registry) acquireFor(ctx context.Context, rt *siteRoute, wait time.Dura
 		if e.err != nil {
 			r.releaseFor(e, touch)
 			return nil, e.err
+		}
+		if e.inert != rt.inert() {
+			r.releaseFor(e, touch)
+			continue // loaded as the other kind: closed above
 		}
 		return e, nil
 	}
@@ -407,8 +432,15 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	if err != nil {
 		return nil, err
 	}
-	if s.Status != StatusActive && s.Status != StatusPending && !(s.Status == StatusSuspended && rt.Emergency) {
-		return nil, errNotServed
+	inert := rt.inert()
+	switch {
+	case s.Status == StatusActive || s.Status == StatusPending:
+		// Served. Just resumed while the table still says suspended, it
+		// opens inert all the same and reconcile replaces it.
+	case s.Status == StatusSuspended && inert && rt.Emergency:
+		// An emergency access: inert, so none of the tenant's code runs.
+	default:
+		return nil, errNotServed // suspended since the table was read
 	}
 	secret, err := r.net.SiteSecret(s)
 	if err != nil {
@@ -437,6 +469,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 		Plugins:    siteapp.PluginLimits{Cache: r.cache, MemoryLimitPages: pluginPages, MaxInstances: pluginInstances, Limit: r.limit},
 		// The registry runs the cron and maintenance of every site.
 		Background: web.BackgroundOptions{},
+		Inert:      inert,
 	}
 	if s.Kind == KindNetwork {
 		p.Updates = r.o.Updates
@@ -447,13 +480,15 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	if err != nil {
 		return nil, err
 	}
-	if wants := app.Plugins().WantsCron(); wants != s.WantsCron {
+	// An inert site loads no plugin, so it cannot tell whether its
+	// plugins want the cron: what was recorded stays for its resumption.
+	if wants := app.Plugins().WantsCron(); !inert && wants != s.WantsCron {
 		if err := r.net.SetWantsCron(ctx, s.ID, wants); err != nil {
 			r.log.Error("record the cron of a site", "site", s.ID, "err", err)
 		}
 	}
 	r.opened.Add(1)
-	r.log.Info("site loaded", "site", s.ID, "slug", s.Slug)
+	r.log.Info("site loaded", "site", s.ID, "slug", s.Slug, "inert", inert)
 	return app, nil
 }
 
@@ -469,8 +504,10 @@ func (r *Registry) unload(ctx context.Context, e *entry) {
 	if err := e.app.Close(cctx); err != nil {
 		r.log.Error("close site", "site", e.id, "err", err)
 	}
-	if err := r.net.SetWantsCron(cctx, e.id, wants); err != nil {
-		r.log.Error("record the cron of a site", "site", e.id, "err", err)
+	if !e.app.Inert() { // see open
+		if err := r.net.SetWantsCron(cctx, e.id, wants); err != nil {
+			r.log.Error("record the cron of a site", "site", e.id, "err", err)
+		}
 	}
 	if err := r.recordNextAnnounce(cctx, e); err != nil {
 		r.log.Error("record the next scheduled post of a site", "site", e.id, "err", err)
@@ -559,8 +596,9 @@ func (r *Registry) Refresh(ctx context.Context) error {
 }
 
 // reconcile applies a host table to the loaded sites. A site no longer
-// routed, or suspended without a live emergency access, is unloaded at
-// once (after its requests in flight).
+// routed, suspended without a live emergency access, or loaded as the
+// other kind (normal although suspended, inert although resumed) is
+// unloaded at once, after its requests in flight.
 func (r *Registry) reconcile(t *hostTable) {
 	r.mu.Lock()
 	if r.closed {
@@ -574,7 +612,7 @@ func (r *Registry) reconcile(t *hostTable) {
 		}
 		rt := t.sites[id]
 		switch {
-		case rt == nil || rt.Status == StatusSuspended && !rt.Emergency:
+		case rt == nil || rt.Status == StatusSuspended && !rt.Emergency || rt.inert() != e.inert:
 			e.closing = true
 			gone = append(gone, e)
 		case rt.key() != e.key:

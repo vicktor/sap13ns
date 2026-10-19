@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/netip"
@@ -128,6 +130,54 @@ func TestApprovalPinsHash(t *testing.T) {
 	}
 	if h.HasShortcode("callout") {
 		t.Fatal("tampered plugin still active")
+	}
+}
+
+// TestInertHost: an inert host over an enabled plugin loads nothing and
+// refuses what would start a module.
+func TestInertHost(t *testing.T) {
+	st := testutil.Store(t)
+	dir := t.TempDir()
+	installPlugin(t, dir, "./internal/plugin/testdata/callout", "callout")
+	ctx := context.Background()
+	h := newTestHost(t, st, dir)
+	if err := h.Approve(ctx, "callout", "", adminUser(t, st)); err != nil || !h.HasShortcode("callout") || h.Inert() {
+		t.Fatalf("the normal host: %v", err)
+	}
+
+	in, err := NewHostWithOptions(ctx, HostOptions{Dir: dir, Store: st, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Site: func() SiteInfo { return SiteInfo{URL: "https://example.test"} }, Links: testLinks{}, Inert: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close(ctx)
+	if err := in.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !in.Inert() || len(in.List()) != 0 || in.Get("callout") != nil || in.HasShortcode("callout") || in.Generation() != 0 {
+		t.Fatal("the inert host loaded the plugin")
+	}
+	if _, err := in.Shortcode(ctx, "callout", nil, "x", nil); err == nil {
+		t.Fatal("the inert host rendered a shortcode")
+	}
+	if html := in.FilterContent(ctx, "<p>x</p>", nil, "single", func(s string) string { return s }); html != "<p>x</p>" {
+		t.Fatalf("the inert host filtered content: %s", html)
+	}
+	if err := in.Approve(ctx, "callout", "", 1); !errors.Is(err, ErrInert) {
+		t.Fatalf("approve: %v", err)
+	}
+	if _, err := in.Rescan(ctx, "callout"); !errors.Is(err, ErrInert) {
+		t.Fatalf("rescan: %v", err)
+	}
+	if _, err := in.Install(ctx, bytes.NewReader(nil), 0, InstallOptions{}); !errors.Is(err, ErrInert) {
+		t.Fatalf("install: %v", err)
+	}
+	if _, err := in.instantiate(h.Get("callout")); !errors.Is(err, ErrInert) {
+		t.Fatalf("instantiate: %v", err)
+	}
+	var none *Host
+	if none.Inert() {
+		t.Fatal("a nil host is inert")
 	}
 }
 

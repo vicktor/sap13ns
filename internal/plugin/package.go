@@ -144,6 +144,9 @@ var (
 // settings and stored data; if the module, assets or permissions changed,
 // the plugin shows as modified and must be enabled again.
 func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts InstallOptions) (*InstallResult, error) {
+	if h.inert {
+		return nil, ErrInert // its scan starts the module
+	}
 	h.installMu.Lock()
 	defer h.installMu.Unlock()
 	sum := sha256.New()
@@ -471,6 +474,9 @@ func (h *Host) Uninstall(ctx context.Context, id string, deleteData bool) error 
 
 // Rescan scans an installed plugin again and stores the report.
 func (h *Host) Rescan(ctx context.Context, id string) (*Report, error) {
+	if h.inert {
+		return nil, ErrInert
+	}
 	p := h.Get(id)
 	if p == nil {
 		return nil, errors.New("unknown plugin")

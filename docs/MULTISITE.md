@@ -185,7 +185,7 @@ Without the owner's consent, a network administrator may open a site only for a 
 - a justification of up to 500 characters;
 - a fresh second factor: a sign-in to the portal less than 10 minutes old (the window of the profile's sensitive actions), or a code from their authenticator app. A password alone does not do.
 
-The access is theirs alone, and it lasts **4 hours** at most. It can be ended earlier from the same card, and its sessions then end at once. When it expires, its sessions end as with an expired grant. The owner is e-mailed at once with the reason, the justification, who opened it and until when, and again if it is ended early. It does not open the site to any other network administrator.
+The access is theirs alone, and it lasts **4 hours** at most. It can be ended earlier from the same card, and its sessions then end at once. When it expires, its sessions end as with an expired grant. The owner is e-mailed at once with the reason, the justification, who opened it and until when, and again if it is ended early. If that e-mail cannot be sent, the access opens all the same: the administrator is told to contact the owner by other means, and `network.emergency_started` records `owner_notified: false`. It does not open the site to any other network administrator.
 
 An emergency session has its own authentication method, `sso-emergency`, so the site tells it apart from a consented operator's (`sso-operator`). Its records are:
 
@@ -195,6 +195,13 @@ An emergency session has its own authentication method, `sso-emergency`, so the 
 The site's **Users** page shows the open emergency accesses, and **My sites → Support access** lists the past ones.
 
 **On a suspended site.** While an emergency access is live, the router serves the suspended site to its session, and to the single sign-on that opens it, and nothing else. Visitors, members and other sessions still get the 503 page.
+
+The site is opened **inert** for it, so none of the tenant's code runs:
+
+- none of its plugins loads, so no hook, filter, shortcode, widget, form, plugin asset or outbound fetch of theirs runs, and none can be uploaded, installed from the catalogue or switched on. Its **Plugins** page says they are not loaded;
+- none of its background jobs runs: the scheduled-post announcements, the plugin cron, the analytics and redirect flushes, the assistant index and maintenance. What a request records in memory is written when the instance closes.
+
+The inert instance is unloaded when the emergency access ends, within a minute of its expiry, and when the site is resumed; the next request then loads the site as usual, with its plugins. The other way round, a site that is suspended while loaded is unloaded at once, even while an emergency access is live, and only an inert instance serves it from then on.
 
 **Passkeys.** Network passkeys belong to the portal host. A site's passkeys belong to its default host, the RP ID fixed when the site was created, and they keep working when the primary domain changes (see [Custom domains](#custom-domains)). The network's base domain is never an RP ID.
 
@@ -366,6 +373,6 @@ So a site's exports take at most one finished file and one being written, each n
   - the page and content caches, which fill up again.
 - **Thrashing.** When more sites are busy than `SAP13NS_MAX_LOADED_SITES`, sites keep loading and unloading each other. Raise the limit and the memory limit together.
 - **Members.** Only network administrators manage the members of a site.
-- **Background jobs during an emergency.** A suspended site served for an emergency access runs no cron, scheduled posts or announcements: the network's sweeps only visit active sites.
+- **Emergency access on a suspended site.** The site is inert meanwhile (see [Emergency access](#emergency-access)): its admin shows its plugins as not loaded, and what the plugins would do (a contact form, a widget, a cron job) does not happen. The network's sweeps only visit active sites, so its scheduled-post announcements wait until it is resumed.
 - **Plans.** A site's plan changes only through billing, or when it is created from the command line. The plans themselves are edited in the database.
 - **Backups:** see [Backups](#backups).

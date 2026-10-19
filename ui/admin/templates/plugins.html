@@ -9,6 +9,14 @@
   </div>
 </div>
 
+{{if $d.Inert}}
+<div class="alert" data-variant="warning" role="status" id="inert">
+  {{icon "triangle-alert"}}
+  <h2>{{T "Plugins are not loaded"}}</h2>
+  <section><p>{{T "This site is suspended and open only for an emergency access, so none of its plugins runs, and none can be installed or switched on. They load again when the site is resumed."}}</p></section>
+</div>
+{{end}}
+
 {{with $d.Refused}}
 <div class="alert" data-variant="destructive" role="alert" id="refused">
   {{icon "octagon-alert"}}

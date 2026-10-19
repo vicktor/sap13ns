@@ -180,7 +180,7 @@ func (s *Server) adminNetEmergencyStart(w http.ResponseWriter, r *http.Request) 
 		"category": e.Category, "justification": e.Justification, "until": e.ExpiresAt.UTC().Format(time.RFC3339),
 		"owner_notified": strconv.FormatBool(notified)})
 	if !notified {
-		s.redirect(w, r, netSitePath(site.ID, "emergency"), "warning", s.t("Your emergency access to %s is open until %s. Its owner could not be told by e-mail: tell them another way.", site.Slug, until))
+		s.redirect(w, r, netSitePath(site.ID, "emergency"), "warning", s.t("Your emergency access to %s is open until %s, but its owner could not be e-mailed. Contact the owner by other means and tell them why you opened their site.", site.Slug, until))
 		return
 	}
 	s.redirect(w, r, netSitePath(site.ID, "emergency"), "success", s.t("Your emergency access to %s is open until %s. Its owner was told by e-mail.", site.Slug, until))

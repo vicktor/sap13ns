@@ -54,12 +54,16 @@ type pluginsData struct {
 	Uploads bool
 	Plan    string
 	Catalog []CatalogPlugin
+	// Inert: a suspended site opened for an emergency access, whose
+	// plugins do not load (plugin.HostOptions.Inert).
+	Inert bool
 }
 
 // pluginsPage is the list of plugins, with the upload form and, on a site
 // of a network, the catalogue.
 func (s *Server) pluginsPage(r *http.Request) (pluginsData, error) {
-	d := pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Uploads: true}
+	d := pluginsData{Plugins: s.pluginsList(), Dir: s.cfg.PluginsDir, MaxMB: plugin.MaxPackageBytes >> 20, Uploads: true,
+		Inert: s.plugins.Inert()}
 	if s.limits == nil {
 		return d, nil
 	}
@@ -98,7 +102,21 @@ func (s *Server) adminPlugins(w http.ResponseWriter, r *http.Request) {
 	s.renderAdmin(w, r, "plugins", s.t("Plugins"), "plugins", d)
 }
 
+// pluginsInert refuses what would load or start a plugin on a suspended
+// site opened for an emergency access, which runs none of them. The
+// pages of single plugins answer 404 there: none is loaded.
+func (s *Server) pluginsInert(w http.ResponseWriter, r *http.Request) bool {
+	if !s.plugins.Inert() {
+		return false
+	}
+	s.redirect(w, r, "/admin/plugins", "error", s.t("Plugins do not run on this site while it is suspended."))
+	return true
+}
+
 func (s *Server) adminPluginsReload(w http.ResponseWriter, r *http.Request) {
+	if s.pluginsInert(w, r) {
+		return
+	}
 	if err := s.plugins.Load(r.Context()); err != nil {
 		s.redirect(w, r, "/admin/plugins", "error", err.Error())
 		return
@@ -221,6 +239,9 @@ func pluginBack(r *http.Request, id string) string {
 }
 
 func (s *Server) adminPluginUpload(w http.ResponseWriter, r *http.Request) {
+	if s.pluginsInert(w, r) {
+		return
+	}
 	fail := func(msg string) { s.redirect(w, r, "/admin/plugins", "error", msg) }
 	// On a site of a network, the plan decides; the upload waits for the
 	// network operator's review.

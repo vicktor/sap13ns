@@ -197,6 +197,63 @@ func TestPluginLimits(t *testing.T) {
 	}
 }
 
+// TestInertRunsNothing: an inert App loads no plugin and starts no
+// background loop. Maintenance, which a normal App runs at once, would
+// prune the old audit row; the inert one leaves it.
+func TestInertRunsNothing(t *testing.T) {
+	st := testutil.Store(t)
+	ctx := context.Background()
+	if _, err := st.DB.Exec(ctx, `INSERT INTO audit_log (at, action) VALUES (now() - interval '2 years', 'old')`); err != nil {
+		t.Fatal(err)
+	}
+	old := func() bool {
+		var n int
+		if err := st.DB.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action = 'old'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	p := params(t, st)
+	p.Inert = true
+	a, err := Open(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.Inert() || !a.Plugins().Inert() || a.host.Generation() != 0 {
+		t.Fatal("the inert App loaded its plugins")
+	}
+	select {
+	case <-a.bgDone:
+	default:
+		t.Fatal("the inert App runs background loops")
+	}
+	if rec := get(a, "/"); rec.Code != http.StatusOK {
+		t.Fatalf("home: %d", rec.Code)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if !old() {
+		t.Fatal("maintenance ran on the inert App")
+	}
+	if err := a.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Inert = false
+	a, err = Open(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close(ctx)
+	if a.Inert() || a.Plugins().Inert() || a.host.Generation() == 0 {
+		t.Fatal("the App is inert")
+	}
+	for deadline := time.Now().Add(5 * time.Second); old(); time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("maintenance did not run on the normal App")
+		}
+	}
+}
+
 func TestOpenNeedsParams(t *testing.T) {
 	if _, err := Open(context.Background(), Params{}); err == nil {
 		t.Fatal("Open accepted empty params")

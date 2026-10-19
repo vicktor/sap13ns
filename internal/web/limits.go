@@ -92,6 +92,9 @@ var catalogIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 // network's catalogue. It arrives disabled, like any other: the site's
 // administrator reviews its permissions and switches it on.
 func (s *Server) adminPluginCatalogInstall(w http.ResponseWriter, r *http.Request) {
+	if s.pluginsInert(w, r) {
+		return
+	}
 	id := r.PathValue("id")
 	if !catalogIDRe.MatchString(id) {
 		s.adminError(w, r, http.StatusNotFound, s.t("Not found."))

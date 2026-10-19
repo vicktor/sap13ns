@@ -32,6 +32,11 @@ func (s *siteRoute) key() string {
 	return s.Primary + "|" + strconv.FormatBool(s.Custom) + "|" + strings.Join(s.Hosts, ",")
 }
 
+// inert reports whether the site is opened inert (siteapp.Params.Inert):
+// a suspended site, which is served only to an emergency access, runs
+// none of its plugins and background loops.
+func (s *siteRoute) inert() bool { return s.Status == StatusSuspended }
+
 // aliases are the routed hosts other than the primary.
 func (s *siteRoute) aliases() []string { return slices.Clone(s.Hosts[1:]) }
 

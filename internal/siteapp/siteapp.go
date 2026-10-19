@@ -46,6 +46,15 @@ type Params struct {
 	Plugins    PluginLimits
 	Background web.BackgroundOptions
 	Updates    *update.Checker // release checks shown to administrators; nil = none
+
+	// Inert opens the site without running anything of the tenant's: its
+	// plugin host is inert (plugin.HostOptions.Inert), so no plugin loads
+	// and no hook, filter, shortcode, widget, form or plugin asset is
+	// found, and the background loops (scheduled posts, the plugin cron,
+	// analytics and redirect flushes, the assistant index, maintenance) do
+	// not start. A network opens a suspended site this way, for an
+	// emergency access only.
+	Inert bool
 }
 
 // PluginLimits are the plugin.HostOptions a network shares between sites.
@@ -67,6 +76,7 @@ type App struct {
 	handler http.Handler
 	log     *slog.Logger
 
+	inert  bool
 	cancel context.CancelFunc
 	bgDone chan struct{}
 
@@ -88,8 +98,8 @@ type links struct{ s *web.Server }
 func (l *links) PostInfo(p *store.Post) plugin.PostInfo { return l.s.PostInfo(p) }
 
 // Open creates the site's directories, plugin host and server, loads its
-// plugins and starts its background loops. ctx bounds the opening only:
-// the loops run until Close.
+// plugins and starts its background loops, unless p.Inert. ctx bounds the
+// opening only: the loops run until Close.
 func Open(ctx context.Context, p Params) (*App, error) {
 	cfg := p.Config
 	if cfg == nil || p.Store == nil || p.Log == nil || p.UI == nil {
@@ -100,13 +110,13 @@ func Open(ctx context.Context, p Params) (*App, error) {
 			return nil, err
 		}
 	}
-	a := &App{cfg: cfg, store: p.Store, log: p.Log, bgDone: make(chan struct{}), drained: make(chan struct{})}
+	a := &App{cfg: cfg, store: p.Store, log: p.Log, inert: p.Inert, bgDone: make(chan struct{}), drained: make(chan struct{})}
 	lk := &links{}
 	host, err := plugin.NewHostWithOptions(ctx, plugin.HostOptions{
 		Dir: cfg.PluginsDir, CacheDir: filepath.Join(cfg.DataDir, "cache", "wasm"), Cache: p.Plugins.Cache,
 		Store: p.Store, Log: p.Log, Site: func() plugin.SiteInfo { return a.srv.SiteInfo() }, Links: lk,
 		MemoryLimitPages: p.Plugins.MemoryLimitPages, MaxInstances: p.Plugins.MaxInstances, Limit: p.Plugins.Limit,
-		Quota: p.Quota,
+		Quota: p.Quota, Inert: p.Inert,
 	})
 	if err != nil {
 		return nil, err
@@ -129,8 +139,10 @@ func Open(ctx context.Context, p Params) (*App, error) {
 		return nil, err
 	}
 	a.srv, a.host, lk.s = srv, host, srv
-	if err := host.Load(ctx); err != nil {
-		p.Log.Error("load plugins", "err", err)
+	if !p.Inert {
+		if err := host.Load(ctx); err != nil {
+			p.Log.Error("load plugins", "err", err)
+		}
 	}
 	if p.Updates != nil {
 		srv.SetUpdateChecker(p.Updates)
@@ -139,6 +151,10 @@ func Open(ctx context.Context, p Params) (*App, error) {
 
 	bg, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	a.cancel = cancel
+	if p.Inert {
+		close(a.bgDone) // nothing runs in the background
+		return a, nil
+	}
 	go func() {
 		defer close(a.bgDone)
 		srv.Background(bg, p.Background)
@@ -150,6 +166,9 @@ func (a *App) Config() *config.Config { return a.cfg }
 func (a *App) Store() *store.Store    { return a.store }
 func (a *App) Server() *web.Server    { return a.srv }
 func (a *App) Plugins() *plugin.Host  { return a.host }
+
+// Inert reports whether the App was opened with Params.Inert.
+func (a *App) Inert() bool { return a.inert }
 
 // ServeHTTP serves a request unless the App is closing, which answers 503.
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {

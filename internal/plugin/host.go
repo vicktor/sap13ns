@@ -350,6 +350,7 @@ type Host struct {
 	sharedCache  bool           // the compilation cache belongs to the caller
 	maxInstances int32          // per plugin
 	limit        *InstanceLimit // shared by the hosts of a process; may be nil
+	inert        bool           // runs no plugin: HostOptions.Inert
 }
 
 // Secrets encrypts secret settings at rest (auth.Keys implements it).
@@ -404,7 +405,21 @@ type HostOptions struct {
 	// Quota bounds the bytes the site stores (a site of a network): the
 	// files of installed packages count. nil = no quota.
 	Quota Quota
+
+	// Inert makes a host that runs no plugin code: Load loads nothing, so
+	// no hook, filter, shortcode, widget, form or asset of a plugin is
+	// found, and Install, Approve and Rescan (whose scan starts the
+	// module) return ErrInert. A network opens a suspended site this way
+	// for an emergency access.
+	Inert bool
 }
+
+// ErrInert is returned by the operations of an inert host that would
+// start a plugin's module.
+var ErrInert = errors.New("plugins do not run on this site while it is suspended")
+
+// Inert reports whether the host runs no plugin (HostOptions.Inert).
+func (h *Host) Inert() bool { return h != nil && h.inert }
 
 // A Quota is the storage of a site (media.Quota): Reserve claims bytes
 // atomically and fails when they do not fit; Release gives them back.
@@ -456,6 +471,7 @@ func NewHostWithOptions(ctx context.Context, opts HostOptions) (*Host, error) {
 		maxInstances: perPlugin,
 		limit:        opts.Limit,
 		quota:        opts.Quota,
+		inert:        opts.Inert,
 	}
 	h.mailLimit = auth.NewLimiter(h.mailPerHour, time.Hour)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, h.rt); err != nil {
@@ -523,8 +539,12 @@ func (p *Plugin) retire(ctx context.Context) {
 // change; renderers include it in cache keys.
 func (h *Host) Generation() uint64 { return h.gen.Load() }
 
-// Load scans the plugins directory and (re)compiles approved plugins.
+// Load scans the plugins directory and (re)compiles approved plugins. On
+// an inert host it does nothing: the plugins stay unloaded.
 func (h *Host) Load(ctx context.Context) error {
+	if h.inert {
+		return nil
+	}
 	h.loadMu.Lock()
 	defer h.loadMu.Unlock()
 	records, err := h.store.ListPluginRecords(ctx)
@@ -836,6 +856,9 @@ var ErrChangedSinceReview = errors.New("the plugin changed on disk while it was 
 // The caller passes the ReviewPin it showed to the administrator; files on
 // disk that no longer match it are refused.
 func (h *Host) Approve(ctx context.Context, id, reviewed string, userID int64) error {
+	if h.inert {
+		return ErrInert
+	}
 	if !idRe.MatchString(id) {
 		return errors.New("invalid plugin id")
 	}
@@ -1208,6 +1231,9 @@ func (w logWriter) Write(b []byte) (int, error) {
 }
 
 func (h *Host) instantiate(p *Plugin) (*instance, error) {
+	if h.inert {
+		return nil, ErrInert // no module of an inert host ever starts
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), instantiateTimeout)
 	defer cancel()
 	cfg := wazero.NewModuleConfig().
