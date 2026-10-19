@@ -34,6 +34,7 @@
           <div><dt>{{T "Created"}}</dt><dd>{{dateTime $s.CreatedAt}}</dd></div>
           <div><dt>{{T "Approved"}}</dt><dd>{{with $s.ApprovedAt}}{{dateTime .}}{{if $s.ApprovedBy}} · @{{$s.ApprovedBy}}{{end}}{{else}}—{{end}}</dd></div>
           {{with $s.DeletedAt}}<div><dt>{{T "Deleted"}}</dt><dd>{{dateTime .}}</dd></div>{{end}}
+          <div><dt>{{T "Latest backup"}}</dt><dd>{{template "backup-state" $s.Backup}}{{if and (ne $s.Backup.Result "ok") (not $s.Backup.OK.IsZero)}} <span class="muted">· {{T "the latest made: %s" (dateTime $s.Backup.OK)}}</span>{{end}}{{with $s.Backup.Error}}<div class="row-sub muted">{{.}}</div>{{end}}</dd></div>
         </dl>
       </section>
     </section>

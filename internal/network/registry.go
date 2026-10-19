@@ -123,7 +123,9 @@ type Registry struct {
 	opened    atomic.Int64 // sites opened, for tests
 	unloaded  atomic.Int64 // and closed
 
-	access accessCache // operator sessions' checks (portal_support.go)
+	access      accessCache                     // operator sessions' checks (portal_support.go)
+	lastBackups atomic.Pointer[web.BackupRun]   // the latest nightly backups
+	backupFree  func(dir string) (int64, error) // tests: the free disk space the backups see
 
 	mu      sync.Mutex
 	entries map[int64]*entry
@@ -245,6 +247,9 @@ func (r *Registry) Start(ctx context.Context) error {
 	go r.every(cronEvery, cronEvery, func(ctx context.Context) { r.Cron(ctx) })
 	go r.every(maintainFirst, cronEvery, r.SweepExports)
 	go r.every(maintainFirst, maintainEvery, r.Maintain)
+	if b := r.cfg.SiteBackups; b.Nightly {
+		r.wg.Go(func() { r.nightly(b.At, func(ctx context.Context) { r.SweepBackups(ctx) }) })
+	}
 	return nil
 }
 
@@ -465,8 +470,8 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	p := siteapp.Params{
 		Config: cfg, Store: store.New(h), Log: r.log.With("site", s.ID), UI: r.o.UI, Mailer: r.mailer,
 		Blocklist:  filepath.Join(r.cfg.DataDir, "plugin-blocklist.txt"),
-		Network:    siteHooks{hooks{r: r, id: s.ID}},
-		Quota:      siteHooks{hooks{r: r, id: s.ID}},
+		Network:    siteHooks{hooks{r: r, id: s.ID, slug: s.Slug}},
+		Quota:      siteHooks{hooks{r: r, id: s.ID, slug: s.Slug}},
 		Hosts:      rt.aliases(),
 		CacheSizes: siteCaches,
 		Plugins:    siteapp.PluginLimits{Cache: r.cache, MemoryLimitPages: pluginPages, MaxInstances: pluginInstances, Limit: r.limit},
@@ -476,7 +481,7 @@ func (r *Registry) open(ctx context.Context, rt *siteRoute) (*siteapp.App, error
 	}
 	if s.Kind == KindNetwork {
 		p.Updates = r.o.Updates
-		p.Network = portalHooks{hooks{r: r, id: s.ID}}
+		p.Network = portalHooks{hooks{r: r, id: s.ID, slug: s.Slug}}
 		p.Quota = nil // the operator's
 	}
 	app, err := siteapp.Open(ctx, p)

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/sitebackup"
 	"sap13ns/internal/store"
 )
 
@@ -76,11 +77,12 @@ type NetSite struct {
 	ApprovedBy       string // a username; "" when approved by nobody (or not at all)
 	CreatedAt        time.Time
 	DeletedAt        *time.Time
-	Role             string      // the account's role, from AccountSites
-	PlanName         string      // from SiteDetail and AccountSites
-	PlanPaid         bool        // likewise
-	Billing          *NetBilling // likewise; nil without a subscription
-	SupportOpen      bool        // from AccountSites, on the sites the account administers
+	Role             string            // the account's role, from AccountSites
+	PlanName         string            // from SiteDetail and AccountSites
+	PlanPaid         bool              // likewise
+	Billing          *NetBilling       // likewise; nil without a subscription
+	Backup           sitebackup.Status // its latest backup (zero: never tried); from Sites and SiteDetail
+	SupportOpen      bool              // from AccountSites, on the sites the account administers
 }
 
 // AdminURL opens the site's administration through single sign-on.
@@ -208,6 +210,7 @@ func (s *Server) networkAdmin(h http.HandlerFunc) http.HandlerFunc {
 // --------------------------------------------------------------- sites --
 
 type netSitesData struct {
+	Backups  *NetBackups // nil when the network does not report them
 	Sites    []NetSite
 	Total    int
 	Status   string
@@ -231,8 +234,14 @@ func (s *Server) adminNetSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q.Del("page")
-	s.renderAdmin(w, r, "network_sites", s.t("Sites"), "net-sites", netSitesData{Sites: sites, Total: total, Status: status,
-		Query: search, Statuses: siteStatuses, Page: newPagination("/admin/network/sites", q, page, per, total)})
+	d := netSitesData{Sites: sites, Total: total, Status: status,
+		Query: search, Statuses: siteStatuses, Page: newPagination("/admin/network/sites", q, page, per, total)}
+	if s.netBackups != nil {
+		if d.Backups, err = s.netBackups.NetworkBackups(r.Context()); err != nil {
+			s.log.Error("network backups", "err", err)
+		}
+	}
+	s.renderAdmin(w, r, "network_sites", s.t("Sites"), "net-sites", d)
 }
 
 type netSiteData struct {

@@ -114,6 +114,9 @@ type Options struct {
 	Passphrase string // "" leaves the archive unencrypted
 	AppVersion string
 	Now        func() time.Time
+	// FreeSpace measures the free space of the file system of a directory
+	// (-1: unknown); nil measures it with statfs.
+	FreeSpace func(dir string) (int64, error)
 	// PluginSettings, if set, keeps the plain settings of a plugin (it
 	// knows the manifests); otherwise every sealed secret, e-mail address
 	// and setting named like a secret is left out.

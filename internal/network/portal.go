@@ -17,8 +17,9 @@ import (
 
 // hooks connect a site's server to the registry.
 type hooks struct {
-	r  *Registry
-	id int64
+	r    *Registry
+	id   int64
+	slug string
 }
 
 func (h hooks) Wakeup(ctx context.Context, at time.Time) {
@@ -26,6 +27,28 @@ func (h hooks) Wakeup(ctx context.Context, at time.Time) {
 		h.r.log.Error("schedule wake-up", "site", h.id, "err", err)
 	}
 }
+
+// SiteRestored reloads the site once idle, after its server restored a
+// backup (web.BackupHooks).
+func (h hooks) SiteRestored(context.Context) {
+	h.r.mu.Lock()
+	if e := h.r.entries[h.id]; e != nil {
+		e.stale = true
+	}
+	h.r.mu.Unlock()
+}
+
+func (h hooks) identity(portal bool) web.BackupIdentity {
+	return web.BackupIdentity{ID: h.id, Label: h.slug, Network: h.r.cfg.BaseURL.Hostname(), Portal: portal}
+}
+
+var (
+	_ web.BackupHooks = siteHooks{}
+	_ web.BackupHooks = portalHooks{}
+)
+
+func (h siteHooks) BackupIdentity() web.BackupIdentity   { return h.identity(false) }
+func (h portalHooks) BackupIdentity() web.BackupIdentity { return h.identity(true) }
 
 // siteHooks are the hooks of a tenant: it signs users in through the
 // portal.

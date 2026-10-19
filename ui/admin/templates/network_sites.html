@@ -4,6 +4,12 @@
 <div class="page-header">
   <div><h1>{{T "Sites"}}</h1><p>{{T "%d sites of the network" $d.Total}}</p></div>
 </div>
+{{with $d.Backups}}
+{{if .Last}}{{if .Last.Error}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "The nightly backups of %s made no backup" (dateTime .Last.Started)}}</h2><section><p>{{T "The backup passphrase cannot be read. Check SAP13NS_BACKUP_PASSPHRASE_FILE and the log."}}</p></section></div>{{end}}{{end}}
+{{if .Failing}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Sites whose latest backup was not made: %d" (len .Failing)}}</h2>
+  <section><ul>{{range .Failing}}<li>{{if .Portal}}{{T "The portal"}}{{else}}<a href="/admin/network/sites/{{.ID}}">{{.Slug}}</a>{{end}} · {{dateTime .Status.Tried}} · {{if eq .Status.Result "skipped"}}{{T "skipped: not enough free disk space"}}{{else}}{{T "failed"}}{{end}}{{with .Status.Error}} <span class="muted">({{.}})</span>{{end}}</li>{{end}}</ul>
+  <p>{{T "Free disk space where the backups are, %s, or look at the log; the next nightly run tries these sites first." .Dir}}</p></section></div>{{end}}
+{{end}}
 <div class="toolbar">
   <nav class="filter-tabs" aria-label="{{T "Filter"}}">
     <a href="/admin/network/sites"{{if not $d.Status}} aria-current="page"{{end}}>{{T "All"}}</a>
@@ -17,7 +23,7 @@
 </div>
 <div class="card table-wrap">
   <table class="table">
-    <thead><tr><th>{{T "Site"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Owner"}}</th><th class="max-sm:hidden">{{T "Plan"}}</th><th class="max-lg:hidden text-right">{{T "Storage"}}</th><th class="max-lg:hidden">{{T "Created"}}</th></tr></thead>
+    <thead><tr><th>{{T "Site"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Owner"}}</th><th class="max-sm:hidden">{{T "Plan"}}</th><th class="max-lg:hidden text-right">{{T "Storage"}}</th><th class="max-lg:hidden">{{T "Created"}}</th><th class="max-md:hidden">{{T "Latest backup"}}</th></tr></thead>
     <tbody>
       {{range $d.Sites}}
       <tr>
@@ -27,12 +33,14 @@
         <td class="max-sm:hidden">{{.Plan}}</td>
         <td class="max-lg:hidden text-right tabular">{{filesize .StorageBytes}}</td>
         <td class="max-lg:hidden muted nowrap">{{shortDate .CreatedAt}}</td>
+        <td class="max-md:hidden">{{template "backup-state" .Backup}}</td>
       </tr>
       {{else}}
-      <tr><td colspan="6">{{template "empty" (dict "Icon" "layers" "Title" (T "No results"))}}</td></tr>
+      <tr><td colspan="7">{{template "empty" (dict "Icon" "layers" "Title" (T "No results"))}}</td></tr>
       {{end}}
     </tbody>
   </table>
 </div>
 {{template "pagination" $d.Page}}
+{{with $d.Backups}}<p class="hint">{{if .Nightly}}{{T "Every site is backed up each night at %s (server time); the latest %d daily and %d weekly backups are kept, in %s." .At .KeepDaily .KeepWeekly .Dir}}{{with .Last}} {{T "The latest run, %s: %d made, %d failed, %d skipped, %d left for the next night." (dateTime .Started) .Done .Failed .Skipped .Left}}{{end}}{{else}}{{T "Nightly backups are off (SAP13NS_SITE_BACKUPS=false)."}}{{end}}</p>{{end}}
 {{end}}

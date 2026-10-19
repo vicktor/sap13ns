@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -41,6 +42,7 @@ type Server struct {
 	redirects redirectTable
 	imports   importJob
 	exports   exportJob
+	backups   backupJob
 	ai        aiState
 	cfg       *config.Config
 	log       *slog.Logger
@@ -87,14 +89,17 @@ type Server struct {
 
 	plans planCache // the portal's pricing table (plans.go)
 
-	network     NetworkHooks  // nil on a single-site install
-	sso         SSOClient     // a tenant of a network: sign-in through the portal
-	portal      Portal        // the network portal
-	billing     PortalBilling // the portal of a network with a Stripe key (billing.go)
-	reviews     PortalPlugins // the portal: the operator's review of uploaded plugins (limits.go)
-	limits      SiteLimits    // a site of a network: its plan (limits.go)
-	ssoFailures *auth.Limiter // failed single sign-on callbacks, per IP
-	checkout    *auth.Limiter // Checkout and Customer Portal sessions, per account
+	network     NetworkHooks   // nil on a single-site install
+	sso         SSOClient      // a tenant of a network: sign-in through the portal
+	portal      Portal         // the network portal
+	billing     PortalBilling  // the portal of a network with a Stripe key (billing.go)
+	reviews     PortalPlugins  // the portal: the operator's review of uploaded plugins (limits.go)
+	limits      SiteLimits     // a site of a network: its plan (limits.go)
+	backupHooks BackupHooks    // a site of a network: its name, and the reload after a restore (backups.go)
+	netBackups  NetworkBackups // the portal: the network's nightly backups
+	backupNow   *auth.Limiter  // backups started from Tools → Backups
+	ssoFailures *auth.Limiter  // failed single sign-on callbacks, per IP
+	checkout    *auth.Limiter  // Checkout and Customer Portal sessions, per account
 	// DNS checks and additions of custom domains, per account
 	domainChecks *auth.Limiter
 	hosts        []string     // other host names of this site (multisite aliases)
@@ -161,14 +166,17 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		checkout:    auth.NewLimiter(30, time.Hour),
 		// DNS checks and additions of custom domains, per account.
 		domainChecks: auth.NewLimiter(30, time.Hour),
+		backupNow:    auth.NewLimiter(6, time.Hour),
 	}
 	s.sso, _ = d.Network.(SSOClient)
 	s.portal, _ = d.Network.(Portal)
+	s.backupHooks, _ = d.Network.(BackupHooks)
 	if b, ok := d.Network.(PortalBilling); ok && s.portal != nil && b.BillingEnabled() {
 		s.billing = b
 	}
 	if s.portal != nil {
 		s.reviews, _ = d.Network.(PortalPlugins)
+		s.netBackups, _ = d.Network.(NetworkBackups)
 	} else {
 		s.limits, _ = d.Network.(SiteLimits)
 	}
@@ -287,11 +295,16 @@ func (s *Server) contentChanged() {
 }
 
 // Restored makes the server pick up a site whose content and settings a
-// backup restore replaced from outside it (the command line): it reloads
-// the settings and drops every cache.
+// backup restore replaced: it reloads the settings and the plugins, and
+// drops every cache (pages, bodies, menus, designs, AI and assistant
+// settings; the assistant's index is built again).
 func (s *Server) Restored(ctx context.Context) error {
 	err := s.ReloadSettings(ctx)
-	s.contentChanged()
+	if s.plugins != nil {
+		err = errors.Join(err, s.plugins.Load(ctx))
+	}
+	s.resetAI()
+	s.resetAssistant() // and contentChanged
 	return err
 }
 

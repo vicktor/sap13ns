@@ -59,6 +59,9 @@
 {{define "billing-state-label"}}{{if eq . "active"}}{{T "Paid"}}{{else if eq . "pending"}}{{T "Payment pending"}}{{else if eq . "grace"}}{{T "Payment failed"}}{{else if eq . "canceled"}}{{T "Subscription ended"}}{{else}}{{.}}{{end}}{{end}}
 {{define "billing-state"}}<span class="badge" data-variant="{{if eq .State "active"}}success{{else if eq .State "grace"}}warning{{else if eq .State "canceled"}}destructive{{else}}secondary{{end}}">{{template "billing-state-label" .State}}</span>{{with .PeriodEnd}}{{if ne $.State "canceled"}} <span class="muted nowrap">{{if $.CancelAtPeriodEnd}}{{T "ends %s" (shortDate .)}}{{else}}{{T "renews %s" (shortDate .)}}{{end}}</span>{{end}}{{end}}{{end}}
 
+{{- /* The latest backup of a site (sitebackup.Status). */ -}}
+{{define "backup-state"}}{{if eq .Result "ok"}}<span class="muted nowrap" title="{{dateTime .OK}}">{{ago .OK}}</span>{{else if eq .Result "skipped"}}<span class="badge" data-variant="warning" title="{{.Error}}">{{T "Skipped"}}</span>{{else if eq .Result "failed"}}<span class="badge" data-variant="destructive" title="{{.Error}}">{{T "Failed"}}</span>{{else}}<span class="muted">—</span>{{end}}{{end}}
+
 {{define "empty"}}
 <div class="empty-state">
   <div class="empty-icon" aria-hidden="true">{{icon .Icon}}</div>

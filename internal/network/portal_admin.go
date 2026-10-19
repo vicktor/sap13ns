@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/sitebackup"
 	"sap13ns/internal/store"
 	"sap13ns/internal/web"
 )
@@ -41,6 +42,12 @@ func (h portalHooks) netSite(ctx context.Context, s *Site) (web.NetSite, error) 
 		CreatedAt: s.CreatedAt, DeletedAt: s.DeletedAt}
 	if s.PrimaryHost != "" {
 		out.URL = h.r.origin(s.PrimaryHost)
+	}
+	// Kept after a site is deleted: its backups stay on the server.
+	if h.r.cfg.SiteBackups.Root != "" {
+		if out.Backup, err = sitebackup.ReadStatus(h.r.cfg.SiteBackups.SiteBackupDir(s.ID)); err != nil {
+			out.Backup = sitebackup.Status{Result: sitebackup.ResultFailed, Error: err.Error()}
+		}
 	}
 	return out, nil
 }

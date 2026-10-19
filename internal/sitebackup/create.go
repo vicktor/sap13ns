@@ -145,6 +145,10 @@ func Estimate(ctx context.Context, st *store.Store, uploadsDir string) (int64, e
 // CheckSpace returns ErrLowDisk unless dir's file system has twice the
 // estimated size of a backup free.
 func CheckSpace(ctx context.Context, st *store.Store, dir, uploadsDir string) error {
+	return checkSpace(ctx, st, dir, uploadsDir, freeSpace)
+}
+
+func checkSpace(ctx context.Context, st *store.Store, dir, uploadsDir string, freeSpace func(string) (int64, error)) error {
 	need, err := Estimate(ctx, st, uploadsDir)
 	if err != nil {
 		return err
@@ -180,7 +184,11 @@ func create(ctx context.Context, st *store.Store, o Options, preRestore bool) (*
 			return nil, nil, err
 		}
 	}
-	if err := CheckSpace(ctx, st, o.Dir, o.UploadsDir); err != nil {
+	free := o.FreeSpace
+	if free == nil {
+		free = freeSpace
+	}
+	if err := checkSpace(ctx, st, o.Dir, o.UploadsDir, free); err != nil {
 		return nil, nil, err
 	}
 	// One snapshot: the archive holds the site as it was at one moment,
