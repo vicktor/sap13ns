@@ -225,6 +225,7 @@
 .stat-label { @apply text-muted-foreground text-sm; }
 .stat-value { @apply text-3xl font-semibold tracking-tight tabular-nums; }
 .stat-foot { @apply text-muted-foreground text-xs; }
+.stat-value-text { @apply text-2xl; }
 .dash-grid { @apply grid gap-6 lg:grid-cols-2; }
 .dash-wide { @apply lg:col-span-2; }
 
@@ -520,6 +521,28 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 .ai-findings .link { @apply text-left text-primary underline-offset-2 hover:underline; }
 .ai-thumb { @apply w-full rounded-md border; }
 [aria-busy="true"] > svg { @apply animate-pulse; }
+
+/* Site assistant: the chat button's settings beside a small page that
+   shows where it goes (admin.js keeps data-position, data-offset and the
+   label in step with the form). */
+.bubble-settings { @apply grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]; }
+.bubble-preview-box { @apply m-0 flex flex-col gap-2 md:sticky md:top-20; }
+.bubble-preview { @apply relative block aspect-[4/3] w-full overflow-hidden rounded-lg border bg-background; }
+.bubble-preview-nav { @apply absolute inset-x-0 top-0 block h-[11%] border-b bg-muted; }
+.bubble-preview-lines { @apply absolute inset-x-[10%] top-[20%] flex flex-col gap-[0.45rem]; }
+.bubble-preview-lines i { @apply block h-1.5 rounded-full bg-muted; }
+.bubble-preview-lines i:first-child { @apply mb-1 h-2.5 w-3/5; }
+.bubble-preview-lines i:nth-child(3) { @apply w-4/5; }
+.bubble-preview-lines i:last-child { @apply w-2/5; }
+.bubble-preview-banner { @apply absolute inset-x-0 bottom-0 block h-[13%] border-t border-dashed border-muted-foreground/40 bg-muted/60; }
+.bubble-preview-fab { @apply absolute right-[4%] bottom-[4%] flex items-center gap-1.5 transition-all duration-200; }
+.bubble-preview[data-position="left"] .bubble-preview-fab { @apply right-auto left-[4%] flex-row-reverse; }
+.bubble-preview[data-offset="raised"] .bubble-preview-fab { @apply bottom-[17%]; }
+.bubble-preview[data-offset="high"] .bubble-preview-fab { @apply bottom-[30%]; }
+.bubble-preview-dot { @apply grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-md [&_svg]:size-4; }
+.bubble-preview-label { @apply max-w-32 truncate rounded-full border bg-card px-2 py-1 text-[0.7rem] leading-none font-semibold shadow-sm; }
+.bubble-preview-label:empty { @apply hidden; }
+@media (prefers-reduced-motion: reduce) { .bubble-preview-fab { @apply transition-none; } }
 
 /* Visual editor: surface, opaque blocks and popovers. */
 @import "./editor.css";

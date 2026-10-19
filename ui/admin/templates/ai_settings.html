@@ -4,18 +4,22 @@
 <div class="page-header">
   <div>
     <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
-    <h1>{{T "AI assistant"}}</h1>
-    <p>{{T "Summaries, SEO, translations, images and writing help in the editor. Texts are sent to the provider you choose; nothing is sent until someone presses a button."}}</p>
+    <h1>{{T "AI provider"}}</h1>
+    <p>{{T "The language model behind the writing help in the editor (summaries, SEO, translations, images) and the answers of the chat on your site. Texts go to the provider you choose only when someone presses a button in the editor or a visitor asks the chat a question."}}</p>
   </div>
 </div>
 {{template "form-error" $d.Error}}
 {{with $d.Notice}}<div class="alert" data-variant="success">{{icon "circle-check"}}<h2>{{.}}</h2></div>{{end}}
+{{if eq $d.Chat "off"}}<div class="alert" data-chat-alert>{{icon "message-circle"}}<h2>{{T "The chat on your site is off."}}</h2>
+  <section><p>{{T "This page sets up the provider only. Turn the chat on in"}} <a href="/admin/settings/assistant">{{T "Site assistant"}}</a>.</p></section></div>
+{{else if eq $d.Chat "waiting"}}<div class="alert" data-variant="warning" data-chat-alert>{{icon "message-circle"}}<h2>{{T "The chat on your site is waiting for the AI provider."}}</h2>
+  <section><p>{{T "It is switched on in Site assistant. Turn the AI provider on below for visitors to see it."}}</p></section></div>{{end}}
 <form method="post" action="/admin/settings/ai" class="stack" data-unsaved>
   {{.CSRFField}}
   <section class="card">
     <header><h2>{{T "Provider"}}</h2></header>
     <section class="form">
-      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Turn on the assistant"}}</label>
+      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Turn on the AI provider"}}</label>
       <div class="field"><label for="provider">{{T "Provider"}}</label>
         <select class="select w-full" id="provider" name="provider">{{range $d.Providers}}<option value="{{.Code}}"{{if eq .Code $s.Provider}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
       <div class="field"><label for="api_key">{{T "API key"}}</label>

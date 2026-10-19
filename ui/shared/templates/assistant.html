@@ -2,13 +2,17 @@
      Data: PageData. Renders nothing while the assistant is off. Without
      JavaScript the button links to the /ask page; assistant.js turns it into
      a modal chat (native <dialog>: focus trap, Escape closes). Every string
-     the script shows comes from the data-t-* attributes. Themes include it
+     the script shows comes from the data-t-* attributes. The classes of the
+     root place the button (Settings → Site assistant: bottom right or left,
+     three heights) and an optional label sits beside it. Themes include it
      once, before </body>. */}}
-{{define "shared/assistant"}}{{with .Site.Assistant}}{{if not $.Ask}}
-<div class="sap-assistant" data-assistant data-endpoint="{{.Endpoint}}" data-lang="{{.Lang}}"
+{{define "shared/assistant"}}{{with .Site.Assistant}}{{if not $.Ask}}{{$v := .}}
+<div class="{{.Class}}" data-assistant data-endpoint="{{.Endpoint}}" data-lang="{{.Lang}}"
   data-t-thinking="{{T "Thinking…"}}" data-t-error="{{T "The assistant could not answer. Please try again later."}}"
   data-t-sources="{{T "Sources"}}" data-t-offline="{{T "No connection. Check your network and try again."}}">
-  <a class="sap-assistant-fab" href="{{.AskURL}}" data-assistant-open aria-haspopup="dialog" aria-label="{{.Name}}" title="{{.Name}}">{{icon "message-circle"}}</a>
+  <a class="sap-assistant-fab" href="{{.AskURL}}" data-assistant-open aria-haspopup="dialog"{{if not .Label}} aria-label="{{.Name}}"{{end}} title="{{.Name}}">
+    {{- with .Label}}<span class="sap-assistant-label">{{.}}</span> <span class="sap-assistant-sr">{{$v.Name}}</span>{{end -}}
+    <span class="sap-assistant-dot">{{icon "message-circle"}}</span></a>
   <dialog class="sap-assistant-panel" aria-labelledby="sap-assistant-title" data-assistant-dialog>
     <header class="sap-assistant-head">
       <span class="sap-assistant-avatar" aria-hidden="true">{{icon "message-circle"}}</span>

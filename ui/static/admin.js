@@ -132,7 +132,22 @@
       if (box) box.hidden = e.target.value === e.target.defaultValue;
     }
     if (e.target.hasAttribute?.("data-editor-text")) wordCount(e.target);
+    if (e.target.dataset?.bubble) bubblePreview(e.target);
   });
+
+  // Settings → Site assistant: the preview follows the chat button's corner,
+  // height and label as they are chosen.
+  function bubblePreview(el) {
+    const box = $("[data-bubble-preview]", el.form || document);
+    if (!box) return;
+    const kind = el.dataset.bubble;
+    if (kind === "label") {
+      const label = $("[data-bubble-preview-label]", box);
+      if (label) label.textContent = el.value.trim();
+    } else if (el.checked) {
+      box.dataset[kind] = el.value;
+    }
+  }
   window.addEventListener("beforeunload", (e) => {
     if ($$("form[data-unsaved]").some((f) => f.dataset.dirty === "1")) { e.preventDefault(); e.returnValue = ""; }
   });

@@ -100,6 +100,38 @@ func (s *Server) assistantOn(ctx context.Context) (store.AssistantSettings, bool
 	return as, err == nil && aiSt.Enabled
 }
 
+// The states of the chat on the site, as the admin shows them.
+const (
+	chatOn      = "on"
+	chatOff     = "off"
+	chatWaiting = "waiting" // switched on, but the AI provider is off
+)
+
+// chatState tells whether visitors see the chat from the site assistant's
+// switch and the AI provider's, which are on two pages.
+func chatState(assistantOn, aiOn bool) string {
+	switch {
+	case !assistantOn:
+		return chatOff
+	case !aiOn:
+		return chatWaiting
+	}
+	return chatOn
+}
+
+// siteChatState is chatState for the saved settings.
+func (s *Server) siteChatState(ctx context.Context) (string, error) {
+	as, err := s.assistantSettings(ctx)
+	if err != nil {
+		return "", err
+	}
+	aiSt, err := s.aiSettings(ctx)
+	if err != nil {
+		return "", err
+	}
+	return chatState(as.Enabled, aiSt.Enabled), nil
+}
+
 // ipLimiter returns the per-visitor limiter for the configured rate.
 func (s *Server) ipLimiter(n int) *auth.Limiter {
 	s.bot.mu.Lock()
@@ -119,6 +151,30 @@ type AssistantView struct {
 	Endpoint    string // POST, JSON or a text/event-stream
 	AskURL      string // the page that works without JavaScript
 	Script      string
+	// The chat button: its corner (store.BubbleRight or BubbleLeft), its
+	// height (BubbleNormal, BubbleRaised or BubbleHigh) and the label
+	// beside it, "" for none.
+	Position string
+	Offset   string
+	Label    string
+}
+
+// Class is the classes of the widget's root, which place the button.
+func (v *AssistantView) Class() string {
+	return "sap-assistant sap-assistant-" + v.Position + " sap-assistant-offset-" + v.Offset
+}
+
+// bubblePlace returns the saved place of the chat button, or the default
+// for a value the page would not save.
+func bubblePlace(as store.AssistantSettings) (position, offset string) {
+	position, offset = as.BubblePosition, as.BubbleOffset
+	if !slices.Contains(store.BubblePositions, position) {
+		position = store.BubblePositions[0]
+	}
+	if !slices.Contains(store.BubbleOffsets, offset) {
+		offset = store.BubbleOffsets[0]
+	}
+	return position, offset
 }
 
 // Assistant returns the widget's data, or nil when the assistant is off.
@@ -144,8 +200,10 @@ func (s *Server) assistantView(lang string) *AssistantView {
 	if greeting == "" {
 		greeting = s.i18n.T(lang, "Hi! Ask me anything about this site and I will answer from its pages.")
 	}
+	position, offset := bubblePlace(as)
 	return &AssistantView{Name: name, Greeting: greeting, Suggestions: txt.Suggestions, Lang: lang,
-		Endpoint: "/api/assistant", AskURL: s.langPath(lang, "/ask"), Script: s.assetURL("assistant.js")}
+		Endpoint: "/api/assistant", AskURL: s.langPath(lang, "/ask"), Script: s.assetURL("assistant.js"),
+		Position: position, Offset: offset, Label: txt.BubbleLabel}
 }
 
 // ------------------------------------------------------------- answering --
@@ -413,6 +471,9 @@ type assistantSettingsData struct {
 	Texts      map[string]assistantTextForm
 	HasKey     bool
 	AIOn       bool
+	State      string // of the saved settings: chatOn, chatOff or chatWaiting
+	Position   string // of the chat button, for the preview
+	Offset     string
 	AIProvider string
 	Providers  []LangLink
 	Models     []ai.Model
@@ -430,6 +491,7 @@ type assistantSettingsData struct {
 type assistantTextForm struct {
 	Greeting    string
 	Suggestions string
+	BubbleLabel string
 }
 
 func (s *Server) adminAssistantSettings(w http.ResponseWriter, r *http.Request) {
@@ -448,17 +510,24 @@ func (s *Server) renderAssistantSettings(w http.ResponseWriter, r *http.Request,
 		s.serverError(w, r, err)
 		return
 	}
+	saved, err := s.assistantSettings(ctx) // st may be a form that failed
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	d := assistantSettingsData{S: st, Langs: s.extraLangs(), Texts: map[string]assistantTextForm{}, HasKey: len(st.EmbedKeyEnc) > 0,
-		AIOn: aiSt.Enabled, AIProvider: aiSt.Provider, MCPURL: s.cfg.AbsURL("/mcp"), NewToken: token, Error: msg, Notice: notice,
-		Providers: []LangLink{{Code: "same", Name: s.t("The AI provider (Settings › AI)")},
+		AIOn: aiSt.Enabled, State: chatState(saved.Enabled, aiSt.Enabled),
+		AIProvider: aiSt.Provider, MCPURL: s.cfg.AbsURL("/mcp"), NewToken: token, Error: msg, Notice: notice,
+		Providers: []LangLink{{Code: "same", Name: s.t("The AI provider (Settings › AI provider)")},
 			{Code: ai.ProviderOpenAI, Name: s.t("OpenAI or compatible (LM Studio, Ollama, llama.cpp…)")},
 			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}, {Code: "none", Name: s.t("None: full-text search only")}}}
 	for _, p := range []string{ai.ProviderOpenAI, ai.ProviderGemini} {
 		d.Models = append(d.Models, ai.EmbedModels(p)...)
 	}
+	d.Position, d.Offset = bubblePlace(st)
 	for _, l := range d.Langs {
 		t := st.Text[l.Code]
-		d.Texts[l.Code] = assistantTextForm{Greeting: t.Greeting, Suggestions: strings.Join(t.Suggestions, "\n")}
+		d.Texts[l.Code] = assistantTextForm{Greeting: t.Greeting, Suggestions: strings.Join(t.Suggestions, "\n"), BubbleLabel: t.BubbleLabel}
 	}
 	sctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -499,10 +568,13 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 	st.Enabled = r.FormValue("enabled") == "1"
 	st.Name, st.Greeting = trimmed(r, "name"), trimmed(r, "greeting")
 	st.Suggestions = lines(r.FormValue("suggestions"), 6)
+	st.BubblePosition, st.BubbleOffset = r.FormValue("bubble_position"), r.FormValue("bubble_offset")
+	st.BubbleLabel = trimmed(r, "bubble_label")
 	st.Text = map[string]store.AssistantText{}
 	for _, l := range s.extraLangs() {
-		t := store.AssistantText{Greeting: trimmed(r, "greeting_"+l.Code), Suggestions: lines(r.FormValue("suggestions_"+l.Code), 6)}
-		if t.Greeting != "" || len(t.Suggestions) > 0 {
+		t := store.AssistantText{Greeting: trimmed(r, "greeting_"+l.Code), Suggestions: lines(r.FormValue("suggestions_"+l.Code), 6),
+			BubbleLabel: trimmed(r, "bubble_label_"+l.Code)}
+		if t.Greeting != "" || len(t.Suggestions) > 0 || t.BubbleLabel != "" {
 			st.Text[l.Code] = t
 		}
 	}
@@ -521,6 +593,8 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 		switch bad[0] {
 		case "embed_provider":
 			fail(s.t("Choose a provider."))
+		case "bubble_position", "bubble_offset":
+			fail(s.t("Choose where the chat button goes."))
 		case "per_ip_hour", "daily_requests", "monthly_requests", "embed_dimensions":
 			fail(s.t("Invalid number."))
 		case "embed_base_url":

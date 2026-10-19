@@ -202,15 +202,32 @@
      /ask page. Colours come from the theme tokens, so light and dark follow
      the theme. */
   .sap-assistant-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .sap-assistant-fab { position: fixed; z-index: 80; inset-inline-end: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); display: inline-grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); box-shadow: 0 calc(12px * var(--sap-shadow-scale, 1)) calc(28px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) color-mix(in oklch, var(--primary) 80%, black), 0 calc(2px * var(--sap-shadow-scale, 1)) calc(6px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.14); transition: transform 0.2s, box-shadow 0.2s; }
-  .sap-assistant-fab:hover { transform: translateY(-2px); }
+  /* The button's corner and height: the root's classes
+     sap-assistant-right|left and sap-assistant-offset-normal|raised|high
+     (Settings → Site assistant). "Raised" clears a cookie bar or a bottom
+     banner. The panel opens above the button, on its side. */
+  .sap-assistant { --sap-fab-side: max(1rem, env(safe-area-inset-right)); --sap-fab-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .sap-assistant-left { --sap-fab-side: max(1rem, env(safe-area-inset-left)); }
+  .sap-assistant-offset-raised { --sap-fab-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
+  .sap-assistant-offset-high { --sap-fab-bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px)); }
+  .sap-assistant-fab { position: fixed; z-index: 80; right: var(--sap-fab-side); bottom: var(--sap-fab-bottom); display: flex; align-items: center; gap: 0.6rem; max-width: calc(100vw - 2rem); border-radius: calc(999px * var(--sap-radius-scale, 1)); color: var(--foreground); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .sap-assistant-left .sap-assistant-fab { right: auto; left: var(--sap-fab-side); flex-direction: row-reverse; }
   .sap-assistant-fab:focus-visible { outline: 3px solid color-mix(in oklch, var(--primary) 55%, transparent); outline-offset: 3px; }
-  .sap-assistant-fab svg { width: 1.5rem; height: 1.5rem; }
-  .sap-assistant-panel { position: fixed; inset: auto; inset-inline-end: max(1rem, env(safe-area-inset-right)); bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 4.25rem); margin: 0; padding: 0; width: min(25rem, calc(100vw - 2rem)); max-width: none; height: min(40rem, calc(100dvh - 6.5rem)); max-height: none; overflow: hidden; border: 1px solid var(--border); border-radius: calc(1.25rem * var(--sap-radius-scale, 1)); background: var(--background); color: var(--foreground); box-shadow: 0 calc(24px * var(--sap-shadow-scale, 1)) calc(60px * var(--sap-shadow-scale, 1)) calc(-20px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.35), 0 calc(4px * var(--sap-shadow-scale, 1)) calc(14px * var(--sap-shadow-scale, 1)) calc(-6px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.12); font: 400 0.95rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .sap-assistant-dot { display: inline-grid; place-items: center; flex: none; width: 3.25rem; height: 3.25rem; border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--primary); color: var(--primary-foreground); box-shadow: 0 calc(12px * var(--sap-shadow-scale, 1)) calc(28px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) color-mix(in oklch, var(--primary) 80%, black), 0 calc(2px * var(--sap-shadow-scale, 1)) calc(6px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.14); transition: transform 0.2s, box-shadow 0.2s; }
+  .sap-assistant-dot svg { width: 1.5rem; height: 1.5rem; }
+  /* The optional label beside the button, in the theme's font. */
+  .sap-assistant-label { min-width: 0; overflow: hidden; padding: 0.55rem 0.95rem; border: 1px solid var(--border); border-radius: calc(999px * var(--sap-radius-scale, 1)); background: var(--background); color: var(--foreground); box-shadow: 0 calc(10px * var(--sap-shadow-scale, 1)) calc(24px * var(--sap-shadow-scale, 1)) calc(-12px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.3), 0 1px 3px rgb(0 0 0 / 0.08); font-size: 0.875rem; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; transition: transform 0.2s; }
+  .dark .sap-assistant-label { background: color-mix(in oklch, var(--foreground) 9%, var(--background)); }
+  .sap-assistant-fab:hover :is(.sap-assistant-dot, .sap-assistant-label) { transform: translateY(-2px); }
+  /* Out of the way while a mobile menu is open (site.js sets .nav-open). */
+  html.nav-open .sap-assistant-fab { visibility: hidden; }
+  .sap-assistant-panel { position: fixed; inset: auto; right: var(--sap-fab-side); bottom: calc(var(--sap-fab-bottom) + 4.25rem); margin: 0; padding: 0; width: min(25rem, calc(100vw - 2rem)); max-width: none; height: min(40rem, calc(100dvh - var(--sap-fab-bottom) - 5.5rem)); max-height: none; overflow: hidden; border: 1px solid var(--border); border-radius: calc(1.25rem * var(--sap-radius-scale, 1)); background: var(--background); color: var(--foreground); box-shadow: 0 calc(24px * var(--sap-shadow-scale, 1)) calc(60px * var(--sap-shadow-scale, 1)) calc(-20px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.35), 0 calc(4px * var(--sap-shadow-scale, 1)) calc(14px * var(--sap-shadow-scale, 1)) calc(-6px * var(--sap-shadow-scale, 1)) rgb(0 0 0 / 0.12); font: 400 0.95rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .sap-assistant-left .sap-assistant-panel { right: auto; left: var(--sap-fab-side); }
   .sap-assistant-panel[open] { display: flex; flex-direction: column; }
   .sap-assistant-panel::backdrop { background: rgb(0 0 0 / 0.18); }
+  /* Phones: a full-width sheet over the whole screen. */
   @media (max-width: 640px) {
-    .sap-assistant-panel { inset: 0; width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+    .sap-assistant .sap-assistant-panel { inset: 0; width: 100%; height: 100dvh; border: 0; border-radius: 0; }
   }
   @media (prefers-reduced-motion: no-preference) {
     .sap-assistant-panel[open] { animation: sap-assistant-in 0.18s ease-out; }

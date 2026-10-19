@@ -50,6 +50,14 @@
     <span class="stat-foot">{{T "Theme: %s" $d.Theme}} · {{T "%d plugins" $d.Plugins}}</span>
   </a>
   {{end}}
+  {{with $d.Chat}}
+  <a class="card stat" href="/admin/settings/assistant" data-chat-stat>
+    <span class="stat-icon" aria-hidden="true">{{icon "message-circle"}}</span>
+    <span class="stat-label">{{T "Chat on your site"}}</span>
+    <strong class="stat-value stat-value-text{{if eq .State "on"}} text-success{{else if eq .State "waiting"}} text-warning{{end}}">{{if eq .State "on"}}{{T "On"}}{{else if eq .State "waiting"}}{{T "Waiting"}}{{else}}{{T "Off"}}{{end}}</strong>
+    <span class="stat-foot">{{if eq .State "on"}}{{T "%d questions today" .Today}}{{else if eq .State "waiting"}}{{T "Turn on the AI provider for visitors to see it."}}{{else}}{{T "Visitors do not see the chat."}}{{end}}</span>
+  </a>
+  {{end}}
 </div>
 
 <div class="dash-grid">

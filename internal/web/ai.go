@@ -166,19 +166,19 @@ func (s *Server) aiCharge(r *http.Request, u *store.User, task string, m *ai.Met
 func (s *Server) aiErrorMessage(err error) string {
 	switch {
 	case errors.Is(err, errBudget):
-		return s.t("You have used this month's AI allowance. An administrator can raise it in Settings → AI.")
+		return s.t("You have used this month's AI allowance. An administrator can raise it in Settings → AI provider.")
 	case errors.Is(err, media.ErrQuota):
 		return s.storageFull()
 	case errors.Is(err, ai.ErrAuth):
-		return s.t("The AI provider rejected the API key. Check Settings → AI.")
+		return s.t("The AI provider rejected the API key. Check Settings → AI provider.")
 	case errors.Is(err, ai.ErrRateLimited):
 		return s.t("The AI provider is busy (rate limit). Try again in a minute.")
 	case errors.Is(err, ai.ErrUnsupported):
-		return s.t("This provider or model cannot do that. Choose another model in Settings → AI.")
+		return s.t("This provider or model cannot do that. Choose another model in Settings → AI provider.")
 	case errors.Is(err, ai.ErrRefused):
 		return s.t("The model declined this request.")
 	case errors.Is(err, ai.ErrThinking):
-		return s.t("The model used its whole budget thinking. Turn on “Answer without thinking” in Settings → AI, or choose a larger model.")
+		return s.t("The model used its whole budget thinking. Turn on “Answer without thinking” in Settings → AI provider, or choose a larger model.")
 	case errors.Is(err, ai.ErrTruncated):
 		return s.t("The answer was cut short. Try with a shorter text.")
 	case errors.Is(err, context.DeadlineExceeded):
@@ -243,7 +243,7 @@ func (s *Server) apiAI(w http.ResponseWriter, r *http.Request) {
 	}
 	p, st, err := s.aiProvider(r.Context())
 	if err != nil || p == nil || !aiAllowed(st, u) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The AI assistant is not available.")})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The writing assistant is not available.")})
 		return
 	}
 	if err := s.aiBudget(r.Context(), st, u, 0); err != nil {
@@ -357,7 +357,7 @@ func (s *Server) apiAIImage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	p, st, err := s.aiProvider(r.Context())
 	if err != nil || p == nil || !aiAllowed(st, u) || !auth.Can(u.Role, auth.CapUploadMedia) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The AI assistant is not available.")})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The writing assistant is not available.")})
 		return
 	}
 	s.ai.mu.Lock()
@@ -447,7 +447,7 @@ func (s *Server) apiAITranslate(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	p, st, err := s.aiProvider(r.Context())
 	if err != nil || p == nil || !aiAllowed(st, u) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The AI assistant is not available.")})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": s.t("The writing assistant is not available.")})
 		return
 	}
 	src, err := s.store.PostByID(r.Context(), req.PostID)
@@ -510,6 +510,7 @@ func (s *Server) createTranslation(ctx context.Context, u *store.User, src *stor
 
 type aiSettingsData struct {
 	S          store.AISettings
+	Chat       string // the state of the chat on the site: chatOn, chatOff or chatWaiting
 	HasKey     bool
 	Providers  []LangLink
 	TextModels map[string][]ai.Model
@@ -535,14 +536,19 @@ func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status
 		s.serverError(w, r, err)
 		return
 	}
-	d := aiSettingsData{S: st, HasKey: len(st.APIKeyEnc) > 0, Roles: aiRoles, Usage: usage, Error: msg, Notice: notice,
+	chat, err := s.siteChatState(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	d := aiSettingsData{S: st, Chat: chat, HasKey: len(st.APIKeyEnc) > 0, Roles: aiRoles, Usage: usage, Error: msg, Notice: notice,
 		Providers: []LangLink{{Code: ai.ProviderAnthropic, Name: "Claude (Anthropic)"}, {Code: ai.ProviderOpenAI, Name: s.t("OpenAI or compatible (Ollama, llama.cpp, OpenRouter…)")},
 			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}},
 		TextModels: map[string][]ai.Model{}, ImgModels: map[string][]ai.Model{}}
 	for _, p := range ai.Providers {
 		d.TextModels[p], d.ImgModels[p] = ai.Models(p)
 	}
-	s.renderAdminStatus(w, r, status, "ai_settings", s.t("AI assistant"), "settings", d)
+	s.renderAdminStatus(w, r, status, "ai_settings", s.t("AI provider"), "settings", d)
 }
 
 func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
@@ -597,11 +603,14 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.resetAI()
+	if st.Enabled != old.Enabled {
+		s.contentChanged() // the site's chat shows or hides with the provider
+	}
 	s.audit(r, uid(r), "settings.ai_saved", st.Provider, map[string]string{"enabled": strconv.FormatBool(st.Enabled)})
 	if r.FormValue("test") == "1" {
 		p, _, err := s.aiProvider(r.Context())
 		if err == nil && p == nil {
-			err = errors.New(s.t("Turn the assistant on to test it."))
+			err = errors.New(s.t("Turn the AI provider on to test it."))
 		}
 		if err == nil {
 			ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)

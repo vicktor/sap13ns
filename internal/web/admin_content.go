@@ -27,7 +27,14 @@ type dashboardData struct {
 	Plugins  int
 	Theme    string
 	Stats    *dashStats // last 7 days; nil when analytics are off or not allowed
+	Chat     *dashChat  // the chat on the site; nil for those who cannot change it
 	Now      time.Time
+}
+
+// dashChat is the state of the chat on the site and today's questions.
+type dashChat struct {
+	State string // chatOn, chatOff or chatWaiting
+	Today int
 }
 
 func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +84,22 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	if auth.Can(u.Role, auth.CapManageUsers) {
 		d.Users, _ = s.store.CountUsers(ctx)
+	}
+	if auth.Can(u.Role, auth.CapManageSettings) {
+		state, err := s.siteChatState(ctx)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		d.Chat = &dashChat{State: state}
+		if state == chatOn {
+			day, _, err := s.store.AssistantUsageTotals(ctx, time.Now())
+			if err != nil {
+				s.serverError(w, r, err)
+				return
+			}
+			d.Chat.Today = day.Requests
+		}
 	}
 	for _, p := range s.plugins.List() {
 		if p.Status == "enabled" {

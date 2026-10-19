@@ -151,7 +151,7 @@ func EmbedderConfig(as store.AssistantSettings, aiSt store.AISettings, keys *aut
 		return nil, "embeddings are off: full-text search only", nil
 	case "same":
 		if !aiSt.Enabled {
-			return nil, "the AI provider is switched off (Settings › AI)", nil
+			return nil, "the AI provider is switched off (Settings › AI provider)", nil
 		}
 		if aiSt.Provider == ai.ProviderAnthropic {
 			return nil, "Claude has no embeddings API: choose an embeddings provider", nil

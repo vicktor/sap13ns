@@ -245,6 +245,9 @@
   .app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
   .sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; }
   .nav-toggle, .topbar-brand { display: none; }
+  /* The site chat's button, set to the left, sits beside the sidebar
+     rather than over its links. */
+  .sap-assistant-left { --sap-fab-side: calc(var(--sidebar-w) + 1rem); }
 }
 /* Small screens: the sidebar is the nav-toggle drawer below the top bar. */
 @media (max-width: 1023.98px) {

@@ -35,6 +35,9 @@
 
 {{/* The status of a site of the network. */}}
 {{define "site-status-label"}}{{if eq . "pending"}}{{T "Pending approval"}}{{else if eq . "active"}}{{T "Active"}}{{else if eq . "suspended"}}{{T "Suspended"}}{{else if eq . "deleted"}}{{T "Deleted"}}{{else}}{{T "Being created"}}{{end}}{{end}}
+{{/* The chat on the public site (chatState): on, off, or switched on but
+     waiting for the AI provider. */}}
+{{define "chat-state"}}{{if eq . "on"}}<span class="badge" data-variant="success">{{icon "circle-check"}}{{T "On"}}</span>{{else if eq . "waiting"}}<span class="badge" data-variant="warning">{{icon "clock"}}{{T "Waiting for the AI provider"}}</span>{{else}}<span class="badge" data-variant="secondary">{{T "Off"}}</span>{{end}}{{end}}
 {{define "site-status"}}<span class="badge" data-variant="{{if eq . "active"}}success{{else if eq . "pending"}}warning{{else if eq . "suspended"}}destructive{{else}}secondary{{end}}">{{template "site-status-label" .}}</span>{{end}}
 
 {{- /* The support access of a site: its open grant (web.NetSupportGrant), or nil. */ -}}

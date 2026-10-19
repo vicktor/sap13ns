@@ -821,10 +821,10 @@ func applySettings(ctx context.Context, st *store.Store, side *sidecar, o Restor
 		if next.Provider == cur.Provider && next.BaseURL == cur.BaseURL {
 			next.APIKeyEnc = cur.APIKeyEnc
 		} else if len(cur.APIKeyEnc) > 0 {
-			rep.warn("the writing assistant's API key was removed: the backup uses another provider or address; enter its key in Settings → AI")
+			rep.warn("the writing assistant's API key was removed: the backup uses another provider or address; enter its key in Settings → AI provider")
 		}
 		if next.Enabled && len(next.APIKeyEnc) == 0 {
-			rep.warn("the writing assistant is on, but API keys are not in backups: enter the key again in Settings → AI")
+			rep.warn("the writing assistant is on, but API keys are not in backups: enter the key again in Settings → AI provider")
 		}
 		if err := st.SaveAISettings(ctx, next); err != nil {
 			return set, err
@@ -851,13 +851,13 @@ func applySettings(ctx context.Context, st *store.Store, side *sidecar, o Restor
 		if next.EmbedProvider == cur.EmbedProvider && next.EmbedBaseURL == cur.EmbedBaseURL {
 			next.EmbedKeyEnc = cur.EmbedKeyEnc
 		} else if len(cur.EmbedKeyEnc) > 0 {
-			rep.warn("the embedding API key was removed: the backup uses another provider or address; enter its key in Settings → Assistant")
+			rep.warn("the embedding API key was removed: the backup uses another provider or address; enter its key in Settings → Site assistant")
 		}
 		if ss.MCPToken && next.MCPTokenHash == "" && next.MCPEnabled {
 			// The backup had a token for /mcp, which a backup never holds:
 			// do not open the endpoint without one.
 			next.MCPEnabled = false
-			rep.warn("the MCP endpoint was switched off: its token is not in backups; set a new one in Settings → Assistant")
+			rep.warn("the MCP endpoint was switched off: its token is not in backups; set a new one in Settings → Site assistant")
 		}
 		if err := st.SaveAssistantSettings(ctx, next); err != nil {
 			return set, err
