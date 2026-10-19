@@ -1,0 +1,25 @@
+{
+  "abi": 1,
+  "id": "x-autopost",
+  "name": "X auto-post",
+  "version": "1.0.0",
+  "description": "Posts new articles to X (formerly Twitter) when they are published: a templated text in the post's language with its title, link and hashtags, fitted to 280 characters. X shows the link card from the page's Open Graph tags. Needs an X developer app with pay-per-use credits.",
+  "author": "sap13ns",
+  "license": "MIT",
+  "hooks": ["event"],
+  "events": ["post.published", "post.updated", "post.trashed", "cron.hourly"],
+  "permissions": ["kv", "posts:read", "http:api.x.com"],
+  "settings": [
+    {"key": "api_key", "label": "API key", "type": "secret", "help": "The app's API Key (consumer key), in the X Developer Console → your app → Keys and tokens."},
+    {"key": "api_key_secret", "label": "API key secret", "type": "secret", "help": "The API Key Secret shown next to it."},
+    {"key": "access_token", "label": "Access token", "type": "secret", "help": "Generate it after setting the app's permissions to “Read and write”, for the account the posts come from."},
+    {"key": "access_token_secret", "label": "Access token secret", "type": "secret", "help": "The Access Token Secret shown next to it."},
+    {"key": "template", "label": "Text", "type": "textarea", "default": "", "help": "Placeholders: {title} {url} {excerpt} {hashtags} {site}. Empty uses “New post: {title}”, the link and the hashtags, in the post's language. Every link counts as 23 characters."},
+    {"key": "template_es", "label": "Text for Spanish posts", "type": "textarea", "default": "", "help": "Used instead of the text above for posts in Spanish."},
+    {"key": "template_en", "label": "Text for English posts", "type": "textarea", "default": "", "help": "Used instead of the text above for posts in English."},
+    {"key": "max_hashtags", "label": "Hashtags", "type": "number", "default": "2", "help": "How many of the post's tags become hashtags. 0 adds none."},
+    {"key": "post_types", "label": "Post", "type": "select", "default": "posts", "choices": ["posts", "pages", "both"], "help": "Which content types are posted when they are published."},
+    {"key": "skip_older_than_hours", "label": "Skip posts older than (hours)", "type": "number", "default": "48", "help": "A post whose publication date is older than this is never posted, so re-publishing an old article does not announce it again."},
+    {"key": "dry_run", "label": "Dry run", "type": "bool", "default": "false", "help": "Write the text that would be posted to the activity log instead of posting it. Nothing is sent to X, so nothing is charged."}
+  ]
+}
