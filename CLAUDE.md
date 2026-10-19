@@ -14,6 +14,8 @@ go vet ./... && go test ./...
 go test ./internal/web -run TestSafeNext     # a single test
 go run ./scripts/devseed -env data/dev.env   # sample content; creates admin / dev-password-123
 ./bin/sap13ns serve -env data/dev.env        # dev server on 127.0.0.1:8137
+make dev-network                             # a network: sap13ns_net_dev, data/network.env, 3 sites, admin / dev-password-123
+make dev ENV=data/network.env                # portal on localhost:8139, sites on <slug>.localhost:8139; RESET=1 starts over
 make i18n                                    # every UI string has a Spanish translation
 make check                                   # vet + Go and JS tests + i18n + every plugin's tests
 ```

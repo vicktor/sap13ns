@@ -115,6 +115,8 @@ The steps follow [DEPLOY.md](DEPLOY.md) for the binary, PostgreSQL and the syste
 
    A Personal site starts as `pending`, until a network administrator approves it under **Network → Sites**. The owner is e-mailed when it is approved or rejected.
 
+To try a network on a development machine, `make dev-network` (in a checkout) does all of this on its own database, `sap13ns_net_dev`, with the env file `data/network.env`. The portal is on `http://localhost:8139` and the sites are on `http://<slug>.localhost:8139`, which browsers resolve to the machine itself (`SAP13NS_SITES_DOMAIN=localhost`). The accounts skip the second factor (`SAP13NS_DEV_SKIP_2FA`), so never use that env file anywhere else. Serve it with `make dev ENV=data/network.env`; the README's Development section has the details.
+
 ## Configuration
 
 These variables are read only when `SAP13NS_MULTISITE=true`. The variables of a single site (README) apply to the whole network: one database, one data directory, one SMTP server.

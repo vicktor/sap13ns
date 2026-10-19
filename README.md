@@ -286,6 +286,15 @@ go vet ./...
 
 Some store tests need a scratch database: set `SAP13NS_TEST_DATABASE_URL`. Set `SAP13NS_DEV=true` in your env file to reload templates from disk and log e-mails instead of sending them.
 
+To try a [network of sites](docs/MULTISITE.md) on your machine (the portal, single sign-on and the admin's site switcher):
+
+```sh
+make dev-network                  # database sap13ns_net_dev, data/network.env, data/network
+make dev ENV=data/network.env     # the portal on http://localhost:8139, the sites on http://<slug>.localhost:8139
+```
+
+It creates the network admin `admin` and the account `marta` (password `dev-password-123`, no second factor) and three sites with sample content: `cuaderno`, `recetas` and `studio`. Running it again only prints the addresses, and `make dev-network RESET=1` starts it over. It never touches the single site of `make dev` (`sap13ns_dev`, `data/dev.env`, port 8137). `NET_DB`, `NET_PORT`, `NET_ENV` and `NET_DATA` choose another database, port, env file and data directory.
+
 Repository layout:
 
 ```
