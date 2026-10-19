@@ -45,9 +45,11 @@ git push origin v1.4.0
 ```
 
 The workflow checks that the tag is `vMAJOR.MINOR.PATCH`, builds the frontend
-assets (`npm ci && npm run build`), runs `go vet` and `go test ./...`, builds
-static binaries (CGO off, `-trimpath`) with the version and the public key
-embedded, then publishes a GitHub release with generated notes and these
+assets (`npm ci && npm run build`), tests, builds, packs and scans the official
+plugins into the bundle the binary embeds (`make plugins-test plugins`, see
+[PLUGINS.md](PLUGINS.md#official-plugins)), runs `go vet` and `go test ./...`,
+builds static binaries (CGO off, `-trimpath`) with the version and the public
+key embedded, then publishes a GitHub release with generated notes and these
 assets:
 
 | Asset                                        | Contents                                    |

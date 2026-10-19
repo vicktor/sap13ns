@@ -8,7 +8,7 @@ PLUGINS_DIR ?= ../../data/plugins
 build: $(WASM)
 
 $(WASM): $(wildcard *.go) go.mod
-	GOOS=wasip1 GOARCH=wasm $(GO) build -buildmode=c-shared -trimpath -o $(WASM) .
+	GOOS=wasip1 GOARCH=wasm $(GO) build -buildmode=c-shared -trimpath -ldflags="-s -w" -o $(WASM) .
 
 test:
 	$(GO) test ./...

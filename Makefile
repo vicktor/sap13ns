@@ -11,6 +11,10 @@ NET_DATA ?= data/network
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X sap13ns/internal/web.Version=$(VERSION)
 PLUGINS := $(dir $(wildcard plugins/*/Makefile))
+# The official plugins (every plugin but the skeleton) and the bundle of
+# their packages, which the binary embeds (internal/plugin/bundled).
+OFFICIAL := $(filter-out skeleton,$(patsubst plugins/%/plugin.json,%,$(wildcard plugins/*/plugin.json)))
+BUNDLE   := internal/plugin/bundled/packs
 
 .PHONY: all assets build test vet i18n check plugins plugins-test dev seed dev-network clean
 
@@ -24,7 +28,8 @@ node_modules: package-lock.json
 	npm ci
 	@touch $@
 
-build:
+# The binary, with the official plugins inside.
+build: plugins
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/sap13ns ./cmd/sap13ns
 
 vet:
@@ -41,9 +46,12 @@ i18n:
 
 check: vet test i18n plugins-test
 
-# Each official plugin is its own Go module with its own Makefile.
+# Each plugin is its own Go module with its own Makefile. This builds them
+# all, then packs and scans the official ones into $(BUNDLE) (generated,
+# not committed); a package that did not change is kept as it is.
 plugins:
 	@for p in $(PLUGINS); do $(MAKE) -C $$p build || exit 1; done
+	$(GO) run ./scripts/pluginbundle -o $(BUNDLE) $(addprefix plugins/,$(OFFICIAL))
 
 plugins-test:
 	@for p in $(PLUGINS); do $(MAKE) -C $$p test || exit 1; done
@@ -62,4 +70,5 @@ dev-network:
 
 clean:
 	rm -rf bin dist
+	rm -f $(BUNDLE)/*.zip
 	@for p in $(PLUGINS); do $(MAKE) -C $$p clean; done

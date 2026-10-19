@@ -18,7 +18,7 @@ type PluginRecord struct {
 	Settings           map[string]string `db:"settings"`
 	ApprovedBy         *int64            `db:"approved_by"`
 	Version            string            `db:"version"` // installed package version
-	Source             string            `db:"source"`  // manual | upload | cli | catalog
+	Source             string            `db:"source"`  // manual | upload | cli | catalog | official
 	UploadedBy         *int64            `db:"uploaded_by"`
 	UploadedByName     string            `db:"uploaded_by_name"`
 	UploadedAt         *time.Time        `db:"uploaded_at"`
@@ -67,7 +67,7 @@ func (s *Store) ApprovePlugin(ctx context.Context, id, sha, assetsSHA string, pe
 type PluginInstall struct {
 	ID             string
 	Version        string
-	Source         string // upload | cli | catalog
+	Source         string // upload | cli | catalog | official
 	UploadedBy     int64  // 0 = command line
 	ReviewRequired bool
 	Reviewed       bool   // the network operator vouches for it: clears the review flag

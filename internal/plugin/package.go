@@ -109,7 +109,7 @@ func entryLimit(name, wasmName string) (int64, error) {
 // InstallOptions describe who installs a package and how.
 type InstallOptions struct {
 	UserID         int64  // 0 for the command line
-	Source         string // "upload" | "cli" | "catalog" (the network's, on a site of a network)
+	Source         string // "upload" | "cli" | "catalog" (the network's, on a site of a network) | "official" (the bundle's)
 	AllowDowngrade bool
 	// ReviewRequired marks packages uploaded by tenants of a network: they
 	// cannot be enabled until the operator reviews them.
@@ -256,7 +256,7 @@ func (h *Host) Install(ctx context.Context, r io.ReaderAt, size int64, opts Inst
 	}
 	release(-grow) // a smaller version gives bytes back
 	source := opts.Source
-	if source != "cli" && source != "catalog" {
+	if !slices.Contains([]string{"cli", "catalog", SourceOfficial}, source) {
 		source = "upload"
 	}
 	ctx = context.WithoutCancel(ctx) // the files are in place: record them

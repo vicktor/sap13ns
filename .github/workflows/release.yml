@@ -58,6 +58,19 @@ jobs:
       - name: Build frontend assets
         run: npm ci && npm run build
 
+      # The official plugins ship inside the binary (internal/plugin/bundled):
+      # each is tested, built, packed and scanned before the binaries embed them.
+      - name: Build the official plugins
+        run: |
+          set -euo pipefail
+          make plugins-test plugins
+          want=$(ls plugins/*/plugin.json | grep -vc '^plugins/skeleton/')
+          have=$(ls internal/plugin/bundled/packs/*.zip | wc -l)
+          if [[ "$have" -ne "$want" ]]; then
+            echo "::error::the bundle has $have official plugins, plugins/ has $want"
+            exit 1
+          fi
+
       - name: Test
         run: |
           go vet ./...

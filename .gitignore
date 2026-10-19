@@ -9,6 +9,8 @@
 *.wasm
 /plugins/**/*.zip
 /plugins/**/*.sha256
+# The official plugin packages the binary embeds (make plugins).
+/internal/plugin/bundled/packs/*.zip
 /sap13ns
 
 # Agent worktrees (Claude Code)
