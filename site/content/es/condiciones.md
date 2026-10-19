@@ -43,15 +43,15 @@ Cada sitio personal nuevo lo **revisa una persona** antes de publicarse. Podemos
 
 ## 5. Planes comerciales y pago
 
-Los planes comerciales se pagan **por meses y por adelantado**. Los pagos los procesa Stripe; al pagar aceptas también las condiciones de Stripe para los servicios de pago. Los precios son los que se muestran al darte de alta en el momento de contratar, y la factura indica los impuestos aplicables.
+Los planes comerciales se pagan **por adelantado, por meses o por años**, según elijas al pagar. Si se ofrece un periodo de prueba gratuito, la página de pago indica cuánto dura; la prueba solo es para la primera suscripción de cada cuenta, y el primer cobro se hace cuando termina. Los pagos los procesa Stripe; al pagar aceptas también las condiciones de Stripe para los servicios de pago. Los precios son los que se muestran en la página de pago en el momento de contratar, y la factura indica los impuestos aplicables.
 
 Si cambiamos el precio de un plan, te avisaremos por correo electrónico al menos 30 días antes de que se te aplique. Si no estás de acuerdo, puedes darte de baja antes de que el cambio entre en vigor.
 
-Si un pago falla, te lo comunicaremos y volveremos a intentarlo. Si pasado un plazo razonable no se puede cobrar, podemos suspender el sitio hasta que la cuenta esté al día.
+Si falla el pago de una renovación, te lo comunicaremos y volveremos a intentarlo, y tu sitio seguirá en línea durante 14 días. Si para entonces sigue sin pagarse, el sitio queda **retenido**: sus páginas públicas muestran un aviso de que no está disponible, pero tú puedes seguir iniciando sesión en él, pagar y exportar tu contenido. Al pagar, o al volver a suscribirte, se levanta la retención.
 
 ## 6. Baja
 
-Puedes darte de baja cuando quieras desde tu cuenta. La baja surte efecto al **final del periodo que ya has pagado**; hasta entonces tu sitio sigue en línea. No reembolsamos meses parciales, salvo cuando la ley lo exija.
+Puedes darte de baja cuando quieras desde tu cuenta. La baja surte efecto al **final del periodo que ya has pagado**; hasta entonces tu sitio sigue en línea. Después, el sitio queda retenido, como se indica en el apartado 5, y el apartado 7 explica durante cuánto tiempo lo conservamos. No reembolsamos periodos parciales, salvo cuando la ley lo exija. Para cerrar tu cuenta por completo, escríbenos.
 
 Si eres consumidor en la Unión Europea, tienes un derecho de desistimiento de 14 días. Si nos pides que empecemos a prestar el servicio de inmediato, aceptas que, si desistes, pagarás la parte del servicio ya prestada.
 
@@ -59,7 +59,11 @@ Si eres consumidor en la Unión Europea, tienes un derecho de desistimiento de 1
 
 Tu contenido sigue siendo tuyo. Solo nos concedes el permiso necesario para alojarlo y mostrarlo.
 
-Puedes exportar tu contenido en cualquier momento. Cuando termina tu plan o cierras tu cuenta, conservamos los datos de tu sitio durante 30 días para que todavía puedas exportarlos, y después los eliminamos, también de las copias de seguridad a medida que estas se renuevan. Los datos personales se tratan según la [política de privacidad](/es/privacidad).
+Puedes exportar tu contenido en cualquier momento mientras exista tu sitio, desde **Exportar** en su administración: un archivo compatible con WordPress (WXR) o un .zip con ese archivo, tus archivos multimedia y una copia en Markdown de cada entrada y página. También funciona mientras el sitio está retenido. Si hemos suspendido tu sitio, pídenoslo y lo exportaremos por ti. Una vez eliminado un sitio, ya no se puede exportar.
+
+Cuando termina tu plan o cierras tu cuenta, tu sitio no se elimina de inmediato: lo conservamos, con su contenido, sus archivos y sus dominios, durante 90 días, para que todavía puedas exportarlo o volver a suscribirte. Después, nuestro equipo lo elimina, y también desaparece de nuestras copias de seguridad a medida que estas se renuevan. Los datos personales se tratan según la [política de privacidad](/es/privacidad).
+
+Nuestro equipo solo entra en la administración de tu sitio con tu permiso: tú concedes el acceso de soporte desde tu sitio, durante un tiempo limitado. Cada uno de esos accesos queda anotado en el registro de auditoría de tu sitio. La única excepción es una orden legal o un incidente de seguridad grave en tu sitio, como malware o phishing: entonces nuestro equipo puede abrir tu administración durante cuatro horas como máximo, con el motivo anotado en el registro de auditoría de tu sitio, y te escribimos en ese momento para decirte quién lo hizo, por qué y hasta cuándo.
 
 ## 8. Suspensión y resolución por nuestra parte
 
@@ -69,7 +73,7 @@ Podemos suspender o cerrar una cuenta que incumpla estas condiciones de forma gr
 
 Trabajamos para que el servicio funcione, sea seguro y tenga copias de seguridad, pero no garantizamos una disponibilidad ininterrumpida. El mantenimiento, las actualizaciones y las incidencias pueden provocar interrupciones; procuramos programar los trabajos previstos en horas tranquilas. No hay un acuerdo de nivel de servicio salvo que lo hayamos pactado contigo por escrito.
 
-Guarda tu propia copia de todo lo que no puedas permitirte perder; la exportación está siempre disponible.
+Guarda tu propia copia de todo lo que no puedas permitirte perder; puedes exportar tu sitio en cualquier momento mientras exista (consulta el apartado 7).
 
 ## 10. Responsabilidad
 
@@ -85,4 +89,4 @@ Podemos actualizar estas condiciones cuando cambien el servicio o la ley. Avisar
 
 Estas condiciones se rigen por la legislación española. Las controversias se resolverán ante los juzgados y tribunales competentes conforme a la normativa aplicable; si eres consumidor, siempre puedes acudir a los del lugar de tu domicilio.
 
-Última actualización: 18 de octubre de 2026.
+Última actualización: 19 de octubre de 2026.

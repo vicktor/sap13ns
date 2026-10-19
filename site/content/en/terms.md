@@ -43,15 +43,15 @@ Every new personal site is **reviewed by a person** before it is published. We m
 
 ## 5. Commercial plans and payment
 
-Commercial plans are paid **monthly in advance**. Payments are processed by Stripe; by paying you also accept Stripe's terms for payment services. Prices are those shown at signup at the time you subscribe, and the invoice states the taxes that apply.
+Commercial plans are paid **in advance, monthly or yearly**, as you choose at checkout. If a free trial is offered, checkout shows how long it lasts; a trial is only for an account's first subscription, and the first charge is made when it ends. Payments are processed by Stripe; by paying you also accept Stripe's terms for payment services. Prices are those shown at checkout when you subscribe, and the invoice states the taxes that apply.
 
 If we change the price of a plan, we will tell you by e-mail at least 30 days before it applies to you. If you do not agree, you can cancel before the change takes effect.
 
-If a payment fails, we will let you know and try again. If it still cannot be collected after a reasonable period, we may suspend the site until the account is paid.
+If a renewal payment fails, we will let you know and try again, and your site stays online for 14 days. If it has still not been paid by then, the site is **held**: its public pages show a notice that it is unavailable, while you can still sign in to it, pay and export your content. Paying, or subscribing again, lifts the hold.
 
 ## 6. Cancellation
 
-You can cancel at any time from your account. The cancellation takes effect at the **end of the period you have already paid for**; until then your site stays online. We do not refund partial months, except where the law requires it.
+You can cancel at any time from your account. The cancellation takes effect at the **end of the period you have already paid for**; until then your site stays online. After that the site is held, as described in section 5, and section 7 explains how long we keep it. We do not refund partial periods, except where the law requires it. To close your account altogether, write to us.
 
 If you are a consumer in the European Union, you have a 14-day right of withdrawal from the contract. By asking us to start the service immediately you accept that, if you withdraw, you pay for the service provided up to that point.
 
@@ -59,7 +59,11 @@ If you are a consumer in the European Union, you have a 14-day right of withdraw
 
 Your content remains yours. You give us only the permission we need to host and display it.
 
-You can export your content at any time. After your plan ends or your account is closed we keep your site's data for 30 days, so you can still export it, and then delete it, including from backups as they rotate out. Personal data is handled as described in the [privacy policy](/privacy).
+You can export your content at any time while your site exists, from **Export** in its administration: a WordPress-compatible file (WXR), or a .zip with that file, your media and a Markdown copy of every post and page. This also works while the site is held. If we have suspended your site, ask us and we will export it for you. Once a site has been deleted, it can no longer be exported.
+
+When your plan ends or your account is closed, your site is not deleted straight away: we keep it, with its content, files and domains, for 90 days, so you can still export it or subscribe again. After that our team deletes it, and it also disappears from our backups as they rotate out. Personal data is handled as described in the [privacy policy](/privacy).
+
+Our team signs in to your site's administration only with your permission: you grant support access from your site, for a limited time. Each of these sign-ins is recorded in your site's audit log. The only exception is a legal order or a serious security incident on your site, such as malware or phishing: then our team may open your administration for at most four hours, with the reason recorded in your site's audit log, and we e-mail you at once with who did it, why and until when.
 
 ## 8. Suspension and termination by us
 
@@ -69,7 +73,7 @@ We may suspend or close an account that seriously or repeatedly breaks these ter
 
 We work to keep the service running, secure and backed up, but we do not guarantee uninterrupted availability. Maintenance, updates and incidents may cause interruptions; we try to schedule planned work at quiet times. There is no service level agreement unless we have agreed one with you in writing.
 
-Keep your own copy of anything you cannot afford to lose; exporting is always available.
+Keep your own copy of anything you cannot afford to lose; you can export your site at any time while it exists (see section 7).
 
 ## 10. Liability
 
@@ -85,4 +89,4 @@ We may update these terms when the service or the law changes. We will tell cust
 
 These terms are governed by Spanish law. Disputes will be resolved by the courts that are competent under the applicable rules; if you are a consumer, you can always go to the courts of your place of residence.
 
-Last updated: 18 October 2026.
+Last updated: 19 October 2026.
