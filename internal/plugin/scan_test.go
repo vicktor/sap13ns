@@ -19,10 +19,16 @@ var (
 	impKVGet  = wImport{"sap13ns", "kv_get", []byte{wI32, wI32}, []byte{wI32}}
 	impFetch  = wImport{"sap13ns", "http_fetch", []byte{wI32, wI32}, []byte{wI32}}
 	impMail   = wImport{"sap13ns", "mail_send", []byte{wI32, wI32}, []byte{wI32}}
+	impOAuth  = wImport{"sap13ns", "oauth_token", []byte{wI32, wI32}, []byte{wI32}}
 	impSystem = wImport{"env", "system", []byte{wI32, wI32}, []byte{wI32}}
 )
 
 const okHTML = `{"html":"<p>ok</p>"}`
+
+// oauthDecl declares the provider "demo" for manifestFor.
+const oauthDecl = `"settings": [{"key": "id", "label": "ID", "type": "text"}, {"key": "secret", "label": "Secret", "type": "secret"}],
+	"oauth": [{"id": "demo", "name": "Demo", "authorize_url": "https://auth.example.com/a", "token_url": "https://auth.example.com/t",
+	"client_id_setting": "id", "client_secret_setting": "secret"}]`
 
 // manifestFor is a valid manifest with id t1 plus the given fields.
 func manifestFor(fields string) string {
@@ -148,6 +154,9 @@ func TestScanRules(t *testing.T) {
 		{"unused comments:pii", manifestFor(render + `, "permissions": ["comments:pii"]`), ok.bytes(), nil, ScanOptions{}, "perm.unused", SevMedium},
 		{"http in render hooks", manifestFor(render + `, "permissions": ["http:api.example.com"]`), with(ok, impFetch).bytes(), nil, ScanOptions{}, "perm.http-render-only", SevMedium},
 		{"mail in render hooks", manifestFor(render + `, "permissions": ["mail"]`), with(ok, impMail).bytes(), nil, ScanOptions{}, "perm.mail-render-only", SevMedium},
+		{"undeclared oauth", manifestFor(event), with(ok, impOAuth).bytes(), nil, ScanOptions{}, "perm.undeclared", SevHigh},
+		{"unused oauth", manifestFor(event + `, "permissions": ["oauth:demo", "http:auth.example.com"], ` + oauthDecl), ok.bytes(), nil, ScanOptions{}, "perm.unused", SevMedium},
+		{"oauth in render hooks", manifestFor(render + `, "permissions": ["oauth:demo", "http:auth.example.com"], ` + oauthDecl), with(ok, impOAuth).bytes(), nil, ScanOptions{}, "perm.oauth-render-only", SevMedium},
 
 		{"no module", manifestFor(""), nil, nil, ScanOptions{}, "wasm.missing", SevCritical},
 		{"not a module", manifestFor(""), []byte("\x00asm\x01\x00\x00\x00\x01\xff\xff"), nil, ScanOptions{}, "wasm.compile", SevCritical},

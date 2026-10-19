@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
@@ -64,8 +65,12 @@ type Env struct {
 	Mails []pluginsdk.Mail
 	// Logs records every pluginsdk.Log call.
 	Logs []LogLine
+	// OAuth answers pluginsdk.OAuth by provider: a missing provider is not
+	// connected, and a token whose ExpiresAt (RFC 3339) has passed is an
+	// expired connection, as the host reports them.
+	OAuth map[string]pluginsdk.OAuthToken
 	// Denied simulates permissions that were not granted: "kv",
-	// "posts:read", "http" or "mail".
+	// "posts:read", "http", "mail" or "oauth".
 	Denied map[string]bool
 
 	t testing.TB
@@ -74,7 +79,7 @@ type Env struct {
 }
 
 // counts are the host calls made during one request.
-type counts struct{ kv, queries, http, mails int }
+type counts struct{ kv, queries, http, mails, oauth int }
 
 // Per-request limits, as in the host.
 const (
@@ -82,6 +87,7 @@ const (
 	maxQueries = 10
 	maxHTTP    = 4
 	maxMails   = 5
+	maxOAuth   = 4
 )
 
 var mu sync.Mutex // one Env at a time: the SDK host is global
@@ -95,6 +101,7 @@ func New(t testing.TB) *Env {
 		Site:   pluginsdk.Site{URL: "https://example.test", Title: "Example", Language: "en", Timezone: "UTC"},
 		Plugin: pluginsdk.PluginInfo{ID: "test-plugin", Version: "0.0.0", Settings: map[string]string{}},
 		KV:     map[string][]byte{},
+		OAuth:  map[string]pluginsdk.OAuthToken{},
 		Denied: map[string]bool{},
 		t:      t,
 	}
@@ -384,6 +391,28 @@ func (e *Env) HTTPFetch(raw []byte) ([]byte, int32) {
 		resp = &pluginsdk.HTTPResponse{Status: 200}
 	}
 	b, _ := json.Marshal(resp)
+	return b, 0
+}
+
+func (e *Env) OAuthToken(provider []byte) ([]byte, int32) {
+	if e.Denied["oauth"] {
+		return nil, abi.CodeDenied
+	}
+	if e.calls.oauth++; e.calls.oauth > maxOAuth {
+		return nil, abi.CodeLimit
+	}
+	t, ok := e.OAuth[string(provider)]
+	if !ok {
+		return nil, abi.CodeNotFound
+	}
+	if at, err := time.Parse(time.RFC3339, t.ExpiresAt); err == nil && !time.Now().Before(at) {
+		b, _ := json.Marshal(pluginsdk.OAuthToken{Error: "expired: connect the account again"})
+		return b, 0
+	}
+	if t.TokenType == "" {
+		t.TokenType = "bearer"
+	}
+	b, _ := json.Marshal(t)
 	return b, 0
 }
 

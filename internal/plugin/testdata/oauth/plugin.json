@@ -1,0 +1,46 @@
+{
+  "abi": 1,
+  "id": "oauthdemo",
+  "name": "OAuth demo",
+  "version": "1.0.0",
+  "description": "Test fixture: logs the tokens of its OAuth connections.",
+  "author": "Tests",
+  "hooks": ["event", "shortcode"],
+  "events": ["post.published", "oauth.connected"],
+  "shortcodes": ["token"],
+  "permissions": ["oauth:demo", "oauth:meta", "http:auth.example.test", "http:api.example.test", "http:graph.example.test"],
+  "settings": [
+    {"key": "client_id", "label": "Client ID", "type": "text"},
+    {"key": "client_secret", "label": "Client secret", "type": "secret"},
+    {"key": "meta_app_id", "label": "App ID", "type": "text"},
+    {"key": "meta_app_secret", "label": "App secret", "type": "secret"}
+  ],
+  "oauth": [
+    {
+      "id": "demo",
+      "name": "Demo",
+      "authorize_url": "https://auth.example.test/authorize?prompt=consent",
+      "token_url": "https://auth.example.test/token",
+      "userinfo_url": "https://api.example.test/userinfo",
+      "scopes": ["openid", "profile", "w_member_social"],
+      "pkce": true,
+      "token_auth": "basic",
+      "client_id_setting": "client_id",
+      "client_secret_setting": "client_secret"
+    },
+    {
+      "id": "meta",
+      "name": "Meta",
+      "authorize_url": "https://auth.example.test/oauth/authorize",
+      "token_url": "https://api.example.test/oauth/access_token",
+      "userinfo_url": "https://graph.example.test/v1/me?fields=user_id,username",
+      "userinfo_token": "query",
+      "scopes": ["basic", "content_publish"],
+      "scope_separator": ",",
+      "client_id_setting": "meta_app_id",
+      "client_secret_setting": "meta_app_secret",
+      "exchange": {"url": "https://graph.example.test/access_token", "grant_type": "ig_exchange_token"},
+      "refresh": {"url": "https://graph.example.test/refresh_access_token", "grant_type": "ig_refresh_token", "token": "access_token"}
+    }
+  ]
+}

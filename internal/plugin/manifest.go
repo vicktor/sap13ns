@@ -52,6 +52,7 @@ var KnownEvents = []string{
 	"post.published", "post.updated", "post.trashed",
 	"comment.created", "comment.approved",
 	"user.registered", "cron.hourly",
+	"oauth.connected", // the administrator connected one of the plugin's OAuth providers
 }
 
 // Permissions.
@@ -229,6 +230,9 @@ type Manifest struct {
 	// CSP adds sources to the site's Content-Security-Policy while the
 	// plugin is enabled: {"frame-src": ["https://www.youtube-nocookie.com"]}.
 	CSP map[string][]string `json:"csp"`
+	// OAuth declares the providers the administrator connects the plugin
+	// to (oauth.go); each needs the "oauth:<id>" permission.
+	OAuth []OAuthDecl `json:"oauth"`
 }
 
 var (
@@ -339,6 +343,7 @@ func (m *Manifest) Validate() error {
 	errs = append(errs, m.validateForms()...)
 	errs = append(errs, m.validateAssets()...)
 	errs = append(errs, m.validateCSP()...)
+	errs = append(errs, m.validateOAuth()...)
 	return errors.Join(errs...)
 }
 
@@ -514,7 +519,8 @@ func validChoices(choices []string) bool {
 // approval pins next to the permissions: "hook:widget",
 // "event:post.published", "shortcode:tip", "widget:recent" and
 // "form:contact:<digest>", where the digest covers the names, types and
-// limits of the form's fields (not their labels).
+// limits of the form's fields (not their labels), and
+// "oauth-provider:linkedin:<digest>" over a provider's whole declaration.
 func (m *Manifest) Capabilities() []string {
 	var out []string
 	for _, h := range m.Hooks {
@@ -543,6 +549,7 @@ func (m *Manifest) Capabilities() []string {
 		sum := sha256.Sum256(raw)
 		out = append(out, "form:"+f.ID+":"+hex.EncodeToString(sum[:])[:16])
 	}
+	out = append(out, m.oauthCapabilities()...)
 	sort.Strings(out)
 	return slices.Compact(out)
 }
@@ -572,6 +579,8 @@ func validatePermission(p string) error {
 		return nil
 	case strings.HasPrefix(p, PermHTTP) && hostPermRe.MatchString(strings.TrimPrefix(p, PermHTTP)):
 		return nil
+	case strings.HasPrefix(p, PermOAuth) && nameRe.MatchString(strings.TrimPrefix(p, PermOAuth)):
+		return nil
 	}
 	return fmt.Errorf("unknown permission %q", p)
 }
@@ -586,7 +595,7 @@ func PermissionRisk(p string) string {
 	switch {
 	case p == "http:*", p == PermCommentsPII, p == PermAssetsJS, strings.HasPrefix(p, PermCSP):
 		return "high"
-	case strings.HasPrefix(p, PermHTTP), p == PermMail:
+	case strings.HasPrefix(p, PermHTTP), p == PermMail, strings.HasPrefix(p, PermOAuth):
 		return "medium"
 	default:
 		return "low"

@@ -63,6 +63,9 @@ const (
 	EventCommentApproved = "comment.approved" // payload: CommentEvent
 	EventUserRegistered  = "user.registered"  // payload: {"username", "role"}
 	EventCronHourly      = "cron.hourly"      // payload: {"time": RFC 3339}
+	// EventOAuthConnected reaches only the plugin whose provider the
+	// administrator just connected. Payload: {"provider": id}.
+	EventOAuthConnected = "oauth.connected"
 )
 
 // Site describes the site the plugin runs on.
@@ -542,6 +545,53 @@ func SendMail(m Mail) error {
 	return nil
 }
 
+// OAuthToken is the access token of a connection the administrator made
+// on the plugin's page (the plugin.json "oauth" providers).
+type OAuthToken struct {
+	AccessToken string   `json:"access_token"`
+	TokenType   string   `json:"token_type"`           // "bearer"
+	ExpiresAt   string   `json:"expires_at,omitempty"` // RFC 3339; "" when the provider gave no lifetime
+	AccountID   string   `json:"account_id,omitempty"` // the provider's id of the connected account
+	AccountName string   `json:"account_name,omitempty"`
+	Scopes      []string `json:"scopes,omitempty"` // granted, or requested when the provider did not say
+	Error       string   `json:"error,omitempty"`
+}
+
+// Errors of OAuth.
+var (
+	// ErrNotConnected: no administrator has connected the provider yet.
+	ErrNotConnected = errors.New("the account is not connected: connect it on the plugin's page in the admin")
+	// ErrOAuthExpired: the connection ended and could not be renewed; an
+	// administrator must connect the account again.
+	ErrOAuthExpired = errors.New("the connection expired: connect the account again on the plugin's page in the admin")
+)
+
+// OAuth returns a valid access token of a declared provider
+// ("oauth:<provider>" permission; event, comment.check and form.submit
+// hooks only, like Fetch). The host renews the token first when it is
+// due; the plugin never sees the refresh token or the client secret. Send
+// it in an Authorization header with Fetch, never in a log line.
+func OAuth(provider string) (*OAuthToken, error) {
+	raw, code := host().OAuthToken([]byte(provider))
+	if code == abi.CodeNotFound {
+		return nil, ErrNotConnected
+	}
+	if code < 0 {
+		return nil, codeErr(code)
+	}
+	var t OAuthToken
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return nil, err
+	}
+	if t.Error != "" {
+		return nil, ErrOAuthExpired
+	}
+	if t.AccessToken == "" {
+		return nil, ErrFailed
+	}
+	return &t, nil
+}
+
 // unavailable is the host outside the sandbox when no fakes are installed.
 type unavailable struct{}
 
@@ -552,3 +602,4 @@ func (unavailable) KVDelete([]byte) int32             { return abi.CodeUnavailab
 func (unavailable) PostsQuery([]byte) ([]byte, int32) { return nil, abi.CodeUnavailable }
 func (unavailable) HTTPFetch([]byte) ([]byte, int32)  { return nil, abi.CodeUnavailable }
 func (unavailable) MailSend([]byte) int32             { return abi.CodeUnavailable }
+func (unavailable) OAuthToken([]byte) ([]byte, int32) { return nil, abi.CodeUnavailable }

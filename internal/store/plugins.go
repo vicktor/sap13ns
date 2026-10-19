@@ -88,12 +88,22 @@ func (s *Store) RecordPluginInstall(ctx context.Context, in PluginInstall) error
 }
 
 // ResetRetainedPlugin starts a reinstall over the data an uninstall kept:
-// the approval is dropped and the settings are replaced.
+// the approval is dropped, the settings are replaced, and the OAuth
+// connections, which were entrusted to the package that is gone, are
+// deleted.
 func (s *Store) ResetRetainedPlugin(ctx context.Context, id string, settings map[string]string) error {
 	raw, _ := json.Marshal(settings)
-	_, err := s.DB.Exec(ctx, `UPDATE plugins SET enabled = false, wasm_sha256 = '', assets_sha256 = '', granted_permissions = '{}',
-		approved_by = NULL, settings = $2, updated_at = now() WHERE id = $1`, id, raw)
-	return err
+	return s.InTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM plugin_oauth WHERE plugin_id = $1`, id); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM plugin_oauth_states WHERE plugin_id = $1`, id); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE plugins SET enabled = false, wasm_sha256 = '', assets_sha256 = '', granted_permissions = '{}',
+			approved_by = NULL, settings = $2, updated_at = now() WHERE id = $1`, id, raw)
+		return err
+	})
 }
 
 // SavePluginReport stores the latest scanner report, creating the row for

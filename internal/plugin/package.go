@@ -438,9 +438,10 @@ func randomSuffix() string {
 	return hex.EncodeToString(b)
 }
 
-// Uninstall removes a disabled plugin's files. With deleteData its settings
-// and key-value data are deleted too; otherwise they are kept for a later
-// reinstall, without the secrets, e-mail recipients and approval (Install).
+// Uninstall removes a disabled plugin's files and its OAuth connections.
+// With deleteData its settings and key-value data are deleted too;
+// otherwise they are kept for a later reinstall, without the secrets,
+// e-mail recipients and approval (Install).
 func (h *Host) Uninstall(ctx context.Context, id string, deleteData bool) error {
 	if !idRe.MatchString(id) {
 		return errors.New("invalid plugin id")
@@ -463,6 +464,10 @@ func (h *Host) Uninstall(ctx context.Context, id string, deleteData bool) error 
 		if h.quota != nil && size > 0 {
 			h.quota.Release(context.WithoutCancel(ctx), size)
 		}
+	}
+	// The tokens were entrusted to this package: they never outlive it.
+	if err := h.store.DeletePluginOAuthAll(ctx, id); err != nil {
+		return err
 	}
 	if deleteData {
 		if err := h.store.DeletePlugin(ctx, id); err != nil {

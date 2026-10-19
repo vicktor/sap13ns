@@ -38,6 +38,8 @@ const (
 	mcpMarker   = "mcp-token-hash-marker"
 	pluginSeal  = "enc1:sealed-plugin-secret"
 	pluginToken = "plain-token-marker"
+	oauthSeal   = "enc1:sealed-oauth-tokens-marker"
+	oauthName   = "oauth-account-marker"
 )
 
 type seeded struct {
@@ -197,6 +199,9 @@ func seed(t testing.TB, st *store.Store, uploads string) seeded {
 	must(st.RecordPluginInstall(ctx, store.PluginInstall{ID: "greeter", Version: "1.2.0", Source: "cli"}))
 	must(st.SavePluginSettings(ctx, "greeter", map[string]string{"greeting": "hola", "api_token": pluginToken, "key": pluginSeal,
 		"notify": "owner@example.com", "@email:notify": "1"}))
+	// An OAuth connection of the plugin: its tokens stay with the site.
+	must(st.SavePluginOAuth(ctx, store.PluginOAuth{PluginID: "greeter", Provider: "demo", Tokens: oauthSeal, AccountName: oauthName,
+		AccountID: oauthName, Scopes: "openid", Refreshable: true}))
 	return s
 }
 
@@ -401,7 +406,7 @@ func TestRoundTrip(t *testing.T) {
 		all.Write(b)
 	}
 	for _, never := range []string{secretHash, "secret-hash-marker", totpMarker, "recovery-marker", aiKeyMarker, embedMarker,
-		mcpMarker, pluginSeal, pluginToken, "spam-marker", "password_hash", "totp",
+		mcpMarker, pluginSeal, pluginToken, oauthSeal, oauthName, "sealed-oauth", "spam-marker", "password_hash", "totp",
 		// base64 of the byte keys, as JSON would carry them
 		"YWkta2V5LW1hcmtlcg", "ZW1iZWQta2V5LW1hcmtlcg"} {
 		if strings.Contains(all.String(), never) {

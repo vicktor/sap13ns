@@ -72,6 +72,9 @@ func hostHTTPFetch(rptr, rlen uint32) int32
 //go:wasmimport sap13ns mail_send
 func hostMailSend(mptr, mlen uint32) int32
 
+//go:wasmimport sap13ns oauth_token
+func hostOAuthToken(pptr, plen uint32) int32
+
 func ptrLen(b []byte) (uint32, uint32) {
 	if len(b) == 0 {
 		return 0, 0
@@ -134,4 +137,9 @@ func (wasmHost) HTTPFetch(request []byte) ([]byte, int32) {
 func (wasmHost) MailSend(message []byte) int32 {
 	p, n := ptrLen(message)
 	return hostMailSend(p, n)
+}
+
+func (wasmHost) OAuthToken(provider []byte) ([]byte, int32) {
+	p, n := ptrLen(provider)
+	return fetchResult(hostOAuthToken(p, n))
 }

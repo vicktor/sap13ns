@@ -321,6 +321,13 @@ type Host struct {
 	rt    wazero.Runtime
 	httpc *http.Client
 
+	// OAuth connections (oauth.go): the client of the token requests,
+	// one lock per connection being renewed and the last failed renewals.
+	oauthc      *http.Client
+	oauthMu     sync.Mutex
+	oauthLocks  map[string]*sync.Mutex
+	oauthFailed map[string]time.Time
+
 	mu         sync.RWMutex
 	plugins    map[string]*Plugin
 	shortcodes map[string]*Plugin
@@ -381,6 +388,8 @@ func (h *Host) Dir() string { return h.dir }
 type eventJob struct {
 	name string
 	data any
+	run  func(context.Context) // instead of an event: work of the host itself
+	only string                // delivered to this plugin only
 }
 
 // HostOptions configures a Host. The zero values of the limits keep those
@@ -462,6 +471,9 @@ func NewHostWithOptions(ctx context.Context, opts HostOptions) (*Host, error) {
 		dir: opts.Dir, store: opts.Store, log: opts.Log.With("component", "plugins"), site: opts.Site, links: opts.Links,
 		rt:           wazero.NewRuntimeWithConfig(ctx, rc),
 		httpc:        newHTTPClient(),
+		oauthc:       newOAuthClient(),
+		oauthLocks:   map[string]*sync.Mutex{},
+		oauthFailed:  map[string]time.Time{},
 		plugins:      map[string]*Plugin{},
 		shortcodes:   map[string]*Plugin{},
 		compiled:     map[string]wazero.CompiledModule{},
@@ -634,9 +646,13 @@ func (h *Host) Load(ctx context.Context) error {
 	return nil
 }
 
-// WantsCron reports whether an enabled plugin subscribes to cron.hourly.
-// A network wakes an unloaded site for its hourly cron only when one does.
+// WantsCron reports whether an enabled plugin subscribes to cron.hourly
+// or has an OAuth connection the host may have to renew. A network wakes
+// an unloaded site for its hourly cron only when one does.
 func (h *Host) WantsCron() bool {
+	if h.wantsOAuth() {
+		return true
+	}
 	for _, p := range h.enabled() {
 		if p.HasHook(HookEvent) && p.HasEvent("cron.hourly") {
 			return true
@@ -1221,15 +1237,16 @@ const (
 // callState is attached to the context of each call so that host functions
 // know which plugin is calling and what it is allowed to do.
 type callState struct {
-	plugin    *Plugin
-	allowHTTP bool
-	allowMail bool
-	dryRun    bool // scanner sandbox: no storage, network or e-mail at all
-	pending   []byte
-	httpCalls int
-	kvOps     int
-	dbQueries int
-	mailCalls int
+	plugin     *Plugin
+	allowHTTP  bool
+	allowMail  bool
+	dryRun     bool // scanner sandbox: no storage, network or e-mail at all
+	pending    []byte
+	httpCalls  int
+	kvOps      int
+	dbQueries  int
+	mailCalls  int
+	oauthCalls int
 }
 
 func (p *Plugin) acquire(ctx context.Context, h *Host) (*instance, error) {
@@ -1875,8 +1892,12 @@ func (h *Host) Emit(event string, data any) {
 func (h *Host) eventWorker() {
 	defer h.wg.Done()
 	for job := range h.events {
+		if job.run != nil {
+			job.run(context.Background())
+			continue
+		}
 		for _, p := range h.enabled() {
-			if !p.HasHook(HookEvent) || !p.HasEvent(job.name) {
+			if !p.HasHook(HookEvent) || !p.HasEvent(job.name) || job.only != "" && p.ID != job.only {
 				continue
 			}
 			if _, err := h.call(context.Background(), p, HookEvent, job.name, job.data, eventTimeout, accessNet|accessMail); err != nil {
@@ -1900,8 +1921,16 @@ func (h *Host) RunCron(ctx context.Context) {
 	}
 }
 
-// Cron emits one cron.hourly. A network calls it for its sites instead of
-// running RunCron in each.
+// Cron renews the OAuth connections that are due, then emits one
+// cron.hourly. A network calls it for its sites instead of running RunCron
+// in each.
 func (h *Host) Cron(now time.Time) {
+	if !h.closed.Load() && h.wantsOAuth() {
+		select {
+		case h.events <- eventJob{name: "oauth.renew", run: h.renewOAuth}:
+		default:
+			h.log.Warn("plugin event queue full; OAuth renewals postponed")
+		}
+	}
 	h.Emit("cron.hourly", map[string]string{"time": now.UTC().Format(time.RFC3339)})
 }

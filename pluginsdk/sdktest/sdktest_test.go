@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vicktor/sap13ns/pluginsdk"
 	"github.com/vicktor/sap13ns/pluginsdk/sdktest"
@@ -72,6 +73,15 @@ func init() {
 			}
 			return pluginsdk.FormOK("sent"), nil
 		case pluginsdk.HookEvent:
+			if req.Event == pluginsdk.EventOAuthConnected {
+				tok, err := pluginsdk.OAuth("demo")
+				if err != nil {
+					pluginsdk.Log(pluginsdk.Warn, "oauth: "+err.Error())
+					return nil, nil
+				}
+				pluginsdk.Log(pluginsdk.Info, "token "+tok.AccessToken+" "+tok.TokenType+" "+tok.AccountName)
+				return nil, nil
+			}
 			resp, err := pluginsdk.Fetch(pluginsdk.HTTPRequest{URL: "https://api.example.test/ping"})
 			if err != nil {
 				pluginsdk.Log(pluginsdk.Warn, "fetch: "+err.Error())
@@ -202,7 +212,34 @@ func TestFetch(t *testing.T) {
 	}
 }
 
+func TestOAuth(t *testing.T) {
+	env := sdktest.New(t)
+	last := func() string { return env.Logs[len(env.Logs)-1].Text }
+	env.Event(pluginsdk.EventOAuthConnected, nil)
+	if !strings.Contains(last(), "not connected") {
+		t.Fatalf("not connected: %q", last())
+	}
+	env.OAuth["demo"] = pluginsdk.OAuthToken{AccessToken: "tok", AccountName: "Ada", ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339)}
+	env.Event(pluginsdk.EventOAuthConnected, nil)
+	if last() != "token tok bearer Ada" {
+		t.Fatalf("connected: %q", last())
+	}
+	env.OAuth["demo"] = pluginsdk.OAuthToken{AccessToken: "tok", ExpiresAt: time.Now().Add(-time.Minute).Format(time.RFC3339)}
+	env.Event(pluginsdk.EventOAuthConnected, nil)
+	if !strings.Contains(last(), "expired") {
+		t.Fatalf("expired: %q", last())
+	}
+	env.Denied["oauth"] = true
+	env.Event(pluginsdk.EventOAuthConnected, nil)
+	if !strings.Contains(last(), "permission denied") {
+		t.Fatalf("denied: %q", last())
+	}
+}
+
 func TestNoHostOutsideSandbox(t *testing.T) {
+	if _, err := pluginsdk.OAuth("demo"); !errors.Is(err, pluginsdk.ErrUnavailable) {
+		t.Fatalf("OAuth without a host = %v", err)
+	}
 	if _, err := pluginsdk.KVGet("k"); !errors.Is(err, pluginsdk.ErrUnavailable) {
 		t.Fatalf("KVGet without a host = %v", err)
 	}

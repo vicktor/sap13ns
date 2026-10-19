@@ -334,6 +334,18 @@ func TestWXRContentAndPersonalData(t *testing.T) {
 	if strings.Contains(out, "spam comment") || strings.Contains(out, "secret-hash") || rep.Comments != 2 || rep.Posts != 3 {
 		t.Errorf("report = %+v", rep)
 	}
+	// Plugin settings and OAuth connections never leave in an export.
+	ctx := context.Background()
+	if err := st.RecordPluginInstall(ctx, store.PluginInstall{ID: "greeter", Version: "1.0.0", Source: "cli"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SavePluginOAuth(ctx, store.PluginOAuth{PluginID: "greeter", Provider: "demo", Tokens: "enc1:oauth-token-marker",
+		AccountName: "oauth-account-marker"}); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ = wxr(t, st, o); strings.Contains(out, "oauth-token-marker") || strings.Contains(out, "oauth-account-marker") {
+		t.Error("the export carries an OAuth connection")
+	}
 
 	// Filters: an author, a date range, pages only.
 	o = siteOpts(s)

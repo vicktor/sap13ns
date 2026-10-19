@@ -380,12 +380,16 @@ func scanPermissions(rep *Report, m *Manifest, used map[string]bool) {
 		}
 	}
 	hasHTTP := slices.ContainsFunc(m.Permissions, func(p string) bool { return strings.HasPrefix(p, PermHTTP) })
+	hasOAuth := slices.ContainsFunc(m.Permissions, func(p string) bool { return strings.HasPrefix(p, PermOAuth) })
 	for _, perm := range sortedKeys(needs) {
-		declared := slices.Contains(m.Permissions, perm) || (perm == PermHTTP && hasHTTP)
+		declared := slices.Contains(m.Permissions, perm) || (perm == PermHTTP && hasHTTP) || (perm == PermOAuth && hasOAuth)
 		if !declared {
 			name := perm
-			if perm == PermHTTP {
+			switch perm {
+			case PermHTTP:
 				name = "http:<host>"
+			case PermOAuth:
+				name = "oauth:<provider>"
 			}
 			rep.add(SevHigh, "perm.undeclared", m.Wasm, "imports %s but does not request the %q permission", needs[perm], name)
 		}
@@ -402,6 +406,10 @@ func scanPermissions(rep *Report, m *Manifest, used map[string]bool) {
 				rep.add(SevMedium, "perm.unused", "plugin.json", "requests %q but never imports http_fetch", perm)
 				httpReported = true
 			}
+		case strings.HasPrefix(perm, PermOAuth):
+			if _, ok := needs[PermOAuth]; !ok {
+				rep.add(SevMedium, "perm.unused", "plugin.json", "requests %q but never imports oauth_token", perm)
+			}
 		case perm == PermCommentsPII && !m.HasHook(HookCommentCheck):
 			rep.add(SevMedium, "perm.unused", "plugin.json", "requests %q without the comment.check hook", perm)
 		case perm == PermAssetsJS && len(m.Assets.JS) == 0:
@@ -411,6 +419,9 @@ func scanPermissions(rep *Report, m *Manifest, used map[string]bool) {
 	netHooks := m.HasHook(HookEvent) || m.HasHook(HookCommentCheck) || m.HasHook(HookFormSubmit)
 	if used["http_fetch"] && !netHooks {
 		rep.add(SevMedium, "perm.http-render-only", m.Wasm, "imports http_fetch but only has render hooks, where the network is never available")
+	}
+	if used["oauth_token"] && !netHooks {
+		rep.add(SevMedium, "perm.oauth-render-only", m.Wasm, "imports oauth_token but only has render hooks, where tokens are never available")
 	}
 	if used["mail_send"] && !m.HasHook(HookEvent) && !m.HasHook(HookFormSubmit) {
 		rep.add(SevMedium, "perm.mail-render-only", m.Wasm, "imports mail_send but has neither the event nor the form.submit hook, where e-mail is available")

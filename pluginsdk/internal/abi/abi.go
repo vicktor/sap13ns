@@ -27,6 +27,7 @@ type Host interface {
 	PostsQuery(query []byte) ([]byte, int32)
 	HTTPFetch(request []byte) ([]byte, int32)
 	MailSend(message []byte) int32
+	OAuthToken(provider []byte) ([]byte, int32)
 }
 
 // Current is the host used by the SDK. The wasm glue sets it at start-up;

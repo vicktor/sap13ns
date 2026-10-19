@@ -86,6 +86,7 @@ func (h *Host) registerHostModule(ctx context.Context) error {
 		NewFunctionBuilder().WithFunc(h.hostPostsQuery).Export("posts_query").
 		NewFunctionBuilder().WithFunc(h.hostHTTPFetch).Export("http_fetch").
 		NewFunctionBuilder().WithFunc(h.hostMailSend).Export("mail_send").
+		NewFunctionBuilder().WithFunc(h.hostOAuthToken).Export("oauth_token").
 		Instantiate(ctx)
 	return err
 }
@@ -96,6 +97,7 @@ var hostImportPerms = map[string]string{
 	"log": "", "result": "",
 	"kv_get": PermKV, "kv_set": PermKV, "kv_delete": PermKV,
 	"posts_query": PermPostsRead, "http_fetch": PermHTTP, "mail_send": PermMail,
+	"oauth_token": PermOAuth,
 }
 
 func state(ctx context.Context) *callState {
