@@ -38,6 +38,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **AI where it helps:** an optional writing assistant that works with Claude, any OpenAI-compatible server (including local models in LM Studio, Ollama or llama.cpp) and Gemini. Sites are also AI-ready: `llms.txt`, Markdown twins of every post, and an AI crawler policy.
 - **Themes with light and dark modes**, built on [Basecoat UI](https://basecoatui.com) and [Lucide](https://lucide.dev) icons. Themes and plugins load at runtime: no recompiling.
 - **Many sites in one process (optional):** a network mode serves a portal and isolated sites, with single sign-on, plans, Stripe billing and custom domains ([docs/MULTISITE.md](docs/MULTISITE.md)).
+- **Free to leave:** a site's backup is also a WordPress import, files included. WordPress's own importer reads it as it is ([docs/MOVING-TO-WORDPRESS.md](docs/MOVING-TO-WORDPRESS.md)).
 
 ## Features
 
@@ -65,7 +66,7 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - **A `.zip`** with that file, the uploads directory, and a Markdown copy of every post and page (YAML front matter, then the stored Markdown).
 - **No personal data by default.** Commenters' e-mail and IP addresses and authors' e-mail addresses are only exported with **Include commenters' personal data**. Passwords, two-factor secrets, passkeys, sessions, plugin secrets, API keys and the site secret are never exported.
 - **Any size:** exports stream, so a site is never held in memory. A large `.zip` is prepared in the background and downloaded from a link that works once, for the administrator who asked, within 24 hours. A site keeps one such export waiting, and one starts only when the disk, and on a network the plan's storage, has room for it. Every export is in the audit log.
-- **Not exported:** widgets, settings, themes, designs (the customiser exports those), plugins and revisions.
+- **Not exported:** widgets, settings, themes, designs (the customiser exports those), plugins and revisions. A [backup](#operations) holds all of the site.
 
 ### Multilingual
 - Each post can have linked translations, and every language lives under its own prefix (`/en/`, `/es/`…).
@@ -181,13 +182,15 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
   - one subscription pays for one site, through Stripe Checkout and the Customer Portal ([docs/BILLING.md](docs/BILLING.md));
   - a site whose payment lapses is held (its public pages answer 503) and never deleted.
 - **Custom domains:** proven with a DNS TXT record and checked again every day. TLS comes from nginx with a wildcard certificate, from Caddy's on-demand TLS, or from the built-in ACME client.
+- **Nightly backups:** every site is backed up each night, a few at a time and within a time budget, without loading it. Its administrators download and restore them under **Tools → Backups**. Backups are bounded by the plan's storage and the free disk, and the network's sites page shows the latest one of each site ([docs/MULTISITE.md](docs/MULTISITE.md#backups)).
 - **Plugin catalogue and review:** sites install the plugins the operator offers. Uploads, on the plans that allow them, wait for the operator to review that exact build ([docs/PLUGINS.md](docs/PLUGINS.md#networks-of-sites)).
 - **Theme uploads:** on Pro and Business, sites upload their own themes, checked automatically with no operator review. Their files count against the plan's storage ([docs/MULTISITE.md](docs/MULTISITE.md#plugins-and-themes)).
 
 ### Operations
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
 - Listens on TCP or a **Unix socket** (recommended behind nginx). Structured logs in text or JSON.
-- **Encrypted backups:** `sap13ns backup create|list|verify|restore|prune` dumps the database and uploads into one archive sealed with AES-256-GCM (STREAM construction, Argon2id key derivation), with daily, weekly and monthly retention and a systemd timer.
+- **Backups that WordPress can read:** every site keeps its own backups under **Tools → Backups**: one `.zip` with a WordPress export file, the uploads in WordPress's layout, and what only sap13ns uses (settings, users and roles, menus, widgets, designs, redirects, plugin settings). WordPress imports it as it is ([docs/MOVING-TO-WORDPRESS.md](docs/MOVING-TO-WORDPRESS.md)), and sap13ns restores it in one transaction, after a safety backup, with the checks of the admin pages. A network backs up every site each night.
+- **Encrypted backups:** `sap13ns backup create|list|verify|restore|prune|decrypt` also dumps the database and uploads into one archive, for disaster recovery. Both kinds can be sealed with AES-256-GCM (STREAM construction, Argon2id key derivation), with daily and weekly (and for the database, monthly) retention and a systemd timer.
 - **Signed self-update:** administrators see a notice in the admin when a release is out. `sap13ns update` then downloads it, checks the Ed25519-signed `SHA256SUMS`, and swaps the binary atomically, keeping the previous one for rollback (see [docs/RELEASES.md](docs/RELEASES.md)).
 - **Cookie-less analytics:**
   - page views, unique visitors, top pages, sources, browsers, systems, devices and languages, with a daily chart in the admin;
@@ -256,7 +259,8 @@ sap13ns migrate          Apply database migrations
 sap13ns keygen           Generate a secret key
 sap13ns user create      Create a user
 sap13ns user reset-password
-sap13ns backup create|list|verify|restore|prune
+sap13ns backup create|list|verify|restore|prune|decrypt   The database and uploads
+sap13ns backup create|list|prune|restore -format site      The site's own backups (-wp-base URL)
 sap13ns export -o FILE.xml|FILE.zip   Export the content (-drafts, -pii, -no-media)
 sap13ns update           Install the latest signed release (-check, -yes, -force)
 sap13ns plugin new|pack|check   Start, package and scan a plugin
@@ -269,7 +273,7 @@ Networks of sites (SAP13NS_MULTISITE=true):
 sap13ns network init     Create the network and its portal, and an administrator
 sap13ns site create|list|suspend|resume|delete|purge
 sap13ns site domain add|verify|primary|remove
-sap13ns migrate|user|plugin|theme|assistant|export -site S   Work on one site (-site network: the portal)
+sap13ns migrate|user|plugin|theme|assistant|export|backup -site S   Work on one site (-site network: the portal)
 ```
 
 ## Development
@@ -301,7 +305,6 @@ docs               operator and developer documentation
 
 Still missing on a network of sites:
 
-- **Per-site backups:** `sap13ns backup create` and `restore` refuse to run on a network for now; back it up with `pg_dump` and a copy of the data directory ([docs/MULTISITE.md](docs/MULTISITE.md#backups)). A single site's content leaves the network with its [export](#export).
 - **Conversion:** a single-site install cannot yet be turned into a network, or moved into one.
 - **Member invitations** by site owners.
 

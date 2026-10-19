@@ -147,6 +147,8 @@ sudo -u sap13ns sap13ns backup list -env /etc/sap13ns/sap13ns.env
 
 Para restaurar, para el servicio, ejecuta `sudo -u sap13ns sap13ns backup restore -env /etc/sap13ns/sap13ns.env ARCHIVO` y vuelve a arrancarlo.
 
+El temporizador hace también la copia propia del sitio (`backup create -format site`): un `.zip` que WordPress importa tal cual y que **Copias de seguridad**, en el panel, muestra, descarga y restaura. Se conservan 7 diarias y 4 semanales. Para irte a WordPress, sigue [la guía](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md) (en inglés).
+
 Copia los archivos a otro lugar que no sea el propio servidor. Una copia que vive en el mismo disco no es una copia.
 
 ## Actualizar
@@ -166,7 +168,7 @@ sudo systemctl restart sap13ns
 Una sola instalación puede servir una red de sitios entera: un portal donde cada persona tiene una cuenta y tantos sitios como quieras, cada uno con su propio esquema de PostgreSQL, sus archivos, sus usuarios y sus plugins. Está desactivado hasta que lo activas, y empieza con una base de datos nueva: una instalación de un solo sitio todavía no se puede convertir en una red.
 
 1. Apunta al servidor el host del portal y un comodín para los sitios, y consigue un certificado comodín para ellos. Los dominios propios obtienen sus certificados con el TLS bajo demanda de Caddy, con el cliente ACME integrado o uno a uno con nginx.
-2. Añade `SAP13NS_MULTISITE=true` y `SAP13NS_SITES_DOMAIN` a la configuración. `SAP13NS_BASE_URL` pasa a ser la dirección del portal. Desactiva `sap13ns-backup.timer`, porque `sap13ns backup` todavía no funciona en una red.
+2. Añade `SAP13NS_MULTISITE=true` y `SAP13NS_SITES_DOMAIN` a la configuración. `SAP13NS_BASE_URL` pasa a ser la dirección del portal. Desactiva `sap13ns-backup.timer`: una red hace cada noche la copia de cada uno de sus sitios.
 3. Crea la red, su portal y un primer administrador de la red, y arranca el servicio:
 
    ```bash
@@ -176,7 +178,7 @@ Una sola instalación puede servir una red de sitios entera: un portal donde cad
 
 4. Deja que la gente se registre en el portal, si abres el registro, y pida sitios, o créalos con `sap13ns site create -slug blog -owner ana@example.com -plan pro`. `sap13ns site list`, `suspend`, `resume`, `delete`, `purge` y `domain` sirven para gestionarlos.
 
-Una red tiene inicio de sesión único a través del portal, un área de administración de la red, planes con límites de almacenamiento y de dominios propios, cobro con Stripe y dominios propios verificados por DNS y servidos con TLS. Algunas cosas todavía no están disponibles en una red: `sap13ns backup create` y `restore` se niegan a funcionar en ella, así que se copia con `pg_dump` y una copia del directorio de datos; una instalación de un solo sitio no se puede convertir en un sitio de la red, y los sitios no pueden subir temas. La guía es [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), y [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md#networks-of-sites) tiene las configuraciones de nginx y Caddy.
+Una red tiene inicio de sesión único a través del portal, un área de administración de la red, planes con límites de almacenamiento y de dominios propios, cobro con Stripe y dominios propios verificados por DNS y servidos con TLS. Cada sitio tiene su copia de seguridad cada noche, y sus administradores las descargan y las restauran en **Copias de seguridad**. Esas copias guardan los sitios, no la red, así que guarda también un `pg_dump` y una copia del directorio de datos. Los sitios suben sus propios temas en los planes que lo permiten. Una cosa todavía no está disponible en una red: una instalación de un solo sitio no se puede convertir en un sitio de la red. La guía es [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), y [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md#networks-of-sites) tiene las configuraciones de nginx y Caddy.
 
 Si prefieres no tener ningún servidor, está el [alojamiento en sap13ns.site](/es/alojamiento).
 

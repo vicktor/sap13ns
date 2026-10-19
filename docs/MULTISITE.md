@@ -225,7 +225,7 @@ Plans are rows of `network.plans`. **Network → Plans** lists them. The network
 A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then it is held. A canceled or unpaid subscription holds the site, and paying lifts the hold. Nothing is deleted for billing. [BILLING.md](BILLING.md) covers the Stripe setup.
 
 **Limits.** A plan's limits apply to every site on it:
-- **Storage** counts uploads, their image variants, plugin packages and uploaded themes, but not exports waiting for their download, which are bounded on their own ([Exporting one site](#exporting-one-site)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
+- **Storage** counts uploads, their image variants, plugin packages and uploaded themes, but not exports waiting for their download nor backups, which are bounded on their own ([Exporting one site](#exporting-one-site), [Backups](#where-they-are-and-how-long-they-stay)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
 - **Custom domains** count verified and unverified ones.
 - **A downgrade** only blocks additions: files, domains, plugins and themes over the new limits stay. A site moved to a plan without theme uploads keeps its uploaded themes, and can delete them, but cannot upload more.
 
@@ -326,35 +326,130 @@ sap13ns theme list|install|remove -site S ...    the site's own themes; the same
                                                  an upload, without the plan's gate or quota
 sap13ns assistant reindex|status -site S ...
 sap13ns export -site S -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media]
-        Export one site's content (see Backups).
+        Export one site's content (see Exporting one site).
+sap13ns backup create|list|prune -site S, backup restore -site S [-replace] FILE
+        The site's backups (see Backups).
 ```
 
 `site create` with a plan that needs approval (Personal) leaves the site pending. It is approved or rejected under **Network → Sites** in the portal.
 
 ## Backups
 
-`sap13ns backup create` and `backup restore` refuse to run on a network. `list`, `verify` and `prune` still work on existing archives. An archive holds one database dump and one uploads directory. On a network that would mean every site's schema with the network's directory only, and a restore would replace every site at once. Per-site archives (`pg_dump --schema=site_<id>` with the site's directory) will come later.
+Every site of the network is backed up by itself, every night, into one `.zip` that sap13ns restores and that WordPress imports as it is. The site's administrators find these backups under **Tools → Backups**, where they can download one, make one, or restore one. Operators use `sap13ns backup … -site S`.
 
-Until then, back up a network with the standard tools:
+A site backup holds one site, never the network: the portal's accounts, the plans, subscriptions, domains and secrets are not in it. Keep the network's own backups as well (see [The whole network](#the-whole-network)).
+
+### What a backup holds
+
+| Member | What it is |
+|---|---|
+| `export.xml` | A WordPress export file (WXR 1.2), as Tools → Export makes it: posts and pages in every status (trash included), attachments, comments (approved and held, never spam), the authors, categories and tags with their hierarchy, menus, featured images, and the sap13ns extensions (Markdown source, languages and translations, redirects) |
+| `wp-content/uploads/` | The site's files at the paths of their attachment URLs (`YYYY/MM/name.ext`): WordPress's own layout |
+| `sap13ns/settings.json` | Site settings, writing assistant and site assistant settings without their keys, theme options |
+| `sap13ns/users.json` | Users and their roles and profiles, without passwords, second factors, passkeys or sessions |
+| `sap13ns/media.json` | The media library: sizes, resized copies, captions, alternative texts |
+| `sap13ns/menus.json`, `widgets.json` | Menus per location and language, and widgets |
+| `sap13ns/appearance.json` | Customiser designs and page-builder layouts: published, draft and earlier versions |
+| `sap13ns/redirects.json` | Redirect rules |
+| `sap13ns/plugins.json` | The plugins installed, their versions, and their plain settings |
+| `README.txt` | How to move to WordPress, or to restore |
+| `sap13ns/manifest.json` | Format, site, date, and the size and SHA-256 of every other member. It is written last. |
+
+A backup never holds password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the MCP token or the site secret. It holds personal data, as the site does: the e-mail addresses of users and commenters, and the IP addresses of commenters. Analytics, the audit log, revisions and autosaves are left out.
+
+With `SAP13NS_BACKUP_PASSPHRASE_FILE` (or `SAP13NS_BACKUP_PASSPHRASE`), archives are encrypted with the format of the database backups and named `.zip.enc`. The admin downloads them decrypted, and `sap13ns backup decrypt` decrypts one on the command line.
+
+### Where they are, and how long they stay
+
+Backups live in `$SAP13NS_BACKUP_DIR/sites/<id>/` (by default `$SAP13NS_DATA_DIR/backups`), outside the site's own directory: directories 0700, files 0600. Next to them, `status.json` records the latest attempt, the latest success, and when the latest restores started.
+
+After each backup, and after the safety backup of a restore, the site's backups are pruned:
+- the newest backup of each of the last 7 days and of the last 4 ISO weeks (`SAP13NS_SITE_BACKUP_KEEP_DAILY`, `SAP13NS_SITE_BACKUP_KEEP_WEEKLY`), and always the newest;
+- the newest 3 backups made before a restore, for 7 days at most;
+- in all, at most **twice the storage of the site's plan**: past that, the oldest go first, but never the newest backup, nor the archive a restore is using.
+
+**Backups do not count toward the storage a site uses.** Counting them would let a nightly backup push a site over its quota and stop its uploads, for space the site does not control. They are bounded instead, and that space is the operator's to provide: up to twice the plan storage of every site, on the disk of `SAP13NS_BACKUP_DIR`. Copy the backups to another machine too, because a backup on the same disk does not survive the disk.
+
+### Nightly backups
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SAP13NS_SITE_BACKUPS` | `true` | `false` turns the nightly backups off |
+| `SAP13NS_SITE_BACKUP_TIME` | `03:30` | When they start, server time |
+| `SAP13NS_SITE_BACKUP_CONCURRENCY` | `2` | Sites backed up at once (1 to 16) |
+| `SAP13NS_SITE_BACKUP_BUDGET` | `3h` | No site starts after this long (10m to 23h) |
+
+The nightly run backs up the portal and every site that is active, held for billing or suspended. Pending and deleted sites are not backed up. It reads each site's schema and files without loading the site, so no plugin runs and a suspended site is backed up like any other. The sites least recently tried go first: the sites one night did not reach are the first of the next.
+
+A site is **skipped** when:
+- the disk does not have twice the estimated size of its backup free (a backup never takes more than half the free disk);
+- the estimate is larger than the storage of its plan (`skipped: larger than the storage of its plan`).
+- another backup or restore of the site is running.
+
+A skipped or failed site is logged, listed at the top of **Network → Sites** (with a **Latest backup** column for every site), and shown on its page and on its own **Tools → Backups**. When the passphrase file cannot be read, the run makes no backup at all rather than unencrypted ones, and says so on **Network → Sites**.
+
+### Tools → Backups
+
+The site's administrators (only they) can:
+- **Download** a backup. The link is signed for their session, and works for an hour. An encrypted backup is decrypted on the fly, and every download is in the audit log.
+- **Back up now**: one at a time, 6 an hour. With the address of a WordPress site, the archive is made to move there ([MOVING-TO-WORDPRESS.md](MOVING-TO-WORDPRESS.md)).
+- **Restore** a backup of the list (not an uploaded file). This needs:
+  - the site's name, typed;
+  - their current password (or, with single sign-on, a sign-in of the last few minutes);
+  - and at most one restore every 10 minutes, 3 an hour. This is kept with the backups, so it holds when the site is reloaded.
+
+  The portal is never restored from a site backup: it holds the network's accounts.
+
+### Restoring
+
+A restore replaces the site's posts, pages, comments, terms, media and files, menus, widgets, designs and layouts, redirects, settings, theme options, and the settings of the plugins the site has installed. Users are matched by username (or e-mail address) and created when missing, without a password. They are never deleted, and the administrator restoring is never demoted or disabled.
+
+What keeps it safe:
+- **All or nothing.** The archive is checked first: the manifest, every member's size and SHA-256, and the extraction limits (no absolute paths, `..`, links or special files, and bounded sizes and counts). A site with content is then backed up ("before a restore"). The database changes in one transaction. The files are staged next to the uploads and swapped in only after the commit. A restore that fails at any point leaves the site as it was.
+- **The pipelines of the site.** Content goes through the same Markdown and sanitising pipeline as anything else. Settings go through the rules of their admin pages: a value that fails is reset to the site's current one, or to the default, and the report names it. Menus keep only valid links, widgets and plugin settings are checked by the code that owns them (and are left out without it), and custom CSS is sanitised.
+- **Never secrets.** API and embedding keys, the MCP token, two-factor settings, passwords, plugin secrets and the site secret stay as the site has them. A key is kept only while the provider and address it was entered for stay the same, and a restore never switches local (plain http) models on.
+- **Bounded.** An archive larger than the storage of the plan is not restored, and neither is a site whose safety backup would be. The decrypted copy of an encrypted archive, and the staged files, each need twice their size free. The decrypted copy is removed when the restore ends, however it ends.
+- **One site.** A restore writes only the site's schema and directory. A backup of another site can be restored too, and its users are then matched by name.
+- **Audited.** `backup.restore_started`, `backup.restored` or `backup.restore_failed`, and `backup.restore_refused` for a wrong password, all name the archive.
+
+### Command line
+
+```
+sap13ns backup create -site S [-wp-base URL]     A backup now (no plan limit: the operator's)
+sap13ns backup list -site S                      Its backups, and the latest attempt
+sap13ns backup verify [-passphrase-file F] ARCHIVE
+sap13ns backup restore -site S [-replace] [-yes] ARCHIVE
+        -replace is required when the site has content; a backup of it is made first.
+        The site's plugins are loaded to check their settings, and the running
+        servers reload the site.
+sap13ns backup prune -site S [-keep-daily N] [-keep-weekly N]
+sap13ns backup decrypt [-o OUT] ARCHIVE.zip.enc
+```
+
+### The whole network
+
+Site backups cover the sites, not the network: the portal's accounts, the plans and subscriptions, domains and certificates, and every site's sealed secret are in the database only. Back up the whole of it for disaster recovery too:
 
 ```sh
 sudo systemctl stop sap13ns
 sudo -u sap13ns pg_dump --format=custom sap13ns > sap13ns-network.dump
-sudo tar -C /var/lib -czf sap13ns-data.tar.gz sap13ns
+sudo tar -C /var/lib -czf sap13ns-data.tar.gz --exclude=sap13ns/backups sap13ns
 sudo systemctl start sap13ns
 ```
 
-Keep `SAP13NS_SECRET_KEY` with the backups. It wraps every site's own secret, so without it no site can open its sessions, its stored keys or its passkeys.
+(`--exclude` leaves out the site backups, which are copied on their own.)
+
+`sap13ns backup create` without `-site` refuses to run on a network, so disable `sap13ns-backup.timer` there: it is for single sites. Keep `SAP13NS_SECRET_KEY` with these copies. It wraps every site's own secret, so without it no site can open its sessions, its stored keys or its passkeys.
 
 ### Exporting one site
 
-Until per-site backups exist, **a site's way out of the network is its export**, the same one as on a single site ([README](../README.md#export)):
+An export is the lighter way out of the network, the same one as on a single site ([README](../README.md#export)):
 - **The site's administrators** use **Tools → Export** on the site. This also works while the site is held for billing, because a held site keeps its admin.
 - **An operator** runs `sap13ns export -site S -o S.zip`. This also works for a suspended site, whose admin no longer answers.
 
 The `.zip` holds the WXR file, the site's uploads and a Markdown copy of each post and page. Any sap13ns site, in a network or not, and WordPress import the WXR. An export reads the site's own schema and directory, and nothing of another site's.
 
-An export is not a backup. It leaves out users (apart from the authors' names), settings, menus, themes, designs and plugins, and it cannot be restored over the site.
+An export is not a backup. It leaves out users (apart from the authors' names), settings, widgets, themes, designs and plugins, and it cannot be restored over the site.
 
 A large `.zip` waits for its download in the site's `exports/` directory. It is not counted in the site's storage, since it is temporary, and the hourly sweep deletes it after 24 hours. It is bounded instead:
 - **One export waits per site.** Starting a new one deletes the site's earlier export that nobody downloaded, whoever started it, and only one runs at a time.
@@ -375,4 +470,4 @@ So a site's exports take at most one finished file and one being written, each n
 - **Members.** Only network administrators manage the members of a site.
 - **Emergency access on a suspended site.** The site is inert meanwhile (see [Emergency access](#emergency-access)): its admin shows its plugins as not loaded, and what the plugins would do (a contact form, a widget, a cron job) does not happen. The network's sweeps only visit active sites, so its scheduled-post announcements wait until it is resumed.
 - **Plans.** A site's plan changes only through billing, or when it is created from the command line. The plans themselves are edited in the database.
-- **Backups:** see [Backups](#backups).
+- **Backups of purged sites.** `site purge` leaves a site's backups in `$SAP13NS_BACKUP_DIR/sites/<id>/`, for the operator to keep or delete.

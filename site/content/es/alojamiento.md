@@ -30,7 +30,7 @@ Para empresas, profesionales autónomos, tiendas, boletines con patrocinadores, 
 
 - Certificados HTTPS, emitidos y renovados automáticamente.
 - Actualizaciones a las nuevas versiones de sap13ns, que aplicamos nosotros.
-- Copias de seguridad periódicas de tu contenido y tus archivos.
+- Copias de seguridad de cada sitio cada noche, que descargas y restauras desde tu panel.
 - Los seis temas, con modo claro y oscuro.
 - El editor Markdown, las traducciones, los feeds, los comentarios y el importador de WordPress.
 - Estadísticas sin cookies, sin necesidad de aviso de consentimiento.
@@ -41,6 +41,8 @@ Los planes comerciales añaden tu **propio dominio** y espacio para tus **propio
 ## Irse es fácil
 
 Tu contenido es tuyo. Puedes exportarlo cuando quieras y llevártelo a tu propio servidor con sap13ns, a otro proveedor o a donde prefieras. Como sap13ns es de código abierto, la exportación funciona con el mismo software que usarías tú.
+
+Cada copia de seguridad de tu sitio es también una importación de WordPress. Descarga una en **Copias de seguridad**, y el propio importador de WordPress la lee, archivos incluidos ([cómo](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md), en inglés).
 
 ## Preguntas frecuentes
 
@@ -62,7 +64,7 @@ Los pagos los gestiona Stripe. Nunca vemos ni guardamos el número de tu tarjeta
 
 ### ¿Qué pasa si me doy de baja?
 
-Tu plan sigue activo hasta el final del periodo que ya has pagado. Después el sitio se desconecta y tienes tiempo para exportar tu contenido antes de que se elimine.
+Tu plan sigue activo hasta el final del periodo que ya has pagado. Después el sitio se desconecta y tienes tiempo para descargar una copia o exportar tu contenido antes de que se elimine.
 
 ### ¿Puedo usar mi propio tema o plugin?
 

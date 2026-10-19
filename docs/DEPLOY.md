@@ -81,17 +81,20 @@ Everything else (site title, languages, themes, comments, two-factor policy, AI,
 | Health check | `curl --unix-socket /run/sap13ns/sap13ns.sock http://x/healthz` |
 | Installation health | Admin → **System** (security, database, caches, updates) |
 | Back up now | `sudo systemctl start sap13ns-backup` |
-| List and verify backups | `sudo -u sap13ns sap13ns backup list -env /etc/sap13ns/sap13ns.env` |
+| List and verify backups | `sudo -u sap13ns sap13ns backup list -env /etc/sap13ns/sap13ns.env` (add `-format site` for the site's own) |
 | Export the content | `sudo -u sap13ns sap13ns export -env /etc/sap13ns/sap13ns.env -o /var/lib/sap13ns/site.zip` |
 | Update | `sudo sap13ns update && sudo systemctl restart sap13ns` |
 | Reset a password | `sudo -u sap13ns sap13ns user reset-password -env /etc/sap13ns/sap13ns.env -username U` |
 
 ### Backups
-`sap13ns-backup.timer` runs `sap13ns backup create` and `prune` every night at 03:30. Each archive holds a `pg_dump` of the database and all uploads.
+`sap13ns-backup.timer` runs every night at 03:30 and makes two kinds of archive, each pruned after it is made:
+- **The database and uploads** (`sap13ns backup create`): a `pg_dump` of the database and all uploads, for disaster recovery. It keeps 7 daily, 4 weekly and 12 monthly archives (`SAP13NS_BACKUP_KEEP_*`). To restore, stop the service, run `sap13ns backup restore ARCHIVE`, and start it again. Migrations run on start.
+- **The site's own backup** (`sap13ns backup create -format site`): a `.zip` that WordPress imports as it is ([MOVING-TO-WORDPRESS.md](MOVING-TO-WORDPRESS.md)), and that **Tools → Backups** lists, downloads and restores. These go to `$SAP13NS_BACKUP_DIR/site/`. It keeps 7 daily and 4 weekly backups (`SAP13NS_SITE_BACKUP_KEEP_*`), plus the 3 latest safety backups made before a restore, for 7 days. [MULTISITE.md](MULTISITE.md#backups) describes the archive, the restore and its checks, which are the same on a single site.
 
-- To encrypt the archives, set `SAP13NS_BACKUP_PASSPHRASE_FILE` to a file readable only by `sap13ns`, and keep a copy of the passphrase elsewhere.
-- To restore, stop the service, run `sap13ns backup restore ARCHIVE`, and start it again. Migrations run on start.
-- Copy the archives to another machine: a backup on the same disk doesn't protect against losing the disk.
+Either kind:
+- **Encryption.** To encrypt the archives, set `SAP13NS_BACKUP_PASSPHRASE_FILE` to a file readable only by `sap13ns`, and keep a copy of the passphrase elsewhere. The server reads it too, to encrypt what the Backups page makes, and decrypts downloads on the fly. `sap13ns backup decrypt ARCHIVE.enc` decrypts one by hand.
+- **Disk.** A backup never starts without twice its estimated size free. A skipped one is logged, and shown on the Backups page.
+- **Off the machine.** Copy the archives to another machine: a backup on the same disk doesn't protect against losing the disk.
 
 ### Exports
 Administrators export the site's content from **Tools → Export**, and `sap13ns export -o FILE.xml|FILE.zip` does the same from the shell. The [README](../README.md#export) lists what an export holds.
@@ -223,7 +226,9 @@ SAP13NS_ACME_EMAIL=ops@example.com
 
 ### Backups of a network
 
-`sap13ns backup create` and `restore` refuse to run on a network: an archive holds one database and one uploads directory, not a network's sites. Back up with `pg_dump` and the data directory instead, as [MULTISITE.md](MULTISITE.md#backups) shows, and disable `sap13ns-backup.timer`. One site's content leaves with its export (`sap13ns export -site S`, or **Tools → Export** on the site).
+A network backs up every site by itself each night (`SAP13NS_SITE_BACKUPS`, `SAP13NS_SITE_BACKUP_TIME` and the other variables in [MULTISITE.md](MULTISITE.md#backups)), into `$SAP13NS_BACKUP_DIR/sites/<id>/`. Disable `sap13ns-backup.timer`: `sap13ns backup create` without `-site` refuses to run on a network. Back up the database and the data directory as well, with `pg_dump` and a copy of the directory, as [MULTISITE.md](MULTISITE.md#the-whole-network) shows: site backups do not hold the network's accounts, plans, domains or secrets.
+
+Plan the space: a site's backups take at most twice the storage of its plan, and none of it counts toward the plan.
 
 ## Hardening notes
 - The systemd unit runs sap13ns unprivileged with a read-only system, a private `/tmp`, no capabilities and a system-call filter. Check it with `systemd-analyze security sap13ns`.

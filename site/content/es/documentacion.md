@@ -37,6 +37,12 @@ Cómo servir muchos sitios desde una sola instalación: el portal, el inicio de 
 
 [Leer MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md)
 
+### Pasar a WordPress — MOVING-TO-WORDPRESS.md
+
+Cómo llevar un sitio a WordPress con una de sus copias de seguridad: las dos maneras de hacerlo, los pasos en el panel y con WP-CLI, qué hacer después de importar, y qué se lleva y qué no. Está en inglés.
+
+[Leer MOVING-TO-WORDPRESS.md](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md)
+
 ### Cobros — BILLING.md
 
 Cómo configurar Stripe para una red de sitios: productos y precios, el portal de clientes, el webhook, las variables de entorno y qué le pasa a un sitio cuando deja de pagarse.
@@ -64,6 +70,7 @@ El modelo de amenazas, las defensas de cada capa y cómo informar de una vulnera
 | cambiar el aspecto de un sitio | THEMES.md |
 | añadir una función | PLUGINS.md |
 | tener muchos sitios en una sola instalación | MULTISITE.md |
+| pasar un sitio a WordPress | MOVING-TO-WORDPRESS.md |
 | entender los riesgos | SECURITY.md y el [resumen de seguridad](/es/seguridad) |
 | olvidarte del servidor | [Alojamiento en sap13ns.site](/es/alojamiento) |
 
@@ -78,8 +85,10 @@ sap13ns user reset-password           cambia la contraseña de un usuario
 sap13ns plugin new|pack|check         empieza, empaqueta y analiza un plugin
 sap13ns plugin list|install           lista o instala los plugins del sitio
 sap13ns plugin hash <dir>             muestra el SHA-256 del módulo y los recursos de un plugin
-sap13ns backup create|list|verify|restore|prune
+sap13ns backup create|list|verify|restore|prune|decrypt
                                       copias cifradas de la base de datos y los archivos subidos
+sap13ns backup create|list|restore|prune -format site
+                                      las copias propias del sitio, que WordPress importa
 sap13ns assistant reindex|status      el índice de búsqueda del asistente del sitio
 sap13ns update                        instala la última versión firmada
 sap13ns version                       muestra la versión

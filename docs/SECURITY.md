@@ -99,7 +99,7 @@ Administrators can upload a theme as a `.zip` (**Appearance → Themes**, or `sa
 - **CSS selectors** can make the browser fetch site URLs that depend on what a page holds, such as an attribute's value, as custom CSS already can. The requests stay on the site, which is the uploader's own, and the one secret on its pages, a session's CSRF token, only works with that session's cookie.
 
 ### Outbound requests
-Plugin HTTP calls, imported media and AI image downloads go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
+Plugin HTTP calls, imported media, AI image downloads and WebSub pings go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
 
 - loopback, private, link-local, CGNAT, multicast, cloud metadata, documentation, benchmarking and reserved addresses;
 - IPv6 ranges that embed or translate to IPv4 (IPv4-mapped and -compatible, NAT64, 6to4, Teredo), as well as site-local and unique-local addresses.
@@ -136,6 +136,12 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
   - E-mail and IP addresses are only included when the administrator asks for them.
   - A `.zip` prepared in the background sits in a directory that is never served. It is downloaded once, by the administrator who asked, through a signed link valid for 24 hours, and then deleted.
   - Background exports cannot fill the disk. A site keeps one waiting, and a new one deletes it. One starts only when its estimate fits the storage of the site's plan (on a network) and the disk keeps twice the estimate free; otherwise it is refused with 413.
+- **Site backups** (Tools → Backups, `sap13ns backup -format site`, and a network's nightly run):
+  - **No secrets.** They never hold password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the MCP token, or the instance and site secrets. They do hold personal data (users' and commenters' e-mail addresses, commenters' IP addresses), so they are written with mode 0600 in 0700 directories that are never served, and encrypted when a passphrase is set.
+  - **Administrators only.** The page needs the settings capability. A download link is signed for the administrator's session and expires after an hour, and each download is audited.
+  - **Restores** need the site's name typed and the administrator's current password, or a sign-in of the last few minutes with single sign-on. They are spaced out (one every 10 minutes, 3 an hour, recorded with the backups so a reload does not reset it) and audited. A restore makes a safety backup first, changes the database in one transaction, and swaps the staged files in after the commit, so a failed restore leaves the site as it was. It writes only the site's own schema and directory.
+  - **Nothing in an archive is trusted.** Every member is checked against the manifest (size and SHA-256) and the extraction limits. Content goes through the sanitising pipeline. Settings, menus, widgets, theme options, designs, redirects and plugin settings go through the checks of their admin pages, and what fails is reset to the site's value and reported. A restore never takes a secret from an archive, never keeps a key for another provider or address, and never switches local (plain http) models on.
+  - **Bounded.** A backup, or what a restore writes, never takes more than half of the free disk. On a network a backup is at most the storage of the site's plan, a site's backups take at most twice it in all, and a site keeps at most 3 safety backups. Backups are not counted toward the site's storage.
 - **Analytics** store only daily aggregates. Visitors are counted with a salt that rotates daily and lives only in memory: no IP address, user agent or identifier is persisted.
 - **Public pages** make no third-party requests and set no tracking cookies.
 
@@ -169,7 +175,7 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
   - Personal sites can only install the operator's catalogue.
   - Either way, the site's administrator still approves the permissions before enabling the plugin.
 - **Themes.** Only plans with theme uploads can upload themes; on the others the form is hidden and the upload is refused with a 403. An uploaded theme goes into the site's own directory, so no other site can list, preview or load it. No operator reviews it: the checks of [Uploaded themes](#uploaded-themes) apply.
-- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota. Theme files count too, and deleting a theme gives its bytes back. Exports are temporary and not counted, so they are bounded instead: one waiting per site, and none larger than the plan's storage ([MULTISITE.md](MULTISITE.md#exporting-one-site)).
+- **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota. Theme files count too, and deleting a theme gives its bytes back. Exports and backups are not counted, so they are bounded instead. Exports: one waiting per site, and none larger than the plan's storage ([MULTISITE.md](MULTISITE.md#exporting-one-site)). Backups: none larger than the plan's storage, twice it in all per site, at most 3 safety backups, and spaced-out restores ([MULTISITE.md](MULTISITE.md#backups)).
 - **Custom domains.**
   - **Proving control.** A host is routed only after a DNS check finds its TXT record with a token derived for that site and host, and finds that the host points to the network. Unverified hosts get a 404.
   - **Untrusted answers.** DNS answers are untrusted: names are normalised, only the exact value counts, and nothing from an answer is stored.
@@ -192,7 +198,7 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
 - **Memory.** Every loaded site has its own templates, caches and plugin instances. `SAP13NS_MAX_LOADED_SITES`, `SAP13NS_MEMORY_LIMIT_MB` and the lower per-plugin limits of a network bound them. When more sites are active than the limit, sites keep loading and unloading each other.
 - **State lost on eviction.** An unloaded site loses its in-memory per-IP rate limits and its analytics visitor set. Account lockouts are kept in the database and survive. Unloading sites by loading many others resets a site's per-IP sign-in limits, but not the lockout of the account.
 - **Stale custom domains.** A domain whose owner moved it elsewhere is caught by the daily re-check, and stops being served after its grace period: 3 failed checks over at least 72 hours.
-- **Backups.** The encrypted backup command does not cover networks yet. Back up the database and the data directory yourself, and protect those copies as you would the server, because they hold every site's sealed secrets with `SAP13NS_SECRET_KEY`.
+- **Backups.** Site backups cover the sites, not the network: the portal's accounts, plans, domains and every site's sealed secret are only in the database. Back up the database and the data directory too, and protect those copies as you would the server, because they hold every site's sealed secrets with `SAP13NS_SECRET_KEY`. A purged site's backups stay on disk until the operator deletes them.
 
 ### Deployment
 The systemd unit in [`deploy/systemd`](../deploy/systemd/sap13ns.service) runs sap13ns unprivileged and sandboxed (see [DEPLOY.md](DEPLOY.md#hardening-notes)). nginx terminates TLS and talks to sap13ns over a Unix socket (`0660`, owned by the `sap13ns-web` group, which nginx joins); nginx cannot read the env file or the data directory.

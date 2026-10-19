@@ -95,11 +95,15 @@ A second factor is mandatory for staff by default: TOTP codes from any authentic
 
 Sign-ins, publishing, user and role changes, settings changes and plugin approvals are written to an audit log with who, what, when and from which address. When something looks wrong, you can find out what happened.
 
-## Moving in
+## Moving in, and out
 
 ### WordPress importer
 
 Bring an existing WordPress site over from its export file (WXR): authors, posts, pages, categories, tags, comments and media, with redirects from the old URLs. Content is converted to clean Markdown on the way in, and the import runs in the background, with a dry run and a report.
+
+### Backups that WordPress imports
+
+Leaving should be as easy as arriving. Every backup of a site is also a WordPress import: a WordPress export file with the posts, pages, comments, authors, categories, tags, menus and featured images, and the uploads in WordPress's own folder layout. WordPress's own importer reads it, with no plugin of ours. An automated test imports one into a real WordPress and checks the result. The [guide](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md) has the steps, for an old site that stays online during the move or for a backup made for the new address.
 
 ## AI, on your terms
 
@@ -125,7 +129,9 @@ Built-in analytics count page views, referrers and popular content in aggregate.
 
 ### Backups
 
-One command produces a single archive with a PostgreSQL dump and the uploaded files, encrypted with AES-256-GCM when you give it a passphrase. The systemd timer that ships with sap13ns runs it every night and prunes old archives, keeping daily, weekly and monthly ones. Archives are verified before anything is restored.
+Every site keeps its own backups, under **Tools → Backups**: one `.zip` with the content and files in a form WordPress reads, plus what only sap13ns uses (settings, users and roles, menus, widgets, designs, redirects, plugin settings). Administrators download them from a link tied to their session, make one when they like, and restore one after typing the site's name and their password. A restore makes a backup of what it replaces first, and changes the site in one transaction, so a restore that fails leaves the site as it was. What comes back goes through the same checks as the admin pages, and no backup ever holds a password, a second factor or a key.
+
+For disaster recovery, one command also produces a single archive with a PostgreSQL dump and the uploaded files. Both kinds are encrypted with AES-256-GCM when you give a passphrase. The systemd timer that ships with sap13ns makes both every night and prunes old ones. Archives are verified before anything is restored.
 
 ### Signed updates
 
@@ -135,7 +141,7 @@ Administrators see a notice in the admin when a new release is out. `sap13ns upd
 
 Multisite is optional. With `SAP13NS_MULTISITE=true`, one process serves a network: a portal where people have one account, and any number of sites. Each site has its own PostgreSQL schema, users, settings, uploads and plugins, and picks its theme from the network's, so one site's content and plugins cannot reach another's. People sign in to every site they belong to through the portal, with a different role on each, and every account has a second factor. The network's administrators open a site they do not belong to only while its owner allows support access, or with an audited emergency access for a legal order or a serious security incident. Plans with storage and domain limits, Stripe billing, and custom domains verified through DNS and served over TLS are built in.
 
-Per-site backups, turning an existing single-site install into a network site, and theme uploads are not available yet. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explains how a network works.
+Every site of a network is backed up each night by itself, within the storage of its plan. On the plans that allow it, a site uploads its own themes, checked automatically. Turning an existing single-site install into a network site is not available yet. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explains how a network works.
 
 ## At a glance
 
@@ -147,6 +153,6 @@ Per-site backups, turning an existing single-site install into a network site, a
 | Design | Six themes, each with light and dark mode; landing and one-page front pages; customiser and page builder |
 | Extending | WebAssembly plugins with per-permission approval pinned to the module and asset hashes |
 | Accounts | Five roles, mandatory second factor (TOTP with recovery codes, or a passkey), passwordless passkey sign-in, audit log |
-| Migration | WordPress importer, redirects |
+| Migration | WordPress importer, redirects, backups that WordPress imports |
 | AI | Optional writing assistant (Claude, OpenAI-compatible, local, Gemini), site assistant for visitors, llms.txt |
-| Operations | Encrypted backups, signed updates, cookie-less analytics, optional networks of sites |
+| Operations | Per-site and database backups, encrypted; signed updates; cookie-less analytics; optional networks of sites |

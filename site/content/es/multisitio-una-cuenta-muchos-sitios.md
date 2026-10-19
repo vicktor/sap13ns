@@ -59,12 +59,13 @@ Quien instala en su propio servidor también puede usarlo. Activa `SAP13NS_MULTI
 
 Algunas piezas todavía no están:
 
-- **Copias por sitio.** `sap13ns backup create` y `restore` se niegan a funcionar en una red, porque un archivo de copia guarda una base de datos y un directorio de archivos subidos, no un sitio. Hasta que lleguen las copias por sitio, copia la red entera con `pg_dump` y una copia del directorio de datos.
 - **Conversión.** Una instalación de un solo sitio todavía no se puede convertir en un sitio de una red, así que una red empieza con una base de datos nueva.
 - **Subida de temas.** Los sitios todavía no pueden subir sus propios temas.
 - **Invitaciones.** Solo los administradores de la red añaden miembros a un sitio; los propietarios todavía no pueden invitar a nadie por su cuenta.
 
-*Actualización, 19 de octubre de 2026:* cuando publicamos esta entrada, los comandos para quien instala en su propio servidor estaban por llegar, y mientras tanto recomendábamos un servicio por sitio. Ya están publicados, con los límites de la lista anterior. Si hoy necesitas `sap13ns backup` para cada sitio, un servicio por sitio sigue siendo una buena opción.
+*Actualización, 19 de octubre de 2026:* cuando publicamos esta entrada, los comandos para quien instala en su propio servidor estaban por llegar, y mientras tanto recomendábamos un servicio por sitio. Ya están publicados, con los límites de la lista anterior.
+
+*Actualización, 19 de octubre de 2026, más tarde:* las copias por sitio también han llegado, así que salen de la lista. Una red hace cada noche la copia de cada sitio en un `.zip` propio, dentro del almacenamiento de su plan. Los administradores del sitio las descargan y las restauran en **Copias de seguridad**, y WordPress las importa tal cual. Al restaurar, las cuentas se emparejan por nombre de usuario y después por correo electrónico, y las que faltan se crean sin contraseña; nunca se borra ninguna. Ese es el cuidado con las cuentas del que hablábamos arriba. La [guía para pasar a WordPress](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md) (en inglés) tiene los detalles. La subida de temas también sale de la lista: en los planes que lo permiten, un sitio sube sus propios temas, que se comprueban automáticamente antes de publicarse.
 
 Si quieres seguir el trabajo, sigue el [repositorio en GitHub](https://github.com/vicktor/sap13ns). Y si hoy gestionas muchos sitios y tienes opinión sobre cómo debería funcionar esto, nos gustaría leerla en las [incidencias](https://github.com/vicktor/sap13ns/issues).
 

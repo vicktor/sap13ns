@@ -59,12 +59,13 @@ Self-hosters can run it too. Set `SAP13NS_MULTISITE=true`, create the network an
 
 Some parts are not there yet:
 
-- **Per-site backups.** `sap13ns backup create` and `restore` refuse to run on a network, because an archive holds one database and one uploads directory, not one site. Until per-site archives arrive, back up the whole network with `pg_dump` and a copy of the data directory.
 - **Conversion.** An existing single-site install cannot be turned into a site of a network yet, so a network starts with a new database.
 - **Theme uploads.** Sites cannot upload their own themes yet.
 - **Invitations.** Only the network's administrators add members to a site; owners cannot invite people themselves yet.
 
-*Update, 19 October 2026:* when we published this post, the commands for self-hosters were still to come, and we suggested running one service per site in the meantime. They are released now, with the limits listed above. If you need `sap13ns backup` for each site today, one service per site is still a sound choice.
+*Update, 19 October 2026:* when we published this post, the commands for self-hosters were still to come, and we suggested running one service per site in the meantime. They are released now, with the limits listed above.
+
+*Update, 19 October 2026, later:* per-site backups are here too, so they are off the list. A network backs up every site each night into a `.zip` of its own, within the storage of the site's plan. The site's administrators download and restore them under **Tools → Backups**, and WordPress imports them as they are. A restore matches the accounts by username, then by e-mail address, and creates the missing ones without a password; it never deletes one. That is the care with accounts mentioned above. The [guide to moving to WordPress](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md) has the details. Theme uploads are off the list as well: on the plans that allow it, a site uploads its own themes, which are checked automatically before they go live.
 
 If you want to follow the work, watch the [repository on GitHub](https://github.com/vicktor/sap13ns). And if you run many sites today and have opinions about how this should work, we would like to hear them in the [issues](https://github.com/vicktor/sap13ns/issues).
 

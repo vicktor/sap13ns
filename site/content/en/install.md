@@ -147,6 +147,8 @@ sudo -u sap13ns sap13ns backup list -env /etc/sap13ns/sap13ns.env
 
 To restore, stop the service, run `sudo -u sap13ns sap13ns backup restore -env /etc/sap13ns/sap13ns.env ARCHIVE`, and start it again.
 
+The timer also makes the site's own backup (`backup create -format site`): a `.zip` that WordPress imports as it is, and that **Tools → Backups** in the admin lists, downloads and restores. It keeps 7 daily and 4 weekly ones. To leave for WordPress, follow [the guide](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md).
+
 Copy the archives somewhere other than the server itself. A backup that lives on the same disk is not a backup.
 
 ## Updating
@@ -166,7 +168,7 @@ sudo systemctl restart sap13ns
 One installation can serve a whole network of sites: a portal where people have one account, and any number of sites, each with its own PostgreSQL schema, files, users and plugins. It is off unless you turn it on, and it starts with a new database: an existing single-site install cannot be turned into a network yet.
 
 1. Point the portal's host and a wildcard for the sites to the server, and get a wildcard certificate for them. Custom domains get their certificates from Caddy's on-demand TLS, from the built-in ACME client, or one by one with nginx.
-2. Add `SAP13NS_MULTISITE=true` and `SAP13NS_SITES_DOMAIN` to the configuration. `SAP13NS_BASE_URL` becomes the portal's address. Disable `sap13ns-backup.timer`, because `sap13ns backup` does not work on a network yet.
+2. Add `SAP13NS_MULTISITE=true` and `SAP13NS_SITES_DOMAIN` to the configuration. `SAP13NS_BASE_URL` becomes the portal's address. Disable `sap13ns-backup.timer`: a network backs up each of its sites by itself every night.
 3. Create the network, its portal and a first network administrator, then start the service:
 
    ```bash
@@ -176,7 +178,7 @@ One installation can serve a whole network of sites: a portal where people have 
 
 4. Let people register on the portal, when you open registration, and request sites, or create them with `sap13ns site create -slug blog -owner ana@example.com -plan pro`. `sap13ns site list`, `suspend`, `resume`, `delete`, `purge` and `domain` manage them.
 
-A network has single sign-on through the portal, a network admin area, plans with storage and custom-domain limits, Stripe billing, and custom domains verified through DNS and served over TLS. Some things are not available on a network yet: `sap13ns backup create` and `restore` refuse to run there, so you back it up with `pg_dump` and a copy of the data directory; an existing single-site install cannot be turned into a network site; and sites cannot upload themes. The guide is [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), and [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md#networks-of-sites) has the nginx and Caddy configurations.
+A network has single sign-on through the portal, a network admin area, plans with storage and custom-domain limits, Stripe billing, and custom domains verified through DNS and served over TLS. Every site is backed up each night, and its administrators download and restore its backups under **Tools → Backups**. Those backups hold the sites, not the network, so keep a `pg_dump` and a copy of the data directory as well. Sites upload their own themes on the plans that allow it. One thing is not available on a network yet: an existing single-site install cannot be turned into a network site. The guide is [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md), and [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md#networks-of-sites) has the nginx and Caddy configurations.
 
 If you would rather not run a server at all, there is [hosting on sap13ns.site](/hosting).
 

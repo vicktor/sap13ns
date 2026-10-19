@@ -30,7 +30,7 @@ For companies, freelancers, shops, newsletters with sponsors, client projects an
 
 - HTTPS certificates, issued and renewed automatically.
 - Updates to new sap13ns versions, applied by us.
-- Regular backups of your content and uploads.
+- Nightly backups of each site, which you download and restore from your admin.
 - All six themes, with light and dark modes.
 - The Markdown editor, translations, feeds, comments and the WordPress importer.
 - Cookie-less statistics, with no consent banner needed.
@@ -41,6 +41,8 @@ Commercial plans add your **own domain** and room for your **own themes and plug
 ## Leaving is easy
 
 Your content is yours. You can export it at any time and move it to your own sap13ns server, to another host, or anywhere else. Since sap13ns is open source, the export works with the same software you would run yourself.
+
+Every backup of your site is also a WordPress import. Download one from **Tools → Backups**, and WordPress's own importer reads it, files included ([how](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md)).
 
 ## FAQ
 
@@ -62,7 +64,7 @@ Payments are handled by Stripe. We never see or store your card number. You get 
 
 ### What happens when I cancel?
 
-Your plan stays active until the end of the period you have already paid for. After that the site goes offline, and you have time to export your content before it is deleted.
+Your plan stays active until the end of the period you have already paid for. After that the site goes offline, and you have time to download a backup or export your content before it is deleted.
 
 ### Can I use my own theme or plugin?
 

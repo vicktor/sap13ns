@@ -37,6 +37,12 @@ Running many sites from one installation: the portal, single sign-on, the networ
 
 [Read MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md)
 
+### Moving to WordPress — MOVING-TO-WORDPRESS.md
+
+How to take a site to WordPress with one of its backups: the two ways of doing it, the steps in the admin and with WP-CLI, what to do after the import, and what moves and what does not.
+
+[Read MOVING-TO-WORDPRESS.md](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md)
+
 ### Billing — BILLING.md
 
 Setting up Stripe for a network of sites: products and prices, the customer portal, the webhook, the environment variables and what happens to a site whose payment lapses.
@@ -64,6 +70,7 @@ The threat model, the defences in each layer and how to report a vulnerability.
 | change how a site looks | THEMES.md |
 | add a feature | PLUGINS.md |
 | run many sites from one installation | MULTISITE.md |
+| move a site to WordPress | MOVING-TO-WORDPRESS.md |
 | understand the risks | SECURITY.md and the [security overview](/security) |
 | skip the server entirely | [Hosting on sap13ns.site](/hosting) |
 
@@ -78,8 +85,10 @@ sap13ns user reset-password           set a new password for a user
 sap13ns plugin new|pack|check         start, package and scan a plugin
 sap13ns plugin list|install           list or install the site's plugins
 sap13ns plugin hash <dir>             print the SHA-256 of a plugin's module and assets
-sap13ns backup create|list|verify|restore|prune
+sap13ns backup create|list|verify|restore|prune|decrypt
                                       encrypted backups of the database and uploads
+sap13ns backup create|list|restore|prune -format site
+                                      the site's own backups, which WordPress imports
 sap13ns assistant reindex|status      the site assistant's search index
 sap13ns update                        install the latest signed release
 sap13ns version                       print the version

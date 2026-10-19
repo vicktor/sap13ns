@@ -95,11 +95,15 @@ El segundo factor es obligatorio por defecto para el equipo: códigos TOTP de cu
 
 Los inicios de sesión, las publicaciones, los cambios de usuarios y roles, los ajustes y las aprobaciones de plugins quedan en un registro de auditoría con quién, qué, cuándo y desde qué dirección. Si algo no cuadra, puedes saber qué ha pasado.
 
-## Mudarse
+## Llegar, y marcharse
 
 ### Importador de WordPress
 
 Trae un sitio de WordPress desde su archivo de exportación (WXR): autores, entradas, páginas, categorías, etiquetas, comentarios y medios, con redirecciones desde las URL antiguas. Por el camino, el contenido se convierte a Markdown limpio, y la importación se hace en segundo plano, con un modo de prueba y un informe.
+
+### Copias que WordPress importa
+
+Irse debería ser tan fácil como llegar. Cada copia de seguridad de un sitio es también una importación de WordPress: un archivo de exportación de WordPress con las entradas, las páginas, los comentarios, los autores, las categorías, las etiquetas, los menús y las imágenes destacadas, y los archivos subidos con la misma estructura de carpetas que usa WordPress. La lee el propio importador de WordPress, sin ningún plugin nuestro. Una prueba automática importa una en un WordPress real y comprueba el resultado. La [guía](https://github.com/vicktor/sap13ns/blob/main/docs/MOVING-TO-WORDPRESS.md) (en inglés) explica los pasos, tanto si el sitio antiguo sigue en línea durante la mudanza como si la copia se hace para la dirección nueva.
 
 ## IA, con tus condiciones
 
@@ -125,7 +129,9 @@ La analítica integrada cuenta visitas, sitios de procedencia y contenido popula
 
 ### Copias de seguridad
 
-Un solo comando genera un archivo con un volcado de PostgreSQL y los archivos subidos, cifrado con AES-256-GCM si le das una frase de paso. El temporizador de systemd que viene con sap13ns lo ejecuta cada noche y borra las copias antiguas, conservando copias diarias, semanales y mensuales. Los archivos se verifican antes de restaurar nada.
+Cada sitio guarda sus propias copias, en **Copias de seguridad** del panel: un `.zip` con el contenido y los archivos en una forma que WordPress entiende, más lo que solo usa sap13ns (ajustes, usuarios y roles, menús, widgets, diseños, redirecciones y ajustes de plugins). Los administradores las descargan con un enlace ligado a su sesión, hacen una cuando quieren y restauran una después de escribir el nombre del sitio y su contraseña. Antes de restaurar se hace una copia de lo que se va a sustituir, y el sitio cambia en una sola transacción, así que una restauración que falla deja el sitio como estaba. Lo que vuelve pasa por las mismas comprobaciones que las páginas del panel, y ninguna copia guarda contraseñas, segundos factores ni claves.
+
+Para recuperarse de un desastre, un solo comando genera además un archivo con un volcado de PostgreSQL y los archivos subidos. Los dos tipos se cifran con AES-256-GCM si das una frase de paso. El temporizador de systemd que viene con sap13ns hace los dos cada noche y borra los antiguos. Los archivos se verifican antes de restaurar nada.
 
 ### Actualizaciones firmadas
 
@@ -135,7 +141,7 @@ Los administradores ven un aviso en el panel cuando sale una versión nueva. `sa
 
 El multisitio es opcional. Con `SAP13NS_MULTISITE=true`, un solo proceso sirve una red: un portal donde cada persona tiene una cuenta y tantos sitios como quieras. Cada sitio tiene su propio esquema de PostgreSQL, sus usuarios, sus ajustes, sus archivos subidos y sus plugins, y elige su tema entre los de la red, de modo que el contenido y los plugins de un sitio no pueden llegar a los de otro. Cada persona entra en todos los sitios a los que pertenece a través del portal, con un rol distinto en cada uno, y toda cuenta tiene un segundo factor. Los administradores de la red solo abren un sitio al que no pertenecen mientras su propietario permite el acceso de soporte, o con un acceso de emergencia auditado por una orden judicial o de una autoridad, o por un incidente de seguridad grave. Vienen incluidos los planes con límites de almacenamiento y de dominios, el cobro con Stripe y los dominios propios, verificados por DNS y servidos con TLS.
 
-Todavía no están disponibles las copias de seguridad por sitio, la conversión de una instalación de un solo sitio en un sitio de una red ni la subida de temas. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explica cómo funciona una red.
+Cada sitio de una red tiene su copia de seguridad cada noche, dentro del almacenamiento de su plan. En los planes que lo permiten, un sitio sube sus propios temas, que se comprueban automáticamente. Todavía no está disponible la conversión de una instalación de un solo sitio en un sitio de una red. [MULTISITE.md](https://github.com/vicktor/sap13ns/blob/main/docs/MULTISITE.md) explica cómo funciona una red.
 
 ## De un vistazo
 
@@ -147,6 +153,6 @@ Todavía no están disponibles las copias de seguridad por sitio, la conversión
 | Diseño | Seis temas, cada uno con modo claro y oscuro; portadas de landing y de una sola página; personalizador y constructor de páginas |
 | Ampliación | Plugins de WebAssembly con aprobación por permiso ligada a los hashes del módulo y de sus recursos |
 | Cuentas | Cinco roles, segundo factor obligatorio (TOTP con códigos de recuperación, o una passkey), acceso sin contraseña con passkeys y registro de auditoría |
-| Migración | Importador de WordPress y redirecciones |
+| Migración | Importador de WordPress, redirecciones y copias que WordPress importa |
 | IA | Asistente de escritura opcional (Claude, compatible con OpenAI, local o Gemini), asistente del sitio para los visitantes y llms.txt |
-| Operación | Copias de seguridad cifradas, actualizaciones firmadas, analítica sin cookies y redes de sitios opcionales |
+| Operación | Copias por sitio y de la base de datos, cifradas; actualizaciones firmadas; analítica sin cookies; redes de sitios opcionales |
