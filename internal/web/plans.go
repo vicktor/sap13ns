@@ -31,9 +31,9 @@ func (s *Server) planViews() []PlanView {
 var samplePlans = []PlanView{
 	{Slug: "personal", Name: "Personal", Description: "For your blog, portfolio or CV.", Free: true, SignupURL: "/register",
 		Features: []PlanFeature{{Text: "1 site"}, {Text: "sap13ns.site subdomain"}, {Text: "1 GB storage"}, {Text: "All themes"}}},
-	{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "5 €", Interval: "month", Commercial: true, Highlight: true,
+	{Slug: "pro", Name: "Pro", Description: "For freelancers and small businesses.", Price: "9 €", Interval: "month", Commercial: true, Highlight: true,
 		SignupURL: "/register", Features: []PlanFeature{{Text: "Custom domain with HTTPS"}, {Text: "10 GB storage"}, {Text: "Your own themes and plugins"}, {Text: "Daily backups"}}},
-	{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "12 €", Interval: "month", Commercial: true,
+	{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "30 €", Interval: "month", Commercial: true,
 		SignupURL: "/register", Features: []PlanFeature{{Text: "Everything in Pro"}, {Text: "50 GB storage"}, {Text: "AI assistant credits"}, {Text: "Priority support"}}},
 }
 

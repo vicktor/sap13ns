@@ -23,11 +23,11 @@ We built sap13ns to collect as little as possible, and we run sap13ns.site the s
 
 ## Visiting the website
 
-### No tracking cookies
+### Cookies and local storage
 
-We do not use advertising, tracking or social media cookies, and we do not load third-party scripts, fonts or embeds. That is why there is no cookie banner.
+This site only uses the cookies and local storage it strictly needs to work; it uses no analytics, advertising or social media cookies, and it loads no third-party scripts or fonts. Visit statistics are computed on our server without cookies and without storing IP addresses or identifiers.
 
-The only cookies are technical and strictly necessary. Each one is set only when you do what it is for:
+The necessary cookies are our own and technical, and they are exempt from consent (art. 22.2 LSSI): without them you could not sign in or complete a form. That is why they cannot be turned off, and the cookie panel shows them as always on. Each one is set only when you do what it is for:
 
 | Cookie | What it is for | How long it lasts |
 |---|---|---|
@@ -39,7 +39,9 @@ The only cookies are technical and strictly necessary. Each one is set only when
 
 The sites we host use the same cookies; each site's administrator can change how long its sessions last.
 
-Your choice of light or dark mode is stored in your own browser (local storage) and never sent to us. The admin panel keeps a few things there too, such as the editor's display mode and a copy of a new post until it is first saved.
+In your browser's local storage we keep the light or dark mode you pick (`themeMode`), your cookie choice (`sap13ns-consent`, for 6 months) and, while the tab is open, your conversation with the site's assistant. None of it is sent to us. The admin panel keeps a few things there too, such as the editor's display mode and a copy of a new post until it is first saved.
+
+If a page includes a YouTube or Vimeo video, nothing is loaded from those services until you press play. The video then loads from youtube-nocookie.com (Google Ireland Limited) or from Vimeo in Do Not Track mode (Vimeo.com, Inc.), which receive your IP address and may store data on your device under their own policies. That third-party content loads only with your consent (art. 6.1.a GDPR). You can always allow those services, or withdraw your permission, at any time from the "Cookies" link at the bottom of every page, which also shows the full list.
 
 ### Cookie-less analytics
 

@@ -235,7 +235,7 @@
   // own controls are not).
   dialog.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
-    const all = [...dialog.querySelectorAll("button, a[href], summary, input")].filter((x) => x.getClientRects().length);
+    const all = [...dialog.querySelectorAll("button:not([disabled]), a[href], summary, input:not([disabled])")].filter((x) => x.getClientRects().length);
     if (!all.length) return;
     const first = all[0], last = all[all.length - 1];
     if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }

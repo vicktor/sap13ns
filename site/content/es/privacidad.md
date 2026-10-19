@@ -23,11 +23,11 @@ Hemos creado sap13ns para recoger lo mínimo posible, y gestionamos sap13ns.site
 
 ## Cuando visitas el sitio web
 
-### Sin cookies de seguimiento
+### Cookies y almacenamiento local
 
-No usamos cookies publicitarias, de seguimiento ni de redes sociales, y no cargamos scripts, fuentes ni contenidos incrustados de terceros. Por eso no hay banner de cookies.
+Este sitio solo usa las cookies y el almacenamiento local estrictamente necesarios para funcionar; no usa cookies de análisis, de publicidad ni de redes sociales, y no carga scripts ni fuentes de terceros. Las estadísticas de visitas se calculan en nuestro servidor sin cookies y sin guardar direcciones IP ni identificadores.
 
-Las únicas cookies son técnicas y estrictamente necesarias. Cada una se crea solo cuando haces aquello para lo que sirve:
+Las cookies necesarias son propias y técnicas, y están exentas de consentimiento (art. 22.2 LSSI): sin ellas no podrías iniciar sesión ni completar un formulario. Por eso no se pueden desactivar, y en el panel de cookies aparecen siempre activas. Cada una se crea solo cuando haces aquello para lo que sirve:
 
 | Cookie | Para qué sirve | Cuánto dura |
 |---|---|---|
@@ -39,7 +39,9 @@ Las únicas cookies son técnicas y estrictamente necesarias. Cada una se crea s
 
 Los sitios que alojamos usan las mismas cookies; el administrador de cada sitio puede cambiar cuánto duran sus sesiones.
 
-Tu elección de modo claro u oscuro se guarda en tu propio navegador (almacenamiento local) y nunca nos llega. El panel de administración también guarda ahí algunas cosas, como el modo de visualización del editor y una copia de una entrada nueva hasta que se guarda por primera vez.
+En el almacenamiento local de tu navegador guardamos el modo claro u oscuro que eliges (`themeMode`), tu elección sobre cookies (`sap13ns-consent`, durante 6 meses) y, mientras la pestaña está abierta, tu conversación con el asistente del sitio. Nada de eso nos llega. El panel de administración también guarda ahí algunas cosas, como el modo de visualización del editor y una copia de una entrada nueva hasta que se guarda por primera vez.
+
+Si una página incluye un vídeo de YouTube o de Vimeo, no se carga nada de esos servicios hasta que pulsas reproducir. Entonces el vídeo se carga desde youtube-nocookie.com (Google Ireland Limited) o desde Vimeo en modo «Do Not Track» (Vimeo.com, Inc.), que reciben tu dirección IP y pueden guardar datos en tu dispositivo según sus propias políticas. Ese contenido de terceros solo se carga con tu consentimiento (art. 6.1.a RGPD). Puedes permitir siempre esos servicios, o retirar tu permiso, en cualquier momento desde el enlace «Cookies» al pie de cada página, que muestra también la lista completa.
 
 ### Analítica sin cookies
 

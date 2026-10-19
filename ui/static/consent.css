@@ -184,6 +184,9 @@
 }
 .sap-consent-switch[aria-checked="true"] { border-color: var(--sap-consent-accent); background: var(--sap-consent-accent); }
 .sap-consent-switch[aria-checked="true"] span { inset-inline-start: calc(100% - 1.3rem); background: var(--sap-consent-accent-fg); }
+/* Necessary storage: on, and it cannot be turned off. */
+.sap-consent-req { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.5rem; }
+.sap-consent-switch:disabled { cursor: not-allowed; opacity: 0.55; }
 
 .sap-consent-details > summary {
   display: inline-block;

@@ -37,7 +37,7 @@
     <section class="sap-consent-cat" data-consent-category="{{.ID}}">
       <div class="sap-consent-cat-head">
         <h3 id="sap-consent-cat-{{.ID}}">{{.Name}}</h3>
-        {{if .Required}}<span class="sap-consent-on">{{T "Always on"}}</span>
+        {{if .Required}}<span class="sap-consent-req"><span class="sap-consent-on" id="sap-consent-cat-{{.ID}}-on">{{T "Always on"}}</span><button type="button" class="sap-consent-switch" role="switch" aria-checked="true" disabled aria-labelledby="sap-consent-cat-{{.ID}} sap-consent-cat-{{.ID}}-on" aria-describedby="sap-consent-cat-{{.ID}}-d"><span aria-hidden="true"></span></button></span>
         {{else if .Toggle}}<button type="button" class="sap-consent-switch" role="switch" aria-checked="false" data-consent-toggle="{{.ID}}" aria-labelledby="sap-consent-cat-{{.ID}}" aria-describedby="sap-consent-cat-{{.ID}}-d"><span aria-hidden="true"></span></button>
         {{else}}<span class="sap-consent-on">{{T "Nothing to choose"}}</span>{{end}}
       </div>
