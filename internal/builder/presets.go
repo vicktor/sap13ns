@@ -62,6 +62,7 @@ func sampleStats(t func(string, ...any) string) []Item {
 		item("value", "10k+", "label", t("Happy customers")),
 		item("value", "4.9/5", "label", t("Average rating")),
 		item("value", "24/7", "label", t("Support")),
+		item("value", "12", "label", t("Years of experience")), // four fill a half-width column's 2x2 grid
 	}
 }
 
