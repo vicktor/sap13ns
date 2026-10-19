@@ -1,0 +1,27 @@
+/*
+Theme Name: Fixture
+Theme URI: https://example.com/fixture
+Author: The sap13ns tests
+Author URI: https://example.com
+Description: A small block theme the importer's tests convert. It is not a real theme.
+Version: 1.0
+Requires at least: 6.4
+License: GNU General Public License v2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: fixture
+*/
+
+@import url("https://evil.example/steal.css");
+
+.fixture-card {
+	border-radius: 8px;
+	background: url("assets/images/hero.png") center / cover;
+}
+
+.fixture-remote {
+	background: url("https://evil.example/track.png");
+}
+
+a:hover {
+	text-decoration-thickness: 2px;
+}

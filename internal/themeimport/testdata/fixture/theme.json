@@ -1,0 +1,69 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/theme.json",
+	"version": 3,
+	"settings": {
+		"appearanceTools": true,
+		"useRootPaddingAwareAlignments": true,
+		"color": {
+			"palette": [
+				{ "slug": "base", "name": "Base", "color": "#fbfaf7" },
+				{ "slug": "contrast", "name": "Contrast", "color": "#1d1b19" },
+				{ "slug": "accent-1", "name": "Accent 1", "color": "#2f5d50" },
+				{ "slug": "accent-2", "name": "Accent 2", "color": "#e8e1d4" }
+			]
+		},
+		"layout": { "contentSize": "40rem", "wideSize": "72rem" },
+		"spacing": {
+			"spacingSizes": [
+				{ "slug": "30", "name": "Small", "size": "1rem" },
+				{ "slug": "50", "name": "Medium", "size": "clamp(1.5rem, 4vw, 3rem)" }
+			]
+		},
+		"typography": {
+			"fluid": true,
+			"fontSizes": [
+				{ "slug": "small", "name": "Small", "size": "0.9rem" },
+				{ "slug": "large", "name": "Large", "size": "1.6rem", "fluid": { "min": "1.3rem", "max": "1.6rem" } }
+			],
+			"fontFamilies": [
+				{
+					"slug": "body",
+					"name": "Fixture Sans",
+					"fontFamily": "\"Fixture Sans\", system-ui, sans-serif",
+					"fontFace": [
+						{ "fontFamily": "Fixture Sans", "fontWeight": "400", "src": ["file:./assets/fonts/fake.woff2"] }
+					]
+				},
+				{
+					"slug": "remote",
+					"name": "Remote",
+					"fontFamily": "Remote, serif",
+					"fontFace": [
+						{ "fontFamily": "Remote", "src": ["https://fonts.example/remote.woff2"] }
+					]
+				}
+			]
+		},
+		"custom": { "radius": { "card": "8px" } }
+	},
+	"styles": {
+		"color": { "background": "var:preset|color|base", "text": "var:preset|color|contrast" },
+		"typography": { "fontFamily": "var:preset|font-family|body", "lineHeight": "1.6" },
+		"spacing": { "blockGap": "1.25rem", "padding": { "left": "var:preset|spacing|30", "right": "var:preset|spacing|30" } },
+		"css": "}body{background:url(https://evil.example/x.png)}",
+		"elements": {
+			"link": { "color": { "text": "var:preset|color|accent-1" }, ":hover": { "color": { "text": "var:preset|color|contrast" } } },
+			"h1": { "typography": { "fontSize": "var:preset|font-size|large" } }
+		},
+		"blocks": {
+			"core/button": { "color": { "background": "var:preset|color|accent-1", "text": "var:preset|color|base" } },
+			"core/site-title": { "typography": { "fontWeight": "700" }, "css": "& a { text-decoration: none; }" },
+			"core/quote": { "border": { "left": { "width": "3px", "color": "url(https://evil.example/q)" } } }
+		}
+	},
+	"templateParts": [
+		{ "name": "header", "title": "Header", "area": "header" },
+		{ "name": "footer", "title": "Footer", "area": "footer" }
+	],
+	"customTemplates": [{ "name": "landing", "title": "Landing" }]
+}

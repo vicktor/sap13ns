@@ -1,0 +1,25 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"div","layout":{"type":"constrained"}} -->
+<div class="wp-block-group">
+<!-- wp:query-title {"type":"archive"} /-->
+<!-- wp:term-description /-->
+<!-- wp:query {"query":{"inherit":true}} -->
+<div class="wp-block-query">
+<!-- wp:post-template -->
+<!-- wp:post-title {"isLink":true} /-->
+<!-- wp:post-excerpt /-->
+<!-- /wp:post-template -->
+<!-- wp:query-pagination -->
+<!-- wp:query-pagination-previous /-->
+<!-- wp:query-pagination-next /-->
+<!-- /wp:query-pagination -->
+</div>
+<!-- /wp:query -->
+<!-- wp:fixture/unknown-widget -->
+<div class="wp-block-fixture-unknown-widget"><script>alert(1)</script><p style="color:red;background:url(https://evil.example/a)">Kept text</p></div>
+<!-- /wp:fixture/unknown-widget -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
