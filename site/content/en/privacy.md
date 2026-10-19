@@ -57,6 +57,10 @@ If comments are enabled on a post and you write one, we store the name, e-mail a
 
 A site can also check comments with the antispam plugin. Its checks run on our servers, except one, which is off by default: if the site's administrator turns on **StopForumSpam**, your IP address and an MD5 hash of your e-mail address (not the address itself) are sent to StopForumSpam, a third-party database of addresses known for spam. Your name, website and comment are never sent, and the plugin stores nothing.
 
+### Profile photos and Gravatar
+
+Users can upload a profile photo; we remove its metadata (such as the place it was taken) and store it on the site. For users without a photo, and for commenters only if the site turns it on, the server asks Gravatar (run by Automattic) whether there is an image for a SHA-256 hash of the e-mail address. The address itself is never sent, and visitors' browsers never connect to Gravatar, because the image is served as a copy from this site. Administrators can turn this off in Settings, which deletes the copies.
+
 ### Site assistant
 
 A site, this one included, can offer an assistant that answers visitors' questions from its own pages. It is off unless the site's administrator turns it on.

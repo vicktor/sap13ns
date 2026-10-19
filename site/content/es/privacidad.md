@@ -57,6 +57,10 @@ Si en una entrada están abiertos los comentarios y escribes uno, guardamos el n
 
 Un sitio también puede revisar los comentarios con el plugin antispam. Sus comprobaciones se hacen en nuestros servidores, salvo una, que está desactivada por defecto: si el administrador del sitio activa **StopForumSpam**, se envían a StopForumSpam, una base de datos de terceros con direcciones conocidas por enviar spam, tu dirección IP y un hash MD5 de tu dirección de correo (no la dirección en sí). Tu nombre, tu web y tu comentario nunca se envían, y el plugin no guarda nada.
 
+### Fotos de perfil y Gravatar
+
+Los usuarios pueden subir una foto de perfil; eliminamos sus metadatos (como el lugar donde se tomó) y la guardamos en el sitio. Para los usuarios sin foto, y para quienes comentan solo si el sitio lo activa, el servidor pregunta a Gravatar (gestionado por Automattic) si hay una imagen para un hash SHA-256 de la dirección de correo. La dirección nunca se envía, y los navegadores de los visitantes nunca se conectan a Gravatar, porque la imagen se sirve como una copia desde este sitio. La administración puede desactivarlo en Ajustes, lo que borra las copias.
+
 ### Asistente del sitio
 
 Un sitio, también este, puede ofrecer un asistente que responde a las preguntas de los visitantes a partir de sus propias páginas. Está desactivado salvo que el administrador del sitio lo active.
