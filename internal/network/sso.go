@@ -115,12 +115,23 @@ func (n *Network) RedeemSSOCode(ctx context.Context, siteID int64, code, verifie
 	return &g, nil
 }
 
-// CheckSSOGrant tells whether a redeemed grant still holds, as
-// RedeemSSOCode checked it: ErrSSODenied once the site is no longer
-// served, or the account is disabled, deleted, no longer a member (or no
-// longer a network admin, for an operator).
-func (n *Network) CheckSSOGrant(ctx context.Context, siteID, accountID int64, operator bool) error {
-	return grantAccess(ctx, n.db, siteID, &SSOGrant{AccountID: accountID, Operator: operator}, false)
+// CheckSSOGrant reads the access a redeemed grant gives now, as
+// RedeemSSOCode checked it, and returns its current role: ErrSSODenied
+// once the site is no longer served, or the account is disabled, deleted,
+// no longer a member, or no longer a network admin who is not a member
+// when operator (the operator flag must still be the grant's). It reads
+// in a transaction holding the rows, like the redemption.
+func (n *Network) CheckSSOGrant(ctx context.Context, siteID, accountID int64, operator bool) (string, error) {
+	tx, err := n.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+	g := SSOGrant{AccountID: accountID, Operator: operator}
+	if err := grantAccess(ctx, tx, siteID, &g, true); err != nil {
+		return "", err
+	}
+	return g.Role, tx.Commit(ctx)
 }
 
 type querier interface {

@@ -49,12 +49,12 @@ func (h siteHooks) RedeemSSO(ctx context.Context, code, verifier, redirectURI st
 		Username: g.Username, Email: g.Email, DisplayName: g.DisplayName}, nil
 }
 
-func (h siteHooks) CheckSSO(ctx context.Context, g *web.SSOGrant) error {
-	err := h.r.net.CheckSSOGrant(ctx, h.id, g.AccountID, g.Operator)
+func (h siteHooks) CheckSSO(ctx context.Context, g *web.SSOGrant) (string, error) {
+	role, err := h.r.net.CheckSSOGrant(ctx, h.id, g.AccountID, g.Operator)
 	if errors.Is(err, ErrSSODenied) {
-		return errors.Join(web.ErrSSODenied, err)
+		return "", errors.Join(web.ErrSSODenied, err)
 	}
-	return err
+	return role, err
 }
 
 // portalHooks are the hooks of the portal: the network's accounts and

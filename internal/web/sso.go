@@ -54,9 +54,11 @@ type SSOClient interface {
 	// another site or callback, or whose verifier does not match, and
 	// ErrSSODenied when the account may not sign in to the site (any more).
 	RedeemSSO(ctx context.Context, code, verifier, redirectURI string) (*SSOGrant, error)
-	// CheckSSO tells whether a redeemed grant still holds: ErrSSODenied
-	// once the account lost its access to the site.
-	CheckSSO(ctx context.Context, g *SSOGrant) error
+	// CheckSSO reads the access a redeemed grant gives now and returns its
+	// current role: ErrSSODenied once the account lost its access to the
+	// site, or for an operator grant once it is no longer one (and the
+	// other way round).
+	CheckSSO(ctx context.Context, g *SSOGrant) (role string, err error)
 }
 
 // An SSOGrant is a redeemed code: who signs in, and with which role.
@@ -292,7 +294,10 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	if err := s.confirmSSO(ctx, u, g); errors.Is(err, ErrSSODenied) {
+	if err := s.confirmSSO(ctx, u, g); errors.Is(err, errSSORoleChanged) {
+		fail(http.StatusForbidden, "role changed during the sign-in", s.t("Your role on this site changed while you were signing in. Sign in again."))
+		return
+	} else if errors.Is(err, ErrSSODenied) {
 		fail(http.StatusForbidden, "revoked during the sign-in", s.t("Your sap13ns account does not have access to this site."))
 		return
 	} else if err != nil {
@@ -309,21 +314,31 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
-var errSSOEmailTaken = errors.New("sso: a local user has the account's e-mail address")
+var (
+	errSSOEmailTaken  = errors.New("sso: a local user has the account's e-mail address")
+	errSSORoleChanged = fmt.Errorf("%w: the role changed during the sign-in", ErrSSODenied)
+)
 
 // confirmSSO checks a grant again once its user is synced and signed in.
-// A revocation (a membership removed, an account disabled) that ran
-// between the redemption and the sync was undone by the sync, so then the
-// user is disabled and signed out here; a revocation after this check
-// comes after the sync and does it itself. When the check fails, it fails
-// closed the same way: the next sign-in through the portal restores the
-// user.
+// A change of the access (a membership removed or its role lowered, an
+// account disabled, an operator no longer a network admin) that the
+// network applied between the redemption and the sync was undone by the
+// sync, so the sign-in is refused here (ErrSSODenied), the user gets the
+// access the network gives now (its current role, or disabled) and all
+// its sessions are closed: they sign in again. A change after this check
+// comes after the sync and applies itself. When the check fails, it fails
+// closed: the user is disabled until their next sign-in.
 func (s *Server) confirmSSO(ctx context.Context, u *store.User, g *SSOGrant) error {
-	err := s.sso.CheckSSO(ctx, g)
-	if err == nil {
+	role, err := s.sso.CheckSSO(ctx, g)
+	if err == nil && role == g.Role {
 		return nil
 	}
-	if _, _, rerr := s.store.SetNetworkAccess(ctx, g.AccountID, g.Operator, "", "disabled"); rerr != nil && !errors.Is(rerr, store.ErrNotFound) {
+	access, status := "", "disabled"
+	if err == nil {
+		access, status = role, "active"
+		err = fmt.Errorf("%w (%s to %s)", errSSORoleChanged, g.Role, role)
+	}
+	if _, _, rerr := s.store.SetNetworkAccess(ctx, g.AccountID, g.Operator, access, status); rerr != nil && !errors.Is(rerr, store.ErrNotFound) {
 		err = errors.Join(err, rerr)
 	}
 	if derr := s.store.DeleteUserSessions(ctx, u.ID, nil); derr != nil {

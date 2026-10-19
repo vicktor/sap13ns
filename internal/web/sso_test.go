@@ -15,9 +15,11 @@ import (
 )
 
 // fakeSSO is the SSO client of a tenant whose portal grants a fixed
-// account, and whose second check of the grant answers check.
+// account, and whose second check of the grant answers role (the grant's
+// when empty) and check.
 type fakeSSO struct {
 	grant SSOGrant
+	role  string
 	check error
 }
 
@@ -33,7 +35,15 @@ func (f *fakeSSO) RedeemSSO(_ context.Context, code, _, _ string) (*SSOGrant, er
 	return &g, nil
 }
 
-func (f *fakeSSO) CheckSSO(context.Context, *SSOGrant) error { return f.check }
+func (f *fakeSSO) CheckSSO(_ context.Context, g *SSOGrant) (string, error) {
+	if f.check != nil {
+		return "", f.check
+	}
+	if f.role != "" {
+		return f.role, nil
+	}
+	return g.Role, nil
+}
 
 // ssoSignIn runs /sso/start and then /sso/callback with the code the
 // portal would have sent.
@@ -117,5 +127,52 @@ func TestSSORevokedAfterRedemption(t *testing.T) {
 	}
 	if list, err := st.ListUserSessions(ctx, u.ID); err != nil || len(list) != 1 || list[0].AMR != store.AMRSSO {
 		t.Fatalf("sessions after signing in again: %+v %v", list, err)
+	}
+}
+
+// A role lowered between the redemption and the sync is not undone by the
+// sync: the sign-in is refused and the user gets the current role, with no
+// session, so they sign in again with it.
+func TestSSORoleLoweredAfterRedemption(t *testing.T) {
+	st := testutil.Store(t)
+	ctx := context.Background()
+	sso := &fakeSSO{grant: SSOGrant{AccountID: 43, Role: "admin", Username: "ada", Email: "ada@example.com"}}
+	s := networkServer(t, st, func(_ *config.Config, d *Deps) { d.Network = sso })
+	h := s.Handler()
+	if rec := ssoSignIn(t, h); rec.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in: %d", rec.Code)
+	}
+	u, err := st.UserByNetworkAccount(ctx, 43)
+	if err != nil || u.Role != "admin" {
+		t.Fatalf("the user: %+v %v", u, err)
+	}
+
+	// The membership became author, and the network applied it, while the
+	// next sign-in still held a grant for admin.
+	if _, _, err := st.SetNetworkAccess(ctx, 43, false, "author", "active"); err != nil {
+		t.Fatal(err)
+	}
+	sso.role = "author"
+	if rec := ssoSignIn(t, h); rec.Code != http.StatusForbidden {
+		t.Fatalf("sign-in with a lowered role: %d", rec.Code)
+	}
+	if u, err = st.UserByID(ctx, u.ID); err != nil || u.Role != "author" || u.Status != "active" {
+		t.Fatalf("the user after the refused sign-in: %+v %v", u, err)
+	}
+	if list, err := st.ListUserSessions(ctx, u.ID); err != nil || len(list) != 0 {
+		t.Fatalf("%d sessions left (%v)", len(list), err)
+	}
+	var refused int
+	if err := st.DB.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action = 'sso.failed' AND details->>'reason' = 'role changed during the sign-in'`).Scan(&refused); err != nil || refused != 1 {
+		t.Fatalf("%d refusals audited (%v)", refused, err)
+	}
+
+	// The next grant has the current role.
+	sso.grant.Role = "author"
+	if rec := ssoSignIn(t, h); rec.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in with the current role: %d", rec.Code)
+	}
+	if u, err = st.UserByID(ctx, u.ID); err != nil || u.Role != "author" {
+		t.Fatalf("the user: %+v %v", u, err)
 	}
 }

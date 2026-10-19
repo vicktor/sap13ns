@@ -207,6 +207,47 @@ func TestSSORevokedWhileSigningIn(t *testing.T) {
 	}
 }
 
+// The second check of a grant reads the current role and operator flag.
+func TestCheckSSOGrant(t *testing.T) {
+	e := newNetEnv(t, nil)
+	a := e.tenant("alpha", "pro")
+	ed := e.account("edith")
+	olga, _, _ := e.networkAdmin("olga")
+	e.networkAdmin("boss")
+	check := func(account int64, operator bool, want string) {
+		t.Helper()
+		role, err := e.n.CheckSSOGrant(e.ctx, a.ID, account, operator)
+		switch {
+		case want == "" && !errors.Is(err, ErrSSODenied):
+			t.Errorf("account %d (operator %v): %q %v, want denied", account, operator, role, err)
+		case want != "" && (err != nil || role != want):
+			t.Errorf("account %d (operator %v): %q %v, want %s", account, operator, role, err, want)
+		}
+	}
+	if err := e.n.SetMember(e.ctx, a.ID, ed, "editor", 0); err != nil {
+		t.Fatal(err)
+	}
+	check(ed, false, "editor")
+	check(ed, true, "") // a member is not an operator
+	if err := e.n.SetMember(e.ctx, a.ID, ed, "author", 0); err != nil {
+		t.Fatal(err)
+	}
+	check(ed, false, "author")
+	check(olga, true, "admin")
+	check(olga, false, "") // not a member
+	if err := e.n.SetMember(e.ctx, a.ID, olga, "editor", 0); err != nil {
+		t.Fatal(err)
+	}
+	check(olga, true, "") // a member now: an operator grant no longer holds
+	if err := e.n.RemoveMember(e.ctx, a.ID, olga); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.n.RemoveNetworkAdmin(e.ctx, olga); err != nil {
+		t.Fatal(err)
+	}
+	check(olga, true, "")
+}
+
 // signedInSSO signs an account in to a site through the portal on this
 // browser.
 func (b *browser) signedInSSO(account int64, host string) *httptest.ResponseRecorder {
