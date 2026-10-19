@@ -109,6 +109,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 - **AI access policy:** *open*, *no training* or *block*. It controls `robots.txt` (AI training and answer bots, `Content-Signal`) and the AI-facing endpoints.
 
 ### AI writing assistant (optional)
+- **Setup:** pick a provider and turn it on in **Settings → AI provider**. The same provider writes the site assistant's answers.
 - **Providers:** Claude (Anthropic), OpenAI or any OpenAI-compatible server, and Gemini. Local models work over `http://localhost`.
 - **Tasks:**
   - excerpt summary; SEO title, description, slug and keywords;
@@ -124,6 +125,8 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 
 ### Site assistant (optional)
 - **A chatbot for visitors** that answers from your own posts and pages and cites them. It streams its answers, and a no-JavaScript page at `/ask` works too.
+- **Turning it on:** switch on **Show the assistant on the site** in **Settings → Site assistant**. Visitors see the chat once the AI provider is on too; the page, the AI provider page and the dashboard show whether it is on, off or waiting for the provider.
+- **The chat button:** a round button in a bottom corner of every public page opens the chat window. You choose the corner (right or left), its height (normal, raised above cookie bars, or high) and an optional short label beside it, translatable per language. Phones get a full-screen chat.
 - **Search:** hybrid PostgreSQL full-text and [pgvector](https://github.com/pgvector/pgvector) search over Markdown-aware passages, merged with reciprocal rank fusion and favouring the visitor's language. Without pgvector it falls back to full-text search.
 - **Indexing:** drafts, scheduled and private posts are never indexed, and any post can be hidden from the assistant with one switch in the editor. The index updates as you publish.
 - **Limits:** per-IP and daily or monthly budgets, with known bots refused.

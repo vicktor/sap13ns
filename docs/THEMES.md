@@ -406,6 +406,15 @@ Each theme has one stylesheet, `static/theme.css`, compiled from `src/theme.css`
 
 - **Basecoat UI** gives the base styles, the `dark:` variant (`html.dark`) and the components that plugin output may use (alerts, badges, buttons, cards, `kbd`).
 - **`shared.css`** styles what the shared templates render (skip link, toggles, the language switch, prose, post lists, comments, the assistant, the page builder's blocks). Its rules are in `@layer components`, so the theme's own rules win.
+- **The assistant's button** is fixed to a bottom corner. The site owner picks the corner and the height in **Settings → Site assistant**, and `shared/assistant` writes them as classes on its root: `sap-assistant-right` or `sap-assistant-left`, and `sap-assistant-offset-normal`, `-raised` or `-high`. Those classes set two custom properties, `--sap-fab-side` (the distance from the side) and `--sap-fab-bottom` (the distance from the bottom), which place both the button and the chat window. A theme with a fixed element in a bottom corner or along a side moves the button by setting them, not by restyling it. The Dashboard theme, whose sidebar is fixed on the left from 1024px, does this:
+
+  ```css
+  @media (min-width: 1024px) {
+    .sap-assistant-left { --sap-fab-side: calc(var(--sidebar-w) + 1rem); }
+  }
+  ```
+
+  The button hides while the small-screen menu is open (`html.nav-open`), and below 640px the chat window fills the screen.
 - **`@source`** must include the theme's templates and `ui/shared/templates`, or Tailwind drops the classes they use.
 - **Build.** `npm run build` compiles every theme in `ui/themes/`, and `npm run watch` rebuilds on changes. The output is committed, so production never runs Node.js. For a theme outside `ui/themes/`, run the same compiler from the repository root:
 

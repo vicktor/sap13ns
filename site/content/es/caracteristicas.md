@@ -109,7 +109,7 @@ Irse debería ser tan fácil como llegar. Cada copia de seguridad de un sitio es
 
 ### Un asistente que nunca publica por su cuenta
 
-Desde el editor puedes pedir ayuda a un modelo de lenguaje: un extracto, el título y la descripción SEO, una traducción, una propuesta de imagen, una imagen de cabecera si el proveedor sabe dibujarla o una segunda opinión sobre un párrafo. Tú eliges el proveedor: Claude, cualquier API compatible con OpenAI (también modelos locales con LM Studio, Ollama o llama.cpp) o Gemini. No pasa nada si nadie pulsa un botón, y nada se publica sin que una persona lo revise. Un corrector local, además, señala las muletillas que hacen que un texto suene a máquina.
+Desde el editor puedes pedir ayuda a un modelo de lenguaje: un extracto, el título y la descripción SEO, una traducción, una propuesta de imagen, una imagen de cabecera si el proveedor sabe dibujarla o una segunda opinión sobre un párrafo. Tú eliges el proveedor: Claude, cualquier API compatible con OpenAI (también modelos locales con LM Studio, Ollama o llama.cpp) o Gemini. No pasa nada si nadie pulsa un botón, y nada se publica sin que una persona lo revise. Un corrector local, además, señala las muletillas que hacen que un texto suene a máquina. El proveedor se configura una sola vez, en **Ajustes → Proveedor de IA**, y el asistente del sitio también lo usa.
 
 ### llms.txt y llms-full.txt
 
@@ -118,6 +118,8 @@ Los sitios pueden publicar `/llms.txt` y `/llms-full.txt`, índices en texto pla
 ### Un asistente del sitio para los visitantes
 
 Un chatbot opcional responde a las preguntas de los visitantes a partir de tus propias entradas y páginas, y las cita, con una página en `/ask` que funciona sin JavaScript. Busca con la búsqueda de texto completo de PostgreSQL y, si la extensión está instalada, también con pgvector. Los borradores y las entradas programadas o privadas nunca se indexan, y cualquier entrada se puede dejar fuera. Un punto de acceso MCP de solo lectura permite que agentes de IA externos busquen en el mismo índice.
+
+Se activa en **Ajustes → Asistente del sitio**. Entonces aparece un botón redondo de chat en una esquina inferior de todas las páginas, a la derecha o a la izquierda, a la altura normal o por encima de un aviso de cookies, con un texto corto opcional al lado en cada idioma. En el móvil, el chat ocupa toda la pantalla.
 
 ## Conocer a tu audiencia sin rastrearla
 

@@ -109,7 +109,7 @@ Leaving should be as easy as arriving. Every backup of a site is also a WordPres
 
 ### An assistant that never publishes on its own
 
-The editor can ask a language model for help: an excerpt, SEO title and description, a translation, an image prompt, a header image where the provider can draw one, or a second opinion on a paragraph. You choose the provider: Claude, any OpenAI-compatible API (including local models through LM Studio, Ollama or llama.cpp) or Gemini. Nothing happens unless an editor clicks a button, and nothing is published without a person reviewing it. A local checker also flags the stock phrases that make text sound machine-written.
+The editor can ask a language model for help: an excerpt, SEO title and description, a translation, an image prompt, a header image where the provider can draw one, or a second opinion on a paragraph. You choose the provider: Claude, any OpenAI-compatible API (including local models through LM Studio, Ollama or llama.cpp) or Gemini. Nothing happens unless an editor clicks a button, and nothing is published without a person reviewing it. A local checker also flags the stock phrases that make text sound machine-written. The provider is set up once, in **Settings → AI provider**, and the site assistant uses it too.
 
 ### llms.txt and llms-full.txt
 
@@ -118,6 +118,8 @@ Sites can publish `/llms.txt` and `/llms-full.txt`, plain-text indexes of your c
 ### A site assistant for visitors
 
 An optional chatbot answers visitors' questions from your own posts and pages and cites them, with a page at `/ask` that works without JavaScript. It searches with PostgreSQL full-text search, plus pgvector when the extension is installed. Drafts, scheduled and private posts are never indexed, and any post can be left out. A read-only MCP endpoint lets external AI agents search the same index.
+
+Turn it on in **Settings → Site assistant**. A round chat button then appears in a bottom corner of every page, on the right or the left, at the normal height or raised above a cookie bar, with an optional short label beside it in each language. On a phone the chat fills the screen.
 
 ## Knowing your audience without tracking it
 
