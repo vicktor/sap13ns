@@ -9,7 +9,7 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const t = (key) => (document.documentElement.lang === "es" ? (ES[key] || key) : key);
   const ES = {
-    "Uploading…": "Subiendo…", "Upload failed": "Error al subir", "Copied": "Copiado", "Nothing selected": "No hay nada seleccionado",
+    "Uploading…": "Subiendo…", "Upload failed": "Error al subir", "Processing…": "Procesando…", "The file is too large": "El archivo es demasiado grande", "Copied": "Copiado", "Nothing selected": "No hay nada seleccionado",
     "Choose an action": "Elige una acción", "Loading…": "Cargando…", "No files": "No hay archivos", "Preview failed": "No se pudo generar la vista previa",
     "words": "palabras", "min read": "min de lectura", "Link text": "texto", "Image description": "descripción",
   };
@@ -341,17 +341,50 @@
     }
   }
 
-  // Media library page: submit the native form so the server redirects with a flash.
+  // Media library page: upload with XMLHttpRequest, whose upload events give
+  // the progress (fetch has none), then reload: the server leaves the result
+  // as a flash, as it does for the plain form post without JavaScript.
   function uploadForm(form, files) {
-    const progress = $("[data-upload-progress]", form);
-    if (progress) progress.hidden = false;
-    const input = $('input[type="file"]', form);
-    if (input && files !== input.files) {
-      const dt = new DataTransfer();
-      for (const f of files) dt.items.add(f);
-      input.files = dt.files;
-    }
-    form.submit();
+    if (form.classList.contains("uploading")) return;
+    const box = $("[data-upload-progress]", form);
+    const bar = $(".progress", form);
+    const text = $("[data-upload-text]", form);
+    const show = (pct, msg) => {
+      if (bar) { bar.firstElementChild.style.width = pct + "%"; bar.setAttribute("aria-valuenow", String(pct)); }
+      if (text) text.textContent = msg;
+    };
+    const done = () => {
+      form.classList.remove("uploading");
+      if (box) box.hidden = true;
+      show(0, "");
+      const input = $('input[type="file"]', form);
+      if (input) input.value = ""; // so the same file can be chosen again
+    };
+    const fd = new FormData();
+    fd.append("csrf", $('input[name="csrf"]', form)?.value || csrf());
+    for (const f of files) fd.append("file", f);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", form.action);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("X-CSRF-Token", csrf());
+    xhr.setRequestHeader("X-Sap13ns-Flash", "1");
+    xhr.upload.addEventListener("progress", (e) => {
+      if (!e.lengthComputable) return;
+      const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+      show(pct, pct < 100 ? `${t("Uploading…")} ${pct} %` : t("Processing…"));
+    });
+    xhr.addEventListener("load", () => {
+      // A JSON answer comes from sap13ns, with the flash set: show it. Any
+      // other (a proxy's 413 page, say) did not reach it.
+      if ((xhr.getResponseHeader("Content-Type") || "").includes("application/json")) { location.reload(); return; }
+      done();
+      toast("error", xhr.status === 413 ? t("The file is too large") : t("Upload failed"));
+    });
+    xhr.addEventListener("error", () => { done(); toast("error", t("Upload failed")); });
+    form.classList.add("uploading");
+    if (box) box.hidden = false;
+    show(0, t("Uploading…"));
+    xhr.send(fd);
   }
 
   // Drag and drop: on the editor it uploads and inserts; on the library it submits.

@@ -15,7 +15,10 @@
     <p><strong>{{T "Drop files here"}}</strong> {{T "or"}}
       <label class="link-like">{{T "browse"}}<input type="file" name="file" multiple accept="{{$d.Accept}}" hidden data-autosubmit></label></p>
     <p class="hint">{{T "Images, PDF, audio and video up to %s each." (filesize $d.Max)}}</p>
-    <div class="progress" data-upload-progress hidden><div></div></div>
+    <div class="upload-status" data-upload-progress hidden>
+      <div class="progress" role="progressbar" aria-label="{{T "Uploading…"}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
+      <p class="hint" data-upload-text aria-live="polite"></p>
+    </div>
   </div>
   <noscript><button class="btn" type="submit">{{T "Upload"}}</button></noscript>
 </form>

@@ -331,12 +331,18 @@ func (s *Server) adminMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 // adminMediaUpload accepts one or more files. Requests from the editor's
-// fetch() get JSON back; plain form posts are redirected.
+// fetch() get JSON back; plain form posts are redirected. The library page
+// uploads with XMLHttpRequest to show progress and sends uploadFlashHeader:
+// it gets JSON, plus the flash the page shows once it reloads.
 func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	wantJSON := strings.Contains(r.Header.Get("Accept"), "application/json")
+	withFlash := wantJSON && r.Header.Get(uploadFlashHeader) == "1"
 	fail := func(status int, msg string) {
 		if wantJSON {
+			if withFlash {
+				s.flash(w, "error", msg)
+			}
 			writeJSON(w, status, map[string]string{"error": msg})
 			return
 		}
@@ -379,6 +385,11 @@ func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 		case len(out) == 0:
 			status = http.StatusUnprocessableEntity
 		}
+		if withFlash && len(errs) > 0 {
+			s.flash(w, "error", strings.Join(errs, " · "))
+		} else if withFlash {
+			s.flash(w, "success", s.tu(r, "%d files uploaded.", len(out)))
+		}
 		writeJSON(w, status, map[string]any{"items": out, "errors": errs})
 		return
 	}
@@ -392,6 +403,9 @@ func (s *Server) adminMediaUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	s.redirect(w, r, "/admin/media", "success", s.tu(r, "%d files uploaded.", len(out)))
 }
+
+// uploadFlashHeader asks a JSON upload to leave its result as a flash too.
+const uploadFlashHeader = "X-Sap13ns-Flash"
 
 type multipartFile interface {
 	Read([]byte) (int, error)

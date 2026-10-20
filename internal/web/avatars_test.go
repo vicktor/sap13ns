@@ -718,3 +718,50 @@ func TestAvatarInThemes(t *testing.T) {
 		}
 	}
 }
+
+// The library page uploads with XMLHttpRequest and reloads: the JSON answer
+// carries the result as a flash too, and only when the page asks for it.
+func TestMediaUploadFlash(t *testing.T) {
+	e := newCustomEnv(t)
+	upload := func(flash bool, name string, data []byte) *httptest.ResponseRecorder {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		mw.WriteField("csrf", e.csrf)
+		fw, _ := mw.CreateFormFile("file", name)
+		fw.Write(data)
+		mw.Close()
+		req := httptest.NewRequest("POST", "http://example.test/admin/media", &body)
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("Accept", "application/json")
+		if flash {
+			req.Header.Set(uploadFlashHeader, "1")
+		}
+		return e.do(req, e.admin)
+	}
+	flashOf := func(res *httptest.ResponseRecorder) []flash {
+		for _, c := range res.Result().Cookies() {
+			if c.Name == flashCookie {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.AddCookie(c)
+				return e.s.takeFlashes(httptest.NewRecorder(), req)
+			}
+		}
+		return nil
+	}
+
+	res := upload(true, "photo.jpg", photoJPEG(t, 40, 30))
+	if res.Code != http.StatusOK || !strings.Contains(res.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("upload: %d %s", res.Code, res.Body)
+	}
+	if f := flashOf(res); len(f) != 1 || f[0].Kind != "success" {
+		t.Errorf("flash after an upload: %+v", f)
+	}
+	res = upload(true, "notes.exe", []byte("MZ not a media file"))
+	if f := flashOf(res); res.Code == http.StatusOK || len(f) != 1 || f[0].Kind != "error" {
+		t.Errorf("refused upload: %d, flash %+v", res.Code, f)
+	}
+	// The editor's uploads answer in JSON only: no flash left for later.
+	if f := flashOf(upload(false, "photo.jpg", photoJPEG(t, 40, 30))); f != nil {
+		t.Errorf("flash without the header: %+v", f)
+	}
+}

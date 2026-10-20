@@ -5,6 +5,18 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.9 — 2026-10-20
+
+- Update now on a network: the update stopped with "the backup
+  (sap13ns-backup.service) failed" when the server still had the
+  single-site backup unit from before it became a network, because that
+  backup refuses to run on a network. When `sap13ns-network-backup.service`
+  is installed, the update now runs only that one.
+- Media library: uploading shows its progress, the percentage sent and then
+  "Processing…" while the server makes the image sizes, and the page
+  reloads with the result. Before, nothing showed until the upload ended. A
+  failed upload says so and lets you choose the file again.
+
 ## v0.2.8 — 2026-10-20
 
 - Post editor: in the Language box, long titles of the linked translations
