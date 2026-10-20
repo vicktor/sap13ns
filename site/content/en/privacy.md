@@ -36,6 +36,8 @@ The necessary cookies are our own and technical, and they are exempt from consen
 | `__Host-sap13ns-sso` (single sign-on) | Protects a sign-in to a site with your sap13ns account while it goes through our portal. | 10 minutes at most; deleted when the sign-in completes. |
 | `__Host-sap13ns-wa-login`, `__Host-sap13ns-wa-reg` (passkey) | Links the steps of a sign-in with a passkey, or of adding a passkey. | 5 minutes at most; deleted when the step completes. |
 | `sap_pform` (form result) | After you send a form, such as a contact form, shows you the result and, after an error, fills in again what you typed. Its content is encrypted. | 5 minutes at most; deleted once the result is shown. |
+| `sap13ns-lang` (language) | Remembers the language you pick in the language menu, so that the home page opens in it. Set only when you pick one. | 1 year. |
+| `sap13ns-theme` (light or dark mode) | Remembers the light or dark mode you pick with the button, so that sap13ns.site and every site we host on its subdomains open in it. Set only when you press the button. | 1 year. |
 
 The sites we host use the same cookies; each site's administrator can change how long its sessions last.
 
@@ -45,9 +47,9 @@ If a page includes a YouTube or Vimeo video, nothing is loaded from those servic
 
 ### Cookie-less analytics
 
-To know which pages are read, we count visits in aggregate, per day: page views, unique visitors, the pages viewed, the referring site (or campaign tag), and the browser, operating system, type of device and language. This is done without cookies and without building a profile of you.
+To know which pages are read, we count visits in aggregate, per day: page views, unique visitors, the pages viewed, the referring site (or campaign tag), and the browser, operating system, type of device, language and country. This is done without cookies and without building a profile of you.
 
-To count unique visitors, your IP address and browser are combined with a random value that is kept only in memory and replaced every day at midnight. The result stays in memory for that day only, so visits cannot be linked from one day to the next. No IP address, browser string or visitor identifier is ever stored. Visits by signed-in users are not counted. The daily totals we keep contain no personal data, and they are deleted after two years.
+To count unique visitors, your IP address and browser are combined with a random value that is kept only in memory and replaced every day at midnight. The result stays in memory for that day only, so visits cannot be linked from one day to the next. No IP address, browser string or visitor identifier is ever stored. The country is worked out from your IP address at the time of the visit, with an address database kept on our own server (DB-IP, with no third party asked); only the country is kept, never the address. Visits by signed-in users are not counted. The daily totals we keep contain no personal data, and they are deleted after two years.
 
 ### Server logs
 

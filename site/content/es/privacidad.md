@@ -36,6 +36,8 @@ Las cookies necesarias son propias y técnicas, y están exentas de consentimien
 | `__Host-sap13ns-sso` (inicio de sesión único) | Protege el inicio de sesión en un sitio con tu cuenta de sap13ns mientras pasa por nuestro portal. | 10 minutos como máximo; se borra al completarse el inicio de sesión. |
 | `__Host-sap13ns-wa-login`, `__Host-sap13ns-wa-reg` (passkey) | Enlaza los pasos de un inicio de sesión con passkey, o de añadir una passkey. | 5 minutos como máximo; se borra al completarse el paso. |
 | `sap_pform` (resultado de formulario) | Después de enviar un formulario, como uno de contacto, te muestra el resultado y, si ha habido un error, vuelve a rellenar lo que escribiste. Su contenido va cifrado. | 5 minutos como máximo; se borra en cuanto se muestra el resultado. |
+| `sap13ns-lang` (idioma) | Recuerda el idioma que eliges en el menú de idiomas, para que la página de inicio se abra en él. Se crea solo cuando eliges uno. | 1 año. |
+| `sap13ns-theme` (modo claro u oscuro) | Recuerda el modo claro u oscuro que eliges con el botón, para que sap13ns.site y todos los sitios que alojamos en sus subdominios se abran en él. Se crea solo cuando pulsas el botón. | 1 año. |
 
 Los sitios que alojamos usan las mismas cookies; el administrador de cada sitio puede cambiar cuánto duran sus sesiones.
 
@@ -45,9 +47,9 @@ Si una página incluye un vídeo de YouTube o de Vimeo, no se carga nada de esos
 
 ### Analítica sin cookies
 
-Para saber qué páginas se leen, contamos las visitas de forma agregada y por días: páginas vistas, visitantes únicos, las páginas visitadas, el sitio de procedencia (o la etiqueta de campaña), y el navegador, el sistema operativo, el tipo de dispositivo y el idioma. Lo hacemos sin cookies y sin crear un perfil sobre ti.
+Para saber qué páginas se leen, contamos las visitas de forma agregada y por días: páginas vistas, visitantes únicos, las páginas visitadas, el sitio de procedencia (o la etiqueta de campaña), y el navegador, el sistema operativo, el tipo de dispositivo, el idioma y el país. Lo hacemos sin cookies y sin crear un perfil sobre ti.
 
-Para contar los visitantes únicos, tu dirección IP y tu navegador se combinan con un valor aleatorio que solo se guarda en memoria y se sustituye cada día a medianoche. El resultado permanece en memoria solo durante ese día, así que las visitas no pueden relacionarse de un día a otro. Nunca se guardan direcciones IP, la cadena de identificación del navegador ni identificadores de visitante. Las visitas de usuarios con la sesión iniciada no se cuentan. Los totales diarios que guardamos no contienen datos personales y se eliminan a los dos años.
+Para contar los visitantes únicos, tu dirección IP y tu navegador se combinan con un valor aleatorio que solo se guarda en memoria y se sustituye cada día a medianoche. El resultado permanece en memoria solo durante ese día, así que las visitas no pueden relacionarse de un día a otro. Nunca se guardan direcciones IP, la cadena de identificación del navegador ni identificadores de visitante. El país se deduce de tu dirección IP en el momento de la visita, con una base de datos de direcciones que está en nuestro propio servidor (DB-IP, sin consultar a ningún tercero); solo se guarda el país, nunca la dirección. Las visitas de usuarios con la sesión iniciada no se cuentan. Los totales diarios que guardamos no contienen datos personales y se eliminan a los dos años.
 
 ### Registros del servidor
 
