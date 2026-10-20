@@ -21,8 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"sap13ns/internal/auth"
 	"sap13ns/internal/config"
 	"sap13ns/internal/media"
+	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 	"sap13ns/ui"
 )
@@ -810,7 +812,8 @@ func TestThemeUploadPlan(t *testing.T) {
 }
 
 // TestThemeUploadNetworkAdmin: a network admin uploads themes on a plan
-// without theme uploads; another network account does not.
+// without theme uploads when signed in through the portal; another
+// network account, or a local sign-in, does not.
 func TestThemeUploadNetworkAdmin(t *testing.T) {
 	e := newPluginEnv(t)
 	e.english()
@@ -828,7 +831,18 @@ func TestThemeUploadNetworkAdmin(t *testing.T) {
 		t.Fatalf("a member: %d", rec.Code)
 	}
 
+	// A network admin's account, but a local sign-in: the plan decides.
 	lim.admins = []int64{7, 8}
+	if rec := e.uploadTheme("tiny.zip", pkg); rec.Code != http.StatusForbidden {
+		t.Fatalf("a local sign-in of the network admin: %d", rec.Code)
+	}
+	// Signed in through the portal.
+	token, csrf := auth.NewToken(32), auth.NewToken(24)
+	if err := e.st.CreateSession(context.Background(), store.Session{TokenHash: auth.HashToken(token), UserID: e.adminID, CSRFToken: csrf,
+		AMR: store.AMRSSO, ExpiresAt: time.Now().Add(time.Hour), UserAgent: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	e.cookie, e.csrf = &http.Cookie{Name: e.s.cookieName(), Value: token}, csrf
 	b = e.do("GET", "/admin/appearance/themes", nil, "", e.cookie).Body.String()
 	if !strings.Contains(b, `action="/admin/appearance/themes/upload"`) || !strings.Contains(b, "because you are a network admin") {
 		t.Fatal("the network admin does not see the upload form")

@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.6 — 2026-10-20
+
+- Theme uploads on a network: the exception for network admins now needs a
+  session that came through the portal. A local sign-in of a user linked to
+  a network admin's account follows the plan, as the site switcher already
+  did.
+
 ## v0.2.5 — 2026-10-20
 
 - Themes on a network: a network admin signed in to a site, as a member or as

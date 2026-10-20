@@ -41,7 +41,8 @@ type themeProblem struct {
 }
 
 // themePolicy is whether the signed-in user can upload themes to the
-// site, and its plan's name on a network. A network admin can on any plan.
+// site, and its plan's name on a network. A network admin signed in
+// through the portal can on any plan.
 func (s *Server) themePolicy(r *http.Request) (ThemePolicy, error) {
 	if s.limits == nil {
 		return ThemePolicy{Uploads: true}, nil
@@ -50,8 +51,8 @@ func (s *Server) themePolicy(r *http.Request) (ThemePolicy, error) {
 	if err != nil || pol.Uploads {
 		return pol, err
 	}
-	if u := currentUser(r); u != nil && u.NetworkAccountID != nil {
-		admin, err := s.limits.NetworkAdmin(r.Context(), *u.NetworkAccountID)
+	if account, ok := portalAccount(r); ok {
+		admin, err := s.limits.NetworkAdmin(r.Context(), account)
 		if err != nil {
 			return pol, err
 		}

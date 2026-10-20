@@ -161,7 +161,16 @@ func (s *Server) switcherAccount(r *http.Request) (int64, bool) {
 	if s.portal != nil {
 		return u.ID, !s.mustEnroll2FA(r, u)
 	}
-	if !strings.HasPrefix(sess.AMR, store.AMRSSO) || u.NetworkAccountID == nil {
+	return portalAccount(r)
+}
+
+// portalAccount is the network account of a session that came through the
+// portal (single sign-on, MFA done): the only kind of session whose network
+// account counts on a site. A local sign-in of a linked user does not.
+func portalAccount(r *http.Request) (int64, bool) {
+	u, sess := currentUser(r), rctx(r).Session
+	if u == nil || sess == nil || sess.UserID != u.ID || sess.MFAPending ||
+		!strings.HasPrefix(sess.AMR, store.AMRSSO) || u.NetworkAccountID == nil {
 		return 0, false
 	}
 	return *u.NetworkAccountID, true
