@@ -593,6 +593,15 @@ func TestNetworkAdminAdmins(t *testing.T) {
 		t.Fatal("carl is still a network admin")
 	}
 	nb.post(admins, admins, url.Values{"csrf": {csrf}, "login": {"carl"}})
+	// boss is the only super admin: another one, from the command line,
+	// before boss leaves.
+	nb.post(admins+"/"+strconv.FormatInt(boss, 10)+"/delete", admins, url.Values{"csrf": {csrf}})
+	if !strings.Contains(nb.page(admins), "Es el último superadministrador de la red.") {
+		t.Fatal("no message about the last super admin")
+	}
+	if err := e.n.AddNetworkAdmin(e.ctx, e.account("eve"), 0); err != nil {
+		t.Fatal(err)
+	}
 	nb.post(admins+"/"+strconv.FormatInt(boss, 10)+"/delete", "/admin/", url.Values{"csrf": {csrf}})
 	if ok, _ := e.n.IsNetworkAdmin(e.ctx, boss); ok {
 		t.Fatal("boss is still a network admin")

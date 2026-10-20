@@ -279,6 +279,26 @@ a "suspended" page, to everyone, until an operator resumes it
 (`sap13ns site resume -slug <slug>`); the billing hold and the suspension
 are separate.
 
+**A plan granted by hand.** For a customer who paid by other means, a
+super admin (below) gives a site a paid plan for one year from its page in
+the network admin area: **Plan → Upgrade for one year**. The site then
+behaves as a paid one: it has the plan at once, **My sites** shows it as
+paid until the end of the year, and when the year ends without another one
+it is held as an unpaid site is. **Add one year** extends it from its end,
+and may change the plan; **Cancel the manual plan** ends it now and moves
+the site to the free plan. Nothing is sent to Stripe. A site a Stripe
+subscription pays for cannot be granted one (change it in Stripe), while
+the owner of a site with a manual plan can still subscribe in Stripe, which
+replaces it. Every grant and cancel is in the audit log
+(`network.site_plan_granted`, `network.site_plan_canceled`).
+
+Only a **super admin** grants or cancels these plans: a network
+administrator made from the command line (`sap13ns network init -username
+U`, which also makes an existing account one). Network administrators added
+in the portal see the plan, not the buttons, and the server refuses them
+with 403. A super admin is revoked only by another super admin, and the last
+one cannot be revoked, disabled or deleted.
+
 **What visitors see.** A held site answers its public pages with a 503 page
 that says "This site is paused" and that it will be back soon, with a
 **Log in** button for its administrators; it says nothing about billing.

@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"net"
+	"sap13ns/internal/billing"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,7 +62,7 @@ var routable = []string{StatusPending, StatusActive, StatusSuspended}
 // after `network init`; its other hosts then redirect there.
 func (n *Network) hostTable(ctx context.Context, now time.Time) (*hostTable, error) {
 	rows, err := n.db.Query(ctx, `SELECT s.id, s.kind, s.slug, s.status, d.host, d.kind = 'custom', d.is_primary,
-			coalesce(p.paid, false) AND sub.id IS NOT NULL, coalesce(sub.state, ''), sub.grace_since, sub.paid_until,
+			coalesce(p.paid, false) AND sub.id IS NOT NULL, coalesce(sub.state, ''), sub.grace_since, sub.paid_until, coalesce(sub.manual, false),
 			EXISTS (SELECT 1 FROM emergency_access e WHERE e.site_id = s.id AND e.ended_at IS NULL AND e.expires_at > $2)
 		FROM domains d JOIN sites s ON s.id = d.site_id
 		LEFT JOIN plans p ON p.slug = s.plan
@@ -78,13 +79,17 @@ func (n *Network) hostTable(ctx context.Context, now time.Time) (*hostTable, err
 			s                     siteRoute
 			host, state           string
 			custom, prime, paid   bool
+			manual                bool
 			graceSince, paidUntil *time.Time
 		)
-		if err := rows.Scan(&s.ID, &s.Kind, &s.Slug, &s.Status, &host, &custom, &prime, &paid, &state, &graceSince, &paidUntil,
+		if err := rows.Scan(&s.ID, &s.Kind, &s.Slug, &s.Status, &host, &custom, &prime, &paid, &state, &graceSince, &paidUntil, &manual,
 			&s.Emergency); err != nil {
 			return nil, err
 		}
-		if paid {
+		switch {
+		case paid && manual && state == string(billing.StateActive):
+			s.Held = manualHeld(paidUntil, now)
+		case paid:
 			s.Held = held(state, graceSince, paidUntil, now, n.grace)
 		}
 		cur := t.sites[s.ID]

@@ -549,6 +549,20 @@ func TestMembers(t *testing.T) {
 	if err := f.n.RemoveNetworkAdmin(f.ctx, carol); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("removing a non-admin: %v", err)
 	}
+	// alice, from the CLI, is the only super admin; adding bob from the
+	// CLI makes bob one too.
+	if ok, _ := f.n.IsSuperAdmin(f.ctx, bob); ok || admins[1].Super || !admins[0].Super {
+		t.Fatalf("super admins: %+v", admins)
+	}
+	if err := f.n.RemoveNetworkAdmin(f.ctx, alice); !errors.Is(err, ErrLastSuperAdmin) {
+		t.Fatalf("removing the last super admin: %v", err)
+	}
+	if err := f.n.AddNetworkAdmin(f.ctx, bob, 0); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := f.n.IsSuperAdmin(f.ctx, bob); !ok {
+		t.Fatal("bob is not a super admin after the CLI added him")
+	}
 	if err := f.n.RemoveNetworkAdmin(f.ctx, alice); err != nil {
 		t.Fatal(err)
 	}

@@ -140,6 +140,22 @@ func (s *Server) renderNetSite(w http.ResponseWriter, r *http.Request, status in
 	s.renderNetSiteData(w, r, status, d, v, nil)
 }
 
+// paidPlans are the network's paid plans, for granting one by hand.
+func (s *Server) paidPlans(r *http.Request) []NetPlan {
+	plans, err := s.portal.Plans(r.Context())
+	if err != nil {
+		s.log.Error("list plans", "err", err)
+		return nil
+	}
+	var out []NetPlan
+	for _, p := range plans {
+		if p.Paid {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // renderNetSiteData renders the site's page of the network admin area,
 // with its domains card and, when ef is set, the emergency access form as
 // it was sent.
@@ -150,10 +166,14 @@ func (s *Server) renderNetSiteData(w http.ResponseWriter, r *http.Request, statu
 		ef = &emergencyForm{}
 	}
 	ef.Reauth, ef.TOTP = recentLogin(r), u.TOTPEnabled
+	super, err := s.portal.IsSuperAdmin(r.Context(), u.ID)
+	if err != nil {
+		s.log.Error("super admin", "err", err)
+	}
 	s.renderAdminStatus(w, r, status, "network_site", d.Site.Slug, "net-sites", netSiteData{NetSiteDetail: d, Roles: assignableRoles, DomainCard: v,
 		CanOpen: d.Site.Served() && (d.Support.Open != nil || d.Member(u.ID)) ||
 			mine != nil && (d.Site.Served() || d.Site.Status == "suspended"),
-		MyEmergency: mine, EmergencyForm: ef})
+		MyEmergency: mine, EmergencyForm: ef, PaidPlans: s.paidPlans(r), CanGrantPlan: super})
 }
 
 func (s *Server) adminMyDomainAdd(w http.ResponseWriter, r *http.Request) {

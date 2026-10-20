@@ -105,6 +105,8 @@ The steps follow [DEPLOY.md](DEPLOY.md) for the binary, PostgreSQL and the syste
    ```
 
    `serve` refuses to start on a network that has not been created yet. Running `network init` again is harmless: without `-username` it only reports the portal and its administrators.
+
+   The administrators made here are **super admins**: besides what every network administrator does, they alone grant a site a paid plan without payment ([BILLING.md](BILLING.md#7-what-happens-to-a-site)) and revoke another super admin. `network init -username U` without `-email` makes the existing account `U` a super admin. Network administrators added in the portal are not.
 5. **Sign in** to `https://example.com/admin` as `ops`, and set up a second factor: every portal account needs one.
 6. **The first sites.** Either let people register on the portal and request a Personal site from **My sites**, or create sites from the command line. The owner must be a network account:
 
@@ -311,9 +313,10 @@ The portal and the default hosts are covered by **one wildcard certificate** (`e
 Every command takes `-env FILE`. Running servers follow every change at once.
 
 ```
-sap13ns network init [-username U -email E [-name N]]
+sap13ns network init [-username U [-email E [-name N]]]
         Create the network schema, the portal on the SAP13NS_BASE_URL host,
-        and a network administrator (password from stdin, or generated).
+        and a super administrator (password from stdin, or generated); with
+        -username of an existing account and no -email, make it one.
 sap13ns migrate [-site S]
         Migrate the network schema, then every site's (or only S's).
 

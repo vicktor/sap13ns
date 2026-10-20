@@ -132,9 +132,15 @@ func (h portalHooks) IsNetworkAdmin(ctx context.Context, accountID int64) (bool,
 	return h.r.net.IsNetworkAdmin(ctx, accountID)
 }
 
+func (h portalHooks) IsSuperAdmin(ctx context.Context, accountID int64) (bool, error) {
+	return h.r.net.IsSuperAdmin(ctx, accountID)
+}
+
 func (h portalHooks) CheckAccountChange(ctx context.Context, accountID int64, remove bool) error {
 	err := h.r.net.CheckAccountChange(ctx, accountID, remove)
 	switch {
+	case errors.Is(err, ErrLastSuperAdmin):
+		return errors.Join(web.ErrLastSuperAdmin, err)
 	case errors.Is(err, ErrState):
 		return errors.Join(web.ErrLastNetworkAdmin, err)
 	case errors.Is(err, ErrOwned):

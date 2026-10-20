@@ -5,6 +5,17 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.15 — 2026-10-20
+
+- Network: a super admin can give a site a paid plan (Pro, Business) for one
+  year without Stripe, from **Network → Sites → the site → Plan**, for a
+  customer who paid by other means. The site behaves as a paid one, is held
+  when the year ends, and the plan can be extended or canceled (back to the
+  free plan). See "A plan granted by hand" in docs/BILLING.md.
+- Network: **super admins** are the network administrators made from the
+  command line (`network init`, which can now also promote an existing
+  account). Only a super admin revokes another, and the last one stays.
+
 ## v0.2.14 — 2026-10-20
 
 - Customiser: **Texts and images**. A theme can declare the texts and

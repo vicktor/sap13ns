@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/sitebackup"
@@ -92,7 +93,10 @@ func (h portalHooks) withBilling(ctx context.Context, out *web.NetSite, s *Site,
 	}
 	out.Billing = &web.NetBilling{Plan: sub.Plan, Status: sub.Status, State: sub.State, PeriodEnd: sub.CurrentPeriodEnd,
 		PaidUntil: sub.PaidUntil, CancelAtPeriodEnd: sub.CancelAtPeriodEnd, GraceSince: sub.GraceSince, Held: h.r.net.Held(p.Paid, sub, h.r.o.Now()),
-		Manageable: sub.StripeCustomerID != ""}
+		Manageable: sub.StripeCustomerID != "", Manual: sub.Manual}
+	if sub.Manual && out.Billing.Held {
+		out.Billing.State = "canceled" // its year is over
+	}
 	return nil
 }
 
@@ -164,6 +168,15 @@ func (h portalHooks) SuspendSite(ctx context.Context, siteID int64, reason strin
 	return webErr(h.r.net.SuspendSite(ctx, siteID, reason))
 }
 
+func (h portalHooks) GrantPlanYear(ctx context.Context, siteID int64, plan string) (time.Time, error) {
+	end, err := h.r.net.GrantPlanYear(ctx, siteID, plan, h.r.o.Now())
+	return end, webErr(err)
+}
+
+func (h portalHooks) CancelManualPlan(ctx context.Context, siteID int64) error {
+	return webErr(h.r.net.CancelManualPlan(ctx, siteID, h.r.o.Now()))
+}
+
 func (h portalHooks) ResumeSite(ctx context.Context, siteID int64) error {
 	return webErr(h.r.net.ResumeSite(ctx, siteID))
 }
@@ -191,7 +204,7 @@ func (h portalHooks) NetworkAdmins(ctx context.Context) ([]web.NetAdmin, error) 
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, web.NetAdmin{AccountID: a.AccountID, Username: a.Username, Email: a.Email, GrantedBy: by, CreatedAt: a.CreatedAt})
+		out = append(out, web.NetAdmin{AccountID: a.AccountID, Username: a.Username, Email: a.Email, GrantedBy: by, Super: a.Super, CreatedAt: a.CreatedAt})
 	}
 	return out, nil
 }
@@ -202,6 +215,9 @@ func (h portalHooks) AddNetworkAdmin(ctx context.Context, accountID, by int64) e
 
 func (h portalHooks) RemoveNetworkAdmin(ctx context.Context, accountID int64) error {
 	err := h.r.net.RemoveNetworkAdmin(ctx, accountID)
+	if errors.Is(err, ErrLastSuperAdmin) {
+		return errors.Join(web.ErrLastSuperAdmin, err)
+	}
 	if errors.Is(err, ErrState) {
 		return errors.Join(web.ErrLastNetworkAdmin, err)
 	}

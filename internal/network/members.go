@@ -152,13 +152,14 @@ func (n *Network) MemberSites(ctx context.Context, accountID int64) ([]MemberSit
 type NetworkAdmin struct {
 	AccountID int64     `db:"account_id"`
 	GrantedBy *int64    `db:"granted_by"`
+	Super     bool      `db:"super"`
 	CreatedAt time.Time `db:"created_at"`
 	Username  string    `db:"username"`
 	Email     string    `db:"email"`
 }
 
 func (n *Network) NetworkAdmins(ctx context.Context) ([]NetworkAdmin, error) {
-	rows, err := n.db.Query(ctx, `SELECT a.account_id, a.granted_by, a.created_at, u.username, u.email
+	rows, err := n.db.Query(ctx, `SELECT a.account_id, a.granted_by, a.super, a.created_at, u.username, u.email
 		FROM network_admins a JOIN users u ON u.id = a.account_id ORDER BY a.created_at, a.account_id`)
 	if err != nil {
 		return nil, err
@@ -172,38 +173,62 @@ func (n *Network) IsNetworkAdmin(ctx context.Context, accountID int64) (bool, er
 	return ok, err
 }
 
+// IsSuperAdmin reports whether an account is a super admin: a network
+// admin made from the command line.
+func (n *Network) IsSuperAdmin(ctx context.Context, accountID int64) (bool, error) {
+	var ok bool
+	err := n.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM network_admins WHERE account_id = $1 AND super)`, accountID).Scan(&ok)
+	return ok, err
+}
+
+// ErrLastSuperAdmin refuses to revoke the network's last super admin.
+var ErrLastSuperAdmin = fmt.Errorf("%w: the network needs a super admin", ErrState)
+
 // AddNetworkAdmin makes an account a network admin; grantedBy is 0 from
-// the CLI. Adding an existing admin changes nothing.
+// the CLI, which makes a super admin, also of an existing admin. Adding
+// an existing admin from the portal changes nothing.
 func (n *Network) AddNetworkAdmin(ctx context.Context, accountID, grantedBy int64) error {
 	return n.mutate(ctx, 0, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO network_admins (account_id, granted_by) VALUES ($1, nullif($2::bigint, 0))
-			ON CONFLICT (account_id) DO NOTHING`, accountID, grantedBy)
+		_, err := tx.Exec(ctx, `INSERT INTO network_admins (account_id, granted_by, super) VALUES ($1, nullif($2::bigint, 0), $2::bigint = 0)
+			ON CONFLICT (account_id) DO UPDATE SET super = network_admins.super OR excluded.super`, accountID, grantedBy)
 		return err
 	})
 }
 
-// RemoveNetworkAdmin revokes a network admin, but never the last one. The
+// RemoveNetworkAdmin revokes a network admin, but never the last one nor
+// the last super admin. The
 // operator users they had on the sites are disabled and signed out.
 func (n *Network) RemoveNetworkAdmin(ctx context.Context, accountID int64) error {
 	err := n.mutate(ctx, 0, func(tx pgx.Tx) error {
 		// Locking every row makes two concurrent removals see each other.
-		rows, err := tx.Query(ctx, `SELECT account_id FROM network_admins FOR UPDATE`)
+		rows, err := tx.Query(ctx, `SELECT account_id, super FROM network_admins FOR UPDATE`)
 		if err != nil {
 			return err
 		}
-		admins, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		type admin struct {
+			ID    int64 `db:"account_id"`
+			Super bool  `db:"super"`
+		}
+		admins, err := pgx.CollectRows(rows, pgx.RowToStructByName[admin])
 		if err != nil {
 			return err
 		}
-		found := false
+		found, super, supers := false, false, 0
 		for _, a := range admins {
-			found = found || a == accountID
+			if a.ID == accountID {
+				found, super = true, a.Super
+			}
+			if a.Super {
+				supers++
+			}
 		}
 		switch {
 		case !found:
 			return pgx.ErrNoRows
 		case len(admins) == 1:
 			return fmt.Errorf("%w: the network needs at least one admin", ErrState)
+		case super && supers == 1:
+			return ErrLastSuperAdmin
 		}
 		_, err = tx.Exec(ctx, `DELETE FROM network_admins WHERE account_id = $1`, accountID)
 		return err

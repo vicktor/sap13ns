@@ -227,7 +227,7 @@ func serveNetwork(ctx context.Context, cfg *config.Config, log *slog.Logger) err
 
 // ---------------------------------------------------------------- network --
 
-const networkUsage = "usage: sap13ns network init [-username U -email E [-name N]]"
+const networkUsage = "usage: sap13ns network init [-username U [-email E [-name N]]]"
 
 // networkCmd implements "sap13ns network init": the network schema, the
 // portal's site (on the SAP13NS_BASE_URL host) and a network admin.
@@ -237,7 +237,7 @@ func networkCmd(args []string) error {
 	}
 	var username, email, name string
 	cfg, log, _, err := setup("network init", args[1:], true, func(f *flag.FlagSet) {
-		f.StringVar(&username, "username", "", "username of a network administrator to create")
+		f.StringVar(&username, "username", "", "username of a super administrator to create, or of an existing account to make one")
 		f.StringVar(&email, "email", "", "their e-mail address")
 		f.StringVar(&name, "name", "", "their public name")
 	})
@@ -266,14 +266,25 @@ func networkCmd(args []string) error {
 		fmt.Fprintf(out, "network site #%d on %s; administrators: %d\n", site.ID, cfg.BaseURL, len(admins))
 		return nil
 	}
-	id, pw, generated, err := createUser(ctx, store.New(n.DB()), username, email, name, auth.RoleAdmin)
+	// An existing account given without -email becomes a super admin.
+	st := store.New(n.DB())
+	if u, err := st.UserByUsername(ctx, username); err == nil && email == "" {
+		if err := n.AddNetworkAdmin(ctx, u.ID, 0); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "network site #%d on %s\n%s (#%d) is a super administrator\n", site.ID, cfg.BaseURL, username, u.ID)
+		return nil
+	} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	id, pw, generated, err := createUser(ctx, st, username, email, name, auth.RoleAdmin)
 	if err != nil {
 		return err
 	}
 	if err := n.AddNetworkAdmin(ctx, id, 0); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "network site #%d on %s\ncreated network administrator %s (#%d)\n", site.ID, cfg.BaseURL, username, id)
+	fmt.Fprintf(out, "network site #%d on %s\ncreated super administrator %s (#%d)\n", site.ID, cfg.BaseURL, username, id)
 	if generated {
 		fmt.Fprintf(out, "password: %s\n", pw)
 	}

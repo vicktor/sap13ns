@@ -22,6 +22,7 @@ bot
 box
 briefcase
 calendar
+calendar-plus
 chart-column
 chart-line
 check

@@ -128,8 +128,13 @@ type Portal interface {
 
 	// IsNetworkAdmin reports whether an account administers the network.
 	IsNetworkAdmin(ctx context.Context, accountID int64) (bool, error)
+	// IsSuperAdmin reports whether an account is a super admin: a network
+	// admin made from the command line, who alone grants paid plans
+	// without payment and revokes super admins.
+	IsSuperAdmin(ctx context.Context, accountID int64) (bool, error)
 	// CheckAccountChange tells whether an account may be disabled, or
 	// deleted when remove: ErrLastNetworkAdmin for the last network admin,
+	// ErrLastSuperAdmin for the last super admin,
 	// ErrOwnsSites for deleting the owner of a site.
 	CheckAccountChange(ctx context.Context, accountID int64, remove bool) error
 	// AccountChanged applies the status of an account (disabled, enabled)
@@ -173,6 +178,7 @@ var (
 	ErrSSONoSupport     = fmt.Errorf("%w: the site does not allow support access", ErrSSODenied)
 	ErrSSONoEmergency   = fmt.Errorf("%w: the emergency access ended", ErrSSODenied)
 	ErrLastNetworkAdmin = errors.New("network: the network needs at least one admin")
+	ErrLastSuperAdmin   = errors.New("network: the network needs a super admin")
 	ErrOwnsSites        = errors.New("network: the account owns sites")
 )
 

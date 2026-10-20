@@ -156,7 +156,7 @@ func TestNetworkCLI(t *testing.T) {
 
 	c.fails("give -username and -email", networkCmd, "init")
 	got := c.must(testPassword+"\n", networkCmd, "init", "-username", "Root", "-email", "root@example.test")
-	if !strings.Contains(got, "created network administrator root") || strings.Contains(got, "password:") {
+	if !strings.Contains(got, "created super administrator root") || strings.Contains(got, "password:") {
 		t.Fatalf("init: %q", got)
 	}
 	if got := c.must("", networkCmd, "init"); !strings.Contains(got, "administrators: 1") {

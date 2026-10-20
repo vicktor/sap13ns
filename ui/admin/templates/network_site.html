@@ -45,7 +45,7 @@
       <section>
         <dl class="meta-list">
           <div><dt>{{T "State"}}</dt><dd>{{template "billing-state" .}}</dd></div>
-          <div><dt>{{T "Stripe status"}}</dt><dd class="mono">{{.Status}}</dd></div>
+          <div><dt>{{T "Stripe status"}}</dt><dd>{{if .Manual}}{{T "Granted by hand, without Stripe"}}{{else}}<span class="mono">{{.Status}}</span>{{end}}</dd></div>
           <div><dt>{{T "Period ends"}}</dt><dd>{{with .PeriodEnd}}{{dateTime .}}{{else}}—{{end}}{{if .CancelAtPeriodEnd}} <span class="muted">· {{T "canceled at the end of the period"}}</span>{{end}}</dd></div>
           <div><dt>{{T "Grace since"}}</dt><dd>{{with .GraceSince}}{{dateTime .}}{{else}}—{{end}}</dd></div>
         </dl>
@@ -110,6 +110,37 @@
         <form method="post" action="/admin/network/sites/{{$s.ID}}/approve">{{.CSRFField}}<button class="btn w-full" type="submit">{{icon "check"}}{{T "Approve"}}</button></form>
         <form method="post" action="/admin/network/sites/{{$s.ID}}/reject">{{.CSRFField}}<button class="btn w-full" data-variant="outline" type="submit" data-confirm="{{T "Reject %s? The site is deleted." $s.Slug}}">{{icon "x"}}{{T "Reject"}}</button></form>
       </footer>
+    </section>
+    {{end}}
+    {{if or (eq $s.Status "active") (eq $s.Status "suspended")}}
+    {{$b := $s.Billing}}{{$stripe := and $b (not $b.Manual) (ne $b.State "canceled")}}
+    <section class="card" id="plan">
+      <header><h2>{{icon "badge-check"}} {{T "Plan"}}</h2><p>{{T "Give the site a paid plan for a year, as if its owner had paid for it in Stripe: for a customer who paid by other means. When the year ends without another one, the site is held as an unpaid one is."}}</p></header>
+      <section class="stack">
+        <p>{{with $d.Plan}}<strong>{{.Name}}</strong>{{else}}{{$s.Plan}}{{end}}{{if and $b $b.Manual (ne $b.State "canceled")}}{{with $b.PaidUntil}} · {{T "granted by hand until %s" (dateTime .)}}{{end}}{{end}}</p>
+        {{if $stripe}}
+        <p class="hint">{{T "A Stripe subscription pays for this site: change it in Stripe."}}</p>
+        {{else if not $d.CanGrantPlan}}
+        <p class="hint">{{T "Only a super administrator, made from the command line, can grant or cancel a plan without payment."}}</p>
+        {{else if $d.PaidPlans}}
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/plan-year" class="form">
+          {{.CSRFField}}
+          <div class="field">
+            <label for="grant-plan">{{T "Paid plan"}}</label>
+            {{$o := list}}{{range $d.PaidPlans}}{{$o = append $o (opt .Slug .Name)}}{{end}}
+            {{$v := (index $d.PaidPlans 0).Slug}}{{range $d.PaidPlans}}{{if eq .Slug $s.Plan}}{{$v = .Slug}}{{end}}{{end}}
+            {{template "select" (selectbox "id" "grant-plan" "name" "plan" "value" $v "options" $o)}}
+          </div>
+          {{$extend := and $b $b.Manual (ne $b.State "canceled")}}
+          <button class="btn w-full" type="submit" data-confirm="{{if $extend}}{{T "Add one more year of this plan to %s?" $s.Slug}}{{else}}{{T "Give %s this plan for one year, without Stripe?" $s.Slug}}{{end}}">{{icon "calendar-plus"}}{{if $extend}}{{T "Add one year"}}{{else}}{{T "Upgrade for one year"}}{{end}}</button>
+        </form>
+        {{end}}
+      </section>
+      {{if and $d.CanGrantPlan $b $b.Manual (ne $b.State "canceled")}}
+      <footer>
+        <form method="post" action="/admin/network/sites/{{$s.ID}}/plan-cancel" class="w-full">{{.CSRFField}}<button class="btn w-full" data-variant="outline" type="submit" data-confirm="{{T "Cancel the manual plan of %s? The site goes back to the free plan now." $s.Slug}}">{{icon "x"}}{{T "Cancel the manual plan"}}</button></form>
+      </footer>
+      {{end}}
     </section>
     {{end}}
     {{if ne $s.Status "deleted"}}

@@ -4,7 +4,7 @@
 <div class="page-header">
   <div>
     <h1>{{T "Network administrators"}}</h1>
-    <p>{{T "They manage every site of the network and can open any of them as an administrator. They need two-factor authentication."}}</p>
+    <p>{{T "They manage every site of the network and can open any of them as an administrator. They need two-factor authentication."}} {{T "Super admins, made from the command line, also grant plans without payment and are revoked only by another super admin."}}</p>
   </div>
 </div>
 <div class="split">
@@ -14,10 +14,10 @@
       <tbody>
         {{range $d.Admins}}
         <tr>
-          <td><strong>@{{.Username}}</strong><div class="row-sub muted">{{.Email}}</div></td>
+          <td><strong>@{{.Username}}</strong>{{if .Super}} <span class="badge" data-variant="secondary">{{T "Super admin"}}</span>{{end}}<div class="row-sub muted">{{.Email}}</div></td>
           <td class="max-md:hidden">{{if .GrantedBy}}@{{.GrantedBy}}{{else}}<span class="muted">{{T "Command line"}}</span>{{end}}</td>
           <td class="max-sm:hidden muted nowrap">{{shortDate .CreatedAt}}</td>
-          <td class="text-right nowrap">{{if gt (len $d.Admins) 1}}<form method="post" action="/admin/network/admins/{{.AccountID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Revoke @%s" .Username}}" data-confirm="{{T "Revoke the network administration from @%s? The sites they opened as an operator are closed to them at once." .Username}}">{{icon "trash-2"}}</button></form>{{end}}</td>
+          <td class="text-right nowrap">{{if and (gt (len $d.Admins) 1) (or (not .Super) $d.Super)}}<form method="post" action="/admin/network/admins/{{.AccountID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Revoke @%s" .Username}}" data-confirm="{{T "Revoke the network administration from @%s? The sites they opened as an operator are closed to them at once." .Username}}">{{icon "trash-2"}}</button></form>{{end}}</td>
         </tr>
         {{end}}
       </tbody>

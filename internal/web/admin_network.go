@@ -33,6 +33,14 @@ type PortalAdmin interface {
 	RejectSite(ctx context.Context, siteID int64) error
 	SuspendSite(ctx context.Context, siteID int64, reason string) error
 	ResumeSite(ctx context.Context, siteID int64) error
+	// GrantPlanYear gives a site a paid plan for a year without Stripe, as
+	// if its owner had paid (a year more on a manual plan that has not
+	// ended), and returns the end. ErrNetworkInvalid: no such paid plan;
+	// ErrNetworkState: the site cannot have it, or Stripe pays for it.
+	GrantPlanYear(ctx context.Context, siteID int64, plan string) (time.Time, error)
+	// CancelManualPlan ends a manual plan now: the site goes back to the
+	// free plan (ErrNetworkState when it has none).
+	CancelManualPlan(ctx context.Context, siteID int64) error
 	DeleteSite(ctx context.Context, siteID int64) error
 	// SetMember adds an account to a site or changes its role there, and
 	// RemoveMember removes it; the account's user on the site follows at
@@ -41,7 +49,8 @@ type PortalAdmin interface {
 	RemoveMember(ctx context.Context, siteID, accountID int64) error
 	NetworkAdmins(ctx context.Context) ([]NetAdmin, error)
 	AddNetworkAdmin(ctx context.Context, accountID, by int64) error
-	// RemoveNetworkAdmin never removes the last one (ErrLastNetworkAdmin).
+	// RemoveNetworkAdmin never removes the last one (ErrLastNetworkAdmin),
+	// nor the last super admin (ErrLastSuperAdmin).
 	RemoveNetworkAdmin(ctx context.Context, accountID int64) error
 	Plans(ctx context.Context) ([]NetPlan, error)
 	// AccountSites lists the served sites an account is a member of, with
@@ -146,6 +155,7 @@ type NetAdmin struct {
 	Username  string
 	Email     string
 	GrantedBy string // a username; "" from the CLI
+	Super     bool   // made from the CLI: see IsSuperAdmin
 	CreatedAt time.Time
 }
 
@@ -254,6 +264,10 @@ type netSiteData struct {
 	CanOpen       bool
 	MyEmergency   *NetEmergency
 	EmergencyForm *emergencyForm
+	// PaidPlans are the plans a super admin can grant by hand.
+	PaidPlans []NetPlan
+	// CanGrantPlan: the user is a super admin (IsSuperAdmin).
+	CanGrantPlan bool
 }
 
 // loadNetSite reads the site of the request, or answers 404.
@@ -283,6 +297,72 @@ func (s *Server) adminNetSite(w http.ResponseWriter, r *http.Request) {
 	s.renderNetSite(w, r, http.StatusOK, d, "", "", nil)
 }
 
+// superAdmin tells whether the signed-in user is a super admin, and
+// answers 403 when not.
+func (s *Server) superAdmin(w http.ResponseWriter, r *http.Request) bool {
+	ok, err := s.portal.IsSuperAdmin(r.Context(), uid(r))
+	if err != nil {
+		s.serverError(w, r, err)
+		return false
+	}
+	if !ok {
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "Only a super administrator can do this."))
+	}
+	return ok
+}
+
+// adminNetSitePlan grants a site a paid plan for a year without Stripe, or
+// cancels such a plan (billing_manual.go in the network): super admins
+// only.
+func (s *Server) adminNetSitePlan(w http.ResponseWriter, r *http.Request, site *NetSite, action string) {
+	if !s.superAdmin(w, r) {
+		return
+	}
+	ctx, by := r.Context(), uid(r)
+	back := fmt.Sprintf("/admin/network/sites/%d#plan", site.ID)
+	var err error
+	var done, event string
+	details := map[string]string{"site": strconv.FormatInt(site.ID, 10)}
+	if action == "plan-year" {
+		plan := trimmed(r, "plan")
+		var end time.Time
+		end, err = s.portal.GrantPlanYear(ctx, site.ID, plan)
+		details["plan"], details["until"] = plan, end.UTC().Format(time.RFC3339)
+		name := plan
+		for _, p := range s.paidPlans(r) {
+			if p.Slug == plan {
+				name = p.Name
+			}
+		}
+		event, done = "network.site_plan_granted", s.tu(r, "The site %s has the plan %s until %s.", site.Slug, name, s.dateTimeIn(s.uiLang(r), end))
+	} else {
+		err = s.portal.CancelManualPlan(ctx, site.ID)
+		event, done = "network.site_plan_canceled", s.tu(r, "The manual plan of %s was canceled; the site is on the free plan.", site.Slug)
+	}
+	switch {
+	case errors.Is(err, ErrNetworkInvalid):
+		s.redirect(w, r, back, "error", s.tu(r, "Choose one of the paid plans."))
+		return
+	case errors.Is(err, ErrNetworkState):
+		msg := s.tu(r, "A Stripe subscription pays for this site: change it in Stripe.")
+		if action == "plan-cancel" {
+			msg = s.tu(r, "This site has no manual plan to cancel.")
+		} else if site.Status != "active" && site.Status != "suspended" {
+			msg = s.siteStateError(r, site.Status)
+		}
+		s.redirect(w, r, back, "error", msg)
+		return
+	case errors.Is(err, store.ErrNotFound):
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	}
+	s.audit(r, by, event, site.Slug, details)
+	s.redirect(w, r, back, "success", done)
+}
+
 func (s *Server) adminNetSiteAction(w http.ResponseWriter, r *http.Request) {
 	d, ok := s.loadNetSite(w, r)
 	if !ok {
@@ -309,6 +389,9 @@ func (s *Server) adminNetSiteAction(w http.ResponseWriter, r *http.Request) {
 		err, done = s.portal.SuspendSite(ctx, site.ID, reason), s.tu(r, "The site %s was suspended.", site.Slug)
 	case "resume":
 		err, done = s.portal.ResumeSite(ctx, site.ID), s.tu(r, "The site %s was resumed.", site.Slug)
+	case "plan-year", "plan-cancel":
+		s.adminNetSitePlan(w, r, &site, action)
+		return
 	case "delete":
 		if trimmed(r, "confirm") != site.Slug {
 			s.redirect(w, r, back, "error", s.tu(r, "Type the name of the site, %s, to delete it.", site.Slug))
@@ -474,7 +557,12 @@ func (s *Server) adminNetAdmins(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "network_admins", s.tu(r, "Network administrators"), "net-admins", map[string]any{"Admins": admins})
+	super, err := s.portal.IsSuperAdmin(r.Context(), uid(r))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderAdmin(w, r, "network_admins", s.tu(r, "Network administrators"), "net-admins", map[string]any{"Admins": admins, "Super": super})
 }
 
 func (s *Server) adminNetAdminAdd(w http.ResponseWriter, r *http.Request) {
@@ -512,7 +600,17 @@ func (s *Server) adminNetAdminRemove(w http.ResponseWriter, r *http.Request) {
 		s.redirect(w, r, back, "error", s.tu(r, "Not found."))
 		return
 	}
+	// Only a super admin revokes another one.
+	if super, err := s.portal.IsSuperAdmin(r.Context(), account); err != nil {
+		s.serverError(w, r, err)
+		return
+	} else if super && !s.superAdmin(w, r) {
+		return
+	}
 	switch err := s.portal.RemoveNetworkAdmin(r.Context(), account); {
+	case errors.Is(err, ErrLastSuperAdmin):
+		s.redirect(w, r, back, "error", s.tu(r, "This is the last super administrator of the network. Make another one from the command line first."))
+		return
 	case errors.Is(err, ErrLastNetworkAdmin):
 		s.redirect(w, r, back, "error", s.tu(r, "This is the last network administrator. Make someone else a network administrator first."))
 		return

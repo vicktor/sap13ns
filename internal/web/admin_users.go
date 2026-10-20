@@ -236,7 +236,10 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if s.portal != nil && status == "disabled" && u.Status != "disabled" {
-		if err := s.portal.CheckAccountChange(ctx, u.ID, false); errors.Is(err, ErrLastNetworkAdmin) {
+		if err := s.portal.CheckAccountChange(ctx, u.ID, false); errors.Is(err, ErrLastSuperAdmin) {
+			fail(s.tu(r, "This is the last super administrator of the network. Make another one from the command line first."))
+			return
+		} else if errors.Is(err, ErrLastNetworkAdmin) {
 			fail(s.tu(r, "This is the last network administrator. Make someone else a network administrator first."))
 			return
 		} else if err != nil {
@@ -347,6 +350,9 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.portal != nil {
 			switch err := s.portal.CheckAccountChange(ctx, u.ID, true); {
+			case errors.Is(err, ErrLastSuperAdmin):
+				s.redirect(w, r, back, "error", s.tu(r, "This is the last super administrator of the network. Make another one from the command line first."))
+				return
 			case errors.Is(err, ErrLastNetworkAdmin):
 				s.redirect(w, r, back, "error", s.tu(r, "This is the last network administrator. Make someone else a network administrator first."))
 				return

@@ -89,13 +89,14 @@ type Subscription struct {
 	CancelAtPeriodEnd    bool       `db:"cancel_at_period_end"`
 	SyncedAt             *time.Time `db:"synced_at"`
 	CheckoutSiteID       *int64     `db:"checkout_site_id"`
+	Manual               bool       `db:"manual"` // granted by an operator for a year (billing_manual.go)
 	CreatedAt            time.Time  `db:"created_at"`
 	UpdatedAt            time.Time  `db:"updated_at"`
 }
 
 const subCols = `id, account_id, plan, coalesce(stripe_subscription_id, '') AS stripe_subscription_id, stripe_price_id,
 	stripe_customer_id, status, state, grace_since, current_period_end, paid_until, cancel_at_period_end, synced_at, checkout_site_id,
-	created_at, updated_at`
+	manual, created_at, updated_at`
 
 func (n *Network) Subscription(ctx context.Context, id int64) (*Subscription, error) {
 	rows, err := n.db.Query(ctx, `SELECT `+subCols+` FROM subscriptions WHERE id = $1`, id)
@@ -126,6 +127,9 @@ func (n *Network) SiteSubscription(ctx context.Context, s *Site) (*Subscription,
 func (n *Network) Held(paid bool, sub *Subscription, now time.Time) bool {
 	if !paid || sub == nil {
 		return false
+	}
+	if sub.Manual && sub.State == string(billing.StateActive) {
+		return manualHeld(sub.PaidUntil, now)
 	}
 	return held(sub.State, sub.GraceSince, sub.PaidUntil, now, n.grace)
 }
@@ -360,7 +364,7 @@ func (b *Billing) Checkout(ctx context.Context, req CheckoutRequest) (*CheckoutR
 	if err != nil {
 		return nil, err
 	}
-	if cur != nil && cur.State != string(billing.StateCanceled) {
+	if cur != nil && cur.State != string(billing.StateCanceled) && !cur.Manual {
 		return nil, fmt.Errorf("%w: the site has a subscription; change it in the billing portal", ErrState)
 	}
 	if plan.SitesPerGrant > 1 {
@@ -452,7 +456,7 @@ func (b *Billing) attachToGrant(ctx context.Context, site *Site, plan *Plan) (bo
 	attached := false
 	err := b.n.mutate(ctx, site.ID, func(tx pgx.Tx) error {
 		var subID int64
-		err := tx.QueryRow(ctx, `SELECT sub.id FROM subscriptions sub WHERE sub.account_id = $1 AND sub.plan = $2 AND sub.state = 'active'
+		err := tx.QueryRow(ctx, `SELECT sub.id FROM subscriptions sub WHERE sub.account_id = $1 AND sub.plan = $2 AND sub.state = 'active' AND NOT sub.manual
 			AND (SELECT count(*) FROM sites x WHERE x.subscription_id = sub.id) < $3
 			ORDER BY sub.id LIMIT 1 FOR UPDATE`, site.OwnerID, plan.Slug, plan.SitesPerGrant).Scan(&subID)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -788,7 +792,7 @@ func (a *applyRun) link(row *Subscription, stripeID, customer string, r ref) (*S
 	tag, err := tx.Exec(ctx, `UPDATE sites s SET subscription_id = $2, updated_at = now()
 		WHERE s.id = $1 AND s.kind = 'tenant' AND s.owner_id = $3 AND s.status <> 'deleted'
 			AND (s.subscription_id IS NULL OR s.subscription_id = $2
-				OR (SELECT o.state FROM subscriptions o WHERE o.id = s.subscription_id) = 'canceled')
+				OR (SELECT o.state = 'canceled' OR o.manual FROM subscriptions o WHERE o.id = s.subscription_id))
 			AND (SELECT count(*) FROM sites x WHERE x.subscription_id = $2 AND x.id <> s.id)
 				< (SELECT p.sites_per_grant FROM plans p WHERE p.slug = $4)`, r.site, row.ID, row.AccountID, row.Plan)
 	if err != nil {

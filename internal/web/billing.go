@@ -150,6 +150,7 @@ type NetBilling struct {
 	GraceSince        *time.Time
 	Held              bool // its public pages are not served
 	Manageable        bool // it has a Stripe customer, so the Customer Portal opens
+	Manual            bool // granted by a network admin for a year, without Stripe
 }
 
 // A NetBillingEvent is a Stripe event that failed or was not mapped.

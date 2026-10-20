@@ -394,15 +394,19 @@ func (n *Network) schemaSites(ctx context.Context) ([]Site, error) {
 // when remove: never the last network admin, and an account that owns a
 // site (even a deleted one, until it is purged) stays.
 func (n *Network) CheckAccountChange(ctx context.Context, accountID int64, remove bool) error {
-	var admin bool
-	var admins, owned int
+	var admin, super bool
+	var admins, supers, owned int
 	err := n.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM network_admins WHERE account_id = $1),
-		(SELECT count(*) FROM network_admins), (SELECT count(*) FROM sites WHERE owner_id = $1)`, accountID).Scan(&admin, &admins, &owned)
+		EXISTS (SELECT 1 FROM network_admins WHERE account_id = $1 AND super),
+		(SELECT count(*) FROM network_admins), (SELECT count(*) FROM network_admins WHERE super),
+		(SELECT count(*) FROM sites WHERE owner_id = $1)`, accountID).Scan(&admin, &super, &admins, &supers, &owned)
 	switch {
 	case err != nil:
 		return err
 	case admin && admins == 1:
 		return fmt.Errorf("%w: the network needs at least one admin", ErrState)
+	case super && supers == 1:
+		return ErrLastSuperAdmin
 	case remove && owned > 0:
 		return fmt.Errorf("%w: the account owns %d sites", ErrOwned, owned)
 	}
