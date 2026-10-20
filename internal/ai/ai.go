@@ -191,6 +191,9 @@ type Model struct {
 	Label string
 }
 
+// catalog: the default first, then the others; the last ones of OpenAI and
+// Gemini are their cheapest (pricing pages checked on 2026-10-20). Claude
+// Haiku 5.5 is already Anthropic's cheapest model.
 var catalog = map[string]struct{ text, image []Model }{
 	ProviderAnthropic: {
 		text: []Model{
@@ -204,10 +207,13 @@ var catalog = map[string]struct{ text, image []Model }{
 			{"gpt-6-astra", "GPT-6 Astra"},
 			{"gpt-6.1-sol", "GPT-6.1 Sol"},
 			{"gpt-6-luna", "GPT-6 Luna"},
+			{"gpt-4.1-nano", "GPT-4.1 nano"},
+			{"gpt-5-nano", "GPT-5 nano"},
 		},
 		image: []Model{
 			{"gpt-image-2.5-flare", "GPT Image 2.5 Flare"},
 			{"gpt-image-2.5-sunburst", "GPT Image 2.5 Sunburst"},
+			{"gpt-image-1-mini", "GPT Image 1 mini"},
 		},
 	},
 	ProviderGemini: {
@@ -215,11 +221,14 @@ var catalog = map[string]struct{ text, image []Model }{
 			{"gemini-3.8-flash", "Gemini 3.8 Flash"},
 			{"gemini-4-argon", "Gemini 4 Argon"},
 			{"gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite"},
+			{"gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite"},
+			{"gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite"},
 		},
 		image: []Model{
 			{"gemini-nano-banana-2.1", "Nano Banana 2.1"},
 			{"gemini-3-pro-image", "Nano Banana Pro"},
 			{"gemini-3.1-flash-image", "Nano Banana 2"},
+			{"gemini-3.1-flash-lite-image", "Gemini 3.1 Flash-Lite Image"},
 		},
 	},
 }

@@ -5,6 +5,14 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.13 — 2026-10-20
+
+- AI providers: cheaper models in the lists. OpenAI adds GPT-5 nano and
+  GPT-4.1 nano for text and GPT Image 1 mini for images; Gemini adds
+  Gemini 3.1 Flash-Lite and 2.5 Flash-Lite for text and Gemini 3.1
+  Flash-Lite Image. Claude Haiku 5.5 already was Anthropic's cheapest. The
+  defaults do not change.
+
 ## v0.2.12 — 2026-10-20
 
 - Search ignores accents and case: "mediacion" finds "Mediación" and
