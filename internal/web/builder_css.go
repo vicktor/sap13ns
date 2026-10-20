@@ -17,8 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"sap13ns/internal/customize"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
@@ -116,31 +114,4 @@ func (s *Server) adminBuilderCSS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, cssResult{OK: true, CSS: css, Pending: c.Pending(), SavedAt: time.Now().In(s.loc()).Format("15:04:05")})
-}
-
-// publishCustomCSS publishes the draft's custom CSS on its own: the
-// published design with the draft's CSS becomes the published version (a
-// revision of the design), and the draft keeps its other changes.
-func (s *Server) publishCustomCSS(ctx context.Context, r *http.Request, th *theme.Theme, c *themeCSS) error {
-	pub := *c.published
-	pub.CSS = c.Draft
-	rest := *c.draft
-	keep := string(rest.JSON()) != string(pub.JSON())
-	return s.store.PublishCustom(ctx, th.Slug, store.CustomDesign, pub.JSON(), uid(r), func(tx pgx.Tx) error {
-		if !keep {
-			return nil
-		}
-		return store.SaveCustomDraftTx(ctx, tx, th.Slug, store.CustomDesign, rest.JSON(), uid(r))
-	})
-}
-
-// discardCustomCSS puts the published CSS back into the draft, which is
-// dropped when nothing else is left in it.
-func (s *Server) discardCustomCSS(ctx context.Context, r *http.Request, th *theme.Theme, c *themeCSS) error {
-	rest := *c.draft
-	rest.CSS = c.Published
-	if string(rest.JSON()) == string(c.published.JSON()) {
-		return s.store.DiscardCustomDraft(ctx, th.Slug, store.CustomDesign)
-	}
-	return s.store.SaveCustomDraft(ctx, th.Slug, store.CustomDesign, rest.JSON(), uid(r))
 }

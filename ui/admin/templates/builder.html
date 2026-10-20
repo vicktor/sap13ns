@@ -9,19 +9,7 @@
 {{$d := .D}}{{$th := $d.Theme}}
 {{$base := printf "/admin/appearance/themes/%s/builder" $th.Slug}}
 {{$cz := printf "/admin/appearance/themes/%s/customize" $th.Slug}}
-<div class="page-header">
-  <div>
-    <p class="eyebrow"><a href="/admin/appearance/themes">{{icon "arrow-left" "size-3.5"}} {{T "Themes"}}</a></p>
-    <h1>{{T "Page builder · %s" $th.Name}}</h1>
-    <p>{{T "Build the header, the footer and each type of page from sections, columns and blocks. Whatever you do not build keeps the theme's design."}}{{if not $d.Active}} {{T "This theme is not the active one: what you publish applies when it is activated."}}{{end}}</p>
-  </div>
-  <div class="page-actions">
-    <p class="cz-status" id="bl-status" role="status" aria-live="polite">{{if $d.HasDraft}}{{T "Unpublished changes"}}{{else}}{{T "Up to date with the published layout"}}{{end}}</p>
-    <a class="btn" data-variant="ghost" data-size="sm" href="{{$cz}}">{{icon "paintbrush"}}{{T "Colours and fonts"}}</a>
-    <form method="post" action="{{$base}}/discard">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="bl-discard" data-confirm="{{T "Discard the draft layout and custom CSS, and go back to the published ones?"}}"{{if not $d.HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
-    <form method="post" action="{{$base}}/publish" data-bl-publish>{{.CSRFField}}<button class="btn" data-size="sm" type="submit" id="bl-publish"{{if not $d.HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
-  </div>
-</div>
+{{template "design-header" (dict "Theme" $th "Tab" "structure" "HasDraft" $d.HasDraft "Active" $d.Active "CSRF" .CSRFField)}}
 <noscript><div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The page builder needs JavaScript."}}</h2></div></noscript>
 
 <div class="builder" data-builder data-base="{{$base}}" data-state="{{$d.State}}"
@@ -87,7 +75,7 @@
         <p class="hint" id="bl-css-help">{{T "Your own CSS for this theme, applied after its styles on every page. Give a section or an HTML block a CSS class, then style it here, such as .promo { padding: 2rem; }. It is saved with the draft: the preview shows it and Publish puts it live."}}</p>
         <label class="sr-only" for="bl-css-input">{{T "Custom CSS"}}</label>
         <textarea class="textarea cz-code w-full" id="bl-css-input" rows="12" maxlength="65536" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="bl-css-help bl-css-rules"></textarea>
-        <p class="hint" id="bl-css-rules">{{T "Up to 64 KB, served as a separate file after the theme's styles. Not allowed: @import, url() to other sites, javascript:, expression(), behavior and -moz-binding. Use the theme's variables, such as var(--primary)."}} <a href="{{$cz}}">{{T "Also in Customise"}}</a></p>
+        <p class="hint" id="bl-css-rules">{{T "Up to 64 KB, served as a separate file after the theme's styles. Not allowed: @import, url() to other sites, javascript:, expression(), behavior and -moz-binding. Use the theme's variables, such as var(--primary)."}} <a href="{{$cz}}">{{T "Also in Style and texts"}}</a></p>
         <p class="cz-status" id="bl-css-status" role="status" aria-live="polite"></p>
       </div>
     </details>

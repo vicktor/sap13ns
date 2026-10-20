@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +8,6 @@ import (
 	"testing"
 
 	"sap13ns/internal/customize"
-	"sap13ns/internal/store"
 )
 
 // builderCSS saves the custom CSS the way builder.js does.
@@ -85,7 +83,6 @@ func TestBuilderHTMLBlock(t *testing.T) {
 // changes in the draft) and Discard takes it back.
 func TestBuilderCustomCSS(t *testing.T) {
 	e := newCustomEnv(t)
-	ctx := context.Background()
 
 	// Only appearance managers, with the CSRF token, as JSON.
 	if rec, _ := e.builderCSS(".a { color: red }", e.author, e.acsrf); rec.Code == 200 {
@@ -138,11 +135,12 @@ func TestBuilderCustomCSS(t *testing.T) {
 		t.Fatalf("publish: %d %s", rec.Code, rec.Body)
 	}
 	row := e.row()
-	if pub := e.design(row.Published); pub.CSS != css || pub.Light["primary"] != "" {
+	// One draft: publishing in the builder publishes the colour too.
+	if pub := e.design(row.Published); pub.CSS != css || pub.Light["primary"] != "#123456" {
 		t.Errorf("published: %+v", pub)
 	}
-	if d := e.design(row.Draft); row.Draft == nil || d.Light["primary"] != "#123456" {
-		t.Errorf("the colour left the draft: %s", row.Draft)
+	if row.Draft != nil {
+		t.Errorf("a draft is left: %s", row.Draft)
 	}
 	if n := len(e.revisions()); n != 1 {
 		t.Errorf("%d design revisions", n)
@@ -157,22 +155,16 @@ func TestBuilderCustomCSS(t *testing.T) {
 		t.Errorf("stylesheet: %d %v %q", sheet.Code, sheet.Header(), sheet.Body)
 	}
 
-	// Discard takes the CSS back to the published one; the colour stays.
+	// Discard drops the whole draft: the CSS and the rest.
 	if rec, _ := e.builderCSS(".other { color: blue }", e.admin, e.csrf); rec.Code != 200 {
 		t.Fatal(rec.Code)
 	}
 	if rec := e.builderPost("/discard"); rec.Code != http.StatusSeeOther {
 		t.Fatalf("discard: %d", rec.Code)
 	}
-	if d := e.design(e.row().Draft); d.CSS != css || d.Light["primary"] != "#123456" {
-		t.Errorf("after discard: %+v", d)
+	if row := e.row(); row.Draft != nil {
+		t.Errorf("after discard: %s", row.Draft)
 	}
-	// With only the CSS in the draft, discarding drops the draft.
-	if err := e.st.DiscardCustomDraft(ctx, e.slug, store.CustomDesign); err != nil {
-		t.Fatal(err)
-	}
-	e.builderCSS(".other { color: blue }", e.admin, e.csrf)
-	e.builderPost("/discard")
 	if e.row().Draft != nil {
 		t.Errorf("draft left: %s", e.row().Draft)
 	}

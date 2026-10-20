@@ -5,6 +5,16 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.5.0 — 2026-10-20
+
+- **One design screen.** Appearance → **Design** replaces Customise and
+  Page builder: two tabs, **Style and texts** (colours, fonts, the theme's
+  texts and images, custom CSS, animations) and **Structure** (the
+  sections and blocks of each page), with one draft. **Publish** publishes
+  everything at once and **Discard draft** drops everything; before, each
+  screen published only its part and the preview could show changes that
+  the other screen had not published.
+
 ## v0.4.1 — 2026-10-20
 
 - **Analytics: bots are told apart from visitors.** Search engines, AI

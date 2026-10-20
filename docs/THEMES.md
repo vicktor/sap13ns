@@ -591,7 +591,9 @@ Themes are expected to meet WCAG 2.2 AA.
 
 ## The customiser
 
-**Appearance → Customise** (or **Customise** on a theme's card) changes a theme's look without editing it. Each theme has its own design.
+**Appearance → Design** (or **Design** on a theme's card) has two tabs over one preview: **Style and texts** (the customiser, below) and **Structure** (the [page builder](#the-page-builder)). They share one draft: **Publish** publishes the style, the texts, the custom CSS and the layouts together, and **Discard draft** drops all of it.
+
+The customiser changes a theme's look without editing it. Each theme has its own design.
 
 | Panel | What the operator can change |
 |---|---|
@@ -643,7 +645,7 @@ A theme whose pages carry their own texts and photographs (a front page in secti
 
 ## The page builder
 
-**Appearance → Page builder** replaces a theme's regions with layouts made of sections, columns and blocks. Each theme has its own layouts.
+**Appearance → Design → Structure** replaces a theme's regions with layouts made of sections, columns and blocks. Each theme has its own layouts.
 
 - **Starting.** A region that has no layout uses the theme's template, which is fixed: the structure panel says so and offers the ways to start, which are a ready-made page (front page only), the theme-neutral starter (a hero, the post list, the post content…) or an empty layout. Only then are there sections and blocks to add and drag. **Use the theme's design** goes back to the template. A theme with its own front page (onepage) opens the builder on the front page, and its admin note links to the One-page preset.
 - **Regions.** The header and the footer (on every page), and one main area per page type: the front page (a landing page, shown when **Settings → Reading** picks the theme's front page; see [Front pages](#front-pages-and-one-page-sites)), the latest posts, posts, pages, archives, search results and not found.
@@ -667,7 +669,7 @@ A theme whose pages carry their own texts and photographs (a front page in secti
 
 - **Validation.** Every block is checked against its schema: settings are typed, links accept `https:`, `http:`, site paths, `#…`, `mailto:` and `tel:`, and appearance is always a named choice.
 - **HTML block.** Up to 50,000 characters per language of the owner's own markup, sanitised when saved and again when rendered (`content.SanitizeHTMLBlock`, bluemonday). It keeps structural and text elements, links, images, lists, tables, `figure`, `details` and `summary`, `class` and `id`, a fixed set of `aria-*` attributes and `role`, and `data-*` attributes other than the ones the site's scripts act on (`data-video-*`, `data-form`, `data-icon`…). Scripts, `<style>`, `style=""`, event handlers, iframes, objects, forms and `javascript:` or `data:` links are removed: the CSP would block most of them anyway. Videos keep their own path (a Markdown link in a Text block). An option applies the theme's text styles (`prose`).
-- **Custom CSS** is the customiser's (see [The customiser](#the-customiser)), edited in the builder's **Custom CSS** panel too. It is saved into the design's draft, so the preview shows it. **Publish** in the builder publishes it with the layout as a new design version and leaves the design's other unpublished changes in the draft; **Discard draft** puts the published CSS back.
+- **Custom CSS** is the customiser's (see [The customiser](#the-customiser)), edited in the builder's **Custom CSS** panel too. It is saved into the design's draft, so the preview shows it. It is published and discarded with the rest of the draft.
 - **Landing blocks.** Each item has its own fields: a feature's icon, title and text; a plan's name, price, period, description, features (one per line), button and highlight; a question and its answer, in Markdown through the content pipeline. Icons come from a fixed list of Lucide icons compiled into the binary and images from the media library. Pricing is written by hand and never reads a network's plans. An item without its main text (a question without an answer, a logo without an image…) is left out of the page.
 - **Languages.** Text settings have a main value and an optional translation per site language. A missing translation shows the main value.
 - **Drafts and publishing** work like the customiser's: a draft shows only in the preview, publishing makes it live, the last 10 published versions are kept, and the layouts travel in the customiser's export file.

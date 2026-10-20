@@ -81,8 +81,7 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
         {{template "nav-group-head" (dict "ID" "appearance" "Label" (T "Appearance"))}}
         <ul id="nav-appearance-items">
           {{template "nav-item" (dict "URL" "/admin/appearance/themes" "Icon" "palette" "Label" (T "Themes") "Current" (.Active "themes"))}}
-          {{template "nav-item" (dict "URL" "/admin/appearance/customize" "Icon" "paintbrush" "Label" (T "Customise") "Current" (.Active "customize"))}}
-          {{template "nav-item" (dict "URL" "/admin/appearance/builder" "Icon" "layout-template" "Label" (T "Page builder") "Current" (.Active "builder"))}}
+          {{template "nav-item" (dict "URL" "/admin/appearance/customize" "Icon" "paintbrush" "Label" (T "Design") "Current" (or (.Active "customize") (.Active "builder")))}}
           {{template "nav-item" (dict "URL" "/admin/appearance/menus" "Icon" "list" "Label" (T "Menus") "Current" (.Active "menus"))}}
           {{template "nav-item" (dict "URL" "/admin/appearance/widgets" "Icon" "layout-grid" "Label" (T "Widgets") "Current" (.Active "widgets"))}}
         </ul>

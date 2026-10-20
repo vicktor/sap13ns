@@ -657,7 +657,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		st.Images = []mediaOption{}
 	}
 	b, _ := json.Marshal(st)
-	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil || css.Pending(), DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
+	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil || css.draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
 		Revisions: revs, Active: s.themes.Active(s.settings().ActiveTheme) == th, Icons: append([]string{}, builderIcons...)}
 	for _, t := range builder.Types {
 		data.Icons = append(data.Icons, t.Icon)
@@ -666,7 +666,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		data.Icons = append(data.Icons, c.Value)
 	}
 	w.Header().Set("Content-Security-Policy", setCSPDirective(w.Header().Get("Content-Security-Policy"), "frame-src", "'self'"))
-	s.renderAdmin(w, r, "builder", s.tu(r, "Page builder · %s", th.Name), "builder", data)
+	s.renderAdmin(w, r, "builder", s.tu(r, "Design · %s", th.Name), "builder", data)
 }
 
 // builderFields returns fields with their labels, help and choices in the
@@ -862,41 +862,16 @@ func (s *Server) adminBuilderPublish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	l, row, err := s.draftLayout(ctx, th, s.mediaSet(ctx))
+	done, err := s.publishDesignAll(r, th)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	css, err := s.loadCustomCSS(ctx, th)
-	if err != nil {
-		s.serverError(w, r, err)
-		return
-	}
-	if row.Draft == nil && !css.Pending() {
+	if !done {
 		s.builderDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
 		return
 	}
-	if row.Draft != nil {
-		if err := s.store.PublishCustom(ctx, th.Slug, store.CustomLayout, l.JSON(), uid(r), nil); err != nil {
-			s.serverError(w, r, err)
-			return
-		}
-		s.audit(r, uid(r), "theme.layout_published", th.Slug, nil)
-	}
-	// The custom CSS edited here goes live with the layout.
-	if css.Pending() {
-		if err := s.publishCustomCSS(ctx, r, th, css); err != nil {
-			s.custom.invalidate()
-			s.contentChanged()
-			s.serverError(w, r, err)
-			return
-		}
-		s.audit(r, uid(r), "theme.css_published", th.Slug, nil)
-	}
-	s.custom.invalidate()
-	s.contentChanged()
-	s.builderDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new layout."))
+	s.builderDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new design."))
 }
 
 func (s *Server) adminBuilderDiscard(w http.ResponseWriter, r *http.Request) {
@@ -904,23 +879,10 @@ func (s *Server) adminBuilderDiscard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	css, err := s.loadCustomCSS(ctx, th)
-	if err != nil {
+	if err := s.discardDesignAll(r, th); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	if err := s.store.DiscardCustomDraft(ctx, th.Slug, store.CustomLayout); err != nil {
-		s.serverError(w, r, err)
-		return
-	}
-	if css.Pending() {
-		if err := s.discardCustomCSS(ctx, r, th, css); err != nil {
-			s.serverError(w, r, err)
-			return
-		}
-	}
-	s.audit(r, uid(r), "theme.layout_discarded", th.Slug, nil)
 	s.builderDone(w, r, th, "success", s.tu(r, "Draft discarded."))
 }
 

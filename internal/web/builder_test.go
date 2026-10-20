@@ -106,9 +106,9 @@ func TestBuilderDraftNeverReachesVisitors(t *testing.T) {
 			t.Errorf("preview lacks %q", want)
 		}
 	}
-	// The customiser says that its preview shows the builder's draft.
-	if cz := e.get("/admin/appearance/themes/"+e.slug+"/customize", e.admin).Body.String(); !strings.Contains(cz, "El constructor de páginas tiene cambios sin publicar") {
-		t.Error("the customiser does not mention the page builder's draft")
+	// The style tab shares the draft: it offers to publish it.
+	if cz := e.get("/admin/appearance/themes/"+e.slug+"/customize", e.admin).Body.String(); !strings.Contains(cz, `id="cz-publish">`) || !strings.Contains(cz, "Estructura") {
+		t.Error("the style tab does not offer to publish the structure's draft")
 	}
 	if strings.Contains(body, "<script>alert(1)") || strings.Contains(body, `class="globalnav"`) {
 		t.Error("preview: raw script in rich text, or the theme header kept")

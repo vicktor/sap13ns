@@ -311,3 +311,28 @@
   </div>
 </dialog>
 {{end}}
+
+{{/* design-header: the head of the design screen (Appearance → Design),
+     whose two tabs are the customiser (style, texts and images) and the
+     page builder (structure), with one draft to publish or discard.
+     dict "Theme" "Tab" ("style" or "structure") "HasDraft" "Active" "CSRF" */}}
+{{define "design-header"}}
+{{$th := .Theme}}{{$cz := eq .Tab "style"}}
+{{$base := printf "/admin/appearance/themes/%s/%s" $th.Slug (or (and $cz "customize") "builder")}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/appearance/themes">{{icon "arrow-left" "size-3.5"}} {{T "Themes"}}</a></p>
+    <h1>{{T "Design · %s" $th.Name}}</h1>
+    <p>{{T "Change the style and the texts, or the structure of each page. Everything is saved as a draft and shown in the preview; visitors see it once you publish."}}{{if not .Active}} {{T "This theme is not the active one: what you publish applies when it is activated."}}{{end}}</p>
+  </div>
+  <div class="page-actions">
+    <p class="cz-status" id="{{if $cz}}cz-status{{else}}bl-status{{end}}" role="status" aria-live="polite">{{if .HasDraft}}{{T "Unpublished changes"}}{{else}}{{T "Up to date with the published design"}}{{end}}</p>
+    <form method="post" action="{{$base}}/discard">{{.CSRF}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="{{if $cz}}cz-discard{{else}}bl-discard{{end}}" data-confirm="{{T "Discard every unpublished change (style, texts and structure) and go back to the published design?"}}"{{if not .HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
+    <form method="post" action="{{$base}}/publish"{{if $cz}} data-cz-publish{{else}} data-bl-publish{{end}}>{{.CSRF}}<button class="btn" data-size="sm" type="submit" id="{{if $cz}}cz-publish{{else}}bl-publish{{end}}"{{if not .HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
+  </div>
+</div>
+<nav class="mb-4 flex w-fit gap-1 rounded-lg bg-muted p-1" aria-label="{{T "Design"}}">
+  <a class="btn" data-size="sm" data-variant="{{if $cz}}secondary{{else}}ghost{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/customize"{{if $cz}} aria-current="page"{{end}} data-design-tab>{{icon "paintbrush"}}{{T "Style and texts"}}</a>
+  <a class="btn" data-size="sm" data-variant="{{if $cz}}ghost{{else}}secondary{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/builder"{{if not $cz}} aria-current="page"{{end}} data-design-tab>{{icon "layout-template"}}{{T "Structure"}}</a>
+</nav>
+{{end}}

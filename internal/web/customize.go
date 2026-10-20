@@ -22,8 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"sap13ns/internal/auth"
 	"sap13ns/internal/builder"
 	"sap13ns/internal/customize"
@@ -482,7 +480,6 @@ type customizeData struct {
 	Colors       []colorRow
 	State        string // JSON for customizer.js: design, defaults, options
 	HasDraft     bool
-	LayoutDraft  bool           // the page builder has an unpublished draft, which the preview shows
 	Animations   []selectOption // the motion library's, for the texts and images
 	MotionLevels []selectOption
 	DraftAt      *time.Time
@@ -572,7 +569,7 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 	data.MotionLevels = []selectOption{{Value: "", Label: s.tu(r, "Normal")}, {Value: "subtle", Label: s.tu(r, "Subtle")},
 		{Value: "expressive", Label: s.tu(r, "Expressive")}, {Value: "off", Label: s.tu(r, "Off: nothing moves")}}
 	if lr, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout); err == nil {
-		data.LayoutDraft = lr.Draft != nil
+		data.HasDraft = data.HasDraft || lr.Draft != nil
 	}
 	if fonts, _, err := s.store.ListMedia(ctx, store.MediaQuery{MIME: "font/woff2", Limit: 100}); err == nil {
 		data.Fonts = fonts
@@ -594,7 +591,7 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 	}
 	// The live preview is an iframe of this site.
 	w.Header().Set("Content-Security-Policy", setCSPDirective(w.Header().Get("Content-Security-Policy"), "frame-src", "'self'"))
-	s.renderAdmin(w, r, "customize", s.tu(r, "Customise %s", th.Name), "customize", data)
+	s.renderAdmin(w, r, "customize", s.tu(r, "Design · %s", th.Name), "customize", data)
 }
 
 func (s *Server) customizerState(th *theme.Theme, d, pub *customize.Design, stored map[string]string) customizerState {
@@ -782,40 +779,15 @@ func (s *Server) adminCustomizePublish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	d, row, err := s.draftDesign(ctx, th, s.mediaSet(ctx))
+	done, err := s.publishDesignAll(r, th)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	if row.Draft == nil {
+	if !done {
 		s.customizeDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
 		return
 	}
-	// Theme options live in the theme's stored options, which the options
-	// page edits too: publishing writes the draft's overrides there.
-	opts := d.Options
-	d.Options = nil
-	err = s.store.PublishCustom(ctx, th.Slug, store.CustomDesign, d.JSON(), uid(r), func(tx pgx.Tx) error {
-		if len(opts) == 0 {
-			return nil
-		}
-		stored, err := s.store.ThemeOptions(ctx, th.Slug)
-		if err != nil {
-			return err
-		}
-		for k, v := range opts {
-			stored[k] = v
-		}
-		return store.SaveThemeOptionsTx(ctx, tx, th.Slug, th.OptionValues(stored))
-	})
-	if err != nil {
-		s.serverError(w, r, err)
-		return
-	}
-	s.custom.invalidate()
-	s.contentChanged()
-	s.audit(r, uid(r), "theme.design_published", th.Slug, nil)
 	s.customizeDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new design."))
 }
 
@@ -824,11 +796,10 @@ func (s *Server) adminCustomizeDiscard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.store.DiscardCustomDraft(r.Context(), th.Slug, store.CustomDesign); err != nil {
+	if err := s.discardDesignAll(r, th); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	s.audit(r, uid(r), "theme.design_discarded", th.Slug, nil)
 	s.customizeDone(w, r, th, "success", s.tu(r, "Draft discarded."))
 }
 
