@@ -35,7 +35,7 @@ function setPath(obj, path, value) {
  * default, so the theme's own translations keep showing until edited.
  */
 export function designFrom(fields, storedOptions = {}) {
-  const d = { version: 1, light: {}, dark: {}, fonts: { body: {}, heading: {}, mono: {} }, scale: {}, header: {}, footer: {}, home: {}, options: {}, content: {}, content_i18n: {} };
+  const d = { version: 1, light: {}, dark: {}, fonts: { body: {}, heading: {}, mono: {} }, scale: {}, header: {}, footer: {}, home: {}, options: {}, content: {}, content_i18n: {}, motion: { content: {} } };
   for (const f of fields) {
     if (!f.name) continue;
     if (f.kind === "radio" && !f.checked) continue;
@@ -59,6 +59,8 @@ export function designFrom(fields, storedOptions = {}) {
     } else if (head === "content" || head === "content_i18n") {
       v = v.trim();
       if (!v || v === String(f.def ?? "").trim()) continue;
+    } else if (head === "motion") {
+      if (!v || v === "none") continue;
     }
     setPath(d, f.name, v);
   }
@@ -77,6 +79,11 @@ function staticContent(m, live) {
   const out = {};
   for (const [k, v] of Object.entries(m || {})) if (!live.has(k)) out[k] = v;
   return out;
+}
+
+/** motionChanged reports whether two designs animate differently. */
+export function motionChanged(prev, next) {
+  return JSON.stringify(prev?.motion ?? {}) !== JSON.stringify(next?.motion ?? {});
 }
 
 /** The parts of a design that the stylesheet alone cannot show. */
@@ -287,20 +294,25 @@ function init(root) {
     try { win.location.reload(); } catch (_) { frame.src = frame.src; }
   }
 
+  // replay plays the preview's animations again (ui/static/motion.js).
+  const replay = () => { try { frame.contentWindow?.sapMotion?.replay(); } catch (_) {} };
+  $("[data-motion-replay]")?.addEventListener("click", replay);
+
   // Swap the draft stylesheet without reloading: load the new one first,
-  // then drop the old, so the page never shows unstyled.
-  function swapCSS(url, classes) {
+  // then drop the old, so the page never shows unstyled; after() runs once
+  // it applies.
+  function swapCSS(url, classes, after) {
     const doc = frameDoc();
     const old = doc?.querySelector("link[data-sap-custom]");
     if (!old) return reloadFrame();
     const html = doc.documentElement;
-    for (const c of [...html.classList]) if (/^sap-(sticky-|brand-center$)/.test(c)) html.classList.remove(c);
+    for (const c of [...html.classList]) if (/^sap-(sticky-|brand-center$|motion-(subtle|expressive|off)$)/.test(c)) html.classList.remove(c);
     for (const c of (classes || "").split(/\s+/)) if (c && c !== "sap-has-logo") html.classList.add(c);
     // The URL is a hash of the stylesheet: the same URL, the same rules.
-    if (old.getAttribute("href") === url) return;
+    if (old.getAttribute("href") === url) return after?.();
     const link = old.cloneNode();
     link.href = url;
-    link.addEventListener("load", () => { for (const l of doc.querySelectorAll("link[data-sap-custom]")) if (l !== link) l.remove(); }, { once: true });
+    link.addEventListener("load", () => { for (const l of doc.querySelectorAll("link[data-sap-custom]")) if (l !== link) l.remove(); after?.(); }, { once: true });
     link.addEventListener("error", () => link.remove(), { once: true });
     old.after(link);
   }
@@ -523,7 +535,7 @@ function init(root) {
         const doc = frameDoc();
         const unseen = liveChanges(shown, design, live, mainLang).some(([l, k]) => doc?.documentElement.lang === l && !doc.querySelector(`[data-sap-edit="${k}"]`));
         if (unseen || needsReload(shown, design, live)) reloadFrame();
-        else swapCSS(data.css_url, data.classes);
+        else swapCSS(data.css_url, data.classes, motionChanged(shown, design) ? replay : null);
         shown = design;
       } catch (_) {
         failed = true;

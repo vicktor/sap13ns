@@ -116,6 +116,23 @@ func (sv *SiteView) Link(u string) string {
 	return u
 }
 
+// Motion reports whether the page loads the motion library (motion.css):
+// its theme declares it uses it, its design animates something, or its
+// layout has animated sections or blocks. The customiser's preview always
+// does, so that a first animation shows without a reload.
+func (p *PageData) Motion() bool {
+	if p == nil || p.Site == nil {
+		return false
+	}
+	if c := p.Site.Custom; c != nil && (c.Motion || c.Preview) {
+		return true
+	}
+	if p.Site.theme != nil && p.Site.theme.Motion {
+		return true
+	}
+	return p.Blocks != nil && p.Blocks.Animated
+}
+
 // OnePage reports whether the page has sections to scroll to, or menu
 // links to them: the front page, a layout with anchored sections, a menu
 // with #links. shared/head then marks the site bundle's script with

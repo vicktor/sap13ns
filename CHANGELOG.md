@@ -5,6 +5,22 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.3.0 — 2026-10-20
+
+- **Animations.** sap13ns has its own library of 17 animations, served by
+  the site: fades, zooms, focus, rise, pop, flips, reveals, plus a float and
+  a pulse that keep moving. They play when an element comes into view, and
+  never for visitors who ask their device for reduced motion.
+  - Page builder: an **Animation** for every section (the whole section, or
+    its blocks one after another) and for every block.
+  - Customiser: an **Animation** for each of the theme's texts and images,
+    and **Animations → How much things move** (normal, subtle, expressive,
+    off) for the whole site, with a button that plays them again in the
+    preview.
+  - Themes: `data-sap-animate`, `data-sap-stagger` and `data-sap-delay`,
+    with `"motion": true` in `theme.json`. A page only loads the library
+    when something on it moves. See "Animations" in docs/THEMES.md.
+
 ## v0.2.17 — 2026-10-20
 
 - Customiser: when the page builder has unpublished changes, a notice says

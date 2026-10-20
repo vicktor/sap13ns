@@ -1,7 +1,7 @@
 // Tests for the theme customiser's pure helpers (ui/static/customizer.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeHex, designFrom, needsReload, liveChanges, previewURL, showIf } from "../../static/customizer.js";
+import { normalizeHex, designFrom, needsReload, liveChanges, motionChanged, previewURL, showIf } from "../../static/customizer.js";
 
 test("normalizeHex", () => {
   assert.equal(normalizeHex("#ABC"), "#aabbcc");
@@ -111,4 +111,17 @@ test("live theme texts do not reload the preview; images and lists do", () => {
   assert.equal(needsReload(a, { content: { title: "A", photo: "3" } }, live), true);
   assert.equal(needsReload(a, { content: { title: "A" }, content_i18n: { en: { steps: "x" } } }, live), true);
   assert.deepEqual(liveChanges(a, { content: { title: "B" }, content_i18n: { en: { title: "C" } } }, live, "es"), [["es", "title"], ["en", "title"]]);
+});
+
+test("designFrom keeps the animations chosen, and they need no reload", () => {
+  const d = designFrom([
+    { name: "motion.level", value: "subtle" },
+    { name: "motion.content.title", value: "fade-up" },
+    { name: "motion.content.photo", value: "none" },
+  ]);
+  assert.deepEqual(d.motion, { level: "subtle", content: { title: "fade-up" } });
+  const before = designFrom([{ name: "motion.content.title", value: "none" }]);
+  assert.equal(needsReload(before, d), false, "the stylesheet shows animations");
+  assert.equal(motionChanged(before, d), true);
+  assert.equal(motionChanged(d, designFrom([{ name: "motion.level", value: "subtle" }, { name: "motion.content.title", value: "fade-up" }])), false);
 });

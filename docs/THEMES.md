@@ -25,7 +25,8 @@ This is the contract between sap13ns and its themes: the folder layout, the mani
 15. [Accessibility](#accessibility)
 16. [The customiser](#the-customiser)
 17. [The page builder](#the-page-builder)
-18. [Checklist](#checklist)
+18. [Animations](#animations)
+19. [Checklist](#checklist)
 
 ## Folder layout
 
@@ -182,6 +183,7 @@ An administrator can install a theme from a `.zip` file, without access to the s
 | `options` | list | settings on the theme's **Options** page (below) |
 | `tokens` | object | the theme's default colours, for the customiser (see [Design tokens](#css-and-design-tokens)) |
 | `swatches` | list of colours | the preview strip on the themes page |
+| `motion` | bool | the templates use the [motion library](#animations) (`data-sap-animate`), so every page loads it |
 
 - **Menus.** `.Site.Menu "<id>"` returns a location's links. An empty `primary` location falls back to the published pages.
 - **Widget areas.** Declare a `top` area for an announcement strip above the header: the page builder's header offers it as its top bar. The widgets available are recent posts, categories, tags, archives, search, feeds, text, and the widgets of enabled plugins.
@@ -637,7 +639,7 @@ A theme whose pages carry their own texts and photographs (a front page in secti
 - **Defaults.** A text's `default` is English, and the theme's `i18n/<lang>.json` translates it (a `lines` default line by line), so what was not edited keeps the theme's translations. An image's `default` is the file in `static/` the theme shows instead, for the customiser's thumbnail. Labels and help are translated by the theme's catalog too.
 - **Languages.** Texts are edited per site language. A text edited only in the main language still shows the theme's own translation in the others. Images are the same in every language.
 - **In templates.** `{{.Site.Text "key"}}` is the text in the page's language, `{{range .Site.Lines "key"}}` its lines, and `{{with .Site.Image "key"}}…{{else}}<the theme's image>{{end}}` the image chosen (an image view, as `shared/image` takes), or nil.
-- **Click to edit.** Put `data-sap-edit="key"` on the element that holds only that text (wrap the text in a `<span>` when it shares its element with an icon), or on an image, or on the section of a background photograph. In the preview the element is outlined on hover and a click opens its field; the customiser writes typed text into marked elements at once and reloads the preview for images and lists. The attribute does nothing on public pages.
+- **Click to edit.** Put `data-sap-edit="key"` on the element that holds only that text (wrap the text in a `<span>` when it shares its element with an icon), or on an image, or on the section of a background photograph. In the preview the element is outlined on hover and a click opens its field; the customiser writes typed text into marked elements at once and reloads the preview for images and lists. On public pages the attribute only carries the animation chosen for that text or image, if any (see [Animations](#animations)).
 
 ## The page builder
 
@@ -687,6 +689,34 @@ A theme whose pages carry their own texts and photographs (a front page in secti
 - When no block of a main layout renders the page's `<h1>`, `shared/blocks-main` adds a visually hidden one.
 
 A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-area layouts, which render as its `content`, but its own header and footer stay.
+
+## Animations
+
+sap13ns has a small motion library of its own (`ui/static/motion.css`, played by `motion.js` in the site bundle): entrance animations that play once, when an element comes into view, and two that keep moving. Everything is served by the site, so it fits the [Content Security Policy](#content-security-policy).
+
+| Name | Effect |
+| --- | --- |
+| `fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right` | fades in, in place or moving from one side (`fade-left` comes from the right) |
+| `zoom-in`, `zoom-out` | fades in while growing to its size, or shrinking to it |
+| `blur-in` | comes into focus |
+| `rise`, `pop`, `flip-up`, `tilt-in` | moves up from further below while growing, grows past its size and settles, turns up from its bottom edge, comes up slightly turned |
+| `reveal-up`, `reveal-right`, `reveal-circle` | uncovered from the bottom, from the left, or from the centre in a circle |
+| `float`, `pulse` | keep moving: a slow up and down, a slow grow and shrink |
+
+**Where they come from.**
+- **The page builder.** Every section has **Animation** and **Animate** (the whole section, or its blocks one after another), and every block has its own **Animation**. In a section whose blocks play one after another, the blocks play the section's animation.
+- **The customiser.** **Texts and images** has an **Animation** for each of the theme's texts and images. **Animations → How much things move** sets the movement for the whole site: normal, subtle, expressive, or off. **Play the animations again** plays them again in the preview.
+- **Templates.** A theme animates its own elements with attributes, and declares `"motion": true` in `theme.json` so that its pages load the library:
+
+  ```html
+  <h2 data-sap-animate="fade-up">…</h2>
+  <ul data-sap-stagger="fade-up">…</ul>   <!-- each child, one after another -->
+  <img data-sap-animate="zoom-in" data-sap-delay="200" …>   <!-- 200 ms later -->
+  ```
+
+**What visitors get.** Nothing moves for visitors who ask their device for reduced motion, nor in print, and without JavaScript every element just shows. A page only loads `motion.css` when something on it moves: a section or a block of its layout, a text or an image the customiser animates, a motion level other than normal, or a theme that declares `motion`.
+
+**For theme CSS.** The level is a class on `<html>`: `sap-motion-subtle`, `sap-motion-expressive` or `sap-motion-off`. `sap-motion` is set when animations play. The library's sizes are custom properties a theme may override: `--sap-motion-duration`, `--sap-motion-distance`, `--sap-motion-scale`, `--sap-motion-blur`, `--sap-motion-angle` and `--sap-motion-ease`. An element waits on the first frame of its animation until it is in view, then gets the class `sap-in`.
 
 ## Checklist
 

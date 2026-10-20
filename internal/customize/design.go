@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"sap13ns/internal/motion"
 )
 
 // Version of the design JSON format.
@@ -83,7 +85,20 @@ type Design struct {
 	// -> text); images are the same in every language.
 	Content     map[string]string            `json:"content,omitempty"`
 	ContentI18n map[string]map[string]string `json:"content_i18n,omitempty"`
+	Motion      Motion                       `json:"motion"`
 }
+
+// Motion is the site's animations (internal/motion): how much they move,
+// and the animation of each of the theme's texts and images (content key
+// -> animation name).
+type Motion struct {
+	Level   string            `json:"level,omitempty"` // "" | subtle | expressive | off
+	Content map[string]string `json:"content,omitempty"`
+}
+
+// Used reports whether the design animates anything, or changes how much
+// other animations move.
+func (m Motion) Used() bool { return m.Level != "" || len(m.Content) > 0 }
 
 // ContentIn returns the edited text key for lang, "" when it was not
 // edited in that language.
@@ -532,6 +547,29 @@ func (d *Design) Normalize(c Context) (Errors, error) {
 		i18n = nil
 	}
 	d.ContentI18n = i18n
+
+	if !contains(motion.Levels, d.Motion.Level) {
+		add("motion.level", "unknown value %q", d.Motion.Level)
+		d.Motion.Level = ""
+	}
+	anims := map[string]string{}
+	for k, v := range d.Motion.Content {
+		field := "motion.content." + k
+		_, known := motion.Lookup(v)
+		switch {
+		case v == "" || v == motion.None:
+		case spec(k) == nil:
+			add(field, "this theme has no such text")
+		case !known:
+			add(field, "unknown animation %q", v)
+		default:
+			anims[k] = v
+		}
+	}
+	if len(anims) == 0 {
+		anims = nil
+	}
+	d.Motion.Content = anims
 	sort.Sort(errs)
 	return errs, lookupErr
 }
@@ -567,6 +605,9 @@ func (d *Design) HTMLClasses() string {
 	}
 	if d.Header.Brand != "" {
 		cl = append(cl, "sap-has-logo")
+	}
+	if d.Motion.Level != "" {
+		cl = append(cl, "sap-motion-"+d.Motion.Level)
 	}
 	return strings.Join(cl, " ")
 }

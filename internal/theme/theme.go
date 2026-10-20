@@ -101,6 +101,9 @@ type Manifest struct {
 	// Content lists the texts and images of the theme's own templates that
 	// the customiser edits (Appearance → Customise → Texts and images).
 	Content []ContentGroup `json:"content,omitempty"`
+	// Motion: the templates animate elements with the motion library
+	// (data-sap-animate, data-sap-stagger), so every page loads it.
+	Motion bool `json:"motion,omitempty"`
 
 	Tokens *Tokens `json:"tokens,omitempty"` // default colours, see tokens.go
 }

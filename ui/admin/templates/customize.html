@@ -14,6 +14,14 @@
 </div>
 {{end}}
 
+{{/* cz-motion: the animation of a theme text or image. dict "F" (contentFieldView) "Options" */}}
+{{define "cz-motion"}}
+<div class="field cz-motion" data-content-motion="{{.F.Key}}">
+  <label for="cz-m-{{.F.Key}}">{{T "Animation"}}</label>
+  {{template "select" (selectbox "id" (printf "cz-m-%s" .F.Key) "name" (printf "motion.content.%s" .F.Key) "value" .F.Motion "options" .Options "size" "sm")}}
+</div>
+{{end}}
+
 {{/* cz-font: dict "Role" "Label" "Font" (customize.Font) "Fonts" []Media "Extra" (list value label) */}}
 {{define "cz-font"}}
 {{$id := printf "cz-font-%s" .Role}}
@@ -101,6 +109,7 @@
               </div>
               {{with .Help}}<p class="hint">{{.}}</p>{{end}}
             </div>
+            {{template "cz-motion" (dict "F" . "Options" $d.Animations)}}
             {{else}}
             {{range .Values}}
             {{$id := printf "cz-c-%s-%s" $f.Key .Lang}}
@@ -115,6 +124,7 @@
               {{with $f.Help}}<p class="hint">{{.}}</p>{{end}}
             </div>
             {{end}}
+            {{template "cz-motion" (dict "F" $f "Options" $d.Animations)}}
             {{end}}
             {{end}}
           </div>
@@ -123,6 +133,15 @@
       </div>
     </details>
     {{end}}
+
+    <details class="cz-section" data-cz-motion>
+      <summary>{{icon "sparkles"}}<span>{{T "Animations"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        {{template "cz-select" (dict "ID" "cz-motion-level" "Name" "motion.level" "Label" (T "How much things move") "Value" $D.Motion.Level "Choices" $d.MotionLevels
+          "Help" (T "For every animation of the site: the texts and images above and the page builder's sections and blocks. Visitors who ask their device for reduced motion never see them."))}}
+        <button type="button" class="btn w-full" data-variant="outline" data-size="sm" data-motion-replay>{{icon "rotate-ccw"}}{{T "Play the animations again"}}</button>
+      </div>
+    </details>
 
     <details class="cz-section"{{if not $d.Content}} open{{end}}>
       <summary>{{icon "palette"}}<span>{{T "Colours"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>

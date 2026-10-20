@@ -1,5 +1,7 @@
 package builder
 
+import "sap13ns/internal/motion"
+
 // Field is one setting of a block type. Every value is stored as a string
 // and checked against its field: free text is length-capped, enumerations
 // only take their listed values, links must be safe and media must exist.
@@ -81,8 +83,30 @@ var SectionStyles = map[string][]string{
 	"align":      {"start", "center"},
 }
 
-// StyleOrder is the order section style fields are shown in.
-var StyleOrder = []string{"background", "padding", "width", "align"}
+// StyleOrder is the order section style fields are shown in. animation
+// and sequence are the section's motion (internal/motion): the whole
+// section plays the animation, or with sequence "on" its blocks do, one
+// after another.
+var StyleOrder = []string{"background", "padding", "width", "align", "animation", "sequence"}
+
+func init() {
+	SectionStyles["animation"] = motion.Names()
+	SectionStyles["sequence"] = []string{"off", "on"}
+	// Every block can be animated.
+	field := Field{Key: "animation", Type: "select", Label: "Animation", Default: motion.None, Choices: animationChoices()}
+	for i := range Types {
+		Types[i].Fields = append(Types[i].Fields, field)
+	}
+}
+
+// animationChoices are the motion library's animations, after None.
+func animationChoices() []Choice {
+	out := []Choice{{Value: motion.None, Label: "None"}}
+	for _, a := range motion.Animations {
+		out = append(out, Choice{Value: a.Name, Label: a.Label})
+	}
+	return out
+}
 
 func choices(pairs ...string) []Choice {
 	out := make([]Choice, 0, len(pairs)/2)

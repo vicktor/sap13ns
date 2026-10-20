@@ -44,6 +44,7 @@ type CustomView struct {
 	PerPage    int        // home posts per page, 0 = reading settings
 	Preview    bool       // a draft rendered for the customiser preview
 	Partial    bool       // built from a failed load: kept out of every cache
+	Motion     bool       // the design animates texts or sets how much things move
 }
 
 // HeroOn reports whether the home page shows its introduction, given the
@@ -364,6 +365,7 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 	}
 	cv := sv.Custom
 	cv.Class = d.HTMLClasses()
+	cv.Motion = d.Motion.Used()
 	cv.LogoOnly = d.Header.Brand == "logo" && cv.Logo != nil
 	if cv.Logo == nil {
 		cv.Class = strings.TrimSpace(strings.ReplaceAll(cv.Class, "sap-has-logo", ""))
@@ -475,23 +477,25 @@ func (s *Server) handleCustomCSS(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- admin --
 
 type customizeData struct {
-	Theme       *theme.Theme
-	Design      *customize.Design // the draft (or published) design being edited
-	Colors      []colorRow
-	State       string // JSON for customizer.js: design, defaults, options
-	HasDraft    bool
-	LayoutDraft bool // the page builder has an unpublished draft, which the preview shows
-	DraftAt     *time.Time
-	PublishedAt *time.Time
-	PreviewURL  string
-	Revisions   []store.CustomRevision
-	Fonts       []store.Media      // WOFF2 files in the media library
-	Images      []store.Media      // images for the logo
-	Langs       []LangLink         // extra languages for the footer text
-	Options     map[string]string  // option values in effect in the draft
-	Active      bool               // the theme is the site's active theme
-	Content     []contentGroupView // the theme's texts and images (theme_content.go)
-	ContentLang []LangLink         // the languages of the texts, the main one first
+	Theme        *theme.Theme
+	Design       *customize.Design // the draft (or published) design being edited
+	Colors       []colorRow
+	State        string // JSON for customizer.js: design, defaults, options
+	HasDraft     bool
+	LayoutDraft  bool           // the page builder has an unpublished draft, which the preview shows
+	Animations   []selectOption // the motion library's, for the texts and images
+	MotionLevels []selectOption
+	DraftAt      *time.Time
+	PublishedAt  *time.Time
+	PreviewURL   string
+	Revisions    []store.CustomRevision
+	Fonts        []store.Media      // WOFF2 files in the media library
+	Images       []store.Media      // images for the logo
+	Langs        []LangLink         // extra languages for the footer text
+	Options      map[string]string  // option values in effect in the draft
+	Active       bool               // the theme is the site's active theme
+	Content      []contentGroupView // the theme's texts and images (theme_content.go)
+	ContentLang  []LangLink         // the languages of the texts, the main one first
 }
 
 // colorRow is one colour token in the customiser form.
@@ -564,6 +568,9 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 	data := customizeData{Theme: th, Design: d, HasDraft: row.Draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
 		PreviewURL: "/?preview_theme=" + th.Slug + "&customize=draft", Revisions: revs, Langs: s.extraLangs(),
 		Options: th.OptionValues(effective), Active: s.themes.Active(s.settings().ActiveTheme) == th}
+	data.Animations = s.animationOptions(r)
+	data.MotionLevels = []selectOption{{Value: "", Label: s.tu(r, "Normal")}, {Value: "subtle", Label: s.tu(r, "Subtle")},
+		{Value: "expressive", Label: s.tu(r, "Expressive")}, {Value: "off", Label: s.tu(r, "Off: nothing moves")}}
 	if lr, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout); err == nil {
 		data.LayoutDraft = lr.Draft != nil
 	}

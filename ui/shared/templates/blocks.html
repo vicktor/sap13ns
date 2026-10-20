@@ -34,17 +34,21 @@
 
 {{/* shared/blocks-sections: the sections of a region. Data: *RegionView. */}}
 {{define "shared/blocks-sections"}}
-{{range .Sections}}
-<div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}">
+{{range .Sections}}{{$stagger := .Stagger}}
+<div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}"{{with .Animate}} data-sap-animate="{{.}}"{{end}}>
   <div class="sap-section-inner sap-cols sap-cols-{{.Layout}}">
-    {{range .Columns}}<div class="sap-col">{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
+    {{range .Columns}}<div class="sap-col"{{with $stagger}} data-sap-stagger="{{.}}"{{end}}>{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
   </div>
 </div>
 {{end}}
 {{end}}
 
-{{/* shared/block: one block, by type. Data: *BlockView (.Page is the PageData). */}}
-{{define "shared/block"}}
+{{/* shared/block: one block, in an element that plays its animation when
+     it has one (ui/static/motion.css). Data: *BlockView. */}}
+{{define "shared/block"}}{{if .Animate}}<div class="sap-motion-block" data-sap-animate="{{.Animate}}">{{template "shared/block-body" .}}</div>{{else}}{{template "shared/block-body" .}}{{end}}{{end}}
+
+{{/* shared/block-body: one block, by type. Data: *BlockView (.Page is the PageData). */}}
+{{define "shared/block-body"}}
 {{if eq .Type "site-header"}}{{template "blocks/site-header" .}}
 {{else if eq .Type "menu"}}{{template "blocks/menu" .}}
 {{else if eq .Type "search"}}{{template "blocks/search" .}}

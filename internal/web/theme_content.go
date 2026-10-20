@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"sap13ns/internal/customize"
+	"sap13ns/internal/motion"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -122,6 +123,16 @@ func (s *SiteView) Image(key string) *ImageView {
 	return imageView(s.content.media(id))
 }
 
+// animationOptions are the motion library's animations for a select,
+// after None.
+func (s *Server) animationOptions(r *http.Request) []selectOption {
+	out := []selectOption{{Value: motion.None, Label: s.tu(r, "None")}}
+	for _, a := range motion.Animations {
+		out = append(out, selectOption{Value: a.Name, Label: s.tu(r, a.Label)})
+	}
+	return out
+}
+
 // contentGroupView is a content group in the customiser form.
 type contentGroupView struct {
 	ID, Label string
@@ -135,6 +146,7 @@ type contentFieldView struct {
 	Image                  *ImageView     // images: the chosen one
 	ImageID                int64
 	ThemeImage             string // the theme's own image, as a thumbnail
+	Motion                 string // its animation (internal/motion), "none" for none
 }
 
 // contentValue is a text in one language: what the page shows (the edited
@@ -155,7 +167,10 @@ func (s *Server) contentForm(r *http.Request, th *theme.Theme, d *customize.Desi
 	for _, g := range th.Content {
 		gv := contentGroupView{ID: g.ID, Label: s.themeText(ui, th, g.Label)}
 		for _, f := range g.Fields {
-			fv := contentFieldView{Key: f.Key, Label: s.themeText(ui, th, f.Label), Type: f.Type}
+			fv := contentFieldView{Key: f.Key, Label: s.themeText(ui, th, f.Label), Type: f.Type, Motion: motion.None}
+			if a := d.Motion.Content[f.Key]; a != "" {
+				fv.Motion = a
+			}
 			if f.Help != "" {
 				fv.Help = s.themeText(ui, th, f.Help)
 			}

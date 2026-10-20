@@ -75,7 +75,8 @@ func TestThemeContent(t *testing.T) {
 	// The customiser lists the fields with what the page shows.
 	b := page("/admin/appearance/themes/texty/customize", e.cookie)
 	has("customiser", b, "data-cz-content", `name="content.title" value="Hola mundo" data-default="Hola mundo"`,
-		`name="content_i18n.en.title" value="Hello world"`, `name="content.photo"`, `id="media-dialog"`)
+		`name="content_i18n.en.title" value="Hello world"`, `name="content.photo"`, `id="media-dialog"`,
+		`name="motion.content.title"`, `name="motion.content.photo"`, "Aparecer desde abajo")
 
 	send := func(design string) int {
 		t.Helper()
@@ -99,7 +100,7 @@ func TestThemeContent(t *testing.T) {
 		t.Errorf("a missing image: %d", code)
 	}
 	design := `{"content": {"title": "Bienvenidos", "steps": "Primero\n\nSegundo\n", "photo": "` + strconv.FormatInt(img, 10) + `"},
-  "content_i18n": {"en": {"title": "Welcome"}}}`
+  "content_i18n": {"en": {"title": "Welcome"}}, "motion": {"content": {"title": "fade-up"}}}`
 	if code := send(design); code != http.StatusOK {
 		t.Fatalf("draft: %d", code)
 	}
@@ -109,6 +110,6 @@ func TestThemeContent(t *testing.T) {
 	if rec := e.admin("/admin/appearance/themes/texty/customize/publish", url.Values{}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("publish: %d", rec.Code)
 	}
-	has("/ published", page("/"), ">Bienvenidos</h1>", "<li>Primero</li>", `alt="A photo"`)
+	has("/ published", page("/"), ">Bienvenidos</h1>", "<li>Primero</li>", `alt="A photo"`, "/static/motion.css")
 	has("/en/ published", page("/en/"), ">Welcome</h1>", "<li>One</li><li>Two</li>", `alt="A photo"`)
 }

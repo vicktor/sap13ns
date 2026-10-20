@@ -1,0 +1,109 @@
+/* sap13ns motion library: entrance and loop animations for public pages.
+ *
+ *   <h2 data-sap-animate="fade-up">        the element plays it when it comes into view
+ *   <ul data-sap-stagger="fade-up">        each child plays it, one after another
+ *   data-sap-delay="200"                   waits that many milliseconds first
+ *
+ * internal/motion lists the names. Nothing moves unless <html> has the
+ * class sap-motion, which theme-init.js adds when the visitor has not asked
+ * for reduced motion and the customiser's Animations are not off; without
+ * it (or without JavaScript) every element is shown as it is. The
+ * customiser sets sap-motion-subtle or sap-motion-expressive on <html> for
+ * smaller or larger movements, and its per-text animations target
+ * [data-sap-edit] in the design's stylesheet with the same keyframes.
+ * Elements wait paused on their first frame; motion.js adds .sap-in when
+ * they come into view. */
+
+@property --sap-anim { syntax: "*"; inherits: false; }
+@property --sap-iter { syntax: "*"; inherits: false; }
+@property --sap-delay { syntax: "*"; inherits: false; }
+
+:root {
+  --sap-motion-duration: 0.75s;
+  --sap-motion-distance: 1.75rem;
+  --sap-motion-scale: 0.92;
+  --sap-motion-blur: 8px;
+  --sap-motion-angle: 8deg;
+  --sap-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sap-motion-subtle {
+  --sap-motion-duration: 0.55s;
+  --sap-motion-distance: 0.75rem;
+  --sap-motion-scale: 0.97;
+  --sap-motion-blur: 4px;
+  --sap-motion-angle: 4deg;
+}
+.sap-motion-expressive {
+  --sap-motion-duration: 1.1s;
+  --sap-motion-distance: 3.5rem;
+  --sap-motion-scale: 0.8;
+  --sap-motion-blur: 14px;
+  --sap-motion-angle: 14deg;
+}
+
+[data-sap-animate="fade"], [data-sap-stagger="fade"] > * { --sap-anim: sap-fade; }
+[data-sap-animate="fade-up"], [data-sap-stagger="fade-up"] > * { --sap-anim: sap-fade-up; }
+[data-sap-animate="fade-down"], [data-sap-stagger="fade-down"] > * { --sap-anim: sap-fade-down; }
+[data-sap-animate="fade-left"], [data-sap-stagger="fade-left"] > * { --sap-anim: sap-fade-left; }
+[data-sap-animate="fade-right"], [data-sap-stagger="fade-right"] > * { --sap-anim: sap-fade-right; }
+[data-sap-animate="zoom-in"], [data-sap-stagger="zoom-in"] > * { --sap-anim: sap-zoom-in; }
+[data-sap-animate="zoom-out"], [data-sap-stagger="zoom-out"] > * { --sap-anim: sap-zoom-out; }
+[data-sap-animate="blur-in"], [data-sap-stagger="blur-in"] > * { --sap-anim: sap-blur-in; }
+[data-sap-animate="rise"], [data-sap-stagger="rise"] > * { --sap-anim: sap-rise; }
+[data-sap-animate="pop"], [data-sap-stagger="pop"] > * { --sap-anim: sap-pop; }
+[data-sap-animate="flip-up"], [data-sap-stagger="flip-up"] > * { --sap-anim: sap-flip-up; }
+[data-sap-animate="tilt-in"], [data-sap-stagger="tilt-in"] > * { --sap-anim: sap-tilt-in; }
+[data-sap-animate="reveal-up"], [data-sap-stagger="reveal-up"] > * { --sap-anim: sap-reveal-up; }
+[data-sap-animate="reveal-right"], [data-sap-stagger="reveal-right"] > * { --sap-anim: sap-reveal-right; }
+[data-sap-animate="reveal-circle"], [data-sap-stagger="reveal-circle"] > * { --sap-anim: sap-reveal-circle; }
+[data-sap-animate="float"], [data-sap-stagger="float"] > * { --sap-anim: sap-float; --sap-iter: infinite; }
+[data-sap-animate="pulse"], [data-sap-stagger="pulse"] > * { --sap-anim: sap-pulse; --sap-iter: infinite; }
+
+.sap-motion :is([data-sap-animate], [data-sap-stagger] > *) {
+  animation-name: var(--sap-anim, none);
+  animation-duration: var(--sap-motion-duration);
+  animation-timing-function: var(--sap-motion-ease);
+  animation-delay: var(--sap-delay, 0s);
+  animation-iteration-count: var(--sap-iter, 1);
+  animation-fill-mode: both;
+  animation-play-state: paused;
+}
+.sap-motion :is([data-sap-animate], [data-sap-stagger] > *, [data-sap-edit]).sap-in { animation-play-state: running; }
+/* A block the page builder animates. */
+.sap-motion-block { display: block; }
+
+@keyframes sap-fade { from { opacity: 0; } }
+@keyframes sap-fade-up { from { opacity: 0; transform: translateY(var(--sap-motion-distance)); } }
+@keyframes sap-fade-down { from { opacity: 0; transform: translateY(calc(-1 * var(--sap-motion-distance))); } }
+@keyframes sap-fade-left { from { opacity: 0; transform: translateX(var(--sap-motion-distance)); } }
+@keyframes sap-fade-right { from { opacity: 0; transform: translateX(calc(-1 * var(--sap-motion-distance))); } }
+@keyframes sap-zoom-in { from { opacity: 0; transform: scale(var(--sap-motion-scale)); } }
+@keyframes sap-zoom-out { from { opacity: 0; transform: scale(calc(2 - var(--sap-motion-scale))); } }
+@keyframes sap-blur-in { from { opacity: 0; filter: blur(var(--sap-motion-blur)); } }
+@keyframes sap-rise { from { opacity: 0; transform: translateY(calc(2 * var(--sap-motion-distance))) scale(var(--sap-motion-scale)); } }
+@keyframes sap-pop {
+  from { opacity: 0; transform: scale(var(--sap-motion-scale)); }
+  60% { opacity: 1; transform: scale(calc(2.06 - var(--sap-motion-scale))); }
+  to { transform: none; }
+}
+@keyframes sap-flip-up { from { opacity: 0; transform: perspective(60rem) rotateX(calc(4 * var(--sap-motion-angle))); transform-origin: 50% 100%; } }
+@keyframes sap-tilt-in { from { opacity: 0; transform: translateY(var(--sap-motion-distance)) rotate(calc(-1 * var(--sap-motion-angle) / 2)); } }
+@keyframes sap-reveal-up { from { clip-path: inset(100% 0 0 0); transform: translateY(calc(var(--sap-motion-distance) / 2)); } to { clip-path: inset(0 0 0 0); } }
+@keyframes sap-reveal-right { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes sap-reveal-circle { from { clip-path: circle(0% at 50% 50%); } to { clip-path: circle(75% at 50% 50%); } }
+@keyframes sap-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(calc(-1 * var(--sap-motion-distance) / 3)); }
+}
+@keyframes sap-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(calc(1 + (1 - var(--sap-motion-scale)) / 2)); }
+}
+.sap-motion :is([data-sap-animate="float"], [data-sap-stagger="float"] > *, [data-sap-animate="pulse"], [data-sap-stagger="pulse"] > *) {
+  animation-duration: calc(var(--sap-motion-duration) * 5);
+  animation-timing-function: ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce), print {
+  .sap-motion :is([data-sap-animate], [data-sap-stagger] > *, [data-sap-edit]) { animation: none !important; }
+}

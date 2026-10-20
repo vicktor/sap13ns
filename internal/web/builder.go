@@ -23,6 +23,7 @@ import (
 	"sap13ns/internal/builder"
 	"sap13ns/internal/content"
 	"sap13ns/internal/customize"
+	"sap13ns/internal/motion"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -32,6 +33,9 @@ type BlocksView struct {
 	Header *RegionView
 	Footer *RegionView
 	Main   *RegionView
+	// Animated: a section or block of these regions has an animation, so
+	// the page loads the motion library (PageData.Motion).
+	Animated bool
 }
 
 // RegionView is a region ready to render.
@@ -39,6 +43,7 @@ type RegionView struct {
 	Name     string
 	Sections []*SectionView
 	TopBar   bool // header: show the Top bar widget area above it
+	Animated bool // a section or block has an animation
 	HasMeta  bool // footer: the region renders shared/footer-meta itself
 	Page     *PageData
 
@@ -53,6 +58,10 @@ type SectionView struct {
 	Class   string // enumerated appearance classes
 	Layout  string // column preset, e.g. "2-1"
 	Columns [][]*BlockView
+	// Animate is the section's animation (data-sap-animate); Stagger the
+	// one its blocks play one after another, in each column
+	// (data-sap-stagger). At most one of them is set.
+	Animate, Stagger string
 }
 
 // DOMID is the section's id attribute.
@@ -73,7 +82,10 @@ type BlockView struct {
 	Image *ImageView
 	Links []SocialLink
 	Items []*ItemView // the entries of a landing block (features, plans…)
-	Page  *PageData
+	// Animate is the block's animation, "" for none: shared/block wraps
+	// it in an element with data-sap-animate.
+	Animate string
+	Page    *PageData
 }
 
 // On reports whether a bool setting is on.
@@ -221,6 +233,9 @@ func (s *Server) applyLayout(r *http.Request, th *theme.Theme, page string, pd *
 			page = "blocks"
 		}
 	}
+	for _, rv := range []*RegionView{bv.Header, bv.Footer, bv.Main} {
+		bv.Animated = bv.Animated || rv != nil && rv.Animated
+	}
 	pd.Blocks = bv
 	return page
 }
@@ -236,6 +251,14 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 	global := name == "header" || name == "footer"
 	for _, sec := range r.Sections {
 		sv := &SectionView{ID: sec.ID, Anchor: sec.Anchor, Layout: sec.Layout, Class: sectionClass(sec)}
+		if a := sec.Style["animation"]; a != "" && a != motion.None {
+			if sec.Style["sequence"] == "on" {
+				sv.Stagger = a
+			} else {
+				sv.Animate = a
+			}
+			rv.Animated = true
+		}
 		for _, col := range sec.Columns {
 			views := make([]*BlockView, 0, len(col))
 			for i := range col {
@@ -244,6 +267,9 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 					rv.HasMeta = true
 				}
 				v := s.blockView(b, lang, pd, media)
+				if a := v.S["animation"]; a != "" && a != motion.None && sv.Stagger == "" {
+					v.Animate, rv.Animated = a, true
+				}
 				if global {
 					// The header and footer show on every page; their
 					// links to a section (#pricing) go to the front page.
@@ -284,6 +310,9 @@ func rendersH1(rv *RegionView) bool {
 func sectionClass(sec builder.Section) string {
 	cl := []string{"sap-section"}
 	for _, k := range builder.StyleOrder {
+		if k == "animation" || k == "sequence" {
+			continue // attributes, not classes (regionView)
+		}
 		v := sec.Style[k]
 		if v == "" {
 			v = builder.SectionStyles[k][0]
@@ -533,10 +562,15 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	}
 	st.Starters, st.Front = s.builderSamples(r)
 	st.MenusURL = "/admin/appearance/menus"
-	styleLabels := map[string]string{"background": s.tu(r, "Background"), "padding": s.tu(r, "Spacing"), "width": s.tu(r, "Width"), "align": s.tu(r, "Alignment")}
+	styleLabels := map[string]string{"background": s.tu(r, "Background"), "padding": s.tu(r, "Spacing"), "width": s.tu(r, "Width"), "align": s.tu(r, "Alignment"),
+		"animation": s.tu(r, "Animation"), "sequence": s.tu(r, "Animate")}
 	valueLabels := map[string]string{"none": s.tu(r, "None"), "muted": s.tu(r, "Muted"), "card": s.tu(r, "Card"), "primary": s.tu(r, "Primary colour"),
 		"accent": s.tu(r, "Accent colour"), "inverse": s.tu(r, "Inverted"), "small": s.tu(r, "Small"), "medium": s.tu(r, "Medium"), "large": s.tu(r, "Large"),
 		"content": s.tu(r, "Content width"), "narrow": s.tu(r, "Narrow"), "wide": s.tu(r, "Wide"), "full": s.tu(r, "Full width"), "start": s.tu(r, "Left"), "center": s.tu(r, "Centre")}
+	valueLabels["off"], valueLabels["on"] = s.tu(r, "The whole section"), s.tu(r, "Its blocks, one after another")
+	for _, a := range motion.Animations {
+		valueLabels[a.Name] = s.tu(r, a.Label)
+	}
 	for _, k := range builder.StyleOrder {
 		sf := styleField{Key: k, Label: styleLabels[k]}
 		for _, v := range builder.SectionStyles[k] {

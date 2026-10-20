@@ -383,3 +383,44 @@ func TestDeriveDark(t *testing.T) {
 		t.Errorf("surface accent: %s on %s", dark["accent-foreground"], dark["accent"])
 	}
 }
+
+// The design's animations: a level and the animation of the theme's texts
+// and images, checked against the motion library and the theme's content;
+// the stylesheet plays them on [data-sap-edit] and <html> gets the level.
+func TestMotion(t *testing.T) {
+	c := testCtx
+	c.Content = []ContentSpec{{Key: "title", Type: "text"}, {Key: "photo", Type: "image"}}
+	d, err := Parse([]byte(`{"motion": {"level": "expressive", "content": {"title": "fade-up", "photo": "float", "gone": "none"}}}`), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Motion.Level != "expressive" || len(d.Motion.Content) != 2 || !d.Motion.Used() {
+		t.Fatalf("motion = %+v", d.Motion)
+	}
+	if got := d.HTMLClasses(); got != "sap-motion-expressive" {
+		t.Errorf("classes %q", got)
+	}
+	css := d.Stylesheet(nil)
+	for _, want := range []string{
+		`.sap-motion [data-sap-edit="photo"] { animation: sap-float calc(var(--sap-motion-duration) * 5) ease-in-out 0s infinite both paused; }`,
+		`.sap-motion [data-sap-edit="title"] { animation: sap-fade-up var(--sap-motion-duration) var(--sap-motion-ease) 0s 1 both paused; }`,
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("stylesheet lacks %q:\n%s", want, css)
+		}
+	}
+	for doc, field := range map[string]string{
+		`{"motion": {"level": "wild"}}`:              "motion.level",
+		`{"motion": {"content": {"title": "spin"}}}`: "motion.content.title",
+		`{"motion": {"content": {"nope": "fade"}}}`:  "motion.content.nope",
+	} {
+		_, err := Parse([]byte(doc), c)
+		var es Errors
+		if !errors.As(err, &es) || len(es) != 1 || es[0].Field != field {
+			t.Errorf("%s: %v", doc, err)
+		}
+	}
+	if d, _ := Parse([]byte(`{"motion": {"content": {"title": "none"}}}`), c); d.Motion.Used() || d.Stylesheet(nil) != "" {
+		t.Error("no animation still animates")
+	}
+}

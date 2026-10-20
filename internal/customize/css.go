@@ -4,7 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
+
+	"sap13ns/internal/motion"
 )
 
 // Curated font stacks. Only locally installed fonts: the CSP allows fonts
@@ -125,6 +128,27 @@ func (d *Design) Stylesheet(media Resolver) string {
 		fmt.Fprintf(&b, ":root .widget-area.widget-area-footer { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%%, max(12rem, (100%% - %d * 2.5rem) / %d)), 1fr)); }\n", n-1, n)
 		b.WriteString(":root .widget-area.widget-area-footer > .widget { grid-column: auto; }\n")
 	}
+	if len(d.Motion.Content) > 0 {
+		// The theme's texts and images the design animates: the motion
+		// library's keyframes (ui/static/motion.css), paused until
+		// motion.js marks the element in view.
+		keys := make([]string, 0, len(d.Motion.Content))
+		for k := range d.Motion.Content {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			a, ok := motion.Lookup(d.Motion.Content[k])
+			if !ok || !safeKey(k) {
+				continue
+			}
+			dur, iter, ease := "var(--sap-motion-duration)", "1", "var(--sap-motion-ease)"
+			if a.Loop {
+				dur, iter, ease = "calc(var(--sap-motion-duration) * 5)", "infinite", "ease-in-out"
+			}
+			fmt.Fprintf(&b, ".sap-motion [data-sap-edit=%q] { animation: sap-%s %s %s 0s %s both paused; }\n", k, a.Name, dur, ease, iter)
+		}
+	}
 	if css := strings.TrimSpace(d.CSS); css != "" {
 		b.WriteString("\n/* Custom CSS */\n")
 		b.WriteString(css)
@@ -134,6 +158,20 @@ func (d *Design) Stylesheet(media Resolver) string {
 		return ""
 	}
 	return "/* sap13ns customiser (generated) */\n" + b.String()
+}
+
+// safeKey reports whether a content key can go in a CSS attribute
+// selector as it is (theme.json keys are [a-z0-9_-]).
+func safeKey(k string) bool {
+	if k == "" || len(k) > 40 {
+		return false
+	}
+	for _, r := range k {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 // Hash is the short content hash used in stylesheet URLs.

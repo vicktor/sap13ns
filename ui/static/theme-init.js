@@ -39,4 +39,12 @@
     const dark = pick ? pick === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", dark);
   } catch (_) {}
+
+  // The motion library (motion.css) plays only with this class: not for
+  // visitors who ask for reduced motion, nor when the customiser turned
+  // the site's animations off (sap-motion-off).
+  try {
+    const h = document.documentElement;
+    if (!h.classList.contains("sap-motion-off") && "IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) h.classList.add("sap-motion");
+  } catch (_) {}
 })();
