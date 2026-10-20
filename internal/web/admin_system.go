@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"sap13ns/internal/auth"
+	"sap13ns/internal/cache"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
@@ -276,6 +277,17 @@ type sysGroup struct {
 
 var startedAt = time.Now()
 
+// cacheUse is what a cache holds and how much of the traffic since start it
+// answered.
+func (s *Server) cacheUse(r *http.Request, c *cache.Cache) string {
+	n, b := c.Stats()
+	out := fmt.Sprintf("%d · %s", n, filesize(int64(b)))
+	if hits, misses := c.Lookups(); hits+misses > 0 {
+		out += " · " + s.tu(r, "%d%% of %d served from it since the start", int(hits*100/(hits+misses)), hits+misses)
+	}
+	return out
+}
+
 func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	yes, no := true, false
@@ -294,8 +306,6 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 		ps := sp.Stat()
 		conns = fmt.Sprintf("%d / %d (%d idle)", ps.TotalConns(), ps.MaxConns(), ps.IdleConns())
 	}
-	pagesN, pagesB := s.pages.Stats()
-	bodiesN, bodiesB := s.content.Stats()
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	enabled := 0
@@ -328,8 +338,9 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 			{Label: s.tu(r, "Connections"), Value: conns},
 		}},
 		{s.tu(r, "Caches"), []sysRow{
-			{Label: s.tu(r, "Rendered pages"), Value: fmt.Sprintf("%d · %s", pagesN, filesize(int64(pagesB)))},
-			{Label: s.tu(r, "Rendered posts"), Value: fmt.Sprintf("%d · %s", bodiesN, filesize(int64(bodiesB)))},
+			{Label: s.tu(r, "Rendered pages"), Value: s.cacheUse(r, s.pages)},
+			{Label: s.tu(r, "Rendered posts"), Value: s.cacheUse(r, s.content)},
+			{Label: s.tu(r, "Signed in"), Value: s.tu(r, "pages are rendered afresh, never from the cache; saving in the admin empties it")},
 		}},
 		{s.tu(r, "Storage"), []sysRow{
 			{Label: s.tu(r, "Uploads"), Value: s.cfg.UploadsDir},

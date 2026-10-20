@@ -10,6 +10,7 @@ import (
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/config"
+	"sap13ns/internal/mail"
 	"sap13ns/internal/store"
 	"sap13ns/internal/testutil"
 )
@@ -55,5 +56,21 @@ func TestSystemMultisiteCard(t *testing.T) {
 	body = system(networkServer(t, st, func(_ *config.Config, d *Deps) { d.Network = &fakeHooks{} }))
 	if strings.Contains(body, `id="multisite"`) || strings.Contains(body, "network init") {
 		t.Error("the System page of a site of a network explains how to start a network")
+	}
+}
+
+// The System page says how much of the public traffic the page cache
+// serves, since the start: an administrator's own pages never come from it.
+func TestSystemCacheShare(t *testing.T) {
+	e := newCustomEnv(t)
+	e.s.mailer = mail.New(config.SMTP{}, testutil.Log(), false)
+	for range 4 {
+		if rec := e.get("/", nil); rec.Code != http.StatusOK {
+			t.Fatalf("front page: %d", rec.Code)
+		}
+	}
+	body := e.get("/admin/system", e.admin).Body.String()
+	if !strings.Contains(body, "75 % de 4 servidas desde ella") {
+		t.Fatalf("no cache share on the System page:\n%.4000s", body[strings.Index(body, "Cachés"):])
 	}
 }

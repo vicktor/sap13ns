@@ -25,3 +25,16 @@ func TestMaxAge(t *testing.T) {
 		t.Error("an entry outlived the cache's TTL")
 	}
 }
+
+func TestLookups(t *testing.T) {
+	c := New(10, 1<<20, time.Minute)
+	c.Get("/")
+	c.Set("/", &Entry{Body: []byte("x")})
+	c.Get("/")
+	c.Get("/")
+	c.Invalidate()
+	c.Get("/")
+	if h, m := c.Lookups(); h != 2 || m != 2 {
+		t.Fatalf("lookups: %d hits, %d misses", h, m)
+	}
+}

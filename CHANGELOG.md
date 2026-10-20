@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.4 — 2026-10-20
+
+- System page: the caches show how much of the public traffic they served
+  since the start, and say why they look empty to an administrator: pages
+  seen while signed in are always rendered afresh, and saving anything in the
+  admin empties the cache.
+
 ## v0.2.3 — 2026-10-20
 
 - Updates from the admin: **System → Updates → Update now** installs the

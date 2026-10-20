@@ -30,6 +30,8 @@ type Cache struct {
 	gen     atomic.Uint64
 	bytes   int
 	maxSize int
+
+	hits, misses atomic.Uint64 // lookups since start
 }
 
 func New(maxEntries, maxBytes int, ttl time.Duration) *Cache {
@@ -55,14 +57,18 @@ func (c *Cache) Get(key string) (*Entry, bool) {
 	c.mu.RLock()
 	e, ok := c.entries[key]
 	c.mu.RUnlock()
-	if !ok || e.gen != c.gen.Load() || time.Since(e.created) > c.ttl {
+	if !ok || e.gen != c.gen.Load() || time.Since(e.created) > c.ttl ||
+		e.MaxAge > 0 && time.Since(e.created) > e.MaxAge {
+		c.misses.Add(1)
 		return nil, false
 	}
-	if e.MaxAge > 0 && time.Since(e.created) > e.MaxAge {
-		return nil, false
-	}
+	c.hits.Add(1)
 	return e, true
 }
+
+// Lookups returns how many lookups found an entry, and how many did not,
+// since the cache was created. Invalidate does not reset them.
+func (c *Cache) Lookups() (hits, misses uint64) { return c.hits.Load(), c.misses.Load() }
 
 func (c *Cache) Set(key string, e *Entry) {
 	if len(e.Body) > c.maxSize/8 {
