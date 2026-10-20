@@ -63,6 +63,8 @@
   </div>
 </div>
 <noscript><div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The customiser needs JavaScript for its live preview."}}</h2></div></noscript>
+{{if $d.LayoutDraft}}<div class="alert" data-variant="warning">{{icon "layout-template"}}<h2>{{T "The page builder has unpublished changes"}}</h2>
+  <section>{{T "The preview shows them, but visitors do not see them, and Publish here does not publish them. Publish or discard them in the page builder."}} <a href="/admin/appearance/themes/{{$th.Slug}}/builder">{{T "Open the page builder"}}</a></section></div>{{end}}
 
 <div class="customizer" data-customizer data-base="{{$base}}" data-slug="{{$th.Slug}}" data-state="{{$d.State}}"
   data-msg-saving="{{T "Saving draft…"}}" data-msg-saved="{{T "Draft saved at %s"}}" data-msg-failed="{{T "The draft was not saved: %s"}}"

@@ -480,6 +480,7 @@ type customizeData struct {
 	Colors      []colorRow
 	State       string // JSON for customizer.js: design, defaults, options
 	HasDraft    bool
+	LayoutDraft bool // the page builder has an unpublished draft, which the preview shows
 	DraftAt     *time.Time
 	PublishedAt *time.Time
 	PreviewURL  string
@@ -563,6 +564,9 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 	data := customizeData{Theme: th, Design: d, HasDraft: row.Draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
 		PreviewURL: "/?preview_theme=" + th.Slug + "&customize=draft", Revisions: revs, Langs: s.extraLangs(),
 		Options: th.OptionValues(effective), Active: s.themes.Active(s.settings().ActiveTheme) == th}
+	if lr, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout); err == nil {
+		data.LayoutDraft = lr.Draft != nil
+	}
 	if fonts, _, err := s.store.ListMedia(ctx, store.MediaQuery{MIME: "font/woff2", Limit: 100}); err == nil {
 		data.Fonts = fonts
 	}

@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.17 — 2026-10-20
+
+- Customiser: when the page builder has unpublished changes, a notice says
+  that the preview shows them but visitors do not, and links to the builder
+  to publish or discard them. The preview could look unlike the site while
+  the status said it was up to date with the published design.
+
 ## v0.2.16 — 2026-10-20
 
 - Network: only a super admin changes a super admin's account (password,
