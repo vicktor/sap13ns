@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.10 — 2026-10-20
+
+- Post editor: uploading from the media dialog showed nothing, neither the
+  progress nor an error, because the dialog covers the notices. The dialog
+  now shows the progress bar and the percentage, then "Processing…", and
+  any error inside it. The new file appears in the dialog ready to pick.
+
 ## v0.2.9 — 2026-10-20
 
 - Update now on a network: the update stopped with "the backup

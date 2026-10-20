@@ -19,6 +19,7 @@
       <div class="progress" role="progressbar" aria-label="{{T "Uploading…"}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
       <p class="hint" data-upload-text aria-live="polite"></p>
     </div>
+    <div class="alert upload-errors" data-variant="destructive" role="alert" data-upload-errors hidden>{{icon "circle-alert"}}<h2>{{T "Upload failed"}}</h2><section></section></div>
   </div>
   <noscript><button class="btn" type="submit">{{T "Upload"}}</button></noscript>
 </form>

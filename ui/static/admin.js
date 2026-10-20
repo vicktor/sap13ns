@@ -320,71 +320,106 @@
   });
   document.addEventListener("change", async (e) => {
     if (!e.target.hasAttribute?.("data-media-upload") || !e.target.files.length) return;
-    const items = await upload(e.target.files);
+    const items = await upload(e.target.files, e.target.closest("dialog"));
     e.target.value = "";
     if (items.length) loadMedia(true);
   });
 
-  async function upload(files) {
-    const fd = new FormData();
-    for (const f of files) fd.append("file", f);
-    toast("info", t("Uploading…"));
-    try {
-      const res = await fetch("/admin/media", { method: "POST", body: fd, credentials: "same-origin", headers: { Accept: "application/json", "X-CSRF-Token": csrf() } });
-      const data = await res.json().catch(() => ({}));
-      for (const err of data.errors || []) toast("error", err);
-      if (!res.ok && !data.errors) toast("error", data.error || t("Upload failed"));
-      return data.items || [];
-    } catch (_) {
-      toast("error", t("Upload failed"));
-      return [];
-    }
+  // sendFiles posts files to the library with XMLHttpRequest, whose upload
+  // events give the progress (fetch has none). It resolves with the status
+  // and the JSON answer: data is null when the answer is not sap13ns's (a
+  // proxy's 413 page, say) and status 0 when the request did not get through.
+  function sendFiles(files, onProgress, flash) {
+    return new Promise((resolve) => {
+      const fd = new FormData();
+      fd.append("csrf", csrf());
+      for (const f of files) fd.append("file", f);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/admin/media");
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.setRequestHeader("X-CSRF-Token", csrf());
+      if (flash) xhr.setRequestHeader("X-Sap13ns-Flash", "1");
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+      });
+      xhr.addEventListener("load", () => {
+        let data = null;
+        if ((xhr.getResponseHeader("Content-Type") || "").includes("application/json")) {
+          try { data = JSON.parse(xhr.responseText); } catch (_) { /* not JSON after all */ }
+        }
+        resolve({ status: xhr.status, data });
+      });
+      xhr.addEventListener("error", () => resolve({ status: 0, data: null }));
+      xhr.send(fd);
+    });
   }
 
-  // Media library page: upload with XMLHttpRequest, whose upload events give
-  // the progress (fetch has none), then reload: the server leaves the result
-  // as a flash, as it does for the plain form post without JavaScript.
-  function uploadForm(form, files) {
-    if (form.classList.contains("uploading")) return;
-    const box = $("[data-upload-progress]", form);
-    const bar = $(".progress", form);
-    const text = $("[data-upload-text]", form);
+  // uploadErrors are the messages of an upload that failed, whole or in part.
+  function uploadErrors({ status, data }) {
+    if (!data) return [status === 413 ? t("The file is too large") : t("Upload failed")];
+    if (data.errors?.length) return data.errors;
+    if (status >= 400) return [data.error || t("Upload failed")];
+    return [];
+  }
+
+  // progressBox drives the upload status inside root: a bar with a line of
+  // text while sending, then the errors, if any. Toasts would not do in the
+  // media dialog, which the top layer puts above them.
+  function progressBox(root) {
+    const box = $("[data-upload-progress]", root);
+    const errs = $("[data-upload-errors]", root);
+    if (!box) return null;
+    const bar = $(".progress", box);
+    const text = $("[data-upload-text]", box);
     const show = (pct, msg) => {
       if (bar) { bar.firstElementChild.style.width = pct + "%"; bar.setAttribute("aria-valuenow", String(pct)); }
       if (text) text.textContent = msg;
     };
-    const done = () => {
-      form.classList.remove("uploading");
-      if (box) box.hidden = true;
-      show(0, "");
-      const input = $('input[type="file"]', form);
-      if (input) input.value = ""; // so the same file can be chosen again
+    return {
+      start() {
+        if (errs) errs.hidden = true;
+        box.hidden = false;
+        show(0, t("Uploading…"));
+      },
+      progress(pct) { show(pct, pct < 100 ? `${t("Uploading…")} ${pct} %` : t("Processing…")); },
+      end(messages) {
+        box.hidden = true;
+        show(0, "");
+        if (!errs || !messages.length) return;
+        $("section", errs).replaceChildren(...messages.map((m) => Object.assign(document.createElement("p"), { textContent: m })));
+        errs.hidden = false;
+      },
     };
-    const fd = new FormData();
-    fd.append("csrf", $('input[name="csrf"]', form)?.value || csrf());
-    for (const f of files) fd.append("file", f);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", form.action);
-    xhr.setRequestHeader("Accept", "application/json");
-    xhr.setRequestHeader("X-CSRF-Token", csrf());
-    xhr.setRequestHeader("X-Sap13ns-Flash", "1");
-    xhr.upload.addEventListener("progress", (e) => {
-      if (!e.lengthComputable) return;
-      const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
-      show(pct, pct < 100 ? `${t("Uploading…")} ${pct} %` : t("Processing…"));
-    });
-    xhr.addEventListener("load", () => {
-      // A JSON answer comes from sap13ns, with the flash set: show it. Any
-      // other (a proxy's 413 page, say) did not reach it.
-      if ((xhr.getResponseHeader("Content-Type") || "").includes("application/json")) { location.reload(); return; }
-      done();
-      toast("error", xhr.status === 413 ? t("The file is too large") : t("Upload failed"));
-    });
-    xhr.addEventListener("error", () => { done(); toast("error", t("Upload failed")); });
+  }
+
+  // upload sends files and returns the items stored. With a root that has a
+  // status box (the media dialog), the progress and the errors show there;
+  // otherwise in toasts.
+  const uploading = new WeakSet();
+  async function upload(files, root) {
+    const ui = root && progressBox(root);
+    if (ui && uploading.has(root)) return [];
+    if (ui) { uploading.add(root); ui.start(); } else toast("info", t("Uploading…"));
+    const res = await sendFiles(files, ui?.progress);
+    const errs = uploadErrors(res);
+    if (ui) { uploading.delete(root); ui.end(errs); } else errs.forEach((m) => toast("error", m));
+    return res.data?.items || [];
+  }
+
+  // Media library page: the same upload, then a reload, since the server
+  // leaves the result as a flash, as it does for the plain form post that
+  // works without JavaScript.
+  async function uploadForm(form, files) {
+    const ui = progressBox(form);
+    if (!ui || form.classList.contains("uploading")) return;
     form.classList.add("uploading");
-    if (box) box.hidden = false;
-    show(0, t("Uploading…"));
-    xhr.send(fd);
+    ui.start();
+    const res = await sendFiles(files, ui.progress, true);
+    if (res.data) { location.reload(); return; }
+    form.classList.remove("uploading");
+    ui.end(uploadErrors(res));
+    const input = $('input[type="file"]', form);
+    if (input) input.value = ""; // so the same file can be chosen again
   }
 
   // Drag and drop: on the editor it uploads and inserts; on the library it submits.
@@ -401,7 +436,7 @@
     e.preventDefault();
     zone.classList.remove("dragging");
     if (zone.matches("[data-upload-form]")) return uploadForm(zone, e.dataTransfer.files);
-    const items = await upload(e.dataTransfer.files);
+    const items = await upload(e.dataTransfer.files, zone.closest("dialog"));
     if (zone.hasAttribute("data-editor-text")) items.forEach((it) => insertMedia(zone, it));
     else loadMedia(true);
   });
