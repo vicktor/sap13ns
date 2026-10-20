@@ -48,6 +48,28 @@ type Summary struct {
 	// codes), whatever the limit, for the map; shares are of the views
 	// whose country is known.
 	Countries []Item
+	// Bots is the automated traffic of the period, kept out of every
+	// figure above.
+	Bots BotSummary
+}
+
+// BotSummary is the automated traffic of a period.
+type BotSummary struct {
+	Hits int64 // every request of bots and scanners
+	// Categories has one entry per BotCategories, in that order, zeros
+	// included; Value is the Category and shares are of Hits.
+	Categories []Item
+	// Top lists the most active named bots (scanners have no name);
+	// shares are of Hits.
+	Top []BotItem
+}
+
+// BotItem is one bot of BotSummary.Top.
+type BotItem struct {
+	Name     string
+	Category Category
+	Hits     int64
+	Share    float64
 }
 
 // Delta is a relative change, as in "+12% vs previous period".
@@ -131,7 +153,56 @@ func Report(ctx context.Context, db DB, from, to time.Time, limit int) (*Summary
 	if err := s.loadDims(ctx, db, f, t, limit); err != nil {
 		return nil, err
 	}
+	if err := s.loadBots(ctx, db, f, t, limit); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+func (s *Summary) loadBots(ctx context.Context, db DB, f, t dayNum, limit int) error {
+	rows, err := db.Query(ctx, `SELECT category, sum(hits)::int8 FROM analytics_bots
+		WHERE day BETWEEN $1 AND $2 GROUP BY category`, f.time(), t.time())
+	if err != nil {
+		return fmt.Errorf("analytics: bots: %w", err)
+	}
+	byCat := map[Category]int64{}
+	for rows.Next() {
+		var cat string
+		var n int64
+		if err := rows.Scan(&cat, &n); err != nil {
+			rows.Close()
+			return fmt.Errorf("analytics: bots: %w", err)
+		}
+		byCat[Category(cat)] += n
+		s.Bots.Hits += n
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("analytics: bots: %w", err)
+	}
+	for _, c := range BotCategories {
+		s.Bots.Categories = append(s.Bots.Categories, Item{Value: string(c), Views: byCat[c], Share: share(byCat[c], s.Bots.Hits)})
+	}
+	rows, err = db.Query(ctx, `SELECT name, category, sum(hits)::int8 AS h FROM analytics_bots
+		WHERE day BETWEEN $1 AND $2 AND name <> ''
+		GROUP BY name, category ORDER BY h DESC, name, category LIMIT $3`, f.time(), t.time(), limit)
+	if err != nil {
+		return fmt.Errorf("analytics: bot names: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var it BotItem
+		var cat string
+		if err := rows.Scan(&it.Name, &cat, &it.Hits); err != nil {
+			return fmt.Errorf("analytics: bot names: %w", err)
+		}
+		it.Category, it.Share = Category(cat), share(it.Hits, s.Bots.Hits)
+		s.Bots.Top = append(s.Bots.Top, it)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("analytics: bot names: %w", err)
+	}
+	return nil
 }
 
 func (s *Summary) loadDays(ctx context.Context, db DB, f, t dayNum) error {
@@ -233,8 +304,9 @@ func Prune(ctx context.Context, db DB, olderThan time.Time) (int64, error) {
 	err := db.QueryRow(ctx, `WITH
 		a AS (DELETE FROM analytics_days WHERE day < $1 RETURNING 1),
 		b AS (DELETE FROM analytics_pages WHERE day < $1 RETURNING 1),
-		c AS (DELETE FROM analytics_dims WHERE day < $1 RETURNING 1)
-		SELECT (SELECT count(*) FROM a) + (SELECT count(*) FROM b) + (SELECT count(*) FROM c)`,
+		c AS (DELETE FROM analytics_dims WHERE day < $1 RETURNING 1),
+		d AS (DELETE FROM analytics_bots WHERE day < $1 RETURNING 1)
+		SELECT (SELECT count(*) FROM a) + (SELECT count(*) FROM b) + (SELECT count(*) FROM c) + (SELECT count(*) FROM d)`,
 		dateNum(olderThan.Date()).time()).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("analytics: prune: %w", err)

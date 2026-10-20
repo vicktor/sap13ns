@@ -45,13 +45,17 @@ func testDB(t *testing.T) *pgx.Conn {
 	if _, err := conn.Exec(ctx, "SET search_path TO "+schema); err != nil {
 		t.Fatal(err)
 	}
-	src, err := os.ReadFile(filepath.Join("..", "db", "migrations", "0003_features.sql"))
-	if err != nil {
-		t.Fatal(err)
+	var src []byte
+	for _, m := range []string{"0003_features.sql", "0019_analytics_bots.sql"} {
+		b, err := os.ReadFile(filepath.Join("..", "db", "migrations", m))
+		if err != nil {
+			t.Fatal(err)
+		}
+		src = append(append(src, b...), '\n')
 	}
 	tables := regexp.MustCompile(`(?s)CREATE TABLE analytics_\w+ \(.*?\n\);`).FindAllString(string(src), -1)
-	if len(tables) != 3 {
-		t.Fatalf("found %d analytics tables in the migration, want 3", len(tables))
+	if len(tables) != 4 {
+		t.Fatalf("found %d analytics tables in the migrations, want 4", len(tables))
 	}
 	for _, ddl := range tables {
 		if _, err := conn.Exec(ctx, ddl); err != nil {

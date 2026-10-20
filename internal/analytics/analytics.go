@@ -6,6 +6,12 @@
 // periodically upserted into analytics_days, analytics_pages and
 // analytics_dims; nothing about an individual visit is ever stored.
 //
+// Automated traffic never counts as a visit. The web layer calls
+// Collector.RecordRequest for the requests of the site that are not static
+// files; those of crawlers, AI agents, link previews, monitors and other
+// bots (Classify) and probes of vulnerability scanners (ScannerPath) are
+// counted per category and bot name in analytics_bots instead.
+//
 // Unique visitors are counted with sha256(dailySalt || siteSalt || IP || UA).
 // The daily salt is random, held only in memory and replaced at local
 // midnight together with the set of today's hashes, so visits cannot be
@@ -15,6 +21,7 @@
 package analytics
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -60,6 +67,9 @@ type Options struct {
 	// MaxVisitors bounds the visitor hashes kept for today; beyond it the
 	// unique count becomes a sampled estimate. Default 200000.
 	MaxVisitors int
+	// MaxBotNames bounds the distinct bot names kept per day; further
+	// names are counted as "(other)". Default 500.
+	MaxBotNames int
 	// ClientIP returns the visitor address, resolving trusted proxies.
 	// Default: the host part of r.RemoteAddr.
 	ClientIP func(*http.Request) string
@@ -81,6 +91,7 @@ const (
 	defaultFlushEvery  = time.Minute
 	defaultMaxPaths    = 5000
 	defaultMaxVisitors = 200_000
+	defaultMaxBotNames = 500
 	// maxPendingDays bounds how many days of unflushed data are kept while
 	// the database is unreachable; older days are discarded.
 	maxPendingDays = 7
@@ -116,6 +127,7 @@ type Collector struct {
 	flushEvery  time.Duration
 	maxPaths    int
 	maxVisitors int
+	maxBotNames int
 	siteSalt    []byte
 	internal    map[string]bool
 
@@ -133,6 +145,7 @@ type Collector struct {
 	visitors *visitorSet
 	paths    map[string]struct{}          // paths admitted today
 	admitted [numDims]map[string]struct{} // capped dimension values admitted today
+	botNames map[string]struct{}          // bot names admitted today
 	pending  map[dayNum]*bucket           // unflushed aggregates
 }
 
@@ -142,10 +155,17 @@ type bucket struct {
 	visitors int64 // unique visitors of the day so far (not a delta)
 	pages    map[string]int64
 	dims     [numDims]map[string]int64
+	bots     map[botKey]int64
+}
+
+// botKey is a row of analytics_bots within a day.
+type botKey struct {
+	cat  Category
+	name string
 }
 
 func newBucket() *bucket {
-	b := &bucket{pages: make(map[string]int64)}
+	b := &bucket{pages: make(map[string]int64), bots: make(map[botKey]int64)}
 	for i := range b.dims {
 		b.dims[i] = make(map[string]int64)
 	}
@@ -163,6 +183,9 @@ func (b *bucket) merge(o *bucket) {
 		for k, v := range o.dims[i] {
 			b.dims[i][k] += v
 		}
+	}
+	for k, v := range o.bots {
+		b.bots[k] += v
 	}
 }
 
@@ -193,6 +216,7 @@ func New(db DB, opts Options) *Collector {
 		flushEvery:  opts.FlushEvery,
 		maxPaths:    opts.MaxPaths,
 		maxVisitors: opts.MaxVisitors,
+		maxBotNames: opts.MaxBotNames,
 		siteSalt:    slices.Clone(opts.SiteSalt),
 		internal:    make(map[string]bool),
 		done:        make(chan struct{}),
@@ -216,6 +240,9 @@ func New(db DB, opts Options) *Collector {
 	}
 	if c.maxVisitors <= 0 {
 		c.maxVisitors = defaultMaxVisitors
+	}
+	if c.maxBotNames <= 0 {
+		c.maxBotNames = defaultMaxBotNames
 	}
 	if len(c.siteSalt) == 0 {
 		c.siteSalt = make([]byte, 32)
@@ -290,17 +317,17 @@ func countable(r *http.Request) bool {
 // Record counts a page view. The web layer calls it for successful (200)
 // public HTML GET responses, passing the canonical path visitors see (with
 // any language prefix) and the content language. Record itself drops
-// non-GET requests, prefetches and prerenders, non-document fetches and bots.
-// It never blocks on I/O.
+// non-GET requests, prefetches and prerenders, non-document fetches, bots
+// and scanner paths (RecordRequest counts those). It never blocks on I/O.
 func (c *Collector) Record(r *http.Request, path, lang string) {
 	if c == nil || r == nil || !c.enabled.Load() || c.closed.Load() || !countable(r) {
 		return
 	}
-	ua := r.Header.Get("User-Agent")
-	lua := strings.ToLower(strings.TrimSpace(ua))
-	if isBotLower(lua) {
+	if ScannerPath(r.URL.Path) || ClassifyRequest(r).Bot() {
 		return
 	}
+	ua := r.Header.Get("User-Agent")
+	lua := strings.ToLower(strings.TrimSpace(ua))
 	browser, osName, device := parseUA(lua)
 	source, hasSource := referrerSource(r, c.internal)
 	ip := c.clientIP(r)
@@ -339,6 +366,36 @@ func (c *Collector) Record(r *http.Request, path, lang string) {
 	}
 	c.visitors.add(c.hashLocked(ip, ua))
 	b.visitors = max(b.visitors, c.visitors.count())
+}
+
+// RecordRequest counts a request of automated traffic: one whose path
+// probes for software the site does not run (category Scanner, whoever
+// asks) or whose client is a bot (ClassifyRequest). Requests of people
+// are ignored; Record counts their page views. The web layer calls it for
+// every request but static files and those of signed-in users, whatever
+// the method and the response. It never blocks on I/O.
+func (c *Collector) RecordRequest(r *http.Request) {
+	if c == nil || r == nil || !c.enabled.Load() || c.closed.Load() {
+		return
+	}
+	var a Agent
+	if ScannerPath(r.URL.Path) {
+		a = Agent{Category: Scanner}
+	} else if a = ClassifyRequest(r); !a.Bot() {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rotateLocked(c.now())
+	b := c.pending[c.today]
+	if b == nil {
+		b = newBucket()
+		c.pending[c.today] = b
+	}
+	if a.Name != "" {
+		a.Name = admit(c.botNames, a.Name, c.maxBotNames)
+	}
+	b.bots[botKey{a.Category, a.Name}]++
 }
 
 // countryCode accepts two upper-case ASCII letters, the form of ISO
@@ -391,6 +448,7 @@ func (c *Collector) resetDayLocked() {
 	for i := range c.admitted {
 		c.admitted[i] = make(map[string]struct{})
 	}
+	c.botNames = make(map[string]struct{})
 }
 
 // trimPendingLocked discards the oldest unflushed days beyond
@@ -476,6 +534,11 @@ dims AS (
 	INSERT INTO analytics_dims AS t (day, dim, value, views)
 	SELECT * FROM unnest($7::date[], $8::text[], $9::text[], $10::int8[])
 	ON CONFLICT (day, dim, value) DO UPDATE SET views = t.views + EXCLUDED.views
+),
+bots AS (
+	INSERT INTO analytics_bots AS t (day, category, name, hits)
+	SELECT * FROM unnest($11::date[], $12::text[], $13::text[], $14::int8[])
+	ON CONFLICT (day, category, name) DO UPDATE SET hits = t.hits + EXCLUDED.hits
 )
 SELECT 1`
 
@@ -530,6 +593,9 @@ func flushArgs(snap map[dayNum]*bucket) []any {
 		xDays           []time.Time
 		xDims, xValues  []string
 		xViews          []int64
+		bDays           []time.Time
+		bCats, bNames   []string
+		bHits           []int64
 	)
 	for _, d := range slices.Sorted(maps.Keys(snap)) {
 		b, t := snap[d], d.time()
@@ -542,6 +608,12 @@ func flushArgs(snap map[dayNum]*bucket) []any {
 				xDays, xDims, xValues, xViews = append(xDays, t), append(xDims, dimNames[i]), append(xValues, v), append(xViews, m[v])
 			}
 		}
+		keys := slices.SortedFunc(maps.Keys(b.bots), func(x, y botKey) int {
+			return cmp.Or(cmp.Compare(x.cat, y.cat), cmp.Compare(x.name, y.name))
+		})
+		for _, k := range keys {
+			bDays, bCats, bNames, bHits = append(bDays, t), append(bCats, string(k.cat)), append(bNames, k.name), append(bHits, b.bots[k])
+		}
 	}
-	return []any{dDays, dViews, dVisits, pDays, pPaths, pViews, xDays, xDims, xValues, xViews}
+	return []any{dDays, dViews, dVisits, pDays, pPaths, pViews, xDays, xDims, xValues, xViews, bDays, bCats, bNames, bHits}
 }

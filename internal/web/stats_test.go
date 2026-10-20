@@ -2,7 +2,9 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -48,5 +50,66 @@ func TestStatsMap(t *testing.T) {
 	}
 	if rec := e.get("/admin/analytics", e.author); rec.Code == http.StatusOK {
 		t.Error("an author opened the analytics")
+	}
+}
+
+func TestStatsBots(t *testing.T) {
+	e := newCustomEnv(t)
+	ctx := context.Background()
+	const (
+		chrome = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+		gpt    = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot"
+		google = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+	)
+	visit := func(method, path, ua string) {
+		req := httptest.NewRequest(method, "http://example.test"+path, nil)
+		req.Header.Set("User-Agent", ua)
+		e.do(req, nil)
+	}
+	visit("GET", "/", chrome) // the only visit
+	visit("GET", "/", gpt)
+	visit("GET", "/robots.txt", gpt)
+	visit("GET", "/", google)
+	visit("GET", "/wp-login.php", chrome) // scanners, whatever their client
+	visit("POST", "/xmlrpc.php", "")
+	visit("GET", "/.env", "curl/8.7.1")
+	visit("GET", "/static/admin.min.js", gpt) // files a page loads are not counted
+	visit("GET", "/healthz", "curl/8.7.1")
+
+	rec := e.get("/admin/analytics", e.admin) // signed in: not counted either
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET: %d", rec.Code)
+	}
+	var views int64
+	if err := e.st.DB.QueryRow(ctx, `SELECT coalesce(sum(views), 0) FROM analytics_days`).Scan(&views); err != nil {
+		t.Fatal(err)
+	}
+	if views != 1 {
+		t.Errorf("%d views, want 1: bots and scanners must not count as visits", views)
+	}
+	rows, err := e.st.DB.Query(ctx, `SELECT category || ':' || name || ':' || hits FROM analytics_bots ORDER BY 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, s)
+	}
+	rows.Close()
+	if want := "[ai:GPTBot:2 scanner::3 search:Googlebot:1]"; fmt.Sprint(got) != want {
+		t.Errorf("bot rows %v, want %s", got, want)
+	}
+	body := rec.Body.String()
+	for _, s := range []string{
+		"Bots de IA", "Buscadores", "Escáneres", "Vistas previas sociales", "SEO y monitorización", "Otros bots",
+		"GPTBot", "Googlebot", "6 peticiones en este periodo.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("missing %q", s)
+		}
 	}
 }

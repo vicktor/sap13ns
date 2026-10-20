@@ -97,6 +97,7 @@ func (s *Server) Handler() http.Handler {
 	h = s.withRedirects(h) // sees the path with its language prefix
 	h = s.signInGate(h)    // a site of a network that is not open: its sign-in and admin only
 	h = s.emergencyGate(h) // a suspended site served for an emergency access only
+	h = s.countBots(h)     // after loadSession: staff are never counted (stats.go)
 	h = s.loadSession(h)
 	h = s.cop.Handler(h)
 	h = s.securityHeaders(h)

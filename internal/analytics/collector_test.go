@@ -29,10 +29,11 @@ type fakeDB struct {
 	days  map[string][2]int64 // day -> views, visitors
 	pages map[string]int64    // "day path"
 	dims  map[string]int64    // "day dim value"
+	bots  map[string]int64    // "day category name"
 }
 
 func newFakeDB() *fakeDB {
-	return &fakeDB{days: map[string][2]int64{}, pages: map[string]int64{}, dims: map[string]int64{}}
+	return &fakeDB{days: map[string][2]int64{}, pages: map[string]int64{}, dims: map[string]int64{}, bots: map[string]int64{}}
 }
 
 func (f *fakeDB) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
@@ -67,6 +68,15 @@ func (f *fakeDB) Exec(_ context.Context, sql string, args ...any) (pgconn.Comman
 		seen[k] = true
 		f.dims[k] += xn[i]
 	}
+	bd, bc, bn, bh := args[10].([]time.Time), args[11].([]string), args[12].([]string), args[13].([]int64)
+	for i := range bd {
+		k := key(bd[i]) + " " + bc[i] + " " + bn[i]
+		if seen[k] {
+			return pgconn.CommandTag{}, errors.New("ON CONFLICT DO UPDATE command cannot affect row a second time")
+		}
+		seen[k] = true
+		f.bots[k] += bh[i]
+	}
 	return pgconn.CommandTag{}, nil
 }
 
@@ -96,6 +106,12 @@ func (f *fakeDB) dim(d, dim, v string) int64 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.dims[d+" "+dim+" "+v]
+}
+
+func (f *fakeDB) bot(d string, cat Category, name string) int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.bots[d+" "+string(cat)+" "+name]
 }
 
 // clock is a settable time source.

@@ -49,6 +49,30 @@ func (s *Server) recordView(r *http.Request, status int, contentType string) {
 	s.stats.Record(r, s.langPath(lang, r.URL.Path), cmp.Or(lang, s.mainLang()))
 }
 
+// countBots counts the requests of bots and vulnerability scanners
+// (analytics.RecordRequest), whatever their method and response, so that
+// automated traffic is seen apart from the visits of people. Static files
+// and health checks are left out, and so is anyone signed in.
+func (s *Server) countBots(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rctx(r).Session == nil && !botExempt(r.URL.Path) {
+			s.stats.RecordRequest(r)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// botExempt reports the paths of files a page loads, which would count a
+// crawler once per asset instead of once per page.
+func botExempt(p string) bool {
+	for _, pre := range []string{"/static/", "/themes/", "/uploads/", "/plugin-assets/", "/og/", "/video-thumbs/"} {
+		if strings.HasPrefix(p, pre) {
+			return true
+		}
+	}
+	return p == "/healthz" || p == "/favicon.ico"
+}
+
 // Close flushes what the analytics collector and the redirect hit counters
 // hold in memory. Call it after the HTTP server has shut down.
 func (s *Server) Close(ctx context.Context) error {
@@ -78,6 +102,21 @@ type statsData struct {
 	S      *analytics.Summary
 	Chart  statsChart
 	Map    statsMap
+	Bots   statsBots
+}
+
+// statsBots is the automated traffic of the period, with the categories
+// and names put into words.
+type statsBots struct {
+	Hits       int64
+	Categories []analytics.Item // every category, in analytics.BotCategories order
+	Top        []statsBot
+}
+
+type statsBot struct {
+	Name, Category string
+	Hits           int64
+	Share          float64
 }
 
 // statsMap is the world map of the visits: every country outline, shaded
@@ -133,8 +172,46 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	d.S, d.Chart, d.Map = sum, s.statsChart(r, sum), s.statsMap(r, sum)
+	d.S, d.Chart, d.Map, d.Bots = sum, s.statsChart(r, sum), s.statsMap(r, sum), s.statsBots(r, sum)
 	s.renderAdmin(w, r, "analytics", s.tu(r, "Analytics"), "analytics", d)
+}
+
+// botCategoryLabel names a category of automated traffic.
+func (s *Server) botCategoryLabel(r *http.Request, c analytics.Category) string {
+	switch c {
+	case analytics.Search:
+		return s.tu(r, "Search engines")
+	case analytics.AI:
+		return s.tu(r, "AI bots")
+	case analytics.Social:
+		return s.tu(r, "Social previews")
+	case analytics.SEO:
+		return s.tu(r, "SEO & monitoring")
+	case analytics.Scanner:
+		return s.tu(r, "Scanners")
+	}
+	return s.tu(r, "Other bots")
+}
+
+func (s *Server) statsBots(r *http.Request, sum *analytics.Summary) statsBots {
+	b := statsBots{Hits: sum.Bots.Hits}
+	for _, it := range sum.Bots.Categories {
+		it.Value = s.botCategoryLabel(r, analytics.Category(it.Value))
+		b.Categories = append(b.Categories, it)
+	}
+	for _, it := range sum.Bots.Top {
+		name := it.Name
+		switch name {
+		case analytics.NoUA:
+			name = s.tu(r, "No User-Agent")
+		case analytics.UnknownBot:
+			name = s.tu(r, "Unnamed bot")
+		case "(other)":
+			name = s.tu(r, "Others")
+		}
+		b.Top = append(b.Top, statsBot{Name: name, Category: s.botCategoryLabel(r, it.Category), Hits: it.Hits, Share: it.Share})
+	}
+	return b
 }
 
 // statsChart lays out the daily views as SVG bars. Geometry is computed here

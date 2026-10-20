@@ -50,8 +50,9 @@ var botMatcher = newMatcher(botWords)
 
 // IsBot reports whether a User-Agent belongs to a crawler, AI agent, link
 // preview fetcher, monitor, headless browser or HTTP library rather than a
-// person using a browser. An empty User-Agent counts as a bot.
-func IsBot(ua string) bool { return isBotLower(strings.ToLower(strings.TrimSpace(ua))) }
+// person using a browser. An empty User-Agent counts as a bot. Classify
+// also tells which kind of bot.
+func IsBot(ua string) bool { return Classify(ua).Bot() }
 
 func isBotLower(l string) bool {
 	if len(l) < 20 || !strings.Contains(l, "(") {

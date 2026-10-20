@@ -218,7 +218,7 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
   - page views, unique visitors, top pages, sources, browsers, systems, devices and languages, with a daily chart in the admin;
   - optionally, the visitors' countries on a world map, from a local country database that `sap13ns geoip update` keeps up to date. Only the country is kept ([docs/DEPLOY.md](docs/DEPLOY.md#visitors-by-country));
   - visitors are counted with a daily rotating salt that lives only in memory, so no IP address, user agent or identifier is ever stored, and no consent banner is needed;
-  - bots, prefetches and signed-in staff are not counted.
+  - bots, prefetches and signed-in staff are not counted as visits. Automated traffic has its own **Bots** card instead: hits of search engines, AI bots, social previews, SEO and monitoring tools, other bots and vulnerability scanners (requests for `/wp-login.php`, `/.env` and the like), with the most active bots by name.
 
 ## Quick start
 

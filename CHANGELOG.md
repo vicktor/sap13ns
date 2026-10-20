@@ -5,6 +5,17 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.4.1 — 2026-10-20
+
+- **Analytics: bots are told apart from visitors.** Search engines, AI
+  crawlers and agents (GPTBot, ClaudeBot, PerplexityBot…), link previews,
+  SEO and monitoring tools, other bots and vulnerability scanners (requests
+  for `/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/`, `*.php` and the
+  like) no longer count as visits. They get their own daily counts by kind
+  and bot name, still without cookies or addresses (migration 0019), and
+  the analytics page has a **Bots** card: hits by kind and the most active
+  bots for the selected range.
+
 ## v0.4.0 — 2026-10-20
 
 - **Theme sections.** A theme can split its pages into sections of its own

@@ -67,6 +67,27 @@
   {{template "stats-list" (dict "Title" (T "Devices") "Items" $s.Devices)}}
   {{template "stats-list" (dict "Title" (T "Languages") "Items" $s.Langs)}}
 </div>
+
+{{$b := $d.Bots}}
+<section class="card" id="bots">
+  <header><h2>{{T "Bots"}}</h2><p>{{T "Crawlers, AI agents, link previews, monitors and vulnerability scanners. They are not counted as visits."}} {{T "%d requests in this period." $b.Hits}}</p></header>
+  <section class="dash-grid">
+    <div>
+      <h3 class="text-sm">{{T "By kind"}}</h3>
+      <ol class="stats-list">
+        {{range $b.Categories}}<li><span class="stats-name">{{.Value}}</span><span class="stats-num">{{.Views}}</span><meter min="0" max="100" value="{{.Share}}" aria-label="{{printf "%.1f%%" .Share}}">{{printf "%.1f%%" .Share}}</meter></li>{{end}}
+      </ol>
+    </div>
+    <div>
+      <h3 class="text-sm">{{T "Most active bots"}}</h3>
+      {{if $b.Top}}
+      <ol class="stats-list">
+        {{range $b.Top}}<li><span class="stats-name">{{.Name}} <span class="muted text-xs">{{.Category}}</span></span><span class="stats-num">{{.Hits}}</span><meter min="0" max="100" value="{{.Share}}" aria-label="{{printf "%.1f%%" .Share}}">{{printf "%.1f%%" .Share}}</meter></li>{{end}}
+      </ol>
+      {{else}}<p class="muted text-sm">{{T "No data for this period yet."}}</p>{{end}}
+    </div>
+  </section>
+</section>
 {{end}}
 
 {{define "stats-list"}}
