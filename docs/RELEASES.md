@@ -149,7 +149,10 @@ only leaves a request, `/var/lib/sap13ns/update-request`, which starts
 1. removes the request, so a failure cannot start it again in a loop;
 2. checks for the latest release; if there is nothing newer, it stops;
 3. runs the backup units that are installed (`sap13ns-backup.service` or
-   `sap13ns-network-backup.service`), and stops if a backup fails;
+   `sap13ns-network-backup.service`), and stops if a backup fails. When the
+   network unit is installed, it skips `sap13ns-backup.service`, which a
+   server that became a network may still have and which refuses to run on
+   a network;
 4. installs the release as `sap13ns update` does (signature, checksum,
    version check, `sap13ns.old` kept);
 5. restarts `sap13ns.service`.

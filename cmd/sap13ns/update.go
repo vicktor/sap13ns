@@ -104,10 +104,7 @@ func runUpdate(check, yes, force bool, backup, restart string, report func(updat
 		}
 	}
 	report(update.Status{State: update.StateRunning, To: to})
-	for _, unit := range strings.Split(backup, ",") {
-		if unit = strings.TrimSpace(unit); unit == "" || !unitInstalled(unit) {
-			continue
-		}
+	for _, unit := range backupUnits(backup, unitInstalled) {
 		fmt.Println("backing up:", unit)
 		if out, err := exec.CommandContext(ctx, "systemctl", "start", unit).CombinedOutput(); err != nil {
 			return fmt.Errorf("the backup (%s) failed, nothing was installed: %v %s", unit, err, strings.TrimSpace(string(out)))
@@ -130,6 +127,28 @@ func runUpdate(check, yes, force bool, backup, restart string, report func(updat
 }
 
 // unitInstalled reports whether a systemd unit file is installed.
+// backupUnits are the units of the -backup list that are installed. A
+// network backs up with sap13ns-network-backup.service; a single-site unit
+// left from before the server became a network would only fail there
+// ("sap13ns backup create" refuses a network), so it is skipped.
+func backupUnits(list string, installed func(string) bool) []string {
+	var out []string
+	network := installed(networkBackupUnit)
+	for _, unit := range strings.Split(list, ",") {
+		unit = strings.TrimSpace(unit)
+		if unit == "" || !installed(unit) || (network && unit == siteBackupUnit) {
+			continue
+		}
+		out = append(out, unit)
+	}
+	return out
+}
+
+const (
+	siteBackupUnit    = "sap13ns-backup.service"
+	networkBackupUnit = "sap13ns-network-backup.service"
+)
+
 func unitInstalled(unit string) bool {
 	for _, dir := range []string{"/etc/systemd/system", "/lib/systemd/system", "/usr/lib/systemd/system"} {
 		if _, err := os.Stat(filepath.Join(dir, unit)); err == nil {
