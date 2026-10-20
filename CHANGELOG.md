@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.16 — 2026-10-20
+
+- Network: only a super admin changes a super admin's account (password,
+  e-mail, sessions, two-factor authentication, status). The upgrade from an
+  older version makes only the network's first admin a super admin; run
+  `sap13ns network init -username U` for any other.
+
 ## v0.2.15 — 2026-10-20
 
 - Network: a super admin can give a site a paid plan (Pro, Business) for one

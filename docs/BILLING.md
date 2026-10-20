@@ -296,8 +296,9 @@ Only a **super admin** grants or cancels these plans: a network
 administrator made from the command line (`sap13ns network init -username
 U`, which also makes an existing account one). Network administrators added
 in the portal see the plan, not the buttons, and the server refuses them
-with 403. A super admin is revoked only by another super admin, and the last
-one cannot be revoked, disabled or deleted.
+with 403. A super admin is revoked, and their account changed, only by another super
+admin, and the last one cannot be revoked, disabled or deleted. Upgrading
+from v0.2.14 or older makes only the network's first admin a super admin.
 
 **What visitors see.** A held site answers its public pages with a 503 page
 that says "This site is paused" and that it will be back soon, with a

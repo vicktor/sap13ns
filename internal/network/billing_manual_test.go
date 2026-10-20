@@ -122,6 +122,13 @@ func TestManualPlan(t *testing.T) {
 	if ok, _ := e.n.IsSuperAdmin(e.ctx, nina); !ok {
 		t.Fatal("nina is no longer a super admin")
 	}
+	ninaURL := portalURL + "/admin/users/" + strconv.FormatInt(nina, 10)
+	if rec := xb.do("POST", ninaURL, url.Values{"csrf": {xcsrf}, "role": {"admin"}, "status": {"active"}, "email": {"omar+nina@example.com"}}); rec.Code != http.StatusForbidden {
+		t.Errorf("a super admin's account changed by a network admin: %d", rec.Code)
+	}
+	if rec := xb.get(ninaURL); !strings.Contains(rec.Body.String(), "Solo un superadministrador") {
+		t.Error("the super admin's account page does not say who may change it")
+	}
 	nb.post(admins+"/"+strconv.FormatInt(nina, 10)+"/delete", admins, url.Values{"csrf": {csrf}})
 	if ok, _ := e.n.IsNetworkAdmin(e.ctx, nina); !ok {
 		t.Fatal("the last super admin was revoked")

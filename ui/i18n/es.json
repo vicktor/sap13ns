@@ -1262,6 +1262,8 @@
   "Only a member of this site can link their sap13ns account.": "Solo un miembro de este sitio puede vincular su cuenta de sap13ns.",
   "Only a network administrator can change it, close its sessions, reset its two-factor authentication or delete it.": "Solo un administrador de la red puede cambiarla, cerrar sus sesiones, restablecer su verificación en dos pasos o eliminarla.",
   "Only a network administrator can change the account of a network administrator.": "Solo un administrador de la red puede cambiar la cuenta de un administrador de la red.",
+  "Only a super administrator can change it, close its sessions, reset its two-factor authentication or delete it.": "Solo un superadministrador puede cambiarla, cerrar sus sesiones, restablecer su verificación en dos pasos o eliminarla.",
+  "Only a super administrator can change the account of a super administrator.": "Solo un superadministrador puede cambiar la cuenta de un superadministrador.",
   "Only a super administrator can do this.": "Solo un superadministrador puede hacer esto.",
   "Only a super administrator, made from the command line, can grant or cancel a plan without payment.": "Solo un superadministrador, creado desde la línea de comandos, puede conceder o cancelar un plan sin pago.",
   "Only a verified domain can be the primary one.": "Solo un dominio verificado puede ser el principal.",

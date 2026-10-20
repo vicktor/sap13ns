@@ -61,6 +61,9 @@ type userEditData struct {
 	// Protected: a network admin's account on the portal, which only
 	// another network admin may change.
 	Protected bool
+	// ProtectedSuper: the account is a super admin's, which only another
+	// super admin may change.
+	ProtectedSuper bool
 }
 
 func (s *Server) adminUserNew(w http.ResponseWriter, r *http.Request) {
@@ -122,16 +125,21 @@ func (s *Server) loadUser(w http.ResponseWriter, r *http.Request) (*store.User, 
 // protectedAccount reports whether, on the portal, u is the account of a
 // network admin and the signed-in user is not one: whoever takes over that
 // account opens every site of the network as an operator, so only another
-// network admin may change it.
+// network admin may change it. A super admin's account, likewise, only
+// another super admin.
 func (s *Server) protectedAccount(r *http.Request, u *store.User) (bool, error) {
 	if s.portal == nil {
 		return false, nil
 	}
-	admin, err := s.portal.IsNetworkAdmin(r.Context(), u.ID)
-	if err != nil || !admin {
+	check := s.portal.IsNetworkAdmin
+	if super, err := s.portal.IsSuperAdmin(r.Context(), u.ID); err != nil {
+		return false, err
+	} else if super {
+		check = s.portal.IsSuperAdmin
+	} else if admin, err := check(r.Context(), u.ID); err != nil || !admin {
 		return false, err
 	}
-	actor, err := s.portal.IsNetworkAdmin(r.Context(), uid(r))
+	actor, err := check(r.Context(), uid(r))
 	return !actor, err
 }
 
@@ -144,7 +152,11 @@ func (s *Server) refuseProtected(w http.ResponseWriter, r *http.Request, u *stor
 	}
 	if protected {
 		s.audit(r, uid(r), "user.change_refused", u.Username, map[string]string{"reason": "network administrator", "path": r.URL.Path})
-		s.adminError(w, r, http.StatusForbidden, s.tu(r, "Only a network administrator can change the account of a network administrator."))
+		msg := s.tu(r, "Only a network administrator can change the account of a network administrator.")
+		if super, _ := s.portal.IsSuperAdmin(r.Context(), u.ID); super {
+			msg = s.tu(r, "Only a super administrator can change the account of a super administrator.")
+		}
+		s.adminError(w, r, http.StatusForbidden, msg)
 	}
 	return protected
 }
@@ -152,7 +164,10 @@ func (s *Server) refuseProtected(w http.ResponseWriter, r *http.Request, u *stor
 func (s *Server) userEditData(r *http.Request, u *store.User, msg string) (userEditData, error) {
 	d := userEditData{User: u, Roles: assignableRoles, Error: msg, Self: u.ID == uid(r)}
 	var err error
-	if d.Protected, err = s.protectedAccount(r, u); err != nil {
+	if d.Protected, err = s.protectedAccount(r, u); err == nil && d.Protected {
+		d.ProtectedSuper, err = s.portal.IsSuperAdmin(r.Context(), u.ID)
+	}
+	if err != nil {
 		return d, err
 	}
 	if d.Sessions, err = s.store.ListUserSessions(r.Context(), u.ID); err != nil {

@@ -9,7 +9,7 @@
 </div>
 {{template "form-error" $d.Error}}
 {{if $d.Protected}}<div class="alert" role="status">{{icon "shield-check"}}<h2>{{T "This account administers the network"}}</h2>
-  <section>{{T "Only a network administrator can change it, close its sessions, reset its two-factor authentication or delete it."}}</section></div>{{end}}
+  <section>{{if $d.ProtectedSuper}}{{T "Only a super administrator can change it, close its sessions, reset its two-factor authentication or delete it."}}{{else}}{{T "Only a network administrator can change it, close its sessions, reset its two-factor authentication or delete it."}}{{end}}</section></div>{{end}}
 <div class="split">
   <section class="card">
     <section>
