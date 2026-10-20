@@ -80,6 +80,62 @@ const (
 	ContentImage    = "image"
 )
 
+// Section is one of the theme's own sections (theme.json "sections"):
+// part of a page with the theme's design, which the page builder offers as
+// a block, so that pages made of them can be rearranged, have sections
+// removed, repeated or added, each with its own texts. Its template is
+// {{define "section/<id>"}} in templates/sections/; it receives a section
+// view (.Text, .Lines, .Image, .URL, .Anchor, .Page, .Site).
+type Section struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Help  string `json:"help"`
+	Icon  string `json:"icon"` // a Lucide icon the binary carries; layout-template when empty
+	// Anchor is the id of the section on the theme's own front page
+	// (FrontSections), for menu links such as #about.
+	Anchor string `json:"anchor"`
+	// Where lists the page-builder regions it may be placed in (front,
+	// home, page…); empty is the front page only.
+	Where  []string       `json:"where"`
+	Fields []SectionField `json:"fields"`
+}
+
+// SectionField is one setting of a section, edited per section in the page
+// builder. Until it is edited the section shows the theme's text Content
+// (theme.json "content", as the customiser edits it) when it names one,
+// else Default, translated by the theme's catalog.
+type SectionField struct {
+	Key     string `json:"key"`
+	Label   string `json:"label"`
+	Type    string `json:"type"` // text | textarea | lines | image | url
+	Default string `json:"default"`
+	Content string `json:"content"`
+	Help    string `json:"help"`
+}
+
+// SectionURL is the section field type for a link.
+const SectionURL = "url"
+
+// Section returns the theme's section id.
+func (t *Theme) Section(id string) *Section {
+	for i := range t.Sections {
+		if t.Sections[i].ID == id {
+			return &t.Sections[i]
+		}
+	}
+	return nil
+}
+
+// Field returns the section's field named key.
+func (s *Section) Field(key string) *SectionField {
+	for i := range s.Fields {
+		if s.Fields[i].Key == key {
+			return &s.Fields[i]
+		}
+	}
+	return nil
+}
+
 type Choice struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
@@ -101,6 +157,12 @@ type Manifest struct {
 	// Content lists the texts and images of the theme's own templates that
 	// the customiser edits (Appearance → Customise → Texts and images).
 	Content []ContentGroup `json:"content,omitempty"`
+	// Sections are the theme's own sections for the page builder, and
+	// FrontSections the ids of those its front page shows, in order: what
+	// templates/front.html renders with .Site.FrontSections, and the
+	// builder's starting point.
+	Sections      []Section `json:"sections,omitempty"`
+	FrontSections []string  `json:"front_sections,omitempty"`
 	// Motion: the templates animate elements with the motion library
 	// (data-sap-animate, data-sap-stagger), so every page loads it.
 	Motion bool `json:"motion,omitempty"`
@@ -361,6 +423,9 @@ func (m *Manager) parse(t *Theme) error {
 			return err
 		}
 	}
+	if err := parseSections(base, t); err != nil {
+		return err
+	}
 	t.own = map[string]bool{}
 	for _, name := range pageNames {
 		file := "templates/" + name + ".html"
@@ -398,6 +463,37 @@ func (m *Manager) parse(t *Theme) error {
 		t.pages[name] = set
 	}
 	return nil
+}
+
+// parseSections parses templates/sections/*.html and defines
+// "theme/section", which renders a section view with its section's
+// template (shared/block-body calls it for the page builder's blocks).
+func parseSections(base *template.Template, t *Theme) error {
+	if matches, _ := fs.Glob(t.fsys, "templates/sections/*.html"); len(matches) > 0 {
+		if _, err := base.ParseFS(t.fsys, "templates/sections/*.html"); err != nil {
+			return err
+		}
+	}
+	if len(t.Sections) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString(`{{define "theme/section"}}`)
+	for i, sec := range t.Sections {
+		if base.Lookup("section/"+sec.ID) == nil {
+			return fmt.Errorf("templates/sections: no {{define \"section/%s\"}} for the section %q of theme.json", sec.ID, sec.ID)
+		}
+		if i > 0 {
+			b.WriteString("{{else if")
+		} else {
+			b.WriteString("{{if")
+		}
+		// Section ids are checked ids ([a-z0-9_-]).
+		fmt.Fprintf(&b, ` eq .ID %q}}{{template "section/%s" .}}`, sec.ID, sec.ID)
+	}
+	b.WriteString("{{end}}{{end}}")
+	_, err := base.Parse(b.String())
+	return err
 }
 
 func (m *Manager) Get(slug string) (*Theme, bool) {

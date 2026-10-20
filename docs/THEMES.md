@@ -639,7 +639,7 @@ A theme whose pages carry their own texts and photographs (a front page in secti
 - **Defaults.** A text's `default` is English, and the theme's `i18n/<lang>.json` translates it (a `lines` default line by line), so what was not edited keeps the theme's translations. An image's `default` is the file in `static/` the theme shows instead, for the customiser's thumbnail. Labels and help are translated by the theme's catalog too.
 - **Languages.** Texts are edited per site language. A text edited only in the main language still shows the theme's own translation in the others. Images are the same in every language.
 - **In templates.** `{{.Site.Text "key"}}` is the text in the page's language, `{{range .Site.Lines "key"}}` its lines, and `{{with .Site.Image "key"}}…{{else}}<the theme's image>{{end}}` the image chosen (an image view, as `shared/image` takes), or nil.
-- **Click to edit.** Put `data-sap-edit="key"` on the element that holds only that text (wrap the text in a `<span>` when it shares its element with an icon), or on an image, or on the section of a background photograph. In the preview the element is outlined on hover and a click opens its field; the customiser writes typed text into marked elements at once and reloads the preview for images and lists. On public pages the attribute only carries the animation chosen for that text or image, if any (see [Animations](#animations)).
+- **Click to edit.** Put `data-sap-edit="key"` on the element that holds only that text (wrap the text in a `<span>` when it shares its element with an icon), or on an image, or on the section of a background photograph. In the preview the element is outlined on hover. A click on a `text` or `textarea` lets the operator type over it right there (Enter ends a one-line text, Escape puts it back), and the text is saved into the draft like its field; a click on an image or a list opens its field. **Click to edit** in the preview's toolbar turns this off, to follow links in the preview; the customiser writes typed text into marked elements at once and reloads the preview for images and lists. On public pages the attribute only carries the animation chosen for that text or image, if any (see [Animations](#animations)).
 
 ## The page builder
 
@@ -689,6 +689,34 @@ A theme whose pages carry their own texts and photographs (a front page in secti
 - When no block of a main layout renders the page's `<h1>`, `shared/blocks-main` adds a visually hidden one.
 
 A theme without the `BlocksHeader` and `BlocksFooter` checks still gets main-area layouts, which render as its `content`, but its own header and footer stay.
+
+### Theme sections
+
+A theme's front page written by hand is fixed for the page builder unless the theme splits it into **sections**: parts of a page with the theme's own markup, which the builder offers as blocks. The operator can then reorder them, remove them, repeat them, put the builder's blocks between them and edit each copy's texts.
+
+```json
+"sections": [
+  {"id": "intro", "label": "Opening", "anchor": "intro", "icon": "panel-top", "fields": [
+    {"key": "title", "label": "Title", "type": "text", "content": "intro-title"},
+    {"key": "steps", "label": "Steps", "type": "lines", "default": "Listen\nAgree"},
+    {"key": "more", "label": "Link", "type": "url", "default": "/about"},
+    {"key": "photo", "label": "Photograph", "type": "image", "content": "intro-image"}
+  ]},
+  {"id": "contact", "label": "Contact", "where": ["front", "page"]}
+],
+"front_sections": ["intro", "contact"]
+```
+
+- **Templates.** Each section is `templates/sections/<id>.html` with `{{define "section/<id>"}}…{{end}}`. Its root has no `id`: the wrapper the site adds carries the anchor and the animation. The template receives the section: `{{.Text "title"}}`, `{{range .Lines "steps"}}`, `{{.URL "more"}}` (with the page's language prefix for a site path), `{{with .Image "photo"}}…{{else}}<the theme's image>{{end}}`, and `.Page` and `.Site` as in the theme's pages.
+- **Fields.** `text`, `textarea`, `lines`, `image` and `url`. A field shows, in order: the text edited in that copy of the section (per language), else the theme text named by `content` (one of `content`'s keys of the same kind, edited in the customiser), else its `default`, translated by the theme's catalog. Up to 40 sections and 60 fields each.
+- **Where.** `where` lists the regions a section can go in (`front`, `home`, `single`, `page`, `archive`, `search`, `404`); the default is the front page.
+- **The theme's front page.** `front.html` renders `front_sections` in order, so the theme looks the same before and after the builder:
+
+  ```
+  {{define "content"}}{{range .Site.FrontSections $}}{{template "shared/theme-section" .}}{{end}}{{end}}
+  ```
+
+  In the builder, **The theme's own front page** is the first preset: those sections, with their anchors, ready to rearrange. The builder's form shows each field with what it says now; a field left as it is keeps following the theme and the customiser.
 
 ## Animations
 

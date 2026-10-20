@@ -19,7 +19,7 @@
 @property --sap-delay { syntax: "*"; inherits: false; }
 
 :root {
-  --sap-motion-duration: 0.75s;
+  --sap-motion-duration: 1.1s;
   --sap-motion-distance: 1.75rem;
   --sap-motion-scale: 0.92;
   --sap-motion-blur: 8px;
@@ -27,14 +27,14 @@
   --sap-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 .sap-motion-subtle {
-  --sap-motion-duration: 0.55s;
+  --sap-motion-duration: 0.8s;
   --sap-motion-distance: 0.75rem;
   --sap-motion-scale: 0.97;
   --sap-motion-blur: 4px;
   --sap-motion-angle: 4deg;
 }
 .sap-motion-expressive {
-  --sap-motion-duration: 1.1s;
+  --sap-motion-duration: 1.6s;
   --sap-motion-distance: 3.5rem;
   --sap-motion-scale: 0.8;
   --sap-motion-blur: 14px;
@@ -100,7 +100,7 @@
   50% { transform: scale(calc(1 + (1 - var(--sap-motion-scale)) / 2)); }
 }
 .sap-motion :is([data-sap-animate="float"], [data-sap-stagger="float"] > *, [data-sap-animate="pulse"], [data-sap-stagger="pulse"] > *) {
-  animation-duration: calc(var(--sap-motion-duration) * 5);
+  animation-duration: calc(var(--sap-motion-duration) * 4);
   animation-timing-function: ease-in-out;
 }
 

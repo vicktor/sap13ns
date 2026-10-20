@@ -62,6 +62,10 @@ type SectionView struct {
 	// one its blocks play one after another, in each column
 	// (data-sap-stagger). At most one of them is set.
 	Animate, Stagger string
+	// Theme is set when the section holds only one of the theme's
+	// sections: it is rendered as the theme made it, without the
+	// builder's own section and columns.
+	Theme *ThemeSectionView
 }
 
 // DOMID is the section's id attribute.
@@ -85,6 +89,9 @@ type BlockView struct {
 	// Animate is the block's animation, "" for none: shared/block wraps
 	// it in an element with data-sap-animate.
 	Animate string
+	// Section is the view of a block that is one of the theme's sections
+	// (theme_sections.go).
+	Section *ThemeSectionView
 	Page    *PageData
 }
 
@@ -159,12 +166,23 @@ func (s *Server) layoutContext(th *theme.Theme, ms *mediaSet) builder.Context {
 	for _, l := range s.extraLangs() {
 		c.Langs = append(c.Langs, l.Code)
 	}
+	c.Types = themeSectionTypes(th)
 	return c
+}
+
+// blockType returns the block type typ: a built-in one or one of th's
+// sections.
+func blockType(th *theme.Theme, typ string) *builder.Type {
+	if t, ok := builder.TypeOf(typ); ok {
+		return t
+	}
+	t, _ := builder.Context{Types: themeSectionTypes(th)}.TypeOf(typ)
+	return t
 }
 
 // loadLayout is builder.Load with the images of raw looked up in one query.
 func (s *Server) loadLayout(raw []byte, th *theme.Theme, ms *mediaSet) (*builder.Layouts, error) {
-	ms.prefetch(builder.ImageIDs(raw))
+	ms.prefetch(builder.ImageIDs(raw, themeSectionTypes(th)...))
 	return builder.Load(raw, s.layoutContext(th, ms))
 }
 
@@ -273,10 +291,11 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 				if global {
 					// The header and footer show on every page; their
 					// links to a section (#pricing) go to the front page.
-					t, _ := builder.TypeOf(b.Type)
-					for _, f := range t.Fields {
-						if f.Type == "url" {
-							v.S[f.Key] = pd.Site.Link(v.S[f.Key])
+					if t, _ := builder.TypeOf(b.Type); t != nil {
+						for _, f := range t.Fields {
+							if f.Type == "url" {
+								v.S[f.Key] = pd.Site.Link(v.S[f.Key])
+							}
 						}
 					}
 				}
@@ -284,9 +303,29 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 			}
 			sv.Columns = append(sv.Columns, views)
 		}
+		if v := soleBlock(sv); v != nil && v.Section != nil {
+			ts := v.Section
+			ts.Anchor, ts.Animate = sv.DOMID(), firstNonEmpty(sv.Animate, v.Animate)
+			ts.AnchorClass = sec.Anchor != ""
+			sv.Theme = ts
+		}
 		rv.Sections = append(rv.Sections, sv)
 	}
 	return rv
+}
+
+// soleBlock returns the section's only block, or nil.
+func soleBlock(sv *SectionView) *BlockView {
+	var only *BlockView
+	for _, col := range sv.Columns {
+		for _, b := range col {
+			if only != nil {
+				return nil
+			}
+			only = b
+		}
+	}
+	return only
 }
 
 // rendersH1 reports whether a main region has a block that renders the
@@ -327,7 +366,13 @@ func sectionClass(sec builder.Section) string {
 
 func (s *Server) blockView(b *builder.Block, lang string, pd *PageData, media func(int64) *store.Media) *BlockView {
 	v := &BlockView{ID: b.ID, Type: b.Type, S: map[string]string{}, Page: pd}
-	t, _ := builder.TypeOf(b.Type)
+	t := blockType(pd.Site.theme, b.Type)
+	if t == nil {
+		return v
+	}
+	if def := sectionOf(pd.Site.theme, b.Type); def != nil {
+		v.Section = themeSectionView(def, b, "", pd, media)
+	}
 	for _, f := range t.Fields {
 		v.S[f.Key] = b.Value(f.Key, lang)
 		// A translatable default ("Learn more") is shown in the page language.
@@ -470,6 +515,9 @@ type builderState struct {
 	// the site's main language, with translations into the others.
 	Starters map[string]builder.Block `json:"starters"`
 	Front    []frontPreset            `json:"front_presets"`
+	// Recommended is the front preset offered first ("theme" for a theme
+	// with its own sections).
+	Recommended string `json:"recommended,omitempty"`
 	// MenusURL is where the menus are edited (for the #links of a one-page
 	// site).
 	MenusURL string `json:"menus_url"`
@@ -560,7 +608,29 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		}
 		st.Types = append(st.Types, t)
 	}
+	ui := s.uiLang(r)
+	for _, t := range themeSectionTypes(th) {
+		t.Label, t.Help = s.themeText(ui, th, t.Label), s.themeText(ui, th, t.Help)
+		for i := range t.Fields {
+			f := &t.Fields[i]
+			if f.Key == "animation" {
+				*f = s.builderFields(r, []builder.Field{*f})[0]
+				continue
+			}
+			f.Label, f.Help = s.themeText(ui, th, f.Label), s.themeText(ui, th, f.Help)
+			if def := sectionOf(th, t.Type); def != nil && def.Field(f.Key).Type == theme.ContentLines {
+				f.Help = strings.TrimSpace(f.Help + " " + s.tu(r, "One per line."))
+			}
+		}
+		s.sectionHints(ctx, th, &t)
+		st.Types = append(st.Types, t)
+	}
 	st.Starters, st.Front = s.builderSamples(r)
+	if p := sectionPreset(th); p != nil {
+		st.Front = append([]frontPreset{{Name: "theme", Label: s.tu(r, "The theme's own front page"),
+			Help: s.tu(r, "Its sections, in its order, to rearrange, remove, repeat and edit."), Region: p}}, st.Front...)
+		st.Recommended = "theme"
+	}
 	st.MenusURL = "/admin/appearance/menus"
 	styleLabels := map[string]string{"background": s.tu(r, "Background"), "padding": s.tu(r, "Spacing"), "width": s.tu(r, "Width"), "align": s.tu(r, "Alignment"),
 		"animation": s.tu(r, "Animation"), "sequence": s.tu(r, "Animate")}

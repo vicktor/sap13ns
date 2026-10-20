@@ -18,6 +18,9 @@ type Field struct {
 	// One (a bool of an item): at most one item of the block has it on,
 	// such as the highlighted plan of a pricing table.
 	One bool `json:"one,omitempty"`
+	// Hints are the editor's placeholders for the translations (lang ->
+	// text): what a theme's section shows until it is edited.
+	Hints map[string]string `json:"hints,omitempty"`
 }
 
 type Choice struct {
@@ -93,10 +96,15 @@ func init() {
 	SectionStyles["animation"] = motion.Names()
 	SectionStyles["sequence"] = []string{"off", "on"}
 	// Every block can be animated.
-	field := Field{Key: "animation", Type: "select", Label: "Animation", Default: motion.None, Choices: animationChoices()}
 	for i := range Types {
-		Types[i].Fields = append(Types[i].Fields, field)
+		Types[i].Fields = append(Types[i].Fields, AnimationField())
 	}
+}
+
+// AnimationField is the animation every block has, the theme's sections
+// too.
+func AnimationField() Field {
+	return Field{Key: "animation", Type: "select", Label: "Animation", Default: motion.None, Choices: animationChoices()}
 }
 
 // animationChoices are the motion library's animations, after None.

@@ -112,6 +112,22 @@ type Context struct {
 	// Parse, Load and Normalize return the error, so a passing failure never
 	// strips images from a layout. Nil accepts every positive id.
 	Media func(id int64) (bool, error)
+	// Types are block types of the theme's own (its sections), besides
+	// the built-in ones.
+	Types []Type
+}
+
+// TypeOf returns the block type named t: a built-in one or one of c.Types.
+func (c Context) TypeOf(t string) (*Type, bool) {
+	if ty, ok := TypeOf(t); ok {
+		return ty, true
+	}
+	for i := range c.Types {
+		if c.Types[i].Type == t {
+			return &c.Types[i], true
+		}
+	}
+	return nil, false
 }
 
 // Region returns the region named name (nil when the theme's template is used).
@@ -185,8 +201,10 @@ func Load(data []byte, c Context) (*Layouts, error) {
 func (l *Layouts) Normalize(c Context) (Errors, error) { return l.normalize(c, true) }
 
 // ImageIDs lists the image ids that stored layouts refer to, so they can be
-// looked up in one query before Load.
-func ImageIDs(data []byte) []int64 {
+// looked up in one query before Load; extra are the theme's own block
+// types (Context.Types).
+func ImageIDs(data []byte, extra ...Type) []int64 {
+	c := Context{Types: extra}
 	l := &Layouts{}
 	if len(data) == 0 || json.Unmarshal(data, l) != nil {
 		return nil
@@ -210,7 +228,7 @@ func ImageIDs(data []byte) []int64 {
 		for _, sec := range r.Sections {
 			for _, col := range sec.Columns {
 				for _, b := range col {
-					t, ok := TypeOf(b.Type)
+					t, ok := c.TypeOf(b.Type)
 					if !ok {
 						continue
 					}
@@ -433,7 +451,7 @@ func (l *Layouts) normalize(c Context, strict bool) (Errors, error) {
 				out := col[:0]
 				for bi, b := range col {
 					bp := fmt.Sprintf("%s.columns[%d][%d]", sp, ci, bi)
-					t, ok := TypeOf(b.Type)
+					t, ok := c.TypeOf(b.Type)
 					if !ok {
 						add(bp+".type", "unknown block %q", b.Type)
 						continue

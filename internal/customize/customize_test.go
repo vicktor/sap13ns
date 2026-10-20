@@ -402,7 +402,7 @@ func TestMotion(t *testing.T) {
 	}
 	css := d.Stylesheet(nil)
 	for _, want := range []string{
-		`.sap-motion [data-sap-edit="photo"] { animation: sap-float calc(var(--sap-motion-duration) * 5) ease-in-out 0s infinite both paused; }`,
+		`.sap-motion [data-sap-edit="photo"] { animation: sap-float calc(var(--sap-motion-duration) * 4) ease-in-out 0s infinite both paused; }`,
 		`.sap-motion [data-sap-edit="title"] { animation: sap-fade-up var(--sap-motion-duration) var(--sap-motion-ease) 0s 1 both paused; }`,
 	} {
 		if !strings.Contains(css, want) {

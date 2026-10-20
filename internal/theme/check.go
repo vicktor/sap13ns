@@ -241,6 +241,8 @@ func (m *Manager) checkTemplates(fsys fs.FS, t *Theme) []Problem {
 
 	// Each file on its own: names and HTML.
 	partials, _ := fs.Glob(fsys, "templates/partials/*.html")
+	sections, _ := fs.Glob(fsys, "templates/sections/*.html")
+	partials = append(partials, sections...) // every page's set holds both
 	files := append([]string{"templates/layout.html"}, partials...)
 	for _, p := range pageNames {
 		if _, err := fs.Stat(fsys, "templates/"+p+".html"); err == nil {

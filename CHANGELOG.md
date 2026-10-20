@@ -5,6 +5,24 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.4.0 — 2026-10-20
+
+- **Theme sections.** A theme can split its pages into sections of its own
+  (`sections` and `front_sections` in `theme.json`, templates in
+  `templates/sections/`). The page builder offers them as blocks and starts
+  from **The theme's own front page**, so a hand-written theme can be
+  rearranged, lose or repeat sections, mix them with the builder's blocks
+  and get different texts in each copy. See "Theme sections" in
+  docs/THEMES.md.
+- **Type in the preview.** In the customiser, a click on a theme's text in
+  the preview lets you type over it right there; it is saved to the draft
+  like its field. Enter ends a one-line text and Escape undoes. Images and
+  lists still open their field. The **Click to edit** button now says when
+  editing is off, since pressing it turned editing off without showing it.
+- **Slower animations.** Entrance animations last 1.1 s (0.8 s subtle,
+  1.6 s expressive), and children of a staggered group follow each other
+  every 0.15 s.
+
 ## v0.3.0 — 2026-10-20
 
 - **Animations.** sap13ns has its own library of 17 animations, served by

@@ -144,7 +144,7 @@ func (d *Design) Stylesheet(media Resolver) string {
 			}
 			dur, iter, ease := "var(--sap-motion-duration)", "1", "var(--sap-motion-ease)"
 			if a.Loop {
-				dur, iter, ease = "calc(var(--sap-motion-duration) * 5)", "infinite", "ease-in-out"
+				dur, iter, ease = "calc(var(--sap-motion-duration) * 4)", "infinite", "ease-in-out"
 			}
 			fmt.Fprintf(&b, ".sap-motion [data-sap-edit=%q] { animation: sap-%s %s %s 0s %s both paused; }\n", k, a.Name, dur, ease, iter)
 		}

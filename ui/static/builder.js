@@ -248,7 +248,7 @@ export function setValue(l, name, p, key, value, lang = "", def = "") {
     }
     const all = { ...(b.i18n || {}) };
     const t = { ...(all[lang] || {}) };
-    if (value === "" || value == null) delete t[key]; else t[key] = String(value);
+    if (value === "" || value == null || (def && value === def)) delete t[key]; else t[key] = String(value);
     if (Object.keys(t).length) all[lang] = t; else delete all[lang];
     if (Object.keys(all).length) b.i18n = all; else delete b.i18n;
   });
@@ -580,7 +580,7 @@ function init(root) {
   try { const r = localStorage.getItem("sap-builder-region"); if (regions.some((x) => x.name === r)) region = r; } catch (_) {}
   const asked = new URLSearchParams(location.search).get("region");
   // ?preset=one-page (the theme's own note) puts that ready-made page first.
-  const recommended = new URLSearchParams(location.search).get("preset") || "";
+  const recommended = new URLSearchParams(location.search).get("preset") || state.recommended || "";
   if (regions.some((x) => x.name === asked)) region = asked;
   let selected = null;            // id of the selected section or block
   let errors = [];                // the last refusal's field errors
@@ -887,9 +887,14 @@ function init(root) {
     const id = fid(f.key, lang, item);
     const obj = item == null ? b : b.items?.[item] || {};
     const stored = lang ? obj.i18n?.[lang]?.[f.key] || "" : obj.settings?.[f.key] || "";
+    // A theme's section shows its texts until they are edited: the inputs
+    // start with them, and a text typed back to one is not stored.
+    const themed = item == null && String(b.type).startsWith("theme-") && f.type !== "image";
+    const theirs = themed ? (lang ? f.hints?.[lang] : f.default) || "" : "";
+    const shown = stored || theirs;
     const set = (v) => {
       const p = find(layout(), region, b.id);
-      const def = lang ? "" : f.default || "";
+      const def = lang ? theirs : f.default || "";
       const next = item == null ? setValue(layout(), region, p, f.key, v, lang, def)
         : setItemValue(layout(), region, p, item, f.key, v, lang, def, Boolean(f.one));
       // Turning on a one-only setting turns it off elsewhere: redraw.
@@ -902,7 +907,9 @@ function init(root) {
     const describedBy = help.length || err ? `${id}-help` : null;
     const common = { id, "aria-describedby": describedBy, "aria-invalid": err ? "true" : null };
     let input;
-    const main = lang ? obj.settings?.[f.key] || "" : "";
+    // A translation shows the main text, or what a theme's section shows
+    // in that language until edited (f.hints).
+    const main = lang ? obj.settings?.[f.key] || f.hints?.[lang] || "" : "";
     switch (f.type) {
       case "bool":
         return h("div", { class: "field" }, h("label", { class: "check", for: id },
@@ -948,8 +955,8 @@ function init(root) {
         input.value = stored;
         break;
       case "textarea": case "markdown":
-        input = h("textarea", { class: "textarea w-full", rows: f.type === "markdown" ? 7 : 3, maxlength: f.max || null, placeholder: main || null, ...common, oninput: (e) => set(e.target.value) });
-        input.value = stored;
+        input = h("textarea", { class: "textarea w-full", rows: f.type === "markdown" ? 7 : 3, maxlength: f.max || null, placeholder: main || (lang ? null : f.default) || null, ...common, oninput: (e) => set(e.target.value) });
+        input.value = shown;
         break;
       default:
         input = h("input", {
@@ -958,7 +965,7 @@ function init(root) {
           placeholder: main || f.default || null, autocomplete: "off", spellcheck: f.type === "url" || f.type === "email" ? "false" : null,
           ...common, oninput: (e) => set(e.target.value),
         });
-        input.value = stored;
+        input.value = shown;
     }
     return h("div", { class: "field" }, h("label", { for: id, text: f.label }), input,
       describedBy || help.length ? h("p", { class: err ? "cz-field-error" : "hint", id: `${id}-help`, text: err ? errText(f, err) : help.join(" ") }) : null);

@@ -65,7 +65,7 @@ test("motion: animated elements play when they come into view", () => {
   p.show(p.title);
   assert.ok(p.title.classes.has("sap-in"));
   assert.ok(!p.observed.includes(p.title), "it plays once");
-  assert.deepEqual(p.list.children.map((c) => c.props["--sap-delay"]), ["0.00s", "0.09s", "0.18s"]);
+  assert.deepEqual(p.list.children.map((c) => c.props["--sap-delay"]), ["0.00s", "0.15s", "0.30s"]);
   assert.equal(p.late.props["--sap-delay"], "0.3s");
 });
 

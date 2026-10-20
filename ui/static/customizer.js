@@ -356,31 +356,95 @@ function init(root) {
   function showText(input) {
     const doc = frameDoc();
     if (!doc || doc.documentElement.lang !== input.lang) return;
-    for (const el of doc.querySelectorAll(`[data-sap-edit="${input.dataset.live}"]`)) el.textContent = input.value.trim() || input.dataset.default || "";
+    for (const el of doc.querySelectorAll(`[data-sap-edit="${input.dataset.live}"]`)) {
+      if (el !== typing) el.textContent = input.value.trim() || input.dataset.default || "";
+    }
+  }
+
+  // The text being typed over in the preview, which showText leaves alone.
+  let typing = null;
+
+  // editInline lets the visitor type over a text of the preview: what is
+  // typed goes to its field (input), which saves the draft as usual. Enter
+  // ends a one-line text, Escape puts back what it said.
+  function editInline(el, input, doc) {
+    const before = input.value;
+    const multi = input.tagName === "TEXTAREA";
+    typing = el;
+    el.contentEditable = "plaintext-only";
+    if (el.contentEditable !== "plaintext-only") el.contentEditable = "true";
+    el.spellcheck = true;
+    el.style.outline = "2px solid #3b82f6";
+    el.style.outlineOffset = "4px";
+    el.style.cursor = "text";
+    el.focus({ preventScroll: true });
+    const sync = () => {
+      let v = el.innerText.replace(/\u00a0/g, " ");
+      if (!multi) v = v.replace(/\s*\n\s*/g, " ");
+      input.value = v.trim() === (input.dataset.default || "").trim() && !before ? "" : v.trim();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const keydown = (e) => {
+      if (e.key === "Escape") {
+        input.value = before;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        el.textContent = before.trim() || input.dataset.default || "";
+        el.blur();
+      } else if (e.key === "Enter" && !multi) {
+        e.preventDefault();
+        el.blur();
+      }
+    };
+    const paste = (e) => {
+      e.preventDefault();
+      doc.execCommand("insertText", false, e.clipboardData?.getData("text/plain") || "");
+    };
+    el.addEventListener("input", sync);
+    el.addEventListener("keydown", keydown);
+    el.addEventListener("paste", paste);
+    el.addEventListener("blur", () => {
+      el.removeEventListener("input", sync);
+      el.removeEventListener("keydown", keydown);
+      el.removeEventListener("paste", paste);
+      el.removeAttribute("contenteditable");
+      el.style.outline = el.style.outlineOffset = el.style.cursor = "";
+      typing = null;
+      if (!el.textContent.trim()) showText(input);
+      schedule(100);
+    }, { once: true });
   }
 
   // In the preview, the marked texts and images open their field when
   // clicked (and show it on hover), unless the edit mode is off.
   function markEditable(doc) {
     const label = (key) => $(`[data-content-field="${key}"] label, [data-content-field="${key}"] .label`, content)?.textContent.trim() || key;
+    // The text field of key in lang that the preview shows as it is typed.
+    const liveInput = (key, lang) => $(`[data-live="${key}"][lang="${lang}"]`, content);
+    const typeable = (el) => !el.matches("img, picture, video") && !el.querySelector("img, picture, video, svg") &&
+      liveInput(el.dataset.sapEdit, doc.documentElement.lang);
     doc.addEventListener("click", (e) => {
       const el = editMode && e.target.closest?.("[data-sap-edit]");
       if (!el) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      openField(el.dataset.sapEdit, doc.documentElement.lang);
+      if (el.isContentEditable) return;
+      const lang = doc.documentElement.lang;
+      const input = typeable(el);
+      if (input) editInline(el, input, doc);
+      else openField(el.dataset.sapEdit, lang);
     }, true);
     doc.addEventListener("mouseover", (e) => {
       const el = editMode && e.target.closest?.("[data-sap-edit]");
-      if (!el || el.dataset.sapHover) return;
+      if (!el || el.dataset.sapHover || el.isContentEditable) return;
       el.dataset.sapHover = "";
       // CSSOM, not a style attribute: the site's CSP allows it.
       el.style.outline = "2px dashed #3b82f6";
       el.style.outlineOffset = "4px";
-      el.style.cursor = "pointer";
-      el.title = fmt(msg.msgEdit, label(el.dataset.sapEdit));
+      el.style.cursor = typeable(el) ? "text" : "pointer";
+      el.title = fmt(typeable(el) ? msg.msgType : msg.msgEdit, label(el.dataset.sapEdit));
       el.addEventListener("mouseleave", () => {
         delete el.dataset.sapHover;
+        if (el.isContentEditable) return el.removeAttribute("title");
         el.style.outline = el.style.outlineOffset = el.style.cursor = "";
         el.removeAttribute("title");
       }, { once: true });
@@ -410,9 +474,13 @@ function init(root) {
     });
   }
   const editBtn = $("[data-edit-mode]");
+  const editLabel = editBtn?.querySelector("span")?.textContent;
   editBtn?.addEventListener("click", () => {
     editMode = !editMode;
     editBtn.setAttribute("aria-pressed", String(editMode));
+    editBtn.dataset.variant = editMode ? "secondary" : "ghost";
+    editBtn.querySelector("span").textContent = editMode ? editLabel : msg.msgEditOff;
+    if (!editMode) typing?.blur();
   });
 
   frame.addEventListener("load", () => {

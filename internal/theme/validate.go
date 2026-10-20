@@ -135,7 +135,7 @@ func classify(name string) (string, *Problem) {
 		switch {
 		case len(segs) == 2 && strings.HasSuffix(segs[1], ".html") && pageFiles[strings.TrimSuffix(segs[1], ".html")]:
 			return kindTemplate, nil
-		case len(segs) == 3 && segs[1] == "partials" && strings.HasSuffix(segs[2], ".html"):
+		case len(segs) == 3 && (segs[1] == "partials" || segs[1] == "sections") && strings.HasSuffix(segs[2], ".html"):
 			return kindTemplate, nil
 		}
 		return "", &Problem{Code: "layout.template-name", File: name}
@@ -436,6 +436,69 @@ func checkContent(v *validation, m *Manifest, text func(field, s string, limit i
 	}
 }
 
+// checkSections checks the manifest's sections for the page builder.
+func checkSections(v *validation, m *Manifest, text func(field, s string, limit int, required bool), id func(kind, s string) bool) {
+	if len(m.Sections) > MaxSections {
+		v.add(Problem{Code: "manifest.too-many", File: "theme.json", Args: []any{"sections", MaxSections}})
+	}
+	content := map[string]string{}
+	for _, g := range m.Content {
+		for _, f := range g.Fields {
+			content[f.Key] = f.Type
+		}
+	}
+	regions := map[string]bool{"front": true, "home": true, "single": true, "page": true, "archive": true, "search": true, "404": true}
+	ids := map[string]bool{}
+	for _, sec := range m.Sections {
+		if id("sections[].id", sec.ID) && ids[sec.ID] {
+			v.add(Problem{Code: "manifest.duplicate", File: "theme.json", Args: []any{"sections[].id", sec.ID}})
+		}
+		ids[sec.ID] = true
+		text("sections[].label", sec.Label, maxLabel, true)
+		text("sections[].help", sec.Help, maxHelp, false)
+		if sec.Anchor != "" {
+			id("sections[].anchor", sec.Anchor)
+		}
+		if sec.Icon != "" {
+			id("sections[].icon", sec.Icon)
+		}
+		for _, r := range sec.Where {
+			if !regions[r] {
+				v.add(Problem{Code: "manifest.section-where", File: "theme.json", Args: []any{sec.ID, r}})
+			}
+		}
+		if len(sec.Fields) > MaxSectionFields {
+			v.add(Problem{Code: "manifest.too-many", File: "theme.json", Args: []any{"sections[].fields", MaxSectionFields}})
+		}
+		keys := map[string]bool{}
+		for _, f := range sec.Fields {
+			if id("sections[].fields[].key", f.Key) && keys[f.Key] {
+				v.add(Problem{Code: "manifest.duplicate", File: "theme.json", Args: []any{"sections[].fields[].key", f.Key}})
+			}
+			keys[f.Key] = true
+			text("sections[].fields[].label", f.Label, maxLabel, true)
+			text("sections[].fields[].help", f.Help, maxHelp, false)
+			text("sections[].fields[].default", f.Default, maxDefault, false)
+			switch f.Type {
+			case ContentText, ContentTextarea, ContentLines, ContentImage, SectionURL:
+			default:
+				v.add(Problem{Code: "manifest.section-type", File: "theme.json", Args: []any{sec.ID, f.Key, f.Type}})
+			}
+			if f.Content != "" {
+				ct, ok := content[f.Content]
+				if !ok || (ct == ContentImage) != (f.Type == ContentImage) || f.Type == SectionURL {
+					v.add(Problem{Code: "manifest.section-content", File: "theme.json", Args: []any{sec.ID, f.Key, f.Content}})
+				}
+			}
+		}
+	}
+	for _, sid := range m.FrontSections {
+		if !ids[sid] {
+			v.add(Problem{Code: "manifest.front-section", File: "theme.json", Args: []any{sid}})
+		}
+	}
+}
+
 // Manifest rules.
 const (
 	maxName        = 80
@@ -447,6 +510,8 @@ const (
 
 	MaxContentGroups = 40
 	MaxContentFields = 400
+	MaxSections      = 40
+	MaxSectionFields = 60
 )
 
 func checkManifest(v *validation, m *Manifest) {
@@ -534,6 +599,7 @@ func checkManifest(v *validation, m *Manifest) {
 		}
 	}
 	checkContent(v, m, text, id)
+	checkSections(v, m, text, id)
 	if len(m.Swatches) > 12 {
 		v.add(Problem{Code: "manifest.too-many", File: "theme.json", Args: []any{"swatches", 12}})
 	}
@@ -613,7 +679,7 @@ func parseProblem(fsys fs.FS, err error) Problem {
 		p = Problem{Code: "template.func", Args: []any{m[1]}}
 	}
 	if m := parseWhere.FindStringSubmatch(msg); m != nil {
-		for _, f := range []string{"templates/" + m[1], "templates/partials/" + m[1]} {
+		for _, f := range []string{"templates/" + m[1], "templates/partials/" + m[1], "templates/sections/" + m[1]} {
 			if _, err := fs.Stat(fsys, f); err == nil {
 				p.File = f
 				p.Line, _ = strconv.Atoi(m[2])

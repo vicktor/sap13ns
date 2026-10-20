@@ -6,7 +6,7 @@
 // everything again, for the customiser's preview after a change.
 (() => {
   const html = document.documentElement;
-  const STEP = 0.09; // seconds between the children of data-sap-stagger
+  const STEP = 0.15; // seconds between the children of data-sap-stagger
   const SELECTOR = "[data-sap-animate], [data-sap-stagger] > *, [data-sap-edit]";
   let observer = null;
 

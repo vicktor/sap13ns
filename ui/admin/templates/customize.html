@@ -79,7 +79,7 @@
   data-msg-invalid="{{T "Check the highlighted fields."}}" data-msg-offline="{{T "The server could not be reached."}}"
   data-msg-external="{{T "External links open in a new tab."}}" data-msg-blocked="{{T "Forms that send data are disabled in the preview."}}"
   data-msg-contrast="{{T "%s on %s: contrast %s:1, below %s:1 (WCAG AA)."}}" data-msg-no-warnings="{{T "All checked text colours meet WCAG AA contrast."}}"
-  data-msg-derived="{{T "Dark colours derived from the light ones. Review them in the dark preview."}}" data-msg-pending="{{T "Saving the latest changes first…"}}" data-msg-edit="{{T "Edit: %s"}}">
+  data-msg-derived="{{T "Dark colours derived from the light ones. Review them in the dark preview."}}" data-msg-pending="{{T "Saving the latest changes first…"}}" data-msg-edit="{{T "Edit: %s"}}" data-msg-type="{{T "Click to type over it: %s"}}" data-msg-edit-off="{{T "Editing off"}}">
   <form class="cz-panel" id="cz-form" novalidate autocomplete="off" aria-label="{{T "Design settings"}}">
     {{if $d.Content}}
     <details class="cz-section" open data-cz-content>
@@ -298,7 +298,7 @@
         <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="light" aria-pressed="true">{{icon "sun"}}<span>{{T "Light"}}</span></button>
         <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="dark" aria-pressed="false">{{icon "moon"}}<span>{{T "Dark"}}</span></button>
       </div>
-      {{if $d.Content}}<button type="button" class="btn" data-variant="ghost" data-size="sm" data-edit-mode aria-pressed="true" title="{{T "Click a text or an image in the preview to edit it"}}">{{icon "pencil"}}<span>{{T "Click to edit"}}</span></button>{{end}}
+      {{if $d.Content}}<button type="button" class="btn" data-variant="secondary" data-size="sm" data-edit-mode aria-pressed="true" title="{{T "Click a text in the preview to type over it, or an image to change it. Press here to browse the preview without editing."}}">{{icon "pencil"}}<span>{{T "Click to edit"}}</span></button>{{end}}
       <span class="cz-spacer"></span>
       <button type="button" class="btn" data-variant="ghost" data-size="icon" data-reload aria-label="{{T "Reload the preview"}}" title="{{T "Reload the preview"}}">{{icon "refresh-cw"}}</button>
       <a class="btn" data-variant="ghost" data-size="icon" href="{{$d.PreviewURL}}" target="_blank" rel="noopener" data-open-preview aria-label="{{T "Open the preview in a new tab"}}" title="{{T "Open the preview in a new tab"}}">{{icon "external-link"}}</a>

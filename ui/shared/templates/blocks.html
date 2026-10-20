@@ -34,14 +34,26 @@
 
 {{/* shared/blocks-sections: the sections of a region. Data: *RegionView. */}}
 {{define "shared/blocks-sections"}}
-{{range .Sections}}{{$stagger := .Stagger}}
+{{range .Sections}}{{if .Theme}}{{template "shared/theme-section" .Theme}}{{else}}{{$stagger := .Stagger}}
 <div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}"{{with .Animate}} data-sap-animate="{{.}}"{{end}}>
   <div class="sap-section-inner sap-cols sap-cols-{{.Layout}}">
     {{range .Columns}}<div class="sap-col"{{with $stagger}} data-sap-stagger="{{.}}"{{end}}>{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
   </div>
 </div>
+{{end}}{{end}}
 {{end}}
+
+{{/* shared/theme-section: one of the theme's own sections (theme.json
+     "sections"), as the theme made it, in an element that carries its id
+     and its animation. Data: *ThemeSectionView. Themes render their front
+     page with {{range .Site.FrontSections $}}{{template "shared/theme-section" .}}{{end}}. */}}
+{{define "shared/theme-section"}}
+<div class="sap-theme-section{{if .AnchorClass}} sap-anchor{{end}}"{{with .Anchor}} id="{{.}}"{{end}}{{with .Animate}} data-sap-animate="{{.}}"{{end}}>{{template "theme/section" .}}</div>
 {{end}}
+
+{{/* theme/section: a theme section's own template, section/<id>. The
+     server defines it for every theme with sections. */}}
+{{define "theme/section"}}{{end}}
 
 {{/* shared/block: one block, in an element that plays its animation when
      it has one (ui/static/motion.css). Data: *BlockView. */}}
@@ -49,7 +61,8 @@
 
 {{/* shared/block-body: one block, by type. Data: *BlockView (.Page is the PageData). */}}
 {{define "shared/block-body"}}
-{{if eq .Type "site-header"}}{{template "blocks/site-header" .}}
+{{if .Section}}{{template "theme/section" .Section}}
+{{else if eq .Type "site-header"}}{{template "blocks/site-header" .}}
 {{else if eq .Type "menu"}}{{template "blocks/menu" .}}
 {{else if eq .Type "search"}}{{template "blocks/search" .}}
 {{else if eq .Type "breadcrumbs"}}{{template "blocks/breadcrumbs" .}}
