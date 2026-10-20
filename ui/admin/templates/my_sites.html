@@ -9,77 +9,75 @@
 {{else if eq $d.Returned "canceled"}}
 <div class="alert" role="status">{{icon "info"}}<h2>{{T "Nothing was charged"}}</h2><section>{{T "You left the payment page before paying. You can upgrade whenever you want."}}</section></div>
 {{end}}
-<div class="split">
-  <section class="card table-wrap">
-    {{if $d.Sites}}
-    <table class="table">
-      <thead><tr><th>{{T "Site"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Plan"}}</th><th class="max-sm:hidden">{{T "Your role"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
-      <tbody>
-        {{range $d.Sites}}
-        <tr>
-          <td><strong>{{.Slug}}</strong><div class="row-sub muted mono">{{.Host}}</div></td>
-          <td>{{template "site-status" .Status}}{{with .Billing}}{{if .Held}} <span class="badge" data-variant="destructive">{{T "Held for billing"}}</span>{{end}}{{end}}</td>
-          <td class="max-md:hidden">{{with .PlanName}}{{.}}{{else}}{{.Plan}}{{end}}{{if and $d.Billing .Billing}}<div class="row-sub">{{template "billing-state" .Billing}}</div>{{end}}</td>
-          <td class="max-sm:hidden">{{roleLabel .Role}}{{if eq .OwnerID $.User.ID}} <span class="badge" data-variant="secondary">{{T "Owner"}}</span>{{end}}</td>
-          <td class="text-right"><div class="cell-actions">
-            {{if .Served}}
-            {{if eq .Status "active"}}<a class="btn" data-variant="ghost" data-size="icon-sm" href="{{.URL}}/" target="_blank" rel="noopener" aria-label="{{T "View %s" .Slug}}" title="{{T "View site"}}">{{icon "external-link"}}</a>{{end}}
-            <a class="btn" data-size="sm" href="{{.AdminURL}}">{{icon "log-in"}}{{T "Go to admin"}}</a>
-            {{end}}
-            {{if eq .OwnerID $.User.ID}}<a class="btn" data-variant="outline" data-size="sm" href="/admin/sites/{{.ID}}/domains">{{icon "globe"}}{{T "Domains"}}</a>{{end}}
-            {{if and (ne .Status "deleted") (or (eq .OwnerID $.User.ID) (eq .Role "admin"))}}<a class="btn" data-variant="{{if .SupportOpen}}secondary{{else}}outline{{end}}" data-size="sm" href="/admin/sites/{{.ID}}/support">{{icon "key-round"}}{{if .SupportOpen}}{{T "Support access open"}}{{else}}{{T "Support access"}}{{end}}</a>{{end}}
-            {{if and $d.Billing (eq .OwnerID $.User.ID) .Billing}}{{if .Billing.Manageable}}
-            <form method="post" action="/admin/sites/{{.ID}}/billing" class="inline-flex">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Manage billing"}}</button></form>
-            {{end}}{{end}}
-          </div></td>
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
-    {{else}}
-    {{template "empty" (dict "Icon" "globe" "Title" (T "You are not a member of any site yet"))}}
-    {{end}}
+<section class="card table-wrap">
+  {{if $d.Sites}}
+  <table class="table">
+    <thead><tr><th>{{T "Site"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Plan"}}</th><th class="max-sm:hidden">{{T "Your role"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
+    <tbody>
+      {{range $d.Sites}}
+      <tr>
+        <td><strong>{{.Slug}}</strong><div class="row-sub muted mono">{{.Host}}</div></td>
+        <td>{{template "site-status" .Status}}{{with .Billing}}{{if .Held}} <span class="badge" data-variant="destructive">{{T "Held for billing"}}</span>{{end}}{{end}}</td>
+        <td class="max-md:hidden">{{with .PlanName}}{{.}}{{else}}{{.Plan}}{{end}}{{if and $d.Billing .Billing}}<div class="row-sub">{{template "billing-state" .Billing}}</div>{{end}}</td>
+        <td class="max-sm:hidden">{{roleLabel .Role}}{{if eq .OwnerID $.User.ID}} <span class="badge" data-variant="secondary">{{T "Owner"}}</span>{{end}}</td>
+        <td class="text-right"><div class="cell-actions">
+          {{if .Served}}
+          {{if eq .Status "active"}}<a class="btn" data-variant="ghost" data-size="icon-sm" href="{{.URL}}/" target="_blank" rel="noopener" aria-label="{{T "View %s" .Slug}}" title="{{T "View site"}}">{{icon "external-link"}}</a>{{end}}
+          <a class="btn" data-size="sm" href="{{.AdminURL}}">{{icon "log-in"}}{{T "Go to admin"}}</a>
+          {{end}}
+          {{if eq .OwnerID $.User.ID}}<a class="btn" data-variant="outline" data-size="sm" href="/admin/sites/{{.ID}}/domains">{{icon "globe"}}{{T "Domains"}}</a>{{end}}
+          {{if and (ne .Status "deleted") (or (eq .OwnerID $.User.ID) (eq .Role "admin"))}}<a class="btn" data-variant="{{if .SupportOpen}}secondary{{else}}outline{{end}}" data-size="sm" href="/admin/sites/{{.ID}}/support">{{icon "key-round"}}{{if .SupportOpen}}{{T "Support access open"}}{{else}}{{T "Support access"}}{{end}}</a>{{end}}
+          {{if and $d.Billing (eq .OwnerID $.User.ID) .Billing}}{{if .Billing.Manageable}}
+          <form method="post" action="/admin/sites/{{.ID}}/billing" class="inline-flex">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit">{{T "Manage billing"}}</button></form>
+          {{end}}{{end}}
+        </div></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  {{template "empty" (dict "Icon" "globe" "Title" (T "You are not a member of any site yet"))}}
+  {{end}}
+</section>
+{{if or (and $d.Billing $d.Upgradable $d.Offers) $d.CanRequest $d.Error}}
+<div class="dash-grid">
+  {{if and $d.Billing $d.Upgradable $d.Offers}}
+  <section class="card">
+    <header><h2>{{T "Upgrade a site"}}</h2><p>{{T "A paid plan gives a site more storage, custom domains and your own plugins. You pay on Stripe's secure page; cancel any time from “Manage billing”."}}</p></header>
+    <section class="stack">
+      {{range $d.Upgradable}}{{$site := .}}
+      <form method="post" action="/admin/sites/{{.ID}}/upgrade" class="form">
+        {{$.CSRFField}}
+        <div class="field">
+          <label for="offer-{{.ID}}">{{T "Plan for %s" .Slug}}</label>
+          {{$o := list}}{{range $d.Offers}}{{$per := T "per month"}}{{if .Yearly}}{{$per = T "per year"}}{{end}}{{$tax := ""}}{{if eq .Tax "included"}}{{$tax = printf " · %s" (T "VAT included")}}{{else if eq .Tax "added"}}{{$tax = printf " · %s" (T "+ VAT")}}{{end}}{{$o = append $o (opt .Value (printf "%v · %v %s%s" .Name .Display $per $tax))}}{{end}}
+          {{template "select" (selectbox "id" (printf "offer-%v" .ID) "name" "offer" "value" $d.Offer "options" $o)}}
+        </div>
+        <div><button class="btn" type="submit">{{icon "zap"}}{{T "Upgrade %s" $site.Slug}}</button></div>
+      </form>
+      {{end}}
+    </section>
   </section>
-  {{if or (and $d.Billing $d.Upgradable $d.Offers) $d.CanRequest $d.Error}}
-  <div class="stack">
-    {{if and $d.Billing $d.Upgradable $d.Offers}}
-    <section class="card">
-      <header><h2>{{T "Upgrade a site"}}</h2><p>{{T "A paid plan gives a site more storage, custom domains and your own plugins. You pay on Stripe's secure page; cancel any time from “Manage billing”."}}</p></header>
-      <section class="stack">
-        {{range $d.Upgradable}}{{$site := .}}
-        <form method="post" action="/admin/sites/{{.ID}}/upgrade" class="form">
-          {{$.CSRFField}}
-          <div class="field">
-            <label for="offer-{{.ID}}">{{T "Plan for %s" .Slug}}</label>
-            {{$o := list}}{{range $d.Offers}}{{$per := T "per month"}}{{if .Yearly}}{{$per = T "per year"}}{{end}}{{$tax := ""}}{{if eq .Tax "included"}}{{$tax = printf " · %s" (T "VAT included")}}{{else if eq .Tax "added"}}{{$tax = printf " · %s" (T "+ VAT")}}{{end}}{{$o = append $o (opt .Value (printf "%v · %v %s%s" .Name .Display $per $tax))}}{{end}}
-            {{template "select" (selectbox "id" (printf "offer-%v" .ID) "name" "offer" "value" $d.Offer "options" $o)}}
-          </div>
-          <div><button class="btn" type="submit">{{icon "zap"}}{{T "Upgrade %s" $site.Slug}}</button></div>
-        </form>
-        {{end}}
-      </section>
+  {{end}}
+  {{if $d.CanRequest}}
+  <section class="card" id="request">
+    <header><h2>{{T "Request a site"}}</h2><p>{{T "A free Personal site, which opens once a network administrator approves it. You can have one."}}</p></header>
+    <section>
+      {{template "form-error" $d.Error}}
+      <form method="post" action="/admin/sites/request" class="form">
+        {{.CSRFField}}
+        <div class="field">
+          <label for="slug">{{T "Name"}}</label>
+          <input class="input mono" id="slug" name="slug" value="{{$d.Slug}}" required maxlength="63" pattern="[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?" autocapitalize="none" spellcheck="false" autocomplete="off">
+          <p class="hint">{{T "Its address will be %s." (printf "<name>.%s" $d.Domain)}}</p>
+        </div>
+        <div><button class="btn" type="submit">{{icon "plus"}}{{T "Request the site"}}</button></div>
+      </form>
     </section>
-    {{end}}
-    {{if $d.CanRequest}}
-    <section class="card" id="request">
-      <header><h2>{{T "Request a site"}}</h2><p>{{T "A free Personal site, which opens once a network administrator approves it. You can have one."}}</p></header>
-      <section>
-        {{template "form-error" $d.Error}}
-        <form method="post" action="/admin/sites/request" class="form">
-          {{.CSRFField}}
-          <div class="field">
-            <label for="slug">{{T "Name"}}</label>
-            <input class="input mono" id="slug" name="slug" value="{{$d.Slug}}" required maxlength="63" pattern="[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?" autocapitalize="none" spellcheck="false" autocomplete="off">
-            <p class="hint">{{T "Its address will be %s." (printf "<name>.%s" $d.Domain)}}</p>
-          </div>
-          <div><button class="btn" type="submit">{{icon "plus"}}{{T "Request the site"}}</button></div>
-        </form>
-      </section>
-    </section>
-    {{else if $d.Error}}
-    <section class="card"><section>{{template "form-error" $d.Error}}</section></section>
-    {{end}}
-  </div>
+  </section>
+  {{else if $d.Error}}
+  <section class="card"><section>{{template "form-error" $d.Error}}</section></section>
   {{end}}
 </div>
+{{end}}
 {{end}}

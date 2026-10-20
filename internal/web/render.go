@@ -64,9 +64,12 @@ func (s *Server) langFuncs(lang string) template.FuncMap {
 
 func (s *Server) funcMap() template.FuncMap {
 	m := template.FuncMap{
-		"icon":    icons.Template,
-		"asset":   s.assetURL,
-		"isoDate": func(t time.Time) string { return t.UTC().Format(time.RFC3339) },
+		"icon":  icons.Template,
+		"asset": s.assetURL,
+		// themeDomain is the network's sites domain: the light or dark
+		// choice is kept in a cookie for all its sites (theme-init.js).
+		"themeDomain": s.themeDomain,
+		"isoDate":     func(t time.Time) string { return t.UTC().Format(time.RFC3339) },
 		"inputTime": func(t *time.Time) string {
 			if t == nil {
 				return ""

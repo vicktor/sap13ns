@@ -23,7 +23,7 @@
   function toggleTheme() {
     const dark = !document.documentElement.classList.contains("dark");
     document.documentElement.classList.toggle("dark", dark);
-    try { localStorage.setItem("themeMode", dark ? "dark" : "light"); } catch (_) {}
+    window.sap13nsTheme?.save(dark ? "dark" : "light");
   }
 
   // ------------------------------------------------------------ dialogs --

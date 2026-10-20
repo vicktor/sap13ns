@@ -1,7 +1,7 @@
 // Tests for the select glue's pure helpers (ui/static/selects.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fold, typeahead } from "../../static/selects.js";
+import { fold, leftFor, typeahead } from "../../static/selects.js";
 
 test("fold lowers the case and drops accents", () => {
   assert.equal(fold("Árbol Ñandú"), "arbol nandu");
@@ -27,4 +27,20 @@ test("typeahead cycles through the labels with one repeated letter", () => {
   assert.equal(typeahead(labels, "ee", 2), 3, "the same letter twice moves on");
   assert.equal(typeahead(labels, "s", 4), 4, "the only match stays");
   assert.equal(typeahead(labels, "x", 0), -1);
+});
+
+test("leftFor closes the list only when the focus goes elsewhere", () => {
+  // A tiny tree: main > root > trigger, and main > other.
+  const node = (parent) => {
+    const n = { parent, contains(x) { for (let p = x; p; p = p.parent) if (p === n) return true; return false; } };
+    return n;
+  };
+  const main = node(null);
+  const root = node(main);
+  const trigger = node(root);
+  const other = node(main);
+  assert.equal(leftFor(root, other), true, "tabbing to another field");
+  assert.equal(leftFor(root, trigger), false, "inside the select");
+  assert.equal(leftFor(root, main), false, "a click on an option focuses <main tabindex=-1>");
+  assert.equal(leftFor(root, null), false, "a click that focuses nothing");
 });

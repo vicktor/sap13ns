@@ -4,7 +4,8 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="same-origin">
 <title>{{.Title}} · {{.Site.SiteTitle}}</title>
-<script src="{{asset "theme-init.js"}}"></script>
+{{with themeDomain}}<meta name="sap13ns-theme-domain" content="{{.}}">
+{{end}}<script src="{{asset "theme-init.js"}}"></script>
 <link rel="stylesheet" href="{{asset "admin.css"}}">
 <link rel="icon" href="{{asset "favicon.svg"}}" type="image/svg+xml">
 <link rel="icon" href="{{asset "brand/favicon-32.png"}}" sizes="32x32" type="image/png">

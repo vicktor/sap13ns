@@ -27,7 +27,8 @@
 <link rel="icon" href="{{.Site.Static "brand/favicon-32.png"}}" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="{{.Site.Static "brand/apple-touch-icon.png"}}">
 <link rel="manifest" href="/manifest.webmanifest">
-<script src="{{.Site.Static "theme-init.js"}}"></script>
+{{with themeDomain}}<meta name="sap13ns-theme-domain" content="{{.}}">
+{{end}}<script src="{{.Site.Static "theme-init.js"}}"></script>
 {{if .Site.Consent}}<link rel="stylesheet" href="{{.Site.Static "consent.css"}}">
 {{end}}<link rel="stylesheet" href="{{.Site.Asset "theme.css"}}">
 {{with .Site.PreviewTheme}}<meta name="sap-preview-theme" content="{{.}}">

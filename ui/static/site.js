@@ -45,7 +45,7 @@
     if (el.hasAttribute("data-theme-toggle")) {
       const dark = !root.classList.contains("dark");
       root.classList.toggle("dark", dark);
-      try { localStorage.setItem("themeMode", dark ? "dark" : "light"); } catch (_) {}
+      window.sap13nsTheme?.save(dark ? "dark" : "light");
       return;
     }
 

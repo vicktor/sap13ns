@@ -44,6 +44,16 @@ export function typeahead(labels, buffer, current = -1) {
   return folded.findIndex((l) => l.startsWith(b));
 }
 
+/**
+ * leftFor says whether the focus, leaving a select or combobox for `to`,
+ * went to something else on the page. A click on an option (a plain div)
+ * moves it to nothing, or to the nearest focusable ancestor, such as the
+ * admin's <main tabindex="-1">: the list must stay open for the click.
+ */
+export function leftFor(root, to) {
+  return !!to && typeof to.contains === "function" && !root.contains(to) && !to.contains(root);
+}
+
 const hiddenOf = (root) => root.querySelector(":scope > input[type=hidden]");
 const isPopup = (root) => root.matches(".combobox") && !!root.querySelector(':scope > button[aria-haspopup="listbox"]');
 
@@ -202,13 +212,10 @@ export function wire(doc = document) {
     }
   });
 
-  // Tabbing out of an open list closes it. A click on an option moves the
-  // focus nowhere (relatedTarget null), and the components handle clicks.
+  // Tabbing out of an open list closes it. The components handle clicks.
   doc.addEventListener("focusout", (e) => {
     const root = e.target instanceof Element ? e.target.closest(ROOTS) : null;
-    const to = e.relatedTarget;
-    if (!root || !(to instanceof Element) || root.contains(to)) return;
-    root.close?.(false);
+    if (root && leftFor(root, e.relatedTarget)) root.close?.(false);
   });
 }
 

@@ -1476,6 +1476,7 @@
   "Reload the preview": "Recargar la vista previa",
   "Remember choices that change how the site looks or behaves for you.": "Recuerdan elecciones que cambian cómo se ve o se comporta el sitio para ti.",
   "Remembers the language you chose in the language menu, so that the home page opens in it. Set only when you choose one.": "Recuerda el idioma que elegiste en el menú de idiomas, para que la portada se abra en él. Solo se guarda cuando eliges uno.",
+  "Remembers the light or dark mode you chose with the button on every site of %s. Set only when you press it.": "Recuerda el modo claro u oscuro que elegiste con el botón en todos los sitios de %s. Solo se guarda cuando lo pulsas.",
   "Remembers the light or dark mode you chose with the button. Stored only when you press it.": "Recuerda el modo claro u oscuro que elegiste con el botón. Solo se guarda cuando lo pulsas.",
   "Remembers your choices in the cookie settings.": "Recuerda tus elecciones en la configuración de cookies.",
   "Remove": "Quitar",

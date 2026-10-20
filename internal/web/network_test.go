@@ -189,3 +189,20 @@ func TestBusy(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+// On a network the pages name the sites domain, whose cookie keeps the light
+// or dark choice for every site (theme-init.js); a single site does not.
+func TestThemeDomain(t *testing.T) {
+	st := testutil.Store(t)
+	const meta = `<meta name="sap13ns-theme-domain" content="sap13ns.site">`
+	for _, multi := range []bool{false, true} {
+		s := networkServer(t, st, func(c *config.Config, _ *Deps) { c.Multisite, c.SitesDomain = multi, "sap13ns.site" })
+		for _, p := range []string{"/login", "/no-such-page"} {
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "https://blog.sap13ns.site"+p, nil))
+			if got := strings.Contains(rec.Body.String(), meta); got != multi {
+				t.Errorf("multisite %v, %s (%d): theme domain named = %v", multi, p, rec.Code, got)
+			}
+		}
+	}
+}

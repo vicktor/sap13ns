@@ -489,6 +489,19 @@ func hashFiles(fsys fs.FS, dir string) map[string]string {
 }
 
 // assetURL returns a cache-busted URL for a file under ui/static.
+// themeCookie keeps the light or dark choice on every site of a network
+// (theme-init.js writes it).
+const themeCookie = "sap13ns-theme"
+
+// themeDomain returns the domain whose sites share the light or dark choice
+// (theme-init.js): the sites domain of a network, "" for a single site.
+func (s *Server) themeDomain() string {
+	if !s.cfg.Multisite {
+		return ""
+	}
+	return s.cfg.SitesDomain
+}
+
 func (s *Server) assetURL(file string) string {
 	if h, ok := s.staticHash(file); ok {
 		return "/static/" + file + "?v=" + h
