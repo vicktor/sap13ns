@@ -25,6 +25,13 @@
   document.addEventListener("click", (e) => {
     // Close an open language switch when clicking elsewhere.
     for (const d of document.querySelectorAll("details.lang-switch[open]")) if (!d.contains(e.target)) d.open = false;
+    // A language chosen in the switch is remembered, so that the home page
+    // opens in it next time instead of the browser's language (lang.go).
+    const pick = e.target.closest(".lang-switch a[hreflang]");
+    if (pick && /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/.test(pick.hreflang)) {
+      const secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = "sap13ns-lang=" + pick.hreflang + "; Path=/; Max-Age=31536000; SameSite=Lax" + secure;
+    }
     // A click outside an open menu (the dark scrim, the page) closes it, and
     // so does following one of its links (in-page anchors included).
     for (const btn of openToggles()) {

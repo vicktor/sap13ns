@@ -87,7 +87,7 @@ func TestAdminLanguageChoice(t *testing.T) {
 	}
 	prof := e.do(get, e.admin).Body.String()
 	for _, want := range []string{"<h2>Saved.</h2>", `<input type="radio" class="input" name="lang" value="en" checked>`,
-		"The site&#39;s language (Español)", `name="next" value="/admin/profile#language"`} {
+		"Your browser&#39;s language, or the site&#39;s (Español)", `name="next" value="/admin/profile#language"`} {
 		if !strings.Contains(prof, want) {
 			t.Errorf("the profile after a save lacks %q", want)
 		}
@@ -271,5 +271,74 @@ func TestSignInBrowserLanguage(t *testing.T) {
 	}
 	if got := e.s.signInLink("", "en"); got != "" {
 		t.Errorf("a hidden sign-in became %q", got)
+	}
+}
+
+// The home page opens in the visitor's language: the one picked in the
+// language switch (its cookie), else the browser's, among the site's.
+func TestHomeFollowsVisitor(t *testing.T) {
+	e := newCustomEnv(t)
+	home := func(target, accept, cookie string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		if accept != "" {
+			req.Header.Set("Accept-Language", accept)
+		}
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: langCookie, Value: cookie})
+		}
+		return e.do(req, nil)
+	}
+	if rec := home("/", "en", ""); rec.Code != http.StatusOK {
+		t.Fatalf("a single-language site redirected: %d", rec.Code)
+	}
+	e.saveSettings(func(st *store.Settings) { st.Language, st.Languages = "es", []string{"en", "pt-br"} })
+	e.s.contentChanged()
+	for _, tc := range []struct{ target, accept, cookie, want string }{
+		{"/", "en-GB,en;q=0.9", "", "/en/"},
+		{"/", "pt-BR", "", "/pt-br/"},
+		{"/", "es-ES,en;q=0.5", "", ""},
+		{"/", "fr", "", ""},
+		{"/", "", "", ""},                // crawlers
+		{"/", "en", "es", ""},            // the visitor picked the main language
+		{"/", "es", "en", "/en/"},        // or another one
+		{"/", "en", "zz", "/en/"},        // a cookie for no language of the site
+		{"/?utm_source=x", "en", "", ""}, // links with a query are left alone
+		{"/en/", "es", "", ""},
+		{"/blog", "en", "", ""}, // only the home page
+	} {
+		rec := home(tc.target, tc.accept, tc.cookie)
+		loc := rec.Header().Get("Location")
+		if tc.want == "" && rec.Code != http.StatusOK || tc.want != "" && (rec.Code != http.StatusFound || loc != tc.want) {
+			t.Errorf("%s (%q, cookie %q): %d %q, want %q", tc.target, tc.accept, tc.cookie, rec.Code, loc, tc.want)
+		}
+		if tc.target == "/" && !strings.Contains(rec.Header().Get("Vary"), "Accept-Language") {
+			t.Errorf("%s (%q): no Vary", tc.target, tc.accept)
+		}
+	}
+	if body := home("/", "es", "").Body.String(); !strings.Contains(body, langCookie) {
+		t.Error("the cookie settings do not list the language cookie")
+	}
+}
+
+// Until a user chooses the language of the panel, it follows the browser.
+func TestAdminFollowsBrowser(t *testing.T) {
+	e := newCustomEnv(t)
+	admin := func(accept string) string {
+		req := httptest.NewRequest(http.MethodGet, "/admin/", nil)
+		req.Header.Set("Accept-Language", accept)
+		return e.do(req, e.admin).Body.String()
+	}
+	if body := admin("en-US,en;q=0.9"); !strings.Contains(body, `<html lang="en"`) {
+		t.Error("the panel did not follow the browser")
+	}
+	if body := admin("fr-FR"); !strings.Contains(body, `<html lang="es"`) {
+		t.Error("a language the panel lacks did not fall back to the site's")
+	}
+	form := url.Values{"lang": {"es"}, "next": {"/admin/"}}
+	if rec := e.postForm("/admin/profile/language", form); rec.Code != http.StatusSeeOther {
+		t.Fatalf("choose: %d", rec.Code)
+	}
+	if body := admin("en-US"); !strings.Contains(body, `<html lang="es"`) {
+		t.Error("the browser overrode the user's choice")
 	}
 }

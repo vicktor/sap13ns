@@ -2,6 +2,7 @@ package web
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"crypto/subtle"
 	"errors"
@@ -365,7 +366,9 @@ func (s *Server) requireCap(c auth.Cap, h http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, r, s.auth().Login+"?next="+url.QueryEscape(safeNext(r.URL.RequestURI())), http.StatusSeeOther)
 			return
 		}
-		rctx(r).UILang = s.userLang(u)
+		// The user's choice, else the browser's language when the panel
+		// speaks it, else the site's main language (uiLang).
+		rctx(r).UILang = cmp.Or(s.userLang(u), firstAccepted(r.Header.Get("Accept-Language"), s.uiLanguage))
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {

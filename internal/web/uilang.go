@@ -20,8 +20,9 @@ import (
 // never reads it. On a network every site, and the portal, has its own
 // users, so a user signed in through single sign-on chooses per site.
 
-// uiLang is the admin language of r: the signed-in user's choice on an
-// admin route, else the site's main language. r may be nil.
+// uiLang is the admin language of r: on an admin route the signed-in
+// user's choice, or the browser's language until they make one; else the
+// site's main language. r may be nil.
 func (s *Server) uiLang(r *http.Request) string {
 	if r != nil {
 		if l := rctx(r).UILang; l != "" {
@@ -125,16 +126,26 @@ func (s *Server) signInLang(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// acceptedLang is the first language of an Accept-Language header (in the
-// order given, which is the order of preference) that the site publishes
-// in and the admin panel has a catalog for; "" when none is.
+// acceptedLang is the first language of an Accept-Language header that
+// the site publishes in and the admin panel has a catalog for; "" when
+// none is.
 func (s *Server) acceptedLang(accept string) string {
 	langs := s.siteLangs()
+	return firstAccepted(accept, func(l string) bool { return slices.Contains(langs, l) && s.uiLanguage(l) })
+}
+
+// firstAccepted is the first language of an Accept-Language header, in the
+// order given (the order of preference), that ok accepts; "" when none.
+// A tag with a region also tries its base language: "es-MX", then "es".
+func firstAccepted(accept string, ok func(string) bool) string {
 	for part := range strings.SplitSeq(accept, ",") {
 		tag, _, _ := strings.Cut(strings.TrimSpace(part), ";")
-		base, _, _ := strings.Cut(strings.ToLower(tag), "-")
-		if slices.Contains(langs, base) && s.uiLanguage(base) {
-			return base
+		tag = strings.ToLower(strings.TrimSpace(tag))
+		base, _, _ := strings.Cut(tag, "-")
+		for _, l := range []string{tag, base} {
+			if l != "" && l != "*" && ok(l) {
+				return l
+			}
 		}
 	}
 	return ""

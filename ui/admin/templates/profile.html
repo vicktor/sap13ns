@@ -48,7 +48,7 @@
         <input type="hidden" name="next" value="/admin/profile#language">
         <fieldset class="field">
           <legend class="sr-only">{{T "Language of the panel"}}</legend>
-          <label class="check"><input type="radio" class="input" name="lang" value=""{{if not $d.Lang}} checked{{end}}> {{T "The site's language (%s)" $d.SiteLang}}</label>
+          <label class="check"><input type="radio" class="input" name="lang" value=""{{if not $d.Lang}} checked{{end}}> {{T "Your browser's language, or the site's (%s)" $d.SiteLang}}</label>
           {{range $d.Langs}}<label class="check" lang="{{.Code}}"><input type="radio" class="input" name="lang" value="{{.Code}}"{{if eq .Code $d.Lang}} checked{{end}}> {{.Name}}</label>
           {{end}}
         </fieldset>

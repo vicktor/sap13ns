@@ -268,6 +268,10 @@ func (s *Server) coreConsentItems(lang string) []ConsentItem {
 	if s.sso != nil {
 		items = append(items, nec(plugin.PrivacyCookie, s.ssoCookieName(), tr("Links the steps of signing in with your network account."), tr("10 minutes")))
 	}
+	if s.multilingual() {
+		items = append(items, nec(plugin.PrivacyCookie, langCookie,
+			tr("Remembers the language you chose in the language menu, so that the home page opens in it. Set only when you choose one."), tr("1 year")))
+	}
 	items = append(items,
 		nec(plugin.PrivacyStorage, "themeMode", tr("Remembers the light or dark mode you chose with the button. Stored only when you press it."),
 			tr("Until you clear your browser's data")),

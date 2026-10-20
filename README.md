@@ -75,7 +75,8 @@ sap13ns is for people who want a blog or a company site with posts, pages, comme
 - Each post can have linked translations, and every language lives under its own prefix (`/en/`, `/es/`…).
 - `hreflang` alternates in pages and sitemaps, language switchers in every theme, and per-language RSS, Atom and JSON feeds.
 - Menus, widgets and category names can be translated. Page cache keys include the language.
-- The admin panel is in English and Spanish. Each user picks theirs from the language menu beside the light/dark toggle, or on their profile; it changes nothing on the public site. The sign-in page takes `?lang=`.
+- **The visitor's language first:** the home page opens in the browser's language when the site has it, and in the one the visitor last picked in the language switch after that (a one-year `sap13ns-lang` cookie that holds only the code, listed in the cookie settings). Other pages keep their address.
+- The admin panel is in English and Spanish. It follows the browser until each user picks a language from the menu beside the light/dark toggle, or on their profile; it changes nothing on the public site. The sign-in pages follow the page that links to them (`?lang=`), else the browser.
 
 ### Themes
 Six built-in themes, each with light and dark modes:

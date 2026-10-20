@@ -122,9 +122,18 @@ var prefixOnly = []string{"/admin", "/logout", "/register", "/static/", "/themes
 	"/robots.txt", "/sitemap.xml", "/og/", "/api/", "/mcp", "/manifest.webmanifest", "/plugin-assets/", "/plugin-forms/"}
 
 // withLang detects a /<lang>/ prefix for an extra language, records it and
-// strips it from the path before routing.
+// strips it from the path before routing. The home page of the main
+// language sends visitors to the home page of theirs (homeLang).
 func (s *Server) withLang(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead) && s.multilingual() {
+			w.Header().Add("Vary", "Accept-Language, Cookie")
+			if l := s.homeLang(r); l != "" && l != s.mainLang() && r.URL.RawQuery == "" {
+				w.Header().Set("Cache-Control", "no-store")
+				http.Redirect(w, r, s.langPath(l, "/"), http.StatusFound)
+				return
+			}
+		}
 		seg, rest, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 		if !langCodeRe.MatchString(seg) || !s.isExtraLang(seg) {
 			next.ServeHTTP(w, r)
@@ -142,6 +151,22 @@ func (s *Server) withLang(next http.Handler) http.Handler {
 		r2.URL.Path, r2.URL.RawPath = p, ""
 		next.ServeHTTP(w, r2)
 	})
+}
+
+// langCookie remembers the language a visitor picked in the language
+// switch (site.js). It holds only a language code, and only the home page
+// reads it.
+const langCookie = "sap13ns-lang"
+
+// homeLang is the language the home page opens in for r: the one the
+// visitor picked, else the first of their browser's that the site
+// publishes in; "" when neither is one of the site's languages.
+func (s *Server) homeLang(r *http.Request) string {
+	langs := s.siteLangs()
+	if c, err := r.Cookie(langCookie); err == nil && slices.Contains(langs, c.Value) {
+		return c.Value
+	}
+	return firstAccepted(r.Header.Get("Accept-Language"), func(l string) bool { return slices.Contains(langs, l) })
 }
 
 // translationLinks builds the language switch for a page. alts maps each
