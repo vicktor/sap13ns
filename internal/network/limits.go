@@ -133,6 +133,10 @@ func (h siteHooks) ThemePolicy(ctx context.Context) (web.ThemePolicy, error) {
 	return web.ThemePolicy{Plan: p.Name, Uploads: p.ThemeUploads}, nil
 }
 
+func (h siteHooks) NetworkAdmin(ctx context.Context, accountID int64) (bool, error) {
+	return h.r.net.IsNetworkAdmin(ctx, accountID)
+}
+
 func (h siteHooks) RequestPluginReview(ctx context.Context, pluginID, sha, pin string) (bool, error) {
 	return h.r.net.RequestPluginReview(ctx, h.id, pluginID, sha, pin)
 }

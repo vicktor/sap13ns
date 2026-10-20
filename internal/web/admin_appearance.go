@@ -20,6 +20,7 @@ type themesData struct {
 	Themes   []*theme.Theme
 	Active   string
 	Uploads  bool   // the site can upload themes (admin_theme_upload.go)
+	NetAdmin bool   // only because the signed-in user is a network admin
 	Plan     string // the plan's name, on a site of a network
 	Tenant   bool   // a site of a network
 	MaxMB    int

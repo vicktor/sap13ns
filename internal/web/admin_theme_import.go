@@ -164,7 +164,7 @@ func (s *Server) adminThemeImport(w http.ResponseWriter, r *http.Request) {
 		s.redirect(w, r, back, "error", s.tu(r, "The converted theme is no longer waiting: upload the WordPress theme again."))
 		return
 	}
-	pol, err := s.themePolicy(r.Context())
+	pol, err := s.themePolicy(r)
 	if err != nil {
 		s.serverError(w, r, err)
 		return

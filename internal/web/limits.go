@@ -7,7 +7,8 @@ package web
 // not hide; a plan with plugin uploads also lets the site upload its own,
 // which the network operator reviews before they can run. A plan with
 // theme uploads lets the site upload its own themes, which the validation
-// of internal/theme checks instead of an operator. A single-site install
+// of internal/theme checks instead of an operator; a network admin signed
+// in to the site uploads them on any plan. A single-site install
 // and the portal have no limits.
 
 import (
@@ -47,12 +48,18 @@ type SiteLimits interface {
 	// ThemePolicy is what the plan allows for themes now; a downgrade
 	// stops uploads, and the uploaded themes stay.
 	ThemePolicy(ctx context.Context) (ThemePolicy, error)
+	// NetworkAdmin reports whether an account of the portal is a network
+	// admin, who uploads themes to a site whatever its plan.
+	NetworkAdmin(ctx context.Context, accountID int64) (bool, error)
 }
 
 // ThemePolicy is the theme policy of a site's plan.
 type ThemePolicy struct {
 	Plan    string // its name
 	Uploads bool   // the site may upload its own themes
+	// NetworkAdmin: the plan has no theme uploads, but the signed-in user
+	// is a network admin and may upload anyway.
+	NetworkAdmin bool
 }
 
 // PluginPolicy is the plugin policy of a site's plan.

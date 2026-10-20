@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -41,23 +40,34 @@ type themeProblem struct {
 	Where, Message string
 }
 
-// themePolicy is whether the site can upload themes, and its plan's name
-// on a network.
-func (s *Server) themePolicy(ctx context.Context) (ThemePolicy, error) {
+// themePolicy is whether the signed-in user can upload themes to the
+// site, and its plan's name on a network. A network admin can on any plan.
+func (s *Server) themePolicy(r *http.Request) (ThemePolicy, error) {
 	if s.limits == nil {
 		return ThemePolicy{Uploads: true}, nil
 	}
-	return s.limits.ThemePolicy(ctx)
+	pol, err := s.limits.ThemePolicy(r.Context())
+	if err != nil || pol.Uploads {
+		return pol, err
+	}
+	if u := currentUser(r); u != nil && u.NetworkAccountID != nil {
+		admin, err := s.limits.NetworkAdmin(r.Context(), *u.NetworkAccountID)
+		if err != nil {
+			return pol, err
+		}
+		pol.Uploads, pol.NetworkAdmin = admin, admin
+	}
+	return pol, nil
 }
 
 // themesPage is the data of the themes page.
 func (s *Server) themesPage(r *http.Request) (themesData, error) {
-	pol, err := s.themePolicy(r.Context())
+	pol, err := s.themePolicy(r)
 	if err != nil {
 		return themesData{}, err
 	}
 	return themesData{Themes: s.themes.List(), Active: s.themes.Active(s.settings().ActiveTheme).Slug,
-		Uploads: pol.Uploads, Plan: pol.Plan, Tenant: s.limits != nil, MaxMB: theme.MaxArchiveBytes >> 20,
+		Uploads: pol.Uploads, NetAdmin: pol.NetworkAdmin, Plan: pol.Plan, Tenant: s.limits != nil, MaxMB: theme.MaxArchiveBytes >> 20,
 		Failures: s.themes.Failures()}, nil
 }
 
@@ -77,7 +87,7 @@ func (s *Server) refusal(r *http.Request, ref *theme.Refusal, file string) *them
 func (s *Server) adminThemeUpload(w http.ResponseWriter, r *http.Request) {
 	const back = "/admin/appearance/themes"
 	fail := func(msg string) { s.redirect(w, r, back, "error", msg) }
-	pol, err := s.themePolicy(r.Context())
+	pol, err := s.themePolicy(r)
 	if err != nil {
 		s.serverError(w, r, err)
 		return

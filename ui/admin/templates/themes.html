@@ -68,6 +68,7 @@
     <h2>{{icon "upload"}} {{T "Upload a theme"}}</h2>
     <p>{{T "A .zip file of up to %d MB with theme.json, templates/ and static/. It is checked before it is installed, and it is not activated: preview it first. Uploading a theme with the same name replaces it." $d.MaxMB}}</p>
     <p>{{T "A WordPress block theme (.zip from wordpress.org) is converted first: you see what the conversion kept and left out before anything is installed."}}</p>
+    {{if $d.NetAdmin}}<p>{{T "The %s plan does not include theme uploads: you see this because you are a network admin." $d.Plan}}</p>{{end}}
   </header>
   <section>
     <form method="post" action="/admin/appearance/themes/upload" enctype="multipart/form-data" class="plugin-upload-form">

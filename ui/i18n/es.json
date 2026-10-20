@@ -1877,6 +1877,7 @@
   "That plan cannot be bought.": "Ese plan no se puede comprar.",
   "That username or e-mail address is already registered.": "Ese nombre de usuario o esa dirección de correo electrónico ya están registrados.",
   "That was too fast. Wait a moment and send the form again.": "Ha sido demasiado rápido. Espera un momento y vuelve a enviar el formulario.",
+  "The %s plan does not include theme uploads: you see this because you are a network admin.": "El plan %s no incluye subir temas: lo ves porque eres administrador de la red.",
   "The AI provider (Settings › AI provider)": "El proveedor de IA (Ajustes › Proveedor de IA)",
   "The AI provider is busy (rate limit). Try again in a minute.": "El proveedor de IA está ocupado (límite de peticiones). Inténtalo de nuevo en un minuto.",
   "The AI provider is off": "El proveedor de IA está desactivado",

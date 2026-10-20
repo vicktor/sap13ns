@@ -544,9 +544,13 @@ type themeLimits struct {
 	policy     ThemePolicy
 	quotaErr   error
 	reserved   int64
+	admins     []int64 // the network admins' accounts
 }
 
 func (l *themeLimits) ThemePolicy(context.Context) (ThemePolicy, error) { return l.policy, nil }
+func (l *themeLimits) NetworkAdmin(_ context.Context, account int64) (bool, error) {
+	return slices.Contains(l.admins, account), nil
+}
 func (l *themeLimits) Reserve(_ context.Context, n int64) error {
 	if l.quotaErr != nil {
 		return l.quotaErr
@@ -802,5 +806,37 @@ func TestThemeUploadPlan(t *testing.T) {
 	}
 	if rec := e.admin("/admin/appearance/themes/tiny/delete", url.Values{}); rec.Code != http.StatusSeeOther || lim.reserved != 0 {
 		t.Fatalf("delete: %d, %d bytes still counted", rec.Code, lim.reserved)
+	}
+}
+
+// TestThemeUploadNetworkAdmin: a network admin uploads themes on a plan
+// without theme uploads; another network account does not.
+func TestThemeUploadNetworkAdmin(t *testing.T) {
+	e := newPluginEnv(t)
+	e.english()
+	lim := &themeLimits{policy: ThemePolicy{Plan: "Free"}, admins: []int64{7}}
+	e.s.limits = lim
+	pkg := zipOf(t, "tiny", tinyTheme("tiny"), nil)
+	if err := e.st.LinkNetworkAccount(context.Background(), e.adminID, 8); err != nil {
+		t.Fatal(err)
+	}
+	b := e.do("GET", "/admin/appearance/themes", nil, "", e.cookie).Body.String()
+	if strings.Contains(b, `action="/admin/appearance/themes/upload"`) || !strings.Contains(b, "On the Free plan") {
+		t.Fatal("a member who is not a network admin sees the upload form")
+	}
+	if rec := e.uploadTheme("tiny.zip", pkg); rec.Code != http.StatusForbidden {
+		t.Fatalf("a member: %d", rec.Code)
+	}
+
+	lim.admins = []int64{7, 8}
+	b = e.do("GET", "/admin/appearance/themes", nil, "", e.cookie).Body.String()
+	if !strings.Contains(b, `action="/admin/appearance/themes/upload"`) || !strings.Contains(b, "because you are a network admin") {
+		t.Fatal("the network admin does not see the upload form")
+	}
+	if rec := e.uploadTheme("tiny.zip", pkg); rec.Code != http.StatusSeeOther {
+		t.Fatalf("the network admin: %d %s", rec.Code, rec.Body)
+	}
+	if lim.reserved <= 0 {
+		t.Fatal("the network admin's upload counted no storage")
 	}
 }
