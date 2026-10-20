@@ -115,13 +115,23 @@ func (s *Server) updater() updaterView {
 }
 
 // adminUpdateNow asks the update service to install the latest release.
+// The System page's script asks for JSON and then follows the update with
+// adminUpdateStatus; the plain form post is redirected with a flash.
 func (s *Server) adminUpdateNow(w http.ResponseWriter, r *http.Request) {
+	wantJSON := strings.Contains(r.Header.Get("Accept"), "application/json")
+	fail := func(status int, msg string) {
+		if wantJSON {
+			writeJSON(w, status, map[string]string{"error": msg})
+			return
+		}
+		s.redirect(w, r, "/admin/system#updates", "error", msg)
+	}
 	if s.updates == nil || s.updates.Disabled || !update.Updater(s.updateStatus, s.updateUnit) {
-		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "Updates from the admin are not set up on this server."))
+		fail(http.StatusConflict, s.tu(r, "Updates from the admin are not set up on this server."))
 		return
 	}
 	if update.PublicKey == "" {
-		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "This build cannot install updates: it has no signing key."))
+		fail(http.StatusConflict, s.tu(r, "This build cannot install updates: it has no signing key."))
 		return
 	}
 	by := "?"
@@ -130,12 +140,47 @@ func (s *Server) adminUpdateNow(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := update.Request(s.updateRequest, by, time.Now()); err != nil {
 		s.log.Error("update request", "err", err)
-		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "The update could not be requested: %s", truncateErr(err)))
+		fail(http.StatusInternalServerError, s.tu(r, "The update could not be requested: %s", truncateErr(err)))
 		return
 	}
 	s.audit(r, uid(r), "update.requested", "", nil)
+	if wantJSON {
+		writeJSON(w, http.StatusAccepted, s.updateState())
+		return
+	}
 	s.redirect(w, r, "/admin/system#updates", "info",
 		s.tu(r, "The update has started: a backup first, then the new release. The site restarts by itself in a few minutes; reload this page then."))
+}
+
+// updateStateJSON is where an update started from the admin is, for the
+// System page's script: the version this server runs, whether the request
+// still waits for the update service, and what the service last did.
+type updateStateJSON struct {
+	Version   string     `json:"version"`
+	Requested bool       `json:"requested"`
+	State     string     `json:"state,omitempty"`
+	To        string     `json:"to,omitempty"`
+	Error     string     `json:"error,omitempty"`
+	At        *time.Time `json:"at,omitempty"`
+}
+
+func (s *Server) updateState() updateStateJSON {
+	v := s.updater()
+	out := updateStateJSON{Version: Version, Requested: update.Requested(s.updateRequest)}
+	if st := v.Status; st != nil {
+		out.State, out.To, out.Error = st.State, st.To, st.Error
+		at := st.At
+		out.At = &at
+	}
+	return out
+}
+
+// adminUpdateStatus answers the System page while an update runs. During
+// the restart nothing answers (the proxy's error page instead), which the
+// script takes as "still restarting".
+func (s *Server) adminUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, s.updateState())
 }
 
 func (s *Server) adminUpdateCheck(w http.ResponseWriter, r *http.Request) {

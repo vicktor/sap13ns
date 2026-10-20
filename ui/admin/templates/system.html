@@ -16,6 +16,7 @@
     </section>
   </section>
   {{end}}
+  {{if .D.Updater.On}}{{template "update-dialog" .}}{{end}}
   <section class="card" id="updates">
     <header><h2>{{T "Updates"}}</h2></header>
     <section>
@@ -43,7 +44,7 @@ sudo systemctl restart sap13ns</pre>
       {{if not $u.On}}<p class="hint">{{T "To update from here instead, install the update service on the server (sap13ns-update.path, see docs/RELEASES.md)."}}</p>{{end}}
     </section>
     {{if .D.Checks}}<footer class="flex flex-wrap gap-2">
-      {{if and .D.Updater.On .D.Update (not .D.Updater.Waiting)}}<form method="post" action="/admin/system/update">{{.CSRFField}}<button class="btn" data-size="sm" data-confirm="{{T "Install sap13ns %s now? The site restarts, and is unavailable for a moment." .D.Update.Latest}}">{{icon "download"}}{{T "Update now"}}</button></form>{{end}}
+      {{if and .D.Updater.On .D.Update (not .D.Updater.Waiting)}}<form method="post" action="/admin/system/update" data-update-form>{{.CSRFField}}<button class="btn" data-size="sm" data-confirm="{{T "Install sap13ns %s now? The site restarts, and is unavailable for a moment." .D.Update.Latest}}">{{icon "download"}}{{T "Update now"}}</button></form>{{end}}
       <form method="post" action="/admin/system/update-check">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm">{{icon "refresh-cw"}}{{T "Check now"}}</button></form>
     </footer>{{end}}
   </section>
@@ -73,4 +74,36 @@ sudo systemctl restart sap13ns</pre>
   </section>
   {{end}}
 </div>
+{{end}}
+
+{{/* update-dialog follows an update started with "Update now" (updates.js):
+     it blocks the page and asks the server every few seconds until the new
+     release answers, or the update service reports a failure. Also opened
+     on load while an update is under way (data-update-waiting). */}}
+{{define "update-dialog"}}
+<dialog id="update-dialog" class="dialog update-dialog" aria-labelledby="update-dialog-title" aria-describedby="update-dialog-text"
+  data-update-dialog{{if .D.Updater.Waiting}} data-update-waiting{{end}}
+  data-from="{{.Version}}" data-since="{{with .D.Updater.Status}}{{.At.Format "2006-01-02T15:04:05.999999999Z07:00"}}{{end}}"
+  data-msg-wait="{{T "One moment: a backup first, then the new release, then the site restarts. Keep this page open."}}"
+  data-msg-installing="{{T "Installing sap13ns %s…" "{v}"}}"
+  data-msg-restart="{{T "The site is restarting…"}}"
+  data-msg-done="{{T "sap13ns %s is installed." "{v}"}}"
+  data-msg-current="{{T "There was nothing newer to install."}}"
+  data-msg-failed="{{T "The update could not be installed."}}"
+  data-msg-stalled="{{T "The update service has not started. Check it on the server: journalctl -u sap13ns-update"}}"
+  data-msg-slow="{{T "This is taking longer than usual. It may still finish; check it on the server: journalctl -u sap13ns-update"}}">
+  <div>
+    <header>
+      <h2 id="update-dialog-title">{{T "Updating sap13ns"}}</h2>
+      <p id="update-dialog-text" data-update-text aria-live="polite"></p>
+    </header>
+    <section>
+      <div class="update-dialog-spinner" data-update-spinner>{{icon "loader-circle"}}</div>
+      <div class="alert" data-variant="destructive" role="alert" data-update-error hidden>{{icon "triangle-alert"}}<h2 data-update-error-title></h2><section class="break-all" data-update-error-text></section></div>
+    </section>
+    <footer data-update-actions hidden>
+      <button type="button" class="btn" data-update-reload>{{T "Reload the page"}}</button>
+    </footer>
+  </div>
+</dialog>
 {{end}}

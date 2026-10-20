@@ -416,6 +416,11 @@
 .link-like { @apply cursor-pointer font-medium text-primary underline-offset-4 hover:underline; }
 .upload-status { @apply mt-3 flex flex-col items-center gap-1; }
 .upload-status[hidden], .upload-errors[hidden] { display: none; }
+.update-dialog > div { @apply w-[min(30rem,calc(100vw-2rem))]; }
+.update-dialog-spinner { @apply grid place-items-center py-4 text-primary; }
+.update-dialog-spinner[hidden], .update-dialog footer[hidden] { display: none; }
+.update-dialog-spinner svg { @apply size-8 animate-spin; }
+@media (prefers-reduced-motion: reduce) { .update-dialog-spinner svg { animation-duration: 3s; } }
 .upload-errors { @apply mt-3 text-left; }
 .media-dialog .upload-status { @apply mt-0 mb-3; }
 .media-dialog .upload-status .progress { @apply w-full; }

@@ -94,6 +94,7 @@ link
 link-2
 list
 list-ordered
+loader-circle
 lock
 lock-keyhole
 log-in

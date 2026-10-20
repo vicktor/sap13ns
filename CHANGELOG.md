@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.11 — 2026-10-20
+
+- Update now: the System page now stays behind a dialog while the update
+  runs. It checks every 5 seconds, waits through the restart and reloads
+  once the new version answers. If the update fails, it shows why, and it
+  also says so when the update service never takes the request.
+
 ## v0.2.10 — 2026-10-20
 
 - Post editor: uploading from the media dialog showed nothing, neither the

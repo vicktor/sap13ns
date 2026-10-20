@@ -28,7 +28,7 @@ export const bundles = [
     // Basecoat's scripts.
     name: "admin",
     out: "ui/static/admin.min.js",
-    sources: ["selects.js", "admin.js", "autosave.js", "jobs.js", "ai.js"],
+    sources: ["selects.js", "admin.js", "autosave.js", "jobs.js", "ai.js", "updates.js"],
   },
 ];
 

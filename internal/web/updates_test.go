@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -92,6 +93,9 @@ func TestUpdateNoticeChanges(t *testing.T) {
 	if strings.Contains(page, `action="/admin/system/update"`) || !strings.Contains(page, `<div class="alert" role="status">`) {
 		t.Error("the page does not show the update under way")
 	}
+	if !strings.Contains(e.get("/admin/system", e.admin).Body.String(), `data-update-dialog data-update-waiting`) {
+		t.Error("a page loaded during the update does not follow it")
+	}
 	if e.postAs("/admin/system/update", e.author, url.Values{"csrf": {e.acsrf}}).Code == http.StatusSeeOther {
 		t.Error("an author can update the server")
 	}
@@ -103,9 +107,35 @@ func TestUpdateNoticeChanges(t *testing.T) {
 		t.Error("a failed update is not shown")
 	}
 
+	// The System page's script: Update now in JSON, then the status it polls.
+	status := func(cookie *http.Cookie) (int, updateStateJSON) {
+		rec := e.get("/admin/system/update-status", cookie)
+		var st updateStateJSON
+		json.Unmarshal(rec.Body.Bytes(), &st)
+		return rec.Code, st
+	}
+	if code, st := status(e.admin); code != http.StatusOK || st.State != update.StateFailed || st.Error != "the backup failed" || st.Version != Version || st.Requested || st.At == nil {
+		t.Errorf("status: %d %+v", code, st)
+	}
+	req := httptest.NewRequest("POST", "http://example.test/admin/system/update", nil)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-CSRF-Token", e.csrf)
+	rec = e.do(req, e.admin)
+	var st updateStateJSON
+	if json.Unmarshal(rec.Body.Bytes(), &st); rec.Code != http.StatusAccepted || !st.Requested || st.Version != Version {
+		t.Errorf("update now in JSON: %d %s", rec.Code, rec.Body)
+	}
+	if code, _ := status(e.author); code == http.StatusOK {
+		t.Error("an author reads the update status")
+	}
+	os.Remove(e.s.updateRequest)
+
 	// A site of a network: no System page, no notice; the server is the
 	// operator's, who updates from the portal.
 	e.s.sso = &fakeSSO{}
+	if code, _ := status(e.admin); code != http.StatusNotFound {
+		t.Errorf("update status on a tenant: %d", code)
+	}
 	if rec := e.get("/admin/system", e.admin); rec.Code != http.StatusNotFound {
 		t.Errorf("System on a tenant: %d", rec.Code)
 	}

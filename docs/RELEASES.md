@@ -158,7 +158,11 @@ only leaves a request, `/var/lib/sap13ns/update-request`, which starts
 5. restarts `sap13ns.service`.
 
 Its progress goes to `/var/lib/sap13ns-update/status.json`, which the System
-page reads; its log is `journalctl -u sap13ns-update`. To set it up on an
+page reads; its log is `journalctl -u sap13ns-update`. After "Update now"
+the page stays behind a dialog that asks `/admin/system/update-status`
+every 5 seconds: it waits through the restart, reloads once the new version
+answers, and shows the error if the service reports one, or if after 90
+seconds the service has not taken the request. To set it up on an
 older installation, run `deploy/setup.sh` from a release and choose the
 upgrade, or by hand:
 
