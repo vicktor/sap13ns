@@ -5,6 +5,14 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.5 — 2026-10-20
+
+- Themes on a network: a network admin signed in to a site, as a member or as
+  an operator, can upload a theme under **Appearance → Themes** whatever the
+  site's plan. The page says the plan does not include it; site
+  administrators on such a plan still do not see the form. The upload goes
+  through the same checks and counts against the site's storage.
+
 ## v0.2.4 — 2026-10-20
 
 - System page: the caches show how much of the public traffic they served
