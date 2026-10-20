@@ -315,7 +315,8 @@
 {{/* design-header: the head of the design screen (Appearance → Design),
      whose two tabs are the customiser (style, texts and images) and the
      page builder (structure), with one draft to publish or discard.
-     dict "Theme" "Tab" ("style" or "structure") "HasDraft" "Active" "CSRF" */}}
+     dict "Theme" "Tab" ("style" or "structure") "HasDraft" "Active" "CSRF"
+     "AI" (*designAIView, nil without the design assistant) */}}
 {{define "design-header"}}
 {{$th := .Theme}}{{$cz := eq .Tab "style"}}
 {{$base := printf "/admin/appearance/themes/%s/%s" $th.Slug (or (and $cz "customize") "builder")}}
@@ -334,5 +335,31 @@
 <nav class="mb-4 flex w-fit gap-1 rounded-lg bg-muted p-1" aria-label="{{T "Design"}}">
   <a class="btn" data-size="sm" data-variant="{{if $cz}}secondary{{else}}ghost{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/customize"{{if $cz}} aria-current="page"{{end}} data-design-tab>{{icon "paintbrush"}}{{T "Style and texts"}}</a>
   <a class="btn" data-size="sm" data-variant="{{if $cz}}ghost{{else}}secondary{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/builder"{{if not $cz}} aria-current="page"{{end}} data-design-tab>{{icon "layout-template"}}{{T "Structure"}}</a>
+  {{if .AI}}<button type="button" class="btn" data-size="sm" data-variant="ghost" data-design-ai-toggle aria-expanded="false" aria-controls="design-ai">{{icon "wand-sparkles"}}{{T "Design with AI"}}</button>{{end}}
 </nav>
+{{with .AI}}
+<section class="card design-ai mb-4" id="design-ai" data-design-ai data-url="/admin/appearance/themes/{{$th.Slug}}/design/ai" data-slug="{{$th.Slug}}" hidden
+  data-msg-working="{{T "Working on it… This can take a minute."}}" data-msg-failed="{{T "The assistant could not do it: %s"}}"
+  data-msg-reloading="{{T "Done. Reloading the editor with the changes…"}}" data-msg-you="{{T "You"}}" data-msg-ai="{{T "Assistant"}}">
+  <header>
+    <h2>{{icon "wand-sparkles"}} {{T "Design with AI"}}</h2>
+    <p>{{T "Ask in your own words: a one-page site about your subject, other colours, an animation, or a text to change (“change «Welcome» on the front page to «Aloha!»”). The changes go to the draft: check them in the preview and publish them yourself."}}</p>
+  </header>
+  <section>
+    <div class="alert mb-3" data-variant="{{if .Local}}warning{{else}}info{{end}}">{{icon "info"}}<h2>{{if .Local}}{{T "This site uses a local model (%s)." .Model}}{{else}}{{T "Model: %s" .Model}}{{end}}</h2>
+      <section>{{T "Designing pages needs a recent model that is good at structured answers, such as a current Claude, GPT or Gemini model. Small or local models often make mistakes; what the site refuses is never saved."}}</section></div>
+    <ol class="design-ai-log grid gap-2 text-sm" data-design-ai-log aria-live="polite"></ol>
+    <form class="grid gap-2 mt-3" data-design-ai-form>
+      <label class="sr-only" for="design-ai-prompt">{{T "What should change?"}}</label>
+      <textarea class="textarea" id="design-ai-prompt" rows="3" maxlength="8000" placeholder="{{T "For example: make the front page a one-page site about our sailing school, with animations"}}" required></textarea>
+      <div class="flex flex-wrap items-center gap-2">
+        <button class="btn" data-size="sm" type="submit" data-design-ai-send>{{icon "send"}}{{T "Send"}}</button>
+        <button class="btn" data-size="sm" data-variant="ghost" type="button" data-design-ai-clear>{{icon "rotate-ccw"}}{{T "New conversation"}}</button>
+        <p class="text-sm text-muted-foreground" data-design-ai-status role="status"></p>
+      </div>
+    </form>
+  </section>
+</section>
+<script type="module" src="{{asset "design-ai.js"}}"></script>
+{{end}}
 {{end}}

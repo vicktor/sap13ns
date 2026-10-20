@@ -121,7 +121,8 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
   - excerpt summary; SEO title, description, slug and keywords;
   - translation into a linked draft;
   - header and inline images, where the provider supports images;
-  - drafting, improving, shortening, outlining and continuing text.
+  - drafting, improving, shortening, outlining and continuing text;
+  - **design with AI** on the design screen: ask for a one-page site about a subject, other colours, animations, or a text change ("change «Welcome» on the front page to «Aloha!»"). The model gets a guide to how sap13ns pages are made and the theme's catalogue, and answers with changes that go through the editors' own validation into the draft; the owner publishes them. It needs a recent model that is good at structured answers.
 - **A local style linter** flags clichés and filler phrases ("in today's world…", "it is crucial to note…"), both in your writing and in the model's.
 - **Controls:**
   - the API key is encrypted at rest;

@@ -720,6 +720,10 @@ A theme's front page written by hand is fixed for the page builder unless the th
 
   In the builder, **The theme's own front page** is the first preset: those sections, with their anchors, ready to rearrange. The builder's form shows each field with what it says now; a field left as it is keeps following the theme and the customiser.
 
+### Design with AI
+
+With the site's AI provider on (Settings → AI provider) and for the roles it allows, the design screen has **Design with AI**: a chat whose answers change the draft. The model gets a guide to designs and layouts, this theme's catalogue (the builder's blocks with their fields, the theme's sections and texts, colour tokens, fonts, scales, animations), the current draft and the texts each language shows, and answers with JSON merge patches. They are checked exactly like the editors' changes; what is refused goes back to the model, up to three tries, and nothing is saved unless it all passes. It never publishes. A theme that declares its texts (`content`) and its sections (`sections`) gives the model much more to work with, as it does the owner.
+
 ## Animations
 
 sap13ns has a small motion library of its own (`ui/static/motion.css`, played by `motion.js` in the site bundle): entrance animations that play once, when an element comes into view, and two that keep moving. Everything is served by the site, so it fits the [Content Security Policy](#content-security-policy).

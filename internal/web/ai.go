@@ -181,6 +181,12 @@ func (s *Server) aiErrorMessage(r *http.Request, err error) string {
 		return s.tu(r, "The model used its whole budget thinking. Turn on “Answer without thinking” in Settings → AI provider, or choose a larger model.")
 	case errors.Is(err, ai.ErrTruncated):
 		return s.tu(r, "The answer was cut short. Try with a shorter text.")
+	case errors.Is(err, errDesignAITooLong):
+		return s.tu(r, "The model's answer was too long and was cut off. Ask for a smaller change at a time, or choose a model with longer answers.")
+	case errors.Is(err, errDesignAIRefused):
+		return s.tu(r, "After three tries the model's changes still did not pass the site's checks, so nothing was saved. Ask again more precisely, or choose a more capable model.")
+	case errors.Is(err, ai.ErrBadResponse):
+		return s.tu(r, "The model did not answer in the expected form. Try again, or choose a more capable model.")
 	case errors.Is(err, context.DeadlineExceeded):
 		return s.tu(r, "The AI provider took too long to answer.")
 	}

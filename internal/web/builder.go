@@ -483,7 +483,8 @@ func (s *Server) tr2(lang, key string) string { return s.i18n.T(lang, key) }
 
 type builderData struct {
 	Theme       *theme.Theme
-	State       string // JSON for builder.js
+	AI          *designAIView // nil: no design assistant
+	State       string        // JSON for builder.js
 	HasDraft    bool
 	DraftAt     *time.Time
 	PublishedAt *time.Time
@@ -658,7 +659,8 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	}
 	b, _ := json.Marshal(st)
 	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil || css.draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
-		Revisions: revs, Active: s.themes.Active(s.settings().ActiveTheme) == th, Icons: append([]string{}, builderIcons...)}
+		Revisions: revs, Active: s.themes.Active(s.settings().ActiveTheme) == th, Icons: append([]string{}, builderIcons...),
+		AI: s.designAIView(r)}
 	for _, t := range builder.Types {
 		data.Icons = append(data.Icons, t.Icon)
 	}

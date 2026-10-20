@@ -5,6 +5,20 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.6.0 — 2026-10-20
+
+- **Design with AI.** The design screen has a **Design with AI** chat
+  (with the site's AI provider on): ask for a one-page site about your
+  subject with animations, other colours, or a text change such as
+  "change «Welcome» on the front page to «Aloha!»". The model gets a guide
+  to sap13ns designs, the theme's blocks, sections, texts, colours, fonts
+  and animations, and the current draft with the texts each language
+  shows. Its changes pass the editors' own validation (what is refused goes
+  back to it, up to three tries) and go to the draft, which you check in
+  the preview and publish. It needs a recent model that is good at
+  structured answers; the panel says which model answers and warns about
+  local ones.
+
 ## v0.5.0 — 2026-10-20
 
 - **One design screen.** Appearance → **Design** replaces Customise and

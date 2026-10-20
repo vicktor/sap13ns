@@ -104,6 +104,7 @@ func (s *Server) customRoutes(mux *http.ServeMux, admin func(string, auth.Cap, h
 	admin("POST "+base+"/import", auth.CapAppearance, s.adminCustomizeImport)
 	admin("POST "+base+"/revisions/{id}/restore", auth.CapAppearance, s.adminCustomizeRestore)
 	admin("POST "+base+"/derive", auth.CapAppearance, s.adminCustomizeDerive)
+	admin("POST /admin/appearance/themes/{slug}/design/ai", auth.CapAppearance, s.apiDesignAI)
 	s.builderRoutes(mux, admin) // the block builder (builder.go)
 	// Appearance → Customise opens the active theme.
 	admin("GET /admin/appearance/customize", auth.CapAppearance, func(w http.ResponseWriter, r *http.Request) {
@@ -476,6 +477,7 @@ func (s *Server) handleCustomCSS(w http.ResponseWriter, r *http.Request) {
 
 type customizeData struct {
 	Theme        *theme.Theme
+	AI           *designAIView     // nil: no design assistant
 	Design       *customize.Design // the draft (or published) design being edited
 	Colors       []colorRow
 	State        string // JSON for customizer.js: design, defaults, options
@@ -566,6 +568,7 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 		PreviewURL: "/?preview_theme=" + th.Slug + "&customize=draft", Revisions: revs, Langs: s.extraLangs(),
 		Options: th.OptionValues(effective), Active: s.themes.Active(s.settings().ActiveTheme) == th}
 	data.Animations = s.animationOptions(r)
+	data.AI = s.designAIView(r)
 	data.MotionLevels = []selectOption{{Value: "", Label: s.tu(r, "Normal")}, {Value: "subtle", Label: s.tu(r, "Subtle")},
 		{Value: "expressive", Label: s.tu(r, "Expressive")}, {Value: "off", Label: s.tu(r, "Off: nothing moves")}}
 	if lr, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout); err == nil {
