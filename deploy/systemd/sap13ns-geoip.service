@@ -1,0 +1,59 @@
+# Monthly download of the analytics' country database (DB-IP's free "IP to
+# Country Lite", CC BY 4.0), started by sap13ns-geoip.timer. Only needed
+# when the env file sets SAP13NS_GEOIP_DB, such as
+# /var/lib/sap13ns/geoip/country.mmdb. The server picks the new file up by
+# itself within a few minutes; no restart.
+#
+#   install -m 0644 sap13ns-geoip.service sap13ns-geoip.timer /etc/systemd/system/
+#   install -d -o sap13ns -g sap13ns -m 0750 /var/lib/sap13ns/geoip
+#   systemctl daemon-reload && systemctl enable --now sap13ns-geoip.timer
+#   systemctl start sap13ns-geoip      # the first download, now
+#
+# If you keep MaxMind's GeoLite2 Country with geoipupdate instead, point
+# SAP13NS_GEOIP_DB at it and leave this timer off.
+
+[Unit]
+Description=sap13ns country database update
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=sap13ns
+Group=sap13ns
+UMask=0027
+ExecStart=/usr/local/bin/sap13ns geoip update -env /etc/sap13ns/sap13ns.env
+TimeoutStartSec=15m
+SyslogIdentifier=sap13ns-geoip
+Nice=10
+
+# --- Hardening (check with `systemd-analyze security sap13ns-geoip`) ---
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sap13ns/geoip
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+KeyringMode=private
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM

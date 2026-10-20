@@ -105,6 +105,25 @@ Administrators export the site's content from **Tools → Export**, and `sap13ns
 - **Uploads in the data directory.** If `SAP13NS_UPLOADS_DIR` is the data directory itself, the exports directory would be public, so background exports are refused. Use the command line, or move the uploads to their default place (`$SAP13NS_DATA_DIR/uploads`).
 - **Personal data.** An export may hold e-mail and IP addresses when the administrator asks for them, and the command-line export does with `-pii`. Keep such files as safe as backups. The command writes them with mode 0600.
 
+### Visitors by country
+**Analytics** can show where visits come from, on a world map and in a list, when the server has a country database. Only the visitor's country is kept, in the daily aggregates. The address is looked up in memory and never stored or logged.
+
+1. Choose where the database goes, in the env file: `SAP13NS_GEOIP_DB=/var/lib/sap13ns/geoip/country.mmdb`.
+2. Install the monthly update from `deploy/systemd`, and run the first download:
+
+   ```sh
+   install -m 0644 sap13ns-geoip.service sap13ns-geoip.timer /etc/systemd/system/
+   install -d -o sap13ns -g sap13ns -m 0750 /var/lib/sap13ns/geoip
+   systemctl daemon-reload && systemctl enable --now sap13ns-geoip.timer
+   systemctl start sap13ns-geoip && journalctl -u sap13ns-geoip -n 5
+   ```
+
+3. Restart sap13ns once, so that it reads the new setting. Later updates need no restart: the server loads a replaced file within a few minutes.
+
+`sap13ns geoip update` downloads DB-IP's free "IP to Country Lite" database (CC BY 4.0; the Analytics page credits it) from `download.db-ip.com`. It checks the file before it replaces the old one. `sap13ns geoip status` shows the date of the loaded file and `sap13ns geoip lookup IP` tests an address. MaxMind's GeoLite2 Country also works: keep it up to date with MaxMind's `geoipupdate` instead of the timer, and point `SAP13NS_GEOIP_DB` at it.
+
+Without the setting, or while the file is missing or damaged, visits are counted as before, just without a country. On a network the setting covers every site.
+
 ### Updates
 Administrators see a notice in the admin when a release is out. Take a backup, run `sudo sap13ns update`, then restart. The previous binary stays as `sap13ns.old` for rollback. Details are in [RELEASES.md](RELEASES.md).
 

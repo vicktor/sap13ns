@@ -27,6 +27,7 @@ id sap13ns >/dev/null 2>&1 || useradd --system --home-dir /var/lib/sap13ns --she
 getent group sap13ns-web >/dev/null || groupadd --system sap13ns-web
 install -d -o sap13ns -g sap13ns -m 0750 /var/lib/sap13ns /var/lib/sap13ns/uploads /var/lib/sap13ns/plugins
 install -d -o sap13ns -g sap13ns -m 0700 /var/lib/sap13ns/backups
+install -d -o sap13ns -g sap13ns -m 0750 /var/lib/sap13ns/geoip
 install -d -o root -g sap13ns -m 0750 /etc/sap13ns
 if id www-data >/dev/null 2>&1; then
     usermod -aG sap13ns-web www-data
@@ -72,9 +73,11 @@ fi
 
 echo "==> systemd"
 install -m 0644 "$here/systemd/sap13ns.service" "$here/systemd/sap13ns-backup.service" \
-    "$here/systemd/sap13ns-backup.timer" /etc/systemd/system/
+    "$here/systemd/sap13ns-backup.timer" "$here/systemd/sap13ns-geoip.service" \
+    "$here/systemd/sap13ns-geoip.timer" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable sap13ns sap13ns-backup.timer
+# sap13ns-geoip.timer stays off until SAP13NS_GEOIP_DB is set (docs/DEPLOY.md).
 
 echo "==> nginx"
 site=/etc/nginx/sites-available/sap13ns.conf

@@ -189,3 +189,26 @@ func TestDatabase(t *testing.T) {
 		t.Errorf("after prune totals %+v, %d days, pages %v", s.Totals, len(s.Series), s.Pages)
 	}
 }
+
+func TestReportCountries(t *testing.T) {
+	conn := testDB(t)
+	ctx := context.Background()
+	codes := []string{"ES", "US", "FR", "DE", "IT", "PT", "MX", "AR", "CO", "CL", "PE", "GB"}
+	for i, cc := range codes {
+		if _, err := conn.Exec(ctx, `INSERT INTO analytics_dims VALUES ('2026-10-10', 'country', $1, $2), ('2026-10-10', 'lang', $1, $2)`,
+			cc, len(codes)-i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	day := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	s, err := Report(ctx, conn, day, day, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Langs) != 2 || len(s.Countries) != len(codes) {
+		t.Fatalf("%d languages, %d countries; want 2 and %d", len(s.Langs), len(s.Countries), len(codes))
+	}
+	if first := s.Countries[0]; first.Value != "ES" || first.Views != 12 || first.Share != 15.4 {
+		t.Errorf("first country %+v", first)
+	}
+}

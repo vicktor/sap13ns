@@ -5,12 +5,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"time"
 
 	"sap13ns/internal/analytics"
+	"sap13ns/internal/geoip"
 	"sap13ns/internal/store"
+	"sap13ns/internal/worldmap"
 )
 
 // Cookie-less analytics (internal/analytics). cached() records every public
@@ -20,6 +23,10 @@ import (
 const statsRetention = 2 * 365 * 24 * time.Hour
 
 func (s *Server) newStats() *analytics.Collector {
+	var country func(*http.Request) string
+	if s.geo = geoip.Open(s.cfg.GeoIPDB, s.log); s.geo != nil {
+		country = func(r *http.Request) string { return s.geo.Country(clientIP(r)) }
+	}
 	return analytics.New(s.store.DB, analytics.Options{
 		Location: s.loc(),
 		Log:      s.log,
@@ -29,6 +36,7 @@ func (s *Server) newStats() *analytics.Collector {
 		SiteSalt: s.keys.SignBytes([]byte("analytics visitor salt")),
 		Hosts:    append([]string{s.cfg.BaseURL.Hostname()}, s.hosts...),
 		Disabled: s.settings().AnalyticsOff,
+		Country:  country,
 	})
 }
 
@@ -69,7 +77,25 @@ type statsData struct {
 	Off    bool
 	S      *analytics.Summary
 	Chart  statsChart
+	Map    statsMap
 }
+
+// statsMap is the world map of the visits: every country outline, shaded
+// by its views in levels 0 (none) to statsLevels.
+type statsMap struct {
+	W, H      int
+	Shapes    []statsShape
+	Countries []analytics.Item // the most visited, by name
+	On        bool             // a country database is loaded
+	Credit    string           // "dbip" or "maxmind": their licences ask for a credit
+}
+
+type statsShape struct {
+	D, Label string
+	Level    int
+}
+
+const statsLevels = 5
 
 type statsChart struct {
 	W, H  int
@@ -107,7 +133,7 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	d.S, d.Chart = sum, s.statsChart(r, sum)
+	d.S, d.Chart, d.Map = sum, s.statsChart(r, sum), s.statsMap(r, sum)
 	s.renderAdmin(w, r, "analytics", s.tu(r, "Analytics"), "analytics", d)
 }
 
@@ -131,6 +157,59 @@ func (s *Server) statsChart(r *http.Request, sum *analytics.Summary) statsChart 
 		c.Ticks = append(c.Ticks, statsTick{Y: float64(c.H) * (1 - f), Label: fmt.Sprint(int64(float64(peak) * f))})
 	}
 	return c
+}
+
+// statsMap shades the countries of sum on the world map. The levels
+// follow the logarithm of the views, so that one large country does not
+// leave all the others blank.
+func (s *Server) statsMap(r *http.Request, sum *analytics.Summary) statsMap {
+	lang := s.uiLang(r)
+	in := s.geo.Info()
+	m := statsMap{On: in.Loaded}
+	switch t := strings.ToLower(in.Type); {
+	case strings.HasPrefix(t, "dbip"):
+		m.Credit = "dbip"
+	case strings.HasPrefix(t, "geolite"):
+		m.Credit = "maxmind"
+	}
+	views := make(map[string]analytics.Item, len(sum.Countries))
+	var peak int64
+	for _, it := range sum.Countries {
+		views[it.Value] = it
+		peak = max(peak, it.Views)
+	}
+	for i, it := range sum.Countries {
+		if i == 10 {
+			break
+		}
+		it.Value = worldmap.Name(it.Value, lang)
+		m.Countries = append(m.Countries, it)
+	}
+	w := worldmap.World()
+	m.W, m.H = w.W, w.H
+	for _, sh := range w.Shapes {
+		name := worldmap.Name(sh.Code, lang)
+		it, ok := views[sh.Code]
+		if !ok || it.Views == 0 {
+			m.Shapes = append(m.Shapes, statsShape{D: sh.D, Label: name})
+			continue
+		}
+		m.Shapes = append(m.Shapes, statsShape{D: sh.D, Level: statsLevel(it.Views, peak),
+			Label: s.tu(r, "%s: %d views (%s)", name, it.Views, fmt.Sprintf("%.1f%%", it.Share))})
+	}
+	return m
+}
+
+// statsLevel places v in 1..statsLevels on a logarithmic scale up to peak.
+func statsLevel(v, peak int64) int {
+	if v <= 0 {
+		return 0
+	}
+	if peak <= 1 || v >= peak {
+		return statsLevels
+	}
+	f := math.Log(float64(v)) / math.Log(float64(peak))
+	return min(1+int(f*(statsLevels-1)+0.5), statsLevels)
 }
 
 // niceCeil rounds n up to 1, 2 or 5 times a power of ten (at least 10).

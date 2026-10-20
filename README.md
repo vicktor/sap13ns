@@ -214,6 +214,7 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
 - **Signed self-update:** administrators see a notice in the admin when a release is out. `sap13ns update` then downloads it, checks the Ed25519-signed `SHA256SUMS`, and swaps the binary atomically, keeping the previous one for rollback (see [docs/RELEASES.md](docs/RELEASES.md)).
 - **Cookie-less analytics:**
   - page views, unique visitors, top pages, sources, browsers, systems, devices and languages, with a daily chart in the admin;
+  - optionally, the visitors' countries on a world map, from a local country database that `sap13ns geoip update` keeps up to date. Only the country is kept ([docs/DEPLOY.md](docs/DEPLOY.md#visitors-by-country));
   - visitors are counted with a daily rotating salt that lives only in memory, so no IP address, user agent or identifier is ever stored, and no consent banner is needed;
   - bots, prefetches and signed-in staff are not counted.
 

@@ -60,6 +60,9 @@ type Config struct {
 	SMTP         SMTP
 	DBMaxConns   int32
 	SiteBackups  SiteBackups
+	// GeoIPDB (SAP13NS_GEOIP_DB) is the country database the analytics
+	// locate visitors with (internal/geoip); "" counts no countries.
+	GeoIPDB string
 
 	// DevGravatarURL, in development mode only (SAP13NS_DEV_GRAVATAR_URL),
 	// replaces https://gravatar.com/avatar/ with a stand-in server, which
@@ -344,6 +347,11 @@ func Load(requireSecret bool) (*Config, error) {
 	c.UploadsDir = env("UPLOADS_DIR", filepath.Join(c.DataDir, "uploads"))
 	c.PluginsDir = env("PLUGINS_DIR", filepath.Join(c.DataDir, "plugins"))
 	c.ThemesDir = env("THEMES_DIR", filepath.Join(c.DataDir, "themes"))
+	if g := env("GEOIP_DB", ""); g != "" {
+		if c.GeoIPDB, err = filepath.Abs(g); err != nil {
+			return nil, err
+		}
+	}
 
 	for _, p := range strings.Split(env("TRUSTED_PROXIES", "127.0.0.1/32,::1/128"), ",") {
 		p = strings.TrimSpace(p)

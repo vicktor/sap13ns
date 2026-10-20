@@ -1,0 +1,13 @@
+# Starts sap13ns-geoip.service on the 3rd of every month: DB-IP publishes
+# the new database on the first days of the month.
+
+[Unit]
+Description=Monthly sap13ns country database update
+
+[Timer]
+OnCalendar=*-*-03 04:00:00
+RandomizedDelaySec=2h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

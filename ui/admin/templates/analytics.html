@@ -39,6 +39,26 @@
   </section>
 </section>
 
+{{$m := $d.Map}}
+<section class="card stats-geo">
+  <header><h2>{{T "Visitors by country"}}</h2><p>{{if $m.On}}{{T "Only the country is kept, never the address."}}{{else}}{{T "Not available: the server has no country database."}}{{end}}</p></header>
+  <section>
+    <svg class="geo-map" viewBox="0 0 {{$m.W}} {{$m.H}}" role="img" aria-label="{{T "Map of visitors by country"}}">
+      {{range $m.Shapes}}<path d="{{.D}}" class="geo-{{.Level}}"><title>{{.Label}}</title></path>{{end}}
+    </svg>
+    <div>
+      {{if $m.Countries}}
+      <ol class="stats-list">
+        {{range $m.Countries}}<li><span class="stats-name">{{.Value}}</span><span class="stats-num">{{.Views}}</span><meter min="0" max="100" value="{{.Share}}" aria-label="{{printf "%.1f%%" .Share}}">{{printf "%.1f%%" .Share}}</meter></li>{{end}}
+      </ol>
+      {{else if $m.On}}<p class="muted text-sm">{{T "No data for this period yet."}}</p>{{end}}
+      {{if not $m.On}}<p class="muted text-sm">{{T "The server administrator can turn it on with SAP13NS_GEOIP_DB and `sap13ns geoip update`."}}</p>{{end}}
+    </div>
+    {{if eq $m.Credit "dbip"}}<p class="geo-credit"><a href="https://db-ip.com" target="_blank" rel="noopener">{{T "IP geolocation by DB-IP"}}</a></p>
+    {{else if eq $m.Credit "maxmind"}}<p class="geo-credit">{{T "This product includes GeoLite2 data created by MaxMind, available from"}} <a href="https://www.maxmind.com" target="_blank" rel="noopener">maxmind.com</a></p>{{end}}
+  </section>
+</section>
+
 <div class="dash-grid">
   {{template "stats-list" (dict "Title" (T "Top pages") "Items" $s.Pages "Links" true)}}
   {{template "stats-list" (dict "Title" (T "Sources") "Items" $s.Referrers)}}

@@ -71,6 +71,10 @@ type Options struct {
 	Hosts []string
 	// Disabled starts the collector switched off (see SetEnabled).
 	Disabled bool
+	// Country returns the ISO 3166-1 alpha-2 code of the visitor's
+	// country, or "" when it is unknown. Only the code is kept. Nil
+	// counts no countries.
+	Country func(*http.Request) string
 }
 
 const (
@@ -90,10 +94,11 @@ const (
 	dimOS
 	dimDevice
 	dimLang
+	dimCountry
 	numDims
 )
 
-var dimNames = [numDims]string{"referrer", "browser", "os", "device", "lang"}
+var dimNames = [numDims]string{"referrer", "browser", "os", "device", "lang", "country"}
 
 // dimCaps bounds the distinct values per day of dimensions whose values come
 // from the request; the others have a fixed vocabulary.
@@ -107,6 +112,7 @@ type Collector struct {
 	log         *slog.Logger
 	now         func() time.Time
 	clientIP    func(*http.Request) string
+	country     func(*http.Request) string
 	flushEvery  time.Duration
 	maxPaths    int
 	maxVisitors int
@@ -183,6 +189,7 @@ func New(db DB, opts Options) *Collector {
 		log:         opts.Log,
 		now:         opts.Now,
 		clientIP:    opts.ClientIP,
+		country:     opts.Country,
 		flushEvery:  opts.FlushEvery,
 		maxPaths:    opts.MaxPaths,
 		maxVisitors: opts.MaxVisitors,
@@ -297,6 +304,12 @@ func (c *Collector) Record(r *http.Request, path, lang string) {
 	browser, osName, device := parseUA(lua)
 	source, hasSource := referrerSource(r, c.internal)
 	ip := c.clientIP(r)
+	var country string
+	if c.country != nil {
+		if country = c.country(r); !countryCode(country) {
+			country = ""
+		}
+	}
 	path = cleanPath(path)
 	lang = cleanLang(lang)
 
@@ -321,8 +334,17 @@ func (c *Collector) Record(r *http.Request, path, lang string) {
 	if lang != "" {
 		b.dims[dimLang][admit(c.admitted[dimLang], lang, dimCaps[dimLang])]++
 	}
+	if country != "" {
+		b.dims[dimCountry][country]++
+	}
 	c.visitors.add(c.hashLocked(ip, ua))
 	b.visitors = max(b.visitors, c.visitors.count())
+}
+
+// countryCode accepts two upper-case ASCII letters, the form of ISO
+// 3166-1 alpha-2 codes, so that no other value reaches analytics_dims.
+func countryCode(c string) bool {
+	return len(c) == 2 && c[0] >= 'A' && c[0] <= 'Z' && c[1] >= 'A' && c[1] <= 'Z'
 }
 
 // admit returns v if it is, or can still be, one of the at most max values

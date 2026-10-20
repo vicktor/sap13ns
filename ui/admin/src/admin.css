@@ -653,6 +653,17 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 .stats-chart .tick { stroke: var(--border); stroke-width: 1; }
 .stats-chart .tick-label { fill: var(--muted-foreground); font-size: 11px; text-anchor: end; dominant-baseline: middle; }
 .stats-table { @apply mt-4 text-sm; }
+.stats-geo > section { @apply grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]; }
+.geo-map { @apply h-auto w-full; }
+.geo-map path { fill: var(--muted); stroke: var(--card); stroke-width: 0.5; stroke-linejoin: round; }
+.geo-map path:hover { stroke: var(--foreground); stroke-width: 1; }
+.geo-map .geo-1 { fill: color-mix(in oklab, var(--primary) 22%, var(--muted)); }
+.geo-map .geo-2 { fill: color-mix(in oklab, var(--primary) 40%, var(--muted)); }
+.geo-map .geo-3 { fill: color-mix(in oklab, var(--primary) 58%, var(--muted)); }
+.geo-map .geo-4 { fill: color-mix(in oklab, var(--primary) 78%, var(--muted)); }
+.geo-map .geo-5 { fill: var(--primary); }
+.geo-credit { @apply text-xs text-muted-foreground lg:col-span-2; }
+.geo-credit a { @apply underline underline-offset-2; }
 .stats-table summary { @apply cursor-pointer text-muted-foreground; }
 .stats-table .num, .stats-list .stats-num { @apply text-right tabular-nums; }
 .stats-list { @apply grid gap-3 text-sm; }

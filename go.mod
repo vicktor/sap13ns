@@ -7,6 +7,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/oschwald/maxminddb-golang/v2 v2.7.0
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/vicktor/sap13ns/pluginsdk v0.0.0
 	github.com/yuin/goldmark v1.8.6

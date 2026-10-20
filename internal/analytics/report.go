@@ -44,6 +44,10 @@ type Summary struct {
 	// Referrers shares are of entries (views not coming from the site
 	// itself), whose largest source is usually "(direct)".
 	Pages, Referrers, Browsers, OS, Devices, Langs []Item
+	// Countries lists every country of the period (ISO 3166-1 alpha-2
+	// codes), whatever the limit, for the map; shares are of the views
+	// whose country is known.
+	Countries []Item
 }
 
 // Delta is a relative change, as in "+12% vs previous period".
@@ -81,6 +85,8 @@ func (d Delta) String() string {
 }
 
 const (
+	// maxCountries bounds Summary.Countries: there are 249 ISO countries.
+	maxCountries       = 300
 	defaultReportLimit = 10
 	maxReportLimit     = 1000
 	maxReportDays      = 3660
@@ -187,13 +193,13 @@ func (s *Summary) loadDims(ctx context.Context, db DB, f, t dayNum, limit int) e
 				row_number() OVER (PARTITION BY dim ORDER BY sum(views) DESC, value) AS rn
 			FROM analytics_dims WHERE day BETWEEN $1 AND $2
 			GROUP BY dim, value
-		) s WHERE rn <= $3 ORDER BY dim, rn`, f.time(), t.time(), limit)
+		) s WHERE rn <= CASE WHEN dim = 'country' THEN $4::int8 ELSE $3::int8 END ORDER BY dim, rn`, f.time(), t.time(), limit, maxCountries)
 	if err != nil {
 		return fmt.Errorf("analytics: dimensions: %w", err)
 	}
 	defer rows.Close()
 	lists := map[string]*[]Item{
-		"referrer": &s.Referrers, "browser": &s.Browsers, "os": &s.OS, "device": &s.Devices, "lang": &s.Langs,
+		"referrer": &s.Referrers, "browser": &s.Browsers, "os": &s.OS, "device": &s.Devices, "lang": &s.Langs, "country": &s.Countries,
 	}
 	for rows.Next() {
 		var dim string

@@ -293,6 +293,29 @@ func TestClientIPOption(t *testing.T) {
 	}
 }
 
+func TestCountryOption(t *testing.T) {
+	c := newTestCollector(newFakeDB(), &clock{t: time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)}, Options{
+		Country: func(r *http.Request) string { return r.Header.Get("X-Test-Country") },
+	})
+	for _, cc := range []string{"ES", "ES", "US", "", "es", "ESP", "<b>", "\x00\x00"} {
+		r := pageReq("192.0.2.1", chromeUA)
+		r.Header.Set("X-Test-Country", cc)
+		c.Record(r, "/", "")
+	}
+	b := c.testBucket("2026-10-18")
+	if b == nil || b.views != 8 {
+		t.Fatalf("bucket %+v", b)
+	}
+	if got, want := fmt.Sprint(b.dims[dimCountry]), fmt.Sprint(map[string]int64{"ES": 2, "US": 1}); got != want {
+		t.Errorf("countries = %s, want %s", got, want)
+	}
+	plain := newTestCollector(newFakeDB(), &clock{t: time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)}, Options{})
+	plain.Record(pageReq("192.0.2.1", chromeUA), "/", "")
+	if b := plain.testBucket("2026-10-18"); len(b.dims[dimCountry]) != 0 {
+		t.Errorf("countries without Options.Country: %v", b.dims[dimCountry])
+	}
+}
+
 func TestSaltRotation(t *testing.T) {
 	// 23:59 in Madrid is 21:59 UTC: the day must follow the site time zone.
 	clk := &clock{t: time.Date(2026, 10, 18, 23, 59, 0, 0, madrid)}

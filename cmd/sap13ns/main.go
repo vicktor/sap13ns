@@ -11,6 +11,7 @@
 //	sap13ns theme list|install|remove|import  the themes of a site; import converts a WordPress block theme (theme.go)
 //	sap13ns assistant reindex     rebuild the site assistant's search index
 //	sap13ns export -o FILE        export the content as WXR or a .zip (export.go)
+//	sap13ns geoip update          download the analytics' country database (geoip.go)
 //	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
 //	sap13ns site ...              create, list and manage the sites of a network
 //	sap13ns version               print the version
@@ -89,6 +90,8 @@ func main() {
 		err = assistantCmd(args)
 	case "update":
 		err = updateCmd(args)
+	case "geoip":
+		err = geoipCmd(args)
 	case "network":
 		err = networkCmd(args)
 	case "site":
@@ -163,6 +166,10 @@ Commands:
   update [-check] [-yes] [-force]
                                  Install the latest signed release over this
                                  binary (see docs/RELEASES.md)
+  geoip update | status | lookup IP
+                                 Download DB-IP's country database to
+                                 SAP13NS_GEOIP_DB, for the visitors' countries
+                                 in Analytics (see docs/DEPLOY.md)
   version                        Print the version
 
 Networks (SAP13NS_MULTISITE=true):

@@ -24,6 +24,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/cache"
 	"sap13ns/internal/config"
+	"sap13ns/internal/geoip"
 	"sap13ns/internal/i18n"
 	"sap13ns/internal/mail"
 	"sap13ns/internal/media"
@@ -87,6 +88,7 @@ type Server struct {
 
 	updates *update.Checker      // release checks (updates.go); nil in tests
 	stats   *analytics.Collector // cookie-less page views (stats.go)
+	geo     *geoip.DB            // visitor countries for the stats; nil when off
 
 	bot botState // site assistant and MCP (assistant.go, mcp.go)
 
