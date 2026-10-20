@@ -1,0 +1,29 @@
+#!/bin/sh
+# /usr/local/sbin/sap13ns-network-backup (root, 0750): a copy of the whole
+# network for disaster recovery, the database (accounts, plans, domains,
+# every site's schema) and the data directory, encrypted with the backup
+# passphrase. sap13ns itself backs up each site every night at 03:30, in
+# /var/lib/sap13ns/backups/sites/<id>/, which this copy leaves out.
+#
+# pg_dump takes a consistent snapshot while sap13ns runs. Files uploaded
+# during the tar may be missing from this copy; the next night's copy and
+# the site backups have them. For a copy with no gap at all, stop sap13ns
+# first (docs/MULTISITE.md, The whole network).
+set -eu
+umask 077
+dir=/var/backups/sap13ns
+pass=/etc/sap13ns/backup-passphrase
+keep_days=14
+stamp=$(date +%Y%m%d-%H%M%S)
+
+install -d -m 0700 "$dir"
+runuser -u sap13ns -- pg_dump --format=custom --dbname=sap13ns > "$dir/db-$stamp.dump"
+tar -C /var/lib -czf "$dir/data-$stamp.tar.gz" \
+    --exclude=sap13ns/backups --exclude=sap13ns/cache sap13ns
+for f in "$dir/db-$stamp.dump" "$dir/data-$stamp.tar.gz"; do
+    gpg --batch --yes --pinentry-mode loopback --passphrase-file "$pass" \
+        --symmetric --cipher-algo AES256 -o "$f.gpg" "$f"
+    rm -f "$f"
+done
+find "$dir" -name '*.gpg' -mtime +"$keep_days" -delete
+echo "network backup: $dir/db-$stamp.dump.gpg, $dir/data-$stamp.tar.gz.gpg"

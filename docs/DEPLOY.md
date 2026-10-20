@@ -20,28 +20,50 @@ sudo apt install postgresql-18-pgvector     # optional, for the site assistant
 
 ## Install
 
-1. Download the release for your platform with `SHA256SUMS` and `SHA256SUMS.sig`, and check the archive (see [RELEASES.md](RELEASES.md)).
-2. Unpack it and run the installer as root:
+### The guided installer (recommended)
+From an unpacked release, or a clone of the repository, run as root:
 
-   ```sh
-   mkdir sap13ns && tar xzf sap13ns_<version>_linux_amd64.tar.gz -C sap13ns && cd sap13ns
-   sudo ./deploy/install.sh example.com
-   ```
+```sh
+mkdir sap13ns && tar xzf sap13ns_<version>_linux_amd64.tar.gz -C sap13ns && cd sap13ns
+sudo ./deploy/setup.sh
+```
 
-   The installer is idempotent. It:
-   - creates the `sap13ns` system user, the `sap13ns-web` group (only nginx joins it, to reach the socket) and `/var/lib/sap13ns`;
-   - installs the binary in `/usr/local/bin`;
-   - creates the `sap13ns` database and role (peer authentication over the local socket) and enables `pgvector` when it is available;
-   - writes `/etc/sap13ns/sap13ns.env` with a fresh secret key;
-   - installs the systemd units and the nginx site.
-3. Get a certificate. Until you have one, comment out the `443` server block:
+In a clone without a binary, it offers to download the latest release for the machine and checks it against `SHA256SUMS`. It speaks English or Spanish, after the system's language. It shows dialogs (`whiptail`) when they are available; `--plain` asks plain questions instead, and `--dry-run` asks everything and only shows what it would do. Nothing changes until you confirm the summary.
+
+1. **Questions:** one site or a network of sites, the domain (and, for a network, the domain of the sites), the first administrator, how to get HTTPS, outgoing e-mail, and the visitors' countries in Analytics.
+2. **Checks:** PostgreSQL 16 or newer, `pgvector`, nginx, certbot (and its Cloudflare plugin for a network's wildcard certificate), curl, openssl and gpg. It offers to install what is missing with `apt`. Where the system only has an older PostgreSQL, it adds the PostgreSQL project's repository (apt.postgresql.org). It also checks that the domain resolves, and lists the other sites nginx already serves.
+3. **Installation:** the user and directories, the binary, the database and role, `/etc/sap13ns/sap13ns.env` with a fresh secret key, the backup passphrase, the systemd units and timers (nightly backups; a single site's or the whole network's), the nginx site, and the certificate:
+   - one site: Let's Encrypt over HTTP;
+   - a network: a wildcard certificate from Let's Encrypt through Cloudflare's DNS, with an API token;
+   - or certificate files you already have, or plain HTTP for now.
+
+   Then it creates the first administrator (or initialises the network with them), starts sap13ns and checks that it answers.
+4. **The end:** the address, the administrator's password (shown once) and the next steps, which are also saved in `/root/sap13ns-setup.txt` without the password. The log of every command is `/var/log/sap13ns-setup.log`.
+
+It only adds its own files. No nginx block is a `default_server`, the default site stays, and the firewall, hostname and SSH are left alone, so it can run on a server that already hosts other sites. Run it again to upgrade the binary and the units, or to set up HTTPS once the DNS is ready. The configuration and the database are always kept.
+
+### The installer without questions
+`deploy/install.sh` installs the same pieces for one site, with no questions and no packages. It is idempotent. It:
+- creates the `sap13ns` system user, the `sap13ns-web` group (only nginx joins it, to reach the socket) and `/var/lib/sap13ns`;
+- installs the binary in `/usr/local/bin`;
+- creates the `sap13ns` database and role (peer authentication over the local socket) and enables `pgvector` when it is available;
+- writes `/etc/sap13ns/sap13ns.env` with a fresh secret key;
+- installs the systemd units and the nginx site.
+
+```sh
+sudo ./deploy/install.sh example.com
+```
+
+Then:
+
+1. Get a certificate. Until you have one, comment out the `443` server block:
 
    ```sh
    sudo certbot certonly --webroot -w /var/www/letsencrypt -d example.com
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
-4. Create the first administrator and start:
+2. Create the first administrator and start:
 
    ```sh
    sudo -u sap13ns sap13ns user create -env /etc/sap13ns/sap13ns.env -username admin -email you@example.com -role admin
@@ -59,6 +81,9 @@ If you prefer to do it by hand, the installer's steps are short and commented in
 | `deploy/systemd/sap13ns.service` | `/etc/systemd/system/` |
 | `deploy/systemd/sap13ns-backup.service`, `.timer` | `/etc/systemd/system/` |
 | `deploy/nginx/sap13ns.conf` | `/etc/nginx/sites-available/` |
+| `deploy/nginx/sap13ns-network.conf` (a network) | `/etc/nginx/sites-available/sap13ns.conf` |
+| `deploy/sap13ns-network-backup` and `deploy/systemd/sap13ns-network-backup.*` (a network) | `/usr/local/sbin/`, `/etc/systemd/system/` |
+| `deploy/systemd/sap13ns-geoip.*` | `/etc/systemd/system/` |
 
 nginx must be able to open the socket, and nothing else: `groupadd --system sap13ns-web && usermod -aG sap13ns-web www-data`. Never add `www-data` to the `sap13ns` group, which can read the env file and the data directory.
 

@@ -62,10 +62,18 @@ Estos pasos siguen [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs
 
 ### 1. Ejecuta el instalador
 
-Descomprime el archivo de Linux para tu servidor, como en el inicio rápido, y ejecuta el instalador como root:
+Lo más rápido es el instalador asistido. Descomprime el archivo de Linux para tu servidor, o clona el repositorio, y ejecútalo como root:
 
 ```bash
 mkdir sap13ns && tar xzf sap13ns_<versión>_linux_amd64.tar.gz -C sap13ns && cd sap13ns
+sudo ./deploy/setup.sh
+```
+
+Te pregunta si es un sitio o una red de sitios, comprueba PostgreSQL, pgvector, nginx y certbot y se ofrece a instalar lo que falte. Después lo deja todo listo: el servicio, la base de datos, nginx, el certificado HTTPS, las copias nocturnas y el primer administrador. No cambia nada hasta que confirmas el resumen, y los demás sitios del mismo nginx se quedan como están. [DEPLOY.md](https://github.com/vicktor/sap13ns/blob/main/docs/DEPLOY.md#the-guided-installer-recommended) detalla cada paso.
+
+El resto de esta página es la instalación sin preguntas, para un sitio, con `deploy/install.sh`:
+
+```bash
 sudo ./deploy/install.sh example.com
 ```
 

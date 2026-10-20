@@ -244,7 +244,7 @@ EOF
 
 Open `http://localhost:8080/admin`. You'll be asked to set up two-factor authentication on first sign-in.
 
-For a production server (systemd, nginx, TLS, backups), follow [docs/DEPLOY.md](docs/DEPLOY.md) or run `deploy/install.sh`.
+For a production server, run the guided installer, `sudo ./deploy/setup.sh`, from a release or a clone. It checks and installs PostgreSQL, pgvector, nginx and certbot, asks whether it is one site or a network, and sets up systemd, nginx, HTTPS, backups and the first administrator. [docs/DEPLOY.md](docs/DEPLOY.md) describes it and the manual steps.
 
 ### Configuration
 All settings are environment variables, which can be given in an env file with `-env`:

@@ -1,0 +1,12 @@
+# /etc/systemd/system/sap13ns-network-backup.timer: every day at 02:30,
+# before the site backups sap13ns makes at 03:30.
+[Unit]
+Description=Daily sap13ns network backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

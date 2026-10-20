@@ -1,0 +1,12 @@
+# /etc/systemd/system/sap13ns-network-backup.service
+[Unit]
+Description=sap13ns network backup (database and data directory)
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sap13ns-network-backup
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
