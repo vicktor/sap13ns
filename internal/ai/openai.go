@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // OpenAI-compatible Chat Completions and Images API. The official reference
@@ -119,7 +120,9 @@ func (o *openAI) Text(ctx context.Context, req TextRequest) (*TextResponse, erro
 	ctx, cancel := context.WithTimeout(ctx, o.t.textTimeout)
 	defer cancel()
 	var out openAIChatResponse
-	err := o.t.post(ctx, o.base+"/chat/completions", o.header(), body, maxTextResponse, &out)
+	err := retryModelAccess(ctx, func() error {
+		return o.t.post(ctx, o.base+"/chat/completions", o.header(), body, maxTextResponse, &out)
+	})
 	if body.ResponseFormat != nil && rejectsResponseFormat(err) {
 		body.ResponseFormat = nil
 		err = o.t.post(ctx, o.base+"/chat/completions", o.header(), body, maxTextResponse, &out)
@@ -159,6 +162,41 @@ func (o *openAI) Text(ctx context.Context, req TextRequest) (*TextResponse, erro
 		res.StopReason = StopOther
 	}
 	return finish(o.t, req, res)
+}
+
+// modelAccessRetries are the pauses before asking again when OpenAI says
+// the project has no access to a model it does have access to: the same
+// key and model get answers and, now and then, this 403 (the access is not
+// known to every one of its servers yet).
+var modelAccessRetries = []time.Duration{500 * time.Millisecond, 1500 * time.Millisecond}
+
+// retryModelAccess calls do again, after a pause, while it fails with a
+// model access error.
+func retryModelAccess(ctx context.Context, do func() error) error {
+	err := do()
+	for _, wait := range modelAccessRetries {
+		if !isModelAccess(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(wait):
+		}
+		err = do()
+	}
+	return err
+}
+
+// isModelAccess reports OpenAI's "Project … does not have access to model
+// …" (403), or its "does not exist or you do not have access to it" (404).
+func isModelAccess(err error) bool {
+	var e *APIError
+	if !errors.As(err, &e) || (e.Status != http.StatusForbidden && e.Status != http.StatusNotFound) {
+		return false
+	}
+	m := strings.ToLower(e.Message)
+	return strings.Contains(m, "have access to model") || strings.Contains(m, "do not have access to it")
 }
 
 // rejectsResponseFormat reports a 400 or 422 that blames response_format.

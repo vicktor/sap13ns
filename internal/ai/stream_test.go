@@ -5,7 +5,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func sse(events ...string) http.HandlerFunc {
@@ -236,5 +238,58 @@ func TestThinkFilter(t *testing.T) {
 		if out.String() != c.want {
 			t.Errorf("%q -> %q, want %q", c.in, out.String(), c.want)
 		}
+	}
+}
+
+// OpenAI now and then answers a model the project can use with a 403 that
+// says it cannot: the request is asked again, a couple of times.
+func TestOpenAIModelAccessRetry(t *testing.T) {
+	old := modelAccessRetries
+	modelAccessRetries = []time.Duration{time.Millisecond, time.Millisecond}
+	t.Cleanup(func() { modelAccessRetries = old })
+	denied := `{"error":{"message":"Project ` + "`proj_x`" + ` does not have access to model ` + "`gpt-x`" + `","type":"invalid_request_error"}}`
+	var calls atomic.Int32
+	flaky := func(fails int32, ok http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if calls.Add(1) <= fails {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				io.WriteString(w, denied)
+				return
+			}
+			ok(w, r)
+		}
+	}
+	answer := sse(`data: {"choices":[{"delta":{"content":"Hi"}}]}`, `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}`, `data: [DONE]`)
+
+	p := newTestProvider(t, ProviderOpenAI, flaky(2, answer))
+	if res, _, _, err := collect(t, streamer(t, p), TextRequest{Messages: userMsg("hi")}); err != nil || res.Text != "Hi" || calls.Load() != 3 {
+		t.Fatalf("stream after two 403s: %v %+v, %d calls", err, res, calls.Load())
+	}
+
+	calls.Store(0)
+	p = newTestProvider(t, ProviderOpenAI, flaky(1, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"choices":[{"message":{"content":"Hi"},"finish_reason":"stop"}]}`)
+	}))
+	if res, err := p.Text(ctx, TextRequest{Messages: userMsg("hi")}); err != nil || res.Text != "Hi" || calls.Load() != 2 {
+		t.Fatalf("text after a 403: %v %+v, %d calls", err, res, calls.Load())
+	}
+
+	// Denied every time: the error, after three tries.
+	calls.Store(0)
+	p = newTestProvider(t, ProviderOpenAI, flaky(99, answer))
+	if _, _, _, err := collect(t, streamer(t, p), TextRequest{Messages: userMsg("hi")}); !isModelAccess(err) || calls.Load() != 3 {
+		t.Fatalf("always denied: %v, %d calls", err, calls.Load())
+	}
+
+	// Other 403s are not asked again.
+	calls.Store(0)
+	p = newTestProvider(t, ProviderOpenAI, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+		io.WriteString(w, `{"error":{"message":"Country, region, or territory not supported","type":"request_forbidden"}}`)
+	})
+	if _, err := p.Text(ctx, TextRequest{Messages: userMsg("hi")}); err == nil || calls.Load() != 1 {
+		t.Fatalf("other 403: %v, %d calls", err, calls.Load())
 	}
 }

@@ -628,6 +628,18 @@ func (t *Theme) Text(lang, key string) (string, bool) {
 	return v, ok && v != ""
 }
 
+// Translate returns the theme's translation of s into lang, or s itself.
+// It is nil-safe. Texts that reach a theme as data (the hosting plans) are
+// translated by its catalog only, as its templates do.
+func (t *Theme) Translate(lang, s string) string {
+	if t != nil {
+		if v, ok := t.i18n[lang][s]; ok && v != "" {
+			return v
+		}
+	}
+	return s
+}
+
 // StaticURL returns a cache-busted URL for a theme static file.
 func (t *Theme) StaticURL(file string) string {
 	h, ok := t.static[file]

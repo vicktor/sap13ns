@@ -10,6 +10,13 @@ needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 - Updates: while a newer release exists, every admin page warns the
   administrators that updating is important, and the System page lists what
   each newer release changes, from this changelog.
+- Site assistant: it also answers from the front page, as it renders (a
+  theme's front page or a one-page site built in the page builder, which are
+  not posts), and, on a network's portal, from the hosting plans with their
+  current prices.
+- Site assistant with OpenAI: when OpenAI answers now and then that the
+  project has no access to a model it does have access to (HTTP 403), the
+  question is asked again instead of failing.
 
 ## v0.2.1 — 2026-10-20
 

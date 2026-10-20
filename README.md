@@ -135,6 +135,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 - **The chat button:** a round button in a bottom corner of every public page opens the chat window. You choose the corner (right or left), its height (normal, raised above cookie bars, or high) and an optional short label beside it, translatable per language. Phones get a full-screen chat.
 - **Search:** hybrid PostgreSQL full-text and [pgvector](https://github.com/pgvector/pgvector) search over Markdown-aware passages, merged with reciprocal rank fusion and favouring the visitor's language. Without pgvector it falls back to full-text search.
 - **Indexing:** drafts, scheduled and private posts are never indexed, and any post can be hidden from the assistant with one switch in the editor. The index updates as you publish.
+- **The front page and the plans:** a theme's own front page or the page builder's sections (a one-page or landing site) are not posts, so the assistant reads the front page as it renders, split at its headings, and uses the sections that match the question. On a network's portal it also gets the hosting plans with their current prices.
 - **Limits:** per-IP and daily or monthly budgets, with known bots refused.
 - **MCP:** a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint (`/mcp`, tools `search_posts` and `get_post`) lets external AI agents search the same index, optionally behind a bearer token.
 

@@ -69,6 +69,7 @@ type Server struct {
 
 	state atomic.Pointer[siteState]
 	site  siteCache
+	front frontCache // the rendered front page, for the assistant (assistant_live.go)
 
 	loginIP    *auth.Limiter
 	loginUser  *auth.Limiter
@@ -348,6 +349,7 @@ func (s *Server) contentChanged() {
 	s.content.Invalidate() // bodies can show other posts (shortcodes, filters)
 	s.site.invalidate()
 	s.custom.invalidate()
+	s.front.invalidate()
 	s.assistant().Nudge()
 }
 

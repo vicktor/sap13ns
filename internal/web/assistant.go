@@ -263,6 +263,7 @@ func (s *Server) prepareAnswer(ctx context.Context, as store.AssistantSettings, 
 		return ai.TextRequest{}, nil, 0, err
 	}
 	sources := assistant.Sources(res.Hits, func(h assistant.Hit) string { return s.langPath(h.Lang, postPath(h.Type, h.Slug)) })
+	sources = append(sources, s.liveSources(ctx, lang, assistant.SearchQuery(question, history), len(sources)+1)...)
 	name := as.Name
 	if name == "" {
 		name = s.i18n.T(lang, "Site assistant")

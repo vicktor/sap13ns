@@ -282,7 +282,11 @@ func (o *openAI) TextStream(ctx context.Context, req TextRequest, fn func(Delta)
 	}
 	ctx, cancel := context.WithTimeout(ctx, o.t.textTimeout)
 	defer cancel()
-	resp, err := o.t.openStream(ctx, o.base+"/chat/completions", o.header(), body)
+	var resp *http.Response
+	err := retryModelAccess(ctx, func() (err error) {
+		resp, err = o.t.openStream(ctx, o.base+"/chat/completions", o.header(), body)
+		return err
+	})
 	if err != nil && rejectsStreamOptions(err) { // servers that do not know stream_options
 		body.StreamOptions = nil
 		resp, err = o.t.openStream(ctx, o.base+"/chat/completions", o.header(), body)
