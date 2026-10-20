@@ -27,13 +27,15 @@ function setPath(obj, path, value) {
 
 /**
  * designFrom builds the design JSON from form fields: [{name, value, type,
- * checked, kind}] where type is the data-type ("int", "bool", "boolstr")
- * and kind the input type ("checkbox", "radio", …). Theme options are only
- * kept when they differ from the stored ones, so publishing never undoes
- * an edit made meanwhile on the theme's options page.
+ * checked, kind, def}] where type is the data-type ("int", "bool",
+ * "boolstr"), kind the input type ("checkbox", "radio", …) and def a
+ * theme text's default. Theme options are only kept when they differ from
+ * the stored ones, so publishing never undoes an edit made meanwhile on the
+ * theme's options page; theme texts only when they differ from their
+ * default, so the theme's own translations keep showing until edited.
  */
 export function designFrom(fields, storedOptions = {}) {
-  const d = { version: 1, light: {}, dark: {}, fonts: { body: {}, heading: {}, mono: {} }, scale: {}, header: {}, footer: {}, home: {}, options: {} };
+  const d = { version: 1, light: {}, dark: {}, fonts: { body: {}, heading: {}, mono: {} }, scale: {}, header: {}, footer: {}, home: {}, options: {}, content: {}, content_i18n: {} };
   for (const f of fields) {
     if (!f.name) continue;
     if (f.kind === "radio" && !f.checked) continue;
@@ -54,6 +56,9 @@ export function designFrom(fields, storedOptions = {}) {
     } else if (f.name.startsWith("footer.text")) {
       v = v.trim();
       if (!v) continue;
+    } else if (head === "content" || head === "content_i18n") {
+      v = v.trim();
+      if (!v || v === String(f.def ?? "").trim()) continue;
     }
     setPath(d, f.name, v);
   }
@@ -66,15 +71,44 @@ export function designFrom(fields, storedOptions = {}) {
   return d;
 }
 
-/** The parts of a design that the stylesheet alone cannot show. */
-function structural(d) {
-  const { brand, logo, hide_search, hide_lang } = d.header ?? {};
-  return JSON.stringify([brand || "", brand ? logo || 0 : 0, !!hide_search, !!hide_lang, d.footer?.text || "", d.footer?.text_i18n || {}, d.home || {}, d.options || {}]);
+// Theme texts the preview shows as they are typed (live keys) are left
+// out; the other ones (images, lists) need the page again.
+function staticContent(m, live) {
+  const out = {};
+  for (const [k, v] of Object.entries(m || {})) if (!live.has(k)) out[k] = v;
+  return out;
 }
 
-/** needsReload reports whether the preview must reload to show next. */
-export function needsReload(prev, next) {
-  return structural(prev) !== structural(next);
+/** The parts of a design that the stylesheet alone cannot show. */
+function structural(d, live) {
+  const { brand, logo, hide_search, hide_lang } = d.header ?? {};
+  const i18n = {};
+  for (const [lang, m] of Object.entries(d.content_i18n || {})) {
+    const rest = staticContent(m, live);
+    if (Object.keys(rest).length) i18n[lang] = rest;
+  }
+  return JSON.stringify([brand || "", brand ? logo || 0 : 0, !!hide_search, !!hide_lang, d.footer?.text || "", d.footer?.text_i18n || {}, d.home || {}, d.options || {},
+    staticContent(d.content, live), i18n]);
+}
+
+/**
+ * needsReload reports whether the preview must reload to show next. live
+ * holds the keys of the theme texts that the preview already shows as they
+ * are typed.
+ */
+export function needsReload(prev, next, live = new Set()) {
+  return structural(prev, live) !== structural(next, live);
+}
+
+/** liveChanges lists the live texts that differ between two designs, as [lang, key]. */
+export function liveChanges(prev, next, live, main) {
+  const out = [];
+  const langs = new Set([...Object.keys(prev.content_i18n || {}), ...Object.keys(next.content_i18n || {})]);
+  for (const k of live) {
+    if ((prev.content?.[k] ?? "") !== (next.content?.[k] ?? "")) out.push([main, k]);
+    for (const l of langs) if ((prev.content_i18n?.[l]?.[k] ?? "") !== (next.content_i18n?.[l]?.[k] ?? "")) out.push([l, k]);
+  }
+  return out;
 }
 
 const PRIVATE = /^\/(admin|login|logout|register|setup)(\/|$)/;
@@ -129,8 +163,11 @@ function init(root) {
 
   // ------------------------------------------------------------ form --
   const fields = () => [...form.elements].filter((el) => el.name && !el.disabled).map((el) => ({
-    name: el.name, value: el.value, type: el.dataset.type, checked: el.checked, kind: el.type,
+    name: el.name, value: el.value, type: el.dataset.type, checked: el.checked, kind: el.type, def: el.dataset.default,
   }));
+  // The theme texts the preview shows as they are typed.
+  const live = new Set($$("[data-live]", form).map((el) => el.dataset.live));
+  const mainLang = $("[data-content-lang]")?.dataset.contentLang || document.documentElement.lang;
   const current = () => designFrom(fields(), state.options || {});
   const values = () => {
     const out = {};
@@ -268,11 +305,115 @@ function init(root) {
     old.after(link);
   }
 
+  // ------------------------------------------- texts and images --
+  let editMode = true;
+  let textLang = mainLang;
+  const content = $("[data-cz-content]", form);
+
+  // showLang shows the fields of one language; with go, the preview moves
+  // to the same page in that language (or its home page).
+  function showLang(lang, go) {
+    if (!content) return;
+    textLang = lang;
+    for (const el of $$("[data-content-field][data-lang]", content)) el.hidden = el.dataset.lang !== lang;
+    for (const b of $$("[data-content-lang]", content)) b.setAttribute("aria-pressed", String(b.dataset.contentLang === lang));
+    const doc = frameDoc();
+    if (!go || !doc || doc.documentElement.lang === lang) return;
+    const alt = doc.querySelector(`link[rel="alternate"][hreflang="${lang}"]`)?.href || (lang === mainLang ? "/" : `/${lang}/`);
+    const url = previewURL(alt, location.origin, slug, scheme);
+    if (url) frame.contentWindow.location.assign(url);
+  }
+
+  // openField opens the field of key in lang and takes the focus there.
+  function openField(key, lang) {
+    if (!content) return;
+    let el = $(`[data-content-field="${key}"][data-lang="${lang}"]`, content);
+    if (el && lang !== textLang) showLang(lang, false);
+    el ??= $(`[data-content-field="${key}"]:not([data-lang])`, content) || $(`[data-content-field="${key}"]`, content);
+    if (!el) return;
+    content.open = true;
+    const group = el.closest("details.cz-group");
+    if (group) group.open = true;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    (el.querySelector("input:not([type=hidden]), textarea, button"))?.focus({ preventScroll: true });
+    el.classList.add("is-target");
+    setTimeout(() => el.classList.remove("is-target"), 1600);
+  }
+
+  // showText writes a text in the preview as it is typed.
+  function showText(input) {
+    const doc = frameDoc();
+    if (!doc || doc.documentElement.lang !== input.lang) return;
+    for (const el of doc.querySelectorAll(`[data-sap-edit="${input.dataset.live}"]`)) el.textContent = input.value.trim() || input.dataset.default || "";
+  }
+
+  // In the preview, the marked texts and images open their field when
+  // clicked (and show it on hover), unless the edit mode is off.
+  function markEditable(doc) {
+    const label = (key) => $(`[data-content-field="${key}"] label, [data-content-field="${key}"] .label`, content)?.textContent.trim() || key;
+    doc.addEventListener("click", (e) => {
+      const el = editMode && e.target.closest?.("[data-sap-edit]");
+      if (!el) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openField(el.dataset.sapEdit, doc.documentElement.lang);
+    }, true);
+    doc.addEventListener("mouseover", (e) => {
+      const el = editMode && e.target.closest?.("[data-sap-edit]");
+      if (!el || el.dataset.sapHover) return;
+      el.dataset.sapHover = "";
+      // CSSOM, not a style attribute: the site's CSP allows it.
+      el.style.outline = "2px dashed #3b82f6";
+      el.style.outlineOffset = "4px";
+      el.style.cursor = "pointer";
+      el.title = fmt(msg.msgEdit, label(el.dataset.sapEdit));
+      el.addEventListener("mouseleave", () => {
+        delete el.dataset.sapHover;
+        el.style.outline = el.style.outlineOffset = el.style.cursor = "";
+        el.removeAttribute("title");
+      }, { once: true });
+    });
+  }
+
+  if (content) {
+    for (const b of $$("[data-content-lang]", content)) b.addEventListener("click", () => showLang(b.dataset.contentLang, true));
+    // An image from the media library (admin.js's picker), or the theme's.
+    content.addEventListener("sap13ns:media-pick", (e) => {
+      const box = e.target.closest("[data-content-field]");
+      if (!box || !e.detail) return;
+      $("[data-content-image]", box).value = String(e.detail.id);
+      $(".cz-image-thumb", box).src = e.detail.thumb || e.detail.url;
+      $("[data-theme-image]", box).hidden = false;
+      schedule(100);
+    });
+    content.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-theme-image]");
+      if (!b) return;
+      const box = b.closest("[data-content-field]");
+      $("[data-content-image]", box).value = "";
+      $(".cz-image-thumb", box).src = $(".cz-image-thumb", box).dataset.themeSrc;
+      b.hidden = true;
+      $("[data-media-picker]", box)?.focus();
+      schedule(100);
+    });
+  }
+  const editBtn = $("[data-edit-mode]");
+  editBtn?.addEventListener("click", () => {
+    editMode = !editMode;
+    editBtn.setAttribute("aria-pressed", String(editMode));
+  });
+
   frame.addEventListener("load", () => {
     delete $(".cz-frame").dataset.loading;
     const doc = frameDoc();
     if (!doc) return;
     applyScheme();
+    if (content) {
+      markEditable(doc);
+      // The preview went to another language: edit its texts.
+      const lang = doc.documentElement.lang;
+      if (lang && lang !== textLang && $(`[data-content-lang="${lang}"]`, content)) showLang(lang, false);
+    }
     if (reloadScroll != null) {
       frame.contentWindow.scrollTo({ top: reloadScroll, behavior: "instant" });
       reloadScroll = null;
@@ -377,7 +518,11 @@ function init(root) {
         setStatus(okStatus);
         publishBtn.disabled = false;
         discardBtn.disabled = false;
-        if (needsReload(shown, design)) reloadFrame();
+        // A live text the page shows nowhere marked (an alt text, say)
+        // needs the page again too.
+        const doc = frameDoc();
+        const unseen = liveChanges(shown, design, live, mainLang).some(([l, k]) => doc?.documentElement.lang === l && !doc.querySelector(`[data-sap-edit="${k}"]`));
+        if (unseen || needsReload(shown, design, live)) reloadFrame();
         else swapCSS(data.css_url, data.classes);
         shown = design;
       } catch (_) {
@@ -399,6 +544,7 @@ function init(root) {
     if (el.dataset.pick) syncColor(el.dataset.pick, "pick");
     else if (el.classList.contains("cz-hex")) syncColor(el.name);
     if (el.dataset.fontSample || el.name === "fonts.body.stack") updateSamples();
+    if (el.dataset.live) showText(el);
     updateVisibility();
     // Typing waits for a pause; pickers and selects save quickly.
     schedule(el.tagName === "TEXTAREA" || el.type === "text" || el.type === "number" ? 700 : 250);

@@ -1,7 +1,7 @@
 // Tests for the theme customiser's pure helpers (ui/static/customizer.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeHex, designFrom, needsReload, previewURL, showIf } from "../../static/customizer.js";
+import { normalizeHex, designFrom, needsReload, liveChanges, previewURL, showIf } from "../../static/customizer.js";
 
 test("normalizeHex", () => {
   assert.equal(normalizeHex("#ABC"), "#aabbcc");
@@ -89,4 +89,26 @@ test("showIf", () => {
   assert.equal(showIf("header.brand!=", { "header.brand": "logo" }), true);
   assert.equal(showIf("header.brand!=", {}), false);
   assert.equal(showIf("", {}), true);
+});
+
+test("designFrom keeps the theme texts that differ from their default", () => {
+  const d = designFrom([
+    { name: "content.title", value: "Hola mundo", def: "Hola mundo" },
+    { name: "content.lead", value: " Otro texto ", def: "Texto" },
+    { name: "content.photo", value: "" },
+    { name: "content.hero", value: "12" },
+    { name: "content_i18n.en.title", value: "Welcome", def: "Hello world" },
+    { name: "content_i18n.en.lead", value: "", def: "Text" },
+  ]);
+  assert.deepEqual(d.content, { lead: "Otro texto", hero: "12" });
+  assert.deepEqual(d.content_i18n, { en: { title: "Welcome" } });
+});
+
+test("live theme texts do not reload the preview; images and lists do", () => {
+  const live = new Set(["title"]);
+  const a = { content: { title: "A" }, content_i18n: {} };
+  assert.equal(needsReload(a, { content: { title: "B" }, content_i18n: { en: { title: "C" } } }, live), false);
+  assert.equal(needsReload(a, { content: { title: "A", photo: "3" } }, live), true);
+  assert.equal(needsReload(a, { content: { title: "A" }, content_i18n: { en: { steps: "x" } } }, live), true);
+  assert.deepEqual(liveChanges(a, { content: { title: "B" }, content_i18n: { en: { title: "C" } } }, live, "es"), [["es", "title"], ["en", "title"]]);
 });

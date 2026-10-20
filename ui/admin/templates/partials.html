@@ -281,3 +281,33 @@
 </section>
 {{end}}
 {{end}}
+
+{{/* media-dialog: the media library picker of admin.js (data-media-picker
+     opens it), with uploads. */}}
+{{define "media-dialog"}}
+<dialog id="media-dialog" class="dialog media-dialog" aria-labelledby="media-dialog-title" data-overlay-close>
+  <div>
+    <header>
+      <h2 id="media-dialog-title">{{T "Media library"}}</h2>
+      <p>{{T "Choose a file or drop new ones here."}}</p>
+    </header>
+    <section>
+      <div class="media-picker-bar">
+        <div class="input-icon grow">{{icon "search"}}<input class="input" type="search" placeholder="{{T "Search…"}}" data-media-search aria-label="{{T "Search media"}}"></div>
+        <label class="btn" data-size="sm">{{icon "upload"}}{{T "Upload"}}<input type="file" multiple hidden data-media-upload accept="image/*,application/pdf,audio/*,video/mp4,video/webm,text/plain"></label>
+      </div>
+      <div class="upload-status" data-upload-progress hidden>
+        <div class="progress" role="progressbar" aria-label="{{T "Uploading…"}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
+        <p class="hint" data-upload-text aria-live="polite"></p>
+      </div>
+      <div class="alert upload-errors" data-variant="destructive" role="alert" data-upload-errors hidden>{{icon "circle-alert"}}<h2>{{T "Upload failed"}}</h2><section></section></div>
+      <div class="media-grid picker" data-media-grid data-dropzone aria-live="polite"></div>
+      <div class="media-picker-more"><button type="button" class="btn" data-variant="outline" data-size="sm" data-media-more hidden>{{T "Load more"}}</button></div>
+    </section>
+    <footer>
+      <button type="button" class="btn" data-variant="outline" data-dialog-close>{{T "Cancel"}}</button>
+    </footer>
+    <button type="button" class="btn dialog-close" data-variant="ghost" data-size="icon-sm" aria-label="{{T "Close"}}" data-dialog-close>{{icon "x"}}</button>
+  </div>
+</dialog>
+{{end}}

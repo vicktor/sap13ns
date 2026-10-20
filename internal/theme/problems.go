@@ -106,6 +106,7 @@ var Messages = map[string]string{
 	"manifest.option-type":    "The option %q has the type %q; use text, textarea, select or bool.",
 	"manifest.option-choices": "The option %q needs between 1 and %d choices.",
 	"manifest.option-default": "The default of the option %q is not one of its values.",
+	"manifest.content-type":   "The text %q has the type %q; use text, textarea, lines or image.",
 	"manifest.colour":         "%s is not a hexadecimal colour such as #1d4ed8.",
 	"manifest.token":          "%q is not a colour token. Use the tokens of the customiser: %s.",
 	"manifest.token-option":   "The colours of %q are for an option value the theme does not have.",

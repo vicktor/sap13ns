@@ -403,6 +403,39 @@ func boundedFormat(f string) bool {
 	return true
 }
 
+// checkContent checks the manifest's editable texts and images.
+func checkContent(v *validation, m *Manifest, text func(field, s string, limit int, required bool), id func(kind, s string) bool) {
+	if len(m.Content) > MaxContentGroups {
+		v.add(Problem{Code: "manifest.too-many", File: "theme.json", Args: []any{"content", MaxContentGroups}})
+	}
+	groups, keys, n := map[string]bool{}, map[string]bool{}, 0
+	for _, g := range m.Content {
+		if id("content[].id", g.ID) && groups[g.ID] {
+			v.add(Problem{Code: "manifest.duplicate", File: "theme.json", Args: []any{"content[].id", g.ID}})
+		}
+		groups[g.ID] = true
+		text("content[].label", g.Label, maxLabel, true)
+		for _, f := range g.Fields {
+			n++
+			if id("content[].fields[].key", f.Key) && keys[f.Key] {
+				v.add(Problem{Code: "manifest.duplicate", File: "theme.json", Args: []any{"content[].fields[].key", f.Key}})
+			}
+			keys[f.Key] = true
+			text("content[].fields[].label", f.Label, maxLabel, true)
+			text("content[].fields[].help", f.Help, maxHelp, false)
+			text("content[].fields[].default", f.Default, maxDefault, false)
+			switch f.Type {
+			case ContentText, ContentTextarea, ContentLines, ContentImage:
+			default:
+				v.add(Problem{Code: "manifest.content-type", File: "theme.json", Args: []any{f.Key, f.Type}})
+			}
+		}
+	}
+	if n > MaxContentFields {
+		v.add(Problem{Code: "manifest.too-many", File: "theme.json", Args: []any{"content[].fields", MaxContentFields}})
+	}
+}
+
 // Manifest rules.
 const (
 	maxName        = 80
@@ -411,6 +444,9 @@ const (
 	maxLabel       = 120
 	maxHelp        = 300
 	maxDefault     = 1000
+
+	MaxContentGroups = 40
+	MaxContentFields = 400
 )
 
 func checkManifest(v *validation, m *Manifest) {
@@ -497,6 +533,7 @@ func checkManifest(v *validation, m *Manifest) {
 			v.add(Problem{Code: "manifest.option-type", File: "theme.json", Args: []any{o.Key, o.Type}})
 		}
 	}
+	checkContent(v, m, text, id)
 	if len(m.Swatches) > 12 {
 		v.add(Problem{Code: "manifest.too-many", File: "theme.json", Args: []any{"swatches", 12}})
 	}

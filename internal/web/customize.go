@@ -209,7 +209,7 @@ func (ms *mediaSet) fontURL(id int64) string {
 
 // designContext is what validating a design of th needs.
 func (s *Server) designContext(th *theme.Theme, ms *mediaSet) customize.Context {
-	c := customize.Context{Langs: s.siteLangs(), Media: ms.exists}
+	c := customize.Context{Langs: s.siteLangs(), Media: ms.exists, Content: contentSpecs(th)}
 	for _, o := range th.Options {
 		spec := customize.OptionSpec{Key: o.Key, Type: o.Type}
 		for _, ch := range o.Choices {
@@ -275,6 +275,7 @@ func (s *Server) loadPublished(ctx context.Context, th *theme.Theme, gen uint64)
 	if err != nil {
 		return e, err
 	}
+	prefetchContent(ms, th, row.Published)
 	e.design, _ = customize.Load(row.Published, s.designContext(th, ms)) // a lookup failure is in ms.err
 	l, err := s.loadPublishedLayout(ctx, th, ms)
 	if err != nil {
@@ -318,6 +319,7 @@ func (s *Server) draftDesign(ctx context.Context, th *theme.Theme, ms *mediaSet)
 	if row.Draft != nil {
 		raw = row.Draft
 	}
+	prefetchContent(ms, th, raw)
 	d, err := customize.Load(raw, s.designContext(th, ms))
 	if err != nil {
 		return nil, nil, err
@@ -343,6 +345,7 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 		sv.Custom.CSS = customCSSURL(th.Slug, "draft-", css)
 		sv.Custom.Logo = logoView(ms, d)
 		sv.Custom.Preview = true
+		sv.content = &siteContent{design: d, media: ms.lookup, main: s.mainLang()}
 		if len(d.Options) > 0 {
 			stored, err := s.store.ThemeOptions(ctx, th.Slug)
 			if err != nil {
@@ -357,6 +360,7 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 		e := s.publishedDesign(ctx, th)
 		d = e.design
 		sv.Custom.CSS, sv.Custom.Logo, sv.Custom.Partial = e.url, e.logo, e.partial
+		sv.content = &siteContent{design: d, media: e.mediaByID, main: s.mainLang()}
 	}
 	cv := sv.Custom
 	cv.Class = d.HTMLClasses()
@@ -480,11 +484,13 @@ type customizeData struct {
 	PublishedAt *time.Time
 	PreviewURL  string
 	Revisions   []store.CustomRevision
-	Fonts       []store.Media     // WOFF2 files in the media library
-	Images      []store.Media     // images for the logo
-	Langs       []LangLink        // extra languages for the footer text
-	Options     map[string]string // option values in effect in the draft
-	Active      bool              // the theme is the site's active theme
+	Fonts       []store.Media      // WOFF2 files in the media library
+	Images      []store.Media      // images for the logo
+	Langs       []LangLink         // extra languages for the footer text
+	Options     map[string]string  // option values in effect in the draft
+	Active      bool               // the theme is the site's active theme
+	Content     []contentGroupView // the theme's texts and images (theme_content.go)
+	ContentLang []LangLink         // the languages of the texts, the main one first
 }
 
 // colorRow is one colour token in the customiser form.
@@ -562,6 +568,10 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 	}
 	if imgs, _, err := s.store.ListMedia(ctx, store.MediaQuery{ImagesOnly: true, Limit: 100}); err == nil {
 		data.Images = imgs
+	}
+	if len(th.Content) > 0 {
+		data.Content = s.contentForm(r, th, d, ms)
+		data.ContentLang = append([]LangLink{{Code: s.mainLang(), Name: langName(s.mainLang())}}, s.extraLangs()...)
 	}
 	st := s.customizerState(th, d, pub, stored)
 	b, _ := json.Marshal(st)

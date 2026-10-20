@@ -295,6 +295,8 @@ type SiteView struct {
 	atHome bool
 	theme  *theme.Theme
 	server *Server
+	// content: the theme's edited texts and images (theme_content.go).
+	content *siteContent
 	// The cookie consent, computed on first use (consent.go).
 	consent     *ConsentView
 	consentDone bool

@@ -5,6 +5,17 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.14 — 2026-10-20
+
+- Customiser: **Texts and images**. A theme can declare the texts and
+  photographs of its own pages in `theme.json` (`content`), and the
+  customiser edits them per language with the live preview: click a text or
+  an image in the preview to open its field, type and see it change, or pick
+  an image from the media library (with uploads). Drafts, publishing,
+  revisions and export work as for the rest of the design. See "Editable
+  texts and images" in docs/THEMES.md.
+- The media library dialog is shared by the editor and the customiser.
+
 ## v0.2.13 — 2026-10-20
 
 - AI providers: cheaper models in the lists. OpenAI adds GPT-5 nano and

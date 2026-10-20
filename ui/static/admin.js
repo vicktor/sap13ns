@@ -79,7 +79,7 @@
       return;
     }
     if (el.dataset.md) return editorFormat(el.closest("[data-editor]"), el.dataset.md);
-    if (el.dataset.mediaPicker) return openPicker(el.dataset.mediaPicker);
+    if (el.dataset.mediaPicker) return openPicker(el.dataset.mediaPicker, el);
     if (el.hasAttribute("data-featured-clear")) return setFeatured(null);
     if (el.hasAttribute("data-media-more")) return loadMedia(false);
   });
@@ -242,10 +242,15 @@
   // ------------------------------------------------------------- media --
   const picker = { mode: "insert", page: 1, q: "", busy: false };
 
-  function openPicker(mode) {
+  // openPicker opens the media dialog: "insert" puts the file in the
+  // editor, "featured" sets the featured image, and "image" hands the image
+  // chosen to whoever listens for sap13ns:media-pick on the button that
+  // opened it (the customiser's images).
+  function openPicker(mode, opener) {
     const dlg = $("#media-dialog");
     if (!dlg) return;
     picker.mode = mode;
+    picker.opener = opener;
     dlg.showModal();
     loadMedia(true);
   }
@@ -258,7 +263,7 @@
     picker.busy = true;
     try {
       const params = new URLSearchParams({ page: String(picker.page), q: picker.q });
-      if (picker.mode === "featured") params.set("type", "image");
+      if (picker.mode !== "insert") params.set("type", "image");
       const res = await fetch("/admin/api/media?" + params, { credentials: "same-origin" });
       const data = await res.json();
       for (const item of data.items) grid.append(mediaButton(item));
@@ -286,6 +291,10 @@
   function pick(item) {
     $("#media-dialog")?.close();
     if (picker.mode === "featured") return setFeatured(item);
+    if (picker.mode === "image") {
+      picker.opener?.dispatchEvent(new CustomEvent("sap13ns:media-pick", { bubbles: true, detail: item }));
+      return;
+    }
     const ta = $("[data-editor-text]");
     if (!ta) return;
     insertMedia(ta, item);

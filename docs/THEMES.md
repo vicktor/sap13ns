@@ -593,6 +593,7 @@ Themes are expected to meet WCAG 2.2 AA.
 
 | Panel | What the operator can change |
 |---|---|
+| Texts and images | the texts and photographs a theme declares in `theme.json` (`content`), per language, with images from the media library; a click on one in the preview opens its field |
 | Colours | the eleven colour tokens, separately for light and dark, with contrast warnings (WCAG AA) and dark colours derived from the light ones on request |
 | Fonts | body, headings and code: a curated system stack or a WOFF2 file from the media library |
 | Size and spacing | text size (90 % to 120 %), corner radius, density, shadows, content width |
@@ -616,6 +617,27 @@ Themes are expected to meet WCAG 2.2 AA.
 - In the header, show `shared/logo` when `.Site.Custom.Logo` is set, hide the title when `.Site.Custom.LogoOnly` is true, and leave out the search link when `.Site.Custom.HideSearch` is true. `shared/lang-switch` handles `HideLang` itself.
 - On the home page, render `shared/post-list` with `.Site.Custom.HomeLayout` when it is set. Read the introduction setting from a `hero` option, which the customiser overrides, or with `.Site.Custom.HeroOn <the theme's default>`. The posts per page are applied by the server.
 - Use `shared/footer-meta` and `shared/widget-area` for the footer, so the footer text and the columns apply.
+
+### Editable texts and images
+
+A theme whose pages carry their own texts and photographs (a front page in sections, headers with pictures) declares them in `theme.json`, so the operator can change them in the customiser without editing the theme:
+
+```json
+"content": [
+  {"id": "intro", "label": "Front page · Opening", "fields": [
+    {"key": "intro-title", "label": "Title", "type": "text", "default": "The art of resolution"},
+    {"key": "intro-lead", "label": "Introduction", "type": "textarea", "default": "Dialogue as the solution."},
+    {"key": "values", "label": "Values", "type": "lines", "default": "Dialogue\nEmpathy\nTrust"},
+    {"key": "intro-image", "label": "Photograph", "type": "image", "default": "img/pier-960.webp"}
+  ]}
+]
+```
+
+- **Types.** `text` (up to 500 characters), `textarea` (up to 5,000), `lines` (a list, one item per line, up to 60) and `image` (a file from the media library). Up to 40 groups and 400 fields; keys are ids, unique across groups.
+- **Defaults.** A text's `default` is English, and the theme's `i18n/<lang>.json` translates it (a `lines` default line by line), so what was not edited keeps the theme's translations. An image's `default` is the file in `static/` the theme shows instead, for the customiser's thumbnail. Labels and help are translated by the theme's catalog too.
+- **Languages.** Texts are edited per site language. A text edited only in the main language still shows the theme's own translation in the others. Images are the same in every language.
+- **In templates.** `{{.Site.Text "key"}}` is the text in the page's language, `{{range .Site.Lines "key"}}` its lines, and `{{with .Site.Image "key"}}…{{else}}<the theme's image>{{end}}` the image chosen (an image view, as `shared/image` takes), or nil.
+- **Click to edit.** Put `data-sap-edit="key"` on the element that holds only that text (wrap the text in a `<span>` when it shares its element with an icon), or on an image, or on the section of a background photograph. In the preview the element is outlined on hover and a click opens its field; the customiser writes typed text into marked elements at once and reloads the preview for images and lists. The attribute does nothing on public pages.
 
 ## The page builder
 

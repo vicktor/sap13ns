@@ -48,6 +48,38 @@ type Option struct {
 	Help    string   `json:"help"`
 }
 
+// ContentGroup is a part of the theme's pages (the front page's intro, the
+// footer) and its editable texts and images.
+type ContentGroup struct {
+	ID     string         `json:"id"`
+	Label  string         `json:"label"`
+	Fields []ContentField `json:"fields"`
+}
+
+// ContentField is one editable text or image. Templates read it with
+// .Site.Text, .Site.Lines and .Site.Image, and mark the element that holds
+// only it with data-sap-edit="key", so that clicking it in the customiser's
+// preview opens it.
+type ContentField struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Type  string `json:"type"` // "text" | "textarea" | "lines" | "image"
+	// Default is the text shown until it is edited, in English: the
+	// theme's catalog translates it (a "lines" default line by line). For
+	// an image it is the file in static/ the theme shows instead, for the
+	// customiser's thumbnail.
+	Default string `json:"default"`
+	Help    string `json:"help"`
+}
+
+// Content field types.
+const (
+	ContentText     = "text"
+	ContentTextarea = "textarea"
+	ContentLines    = "lines"
+	ContentImage    = "image"
+)
+
 type Choice struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
@@ -66,6 +98,9 @@ type Manifest struct {
 	WidgetAreas []WidgetArea   `json:"widget_areas"`
 	Options     []Option       `json:"options"`
 	Swatches    []string       `json:"swatches"` // preview colours for the admin
+	// Content lists the texts and images of the theme's own templates that
+	// the customiser edits (Appearance → Customise → Texts and images).
+	Content []ContentGroup `json:"content,omitempty"`
 
 	Tokens *Tokens `json:"tokens,omitempty"` // default colours, see tokens.go
 }
@@ -681,6 +716,18 @@ func (t *Theme) OptionValues(stored map[string]string) map[string]string {
 		out[o.Key] = v
 	}
 	return out
+}
+
+// ContentField returns the content field key, or nil.
+func (t *Theme) ContentField(key string) *ContentField {
+	for i := range t.Content {
+		for j := range t.Content[i].Fields {
+			if f := &t.Content[i].Fields[j]; f.Key == key {
+				return f
+			}
+		}
+	}
+	return nil
 }
 
 func (t *Theme) HasMenu(id string) bool {

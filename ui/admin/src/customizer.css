@@ -66,6 +66,23 @@
 .cz-logo:has(> input:focus-visible) { @apply outline-2 outline-offset-2 outline-ring; }
 .cz-code { @apply min-h-48 font-mono text-xs leading-5; tab-size: 2; }
 
+/* Texts and images: one collapsible group per part of the theme's pages. */
+.cz-langs { @apply self-start; }
+.cz-group { @apply rounded-lg border; }
+.cz-group > summary {
+  @apply flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-sm [&::-webkit-details-marker]:hidden;
+}
+.cz-group > summary > span { @apply flex-1; }
+.cz-group > summary > svg { @apply size-4 shrink-0 text-muted-foreground; }
+.cz-group > summary:focus-visible { @apply outline-2 outline-offset-2 outline-ring; }
+.cz-group[open] > summary { @apply rounded-b-none border-b; }
+.cz-group[open] > summary .cz-chevron { @apply rotate-180; }
+.cz-group-body { @apply flex flex-col gap-3 p-3; }
+.cz-image-row { @apply flex items-center gap-3; }
+.cz-image-thumb { @apply h-16 w-24 shrink-0 rounded-md border bg-muted object-cover; }
+.cz-image-actions { @apply flex flex-col items-start gap-1; }
+.cz-body .is-target { @apply rounded-md outline-2 outline-offset-4 outline-ring; }
+
 .cz-field-error { @apply text-xs text-destructive; }
 .cz-body [aria-invalid="true"] { @apply border-destructive; }
 

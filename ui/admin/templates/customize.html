@@ -69,9 +69,60 @@
   data-msg-invalid="{{T "Check the highlighted fields."}}" data-msg-offline="{{T "The server could not be reached."}}"
   data-msg-external="{{T "External links open in a new tab."}}" data-msg-blocked="{{T "Forms that send data are disabled in the preview."}}"
   data-msg-contrast="{{T "%s on %s: contrast %s:1, below %s:1 (WCAG AA)."}}" data-msg-no-warnings="{{T "All checked text colours meet WCAG AA contrast."}}"
-  data-msg-derived="{{T "Dark colours derived from the light ones. Review them in the dark preview."}}" data-msg-pending="{{T "Saving the latest changes first…"}}">
+  data-msg-derived="{{T "Dark colours derived from the light ones. Review them in the dark preview."}}" data-msg-pending="{{T "Saving the latest changes first…"}}" data-msg-edit="{{T "Edit: %s"}}">
   <form class="cz-panel" id="cz-form" novalidate autocomplete="off" aria-label="{{T "Design settings"}}">
-    <details class="cz-section" open>
+    {{if $d.Content}}
+    <details class="cz-section" open data-cz-content>
+      <summary>{{icon "type"}}<span>{{T "Texts and images"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+      <div class="cz-body">
+        <p class="hint">{{T "Click a text or an image in the preview to edit it here, or open its part of the page below."}}</p>
+        {{if gt (len $d.ContentLang) 1}}
+        <div class="cz-segment cz-langs" role="group" aria-label="{{T "Language of the texts"}}">
+          {{range $i, $l := $d.ContentLang}}<button type="button" class="btn" data-variant="ghost" data-size="sm" data-content-lang="{{$l.Code}}" aria-pressed="{{if eq $i 0}}true{{else}}false{{end}}">{{$l.Name}}</button>{{end}}
+        </div>
+        {{end}}
+        {{range $d.Content}}
+        <details class="cz-group" data-group="{{.ID}}">
+          <summary><span>{{.Label}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
+          <div class="cz-group-body">
+            {{range .Fields}}{{$f := .}}
+            {{if eq .Type "image"}}
+            <div class="field cz-image" data-content-field="{{.Key}}">
+              <span class="label" id="cz-c-{{.Key}}">{{.Label}}</span>
+              <div class="cz-image-row">
+                <img class="cz-image-thumb" src="{{if .Image}}{{.Image.Thumb}}{{else}}{{.ThemeImage}}{{end}}" data-theme-src="{{.ThemeImage}}" alt="" width="96" height="64">
+                <input type="hidden" name="content.{{.Key}}" value="{{if .ImageID}}{{.ImageID}}{{end}}" data-content-image>
+                <div class="cz-image-actions">
+                  <button type="button" class="btn" data-variant="outline" data-size="sm" data-media-picker="image" aria-describedby="cz-c-{{.Key}}">{{icon "image"}}{{T "Change"}}</button>
+                  <button type="button" class="btn" data-variant="ghost" data-size="sm" data-theme-image aria-describedby="cz-c-{{.Key}}"{{if not .ImageID}} hidden{{end}}>{{icon "rotate-ccw"}}{{T "Theme image"}}</button>
+                </div>
+              </div>
+              {{with .Help}}<p class="hint">{{.}}</p>{{end}}
+            </div>
+            {{else}}
+            {{range .Values}}
+            {{$id := printf "cz-c-%s-%s" $f.Key .Lang}}
+            <div class="field" data-content-field="{{$f.Key}}" data-lang="{{.Lang}}"{{if not .Main}} hidden{{end}}>
+              <label for="{{$id}}">{{$f.Label}}{{if not .Main}} · {{.LangName}}{{end}}</label>
+              {{if eq $f.Type "text"}}
+              <input class="input" type="text" id="{{$id}}" name="{{.Name}}" value="{{.Value}}" data-default="{{.Default}}" data-live="{{$f.Key}}" maxlength="500" lang="{{.Lang}}">
+              {{else}}
+              <textarea class="textarea" id="{{$id}}" name="{{.Name}}" rows="{{if eq $f.Type "lines"}}6{{else}}3{{end}}" data-default="{{.Default}}"{{if eq $f.Type "textarea"}} data-live="{{$f.Key}}"{{end}} maxlength="5000" lang="{{.Lang}}">{{.Value}}</textarea>
+              {{end}}
+              {{if eq $f.Type "lines"}}<p class="hint">{{T "One per line."}}</p>{{end}}
+              {{with $f.Help}}<p class="hint">{{.}}</p>{{end}}
+            </div>
+            {{end}}
+            {{end}}
+            {{end}}
+          </div>
+        </details>
+        {{end}}
+      </div>
+    </details>
+    {{end}}
+
+    <details class="cz-section"{{if not $d.Content}} open{{end}}>
       <summary>{{icon "palette"}}<span>{{T "Colours"}}</span>{{icon "chevron-down" "cz-chevron"}}</summary>
       <div class="cz-body">
         <div class="tabs" id="cz-scheme-tabs">
@@ -226,6 +277,7 @@
         <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="light" aria-pressed="true">{{icon "sun"}}<span>{{T "Light"}}</span></button>
         <button type="button" class="btn" data-variant="ghost" data-size="sm" data-scheme="dark" aria-pressed="false">{{icon "moon"}}<span>{{T "Dark"}}</span></button>
       </div>
+      {{if $d.Content}}<button type="button" class="btn" data-variant="ghost" data-size="sm" data-edit-mode aria-pressed="true" title="{{T "Click a text or an image in the preview to edit it"}}">{{icon "pencil"}}<span>{{T "Click to edit"}}</span></button>{{end}}
       <span class="cz-spacer"></span>
       <button type="button" class="btn" data-variant="ghost" data-size="icon" data-reload aria-label="{{T "Reload the preview"}}" title="{{T "Reload the preview"}}">{{icon "refresh-cw"}}</button>
       <a class="btn" data-variant="ghost" data-size="icon" href="{{$d.PreviewURL}}" target="_blank" rel="noopener" data-open-preview aria-label="{{T "Open the preview in a new tab"}}" title="{{T "Open the preview in a new tab"}}">{{icon "external-link"}}</a>
@@ -274,4 +326,5 @@
   </div>
 </section>
 <script type="module" src="{{asset "customizer.js"}}"></script>
+{{if $d.Content}}{{template "media-dialog" .}}{{end}}
 {{end}}

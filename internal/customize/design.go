@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -76,6 +77,21 @@ type Design struct {
 	// Options overrides theme.json options while drafting; publishing
 	// writes them to the theme's stored options.
 	Options map[string]string `json:"options,omitempty"`
+	// Content holds the theme's edited texts and images (theme.json
+	// "content") in the site's main language: text, or an image's media
+	// id. ContentI18n holds the texts of the other languages (lang -> key
+	// -> text); images are the same in every language.
+	Content     map[string]string            `json:"content,omitempty"`
+	ContentI18n map[string]map[string]string `json:"content_i18n,omitempty"`
+}
+
+// ContentIn returns the edited text key for lang, "" when it was not
+// edited in that language.
+func (d *Design) ContentIn(lang, main, key string) string {
+	if lang == "" || lang == main {
+		return d.Content[key]
+	}
+	return d.ContentI18n[lang][key]
 }
 
 // Font picks a curated stack or a WOFF2 file from the media library.
@@ -156,9 +172,23 @@ type OptionSpec struct {
 	Choices []string
 }
 
+// ContentSpec describes one theme.json content field for validation.
+type ContentSpec struct {
+	Key  string
+	Type string // text | textarea | lines | image
+}
+
+// Content limits, in characters (lines: in all and per line).
+const (
+	MaxContentText  = 500
+	MaxContentLong  = 5000
+	MaxContentLines = 60
+)
+
 // Context is what validation needs to know about the site and theme.
 type Context struct {
 	Options []OptionSpec
+	Content []ContentSpec
 	Langs   []string // languages that may have their own footer text
 	// Media reports whether a media id exists and is of the wanted kind
 	// ("image" or "font"). An error means the id could not be checked (a
@@ -397,6 +427,111 @@ func (d *Design) Normalize(c Context) (Errors, error) {
 		opts = nil
 	}
 	d.Options = opts
+
+	spec := func(k string) *ContentSpec {
+		for i := range c.Content {
+			if c.Content[i].Key == k {
+				return &c.Content[i]
+			}
+		}
+		return nil
+	}
+	cleanContent := func(field, k, v string, sp *ContentSpec) (string, bool) {
+		switch sp.Type {
+		case "image":
+			v = strings.TrimSpace(v)
+			id, err := strconv.ParseInt(v, 10, 64)
+			if err != nil || id <= 0 || !exists(id, "image") {
+				add(field, "choose an image from the media library")
+				return "", false
+			}
+			return strconv.FormatInt(id, 10), true
+		case "textarea", "lines":
+			v = strings.TrimSpace(strings.ReplaceAll(v, "\r\n", "\n"))
+			v = strings.Map(func(r rune) rune {
+				if r == '\n' {
+					return r
+				}
+				if r == '\t' {
+					return ' '
+				}
+				if r < 0x20 || r == 0x7f {
+					return -1
+				}
+				return r
+			}, v)
+			if sp.Type == "lines" {
+				var lines []string
+				for l := range strings.SplitSeq(v, "\n") {
+					if l = strings.TrimSpace(l); l != "" {
+						lines = append(lines, l)
+					}
+				}
+				if len(lines) > MaxContentLines {
+					add(field, "at most %d lines", MaxContentLines)
+					lines = lines[:MaxContentLines]
+				}
+				v = strings.Join(lines, "\n")
+			}
+			if utf8.RuneCountInString(v) > MaxContentLong {
+				add(field, "at most %d characters", MaxContentLong)
+				v = clip(v, MaxContentLong)
+			}
+		default:
+			v = cleanText(v)
+			if utf8.RuneCountInString(v) > MaxContentText {
+				add(field, "at most %d characters", MaxContentText)
+				v = clip(v, MaxContentText)
+			}
+		}
+		return v, v != ""
+	}
+	content := map[string]string{}
+	for k, v := range d.Content {
+		sp := spec(k)
+		if sp == nil {
+			add("content."+k, "this theme has no such text")
+			continue
+		}
+		if v, ok := cleanContent("content."+k, k, v, sp); ok {
+			content[k] = v
+		}
+	}
+	if len(content) == 0 {
+		content = nil
+	}
+	d.Content = content
+	i18n := map[string]map[string]string{}
+	for lang, m := range d.ContentI18n {
+		if !contains(c.Langs, lang) {
+			if len(m) > 0 {
+				add("content_i18n."+lang, "unknown language")
+			}
+			continue
+		}
+		out := map[string]string{}
+		for k, v := range m {
+			field := "content_i18n." + lang + "." + k
+			sp := spec(k)
+			switch {
+			case sp == nil:
+				add(field, "this theme has no such text")
+			case sp.Type == "image":
+				add(field, "images are the same in every language")
+			default:
+				if v, ok := cleanContent(field, k, v, sp); ok {
+					out[k] = v
+				}
+			}
+		}
+		if len(out) > 0 {
+			i18n[lang] = out
+		}
+	}
+	if len(i18n) == 0 {
+		i18n = nil
+	}
+	d.ContentI18n = i18n
 	sort.Sort(errs)
 	return errs, lookupErr
 }
