@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.8 — 2026-10-20
+
+- Post editor: in the Language box, long titles of the linked translations
+  ran out of the card. They are now cut short with an ellipsis, and the full
+  title shows on hover.
+
 ## v0.2.7 — 2026-10-20
 
 - Update now: the button showed only after the update service had run once,

@@ -261,7 +261,7 @@
         {{if $d.Translations}}
         <ul class="translations">
           {{range $d.Translations}}
-          <li><a href="/admin/posts/{{.ID}}"><span class="badge" data-variant="outline">{{upper .Lang}}</span><span class="truncate">{{.Title}}</span></a>{{template "status-badge" .Status}}</li>
+          <li><a href="/admin/posts/{{.ID}}" title="{{.Title}}"><span class="badge" data-variant="outline">{{upper .Lang}}</span><span class="truncate">{{.Title}}</span></a>{{template "status-badge" .Status}}</li>
           {{end}}
         </ul>
         {{end}}

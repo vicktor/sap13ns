@@ -556,8 +556,9 @@
 .settings { @apply grid items-start gap-6 lg:grid-cols-[12rem_minmax(0,1fr)]; }
 .lang-grid { @apply grid gap-2 sm:grid-cols-2 lg:grid-cols-3; }
 .translations { @apply m-0 grid list-none gap-2 p-0 text-sm; }
-.translations li { @apply flex items-center justify-between gap-2; }
+.translations li { @apply flex min-w-0 items-center justify-between gap-2; }
 .translations a { @apply flex min-w-0 items-center gap-2; }
+.translations a .truncate { @apply min-w-0; }
 .translations .badge { @apply shrink-0; }
 .translate-actions { @apply flex flex-wrap gap-2; }
 .translate-actions .hint { @apply w-full; }
