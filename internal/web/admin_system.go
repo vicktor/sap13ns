@@ -260,6 +260,7 @@ type systemData struct {
 	Updates []sysRow
 	Checks  bool // release checks are on: offer "Check now"
 	Update  *updateNotice
+	Updater updaterView
 	// A single site: how a network of sites is started instead.
 	SingleSite bool
 	Guide      string
@@ -338,6 +339,9 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 		}},
 	}}
 	d.Updates, d.Checks = s.updateRows(r), s.updates != nil && !s.updates.Disabled
+	if d.Checks {
+		d.Updater = s.updater()
+	}
 	if d.Update = s.updateNotice(); d.Update != nil {
 		d.Update.Changes = d.Update.changes()
 	}

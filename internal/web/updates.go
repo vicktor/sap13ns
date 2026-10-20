@@ -14,8 +14,10 @@ import (
 
 // Release notices. serve runs an update.Checker; administrators see a banner
 // in the admin when a newer release exists, and the System page shows the
-// last check. Installing stays an operator task (sudo sap13ns update), since
-// the server must not be able to replace its own binary.
+// last check. The server cannot replace its own binary: "Update now" only
+// asks the root update service (sap13ns-update.path), when it is installed,
+// which installs the latest signed release and restarts the server.
+// Without it, installing is an operator task (sudo sap13ns update).
 
 type updateNotice struct {
 	Current string
@@ -89,6 +91,51 @@ func (s *Server) updateRows(r *http.Request) []sysRow {
 		rows = append(rows, sysRow{Label: s.tu(r, "Last error"), Value: truncateErr(err), OK: flag(false)})
 	}
 	return rows
+}
+
+// updaterView is the update service, for the System page.
+type updaterView struct {
+	On      bool // installed: "Update now" can be offered
+	Waiting bool // a request waits for the service, or it is installing
+	Status  *update.Status
+}
+
+func (s *Server) updater() updaterView {
+	v := updaterView{On: update.Updater(s.updateStatus)}
+	if !v.On {
+		return v
+	}
+	st, err := update.ReadStatus(s.updateStatus)
+	if err != nil {
+		s.log.Warn("update status", "err", err)
+	}
+	v.Status = st
+	v.Waiting = update.Requested(s.updateRequest) || st != nil && st.State == update.StateRunning
+	return v
+}
+
+// adminUpdateNow asks the update service to install the latest release.
+func (s *Server) adminUpdateNow(w http.ResponseWriter, r *http.Request) {
+	if s.updates == nil || s.updates.Disabled || !update.Updater(s.updateStatus) {
+		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "Updates from the admin are not set up on this server."))
+		return
+	}
+	if update.PublicKey == "" {
+		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "This build cannot install updates: it has no signing key."))
+		return
+	}
+	by := "?"
+	if u := currentUser(r); u != nil {
+		by = u.Username
+	}
+	if err := update.Request(s.updateRequest, by, time.Now()); err != nil {
+		s.log.Error("update request", "err", err)
+		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "The update could not be requested: %s", truncateErr(err)))
+		return
+	}
+	s.audit(r, uid(r), "update.requested", "", nil)
+	s.redirect(w, r, "/admin/system#updates", "info",
+		s.tu(r, "The update has started: a backup first, then the new release. The site restarts by itself in a few minutes; reload this page then."))
 }
 
 func (s *Server) adminUpdateCheck(w http.ResponseWriter, r *http.Request) {

@@ -261,6 +261,7 @@ func (s *Server) routes() *http.ServeMux {
 	admin("GET /admin/system", auth.CapManageSettings, s.adminSystem)
 	admin("GET /admin/analytics", auth.CapEditOthersPosts, s.adminStats)
 	admin("POST /admin/system/update-check", auth.CapManageSettings, s.adminUpdateCheck)
+	admin("POST /admin/system/update", auth.CapManageSettings, s.adminUpdateNow)
 
 	return mux
 }

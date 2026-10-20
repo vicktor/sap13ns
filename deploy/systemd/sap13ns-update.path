@@ -1,0 +1,17 @@
+# Starts sap13ns-update.service when an administrator presses "Update now"
+# under System → Updates: the web server can only create the request file.
+#
+#   install -m 0644 sap13ns-update.path sap13ns-update.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now sap13ns-update.path
+#
+# Without it the admin shows how to update from the shell instead.
+
+[Unit]
+Description=Install a sap13ns release requested from the admin
+
+[Path]
+PathExists=/var/lib/sap13ns/update-request
+Unit=sap13ns-update.service
+
+[Install]
+WantedBy=paths.target

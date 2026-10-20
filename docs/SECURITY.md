@@ -171,6 +171,7 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
 - The instance secret (`SAP13NS_SECRET_KEY`) signs tokens and encrypts stored secrets, such as AI provider keys, with AES-256-GCM. Secrets are never shown again in the admin.
 - **Backups** can be encrypted with AES-256-GCM (STREAM construction, Argon2id key derivation). The passphrase is read from a file or the environment, never from a command-line flag.
 - **Updates** install only releases whose `SHA256SUMS` carries a valid Ed25519 signature from the key compiled into the binary.
+- **Updates from the admin** keep the web server unable to replace its own binary: it runs unprivileged with the system read-only. **Update now** only creates `/var/lib/sap13ns/update-request`. `sap13ns-update.path` then starts a root service that removes the request before anything else, and runs `sap13ns update` with fixed arguments: it installs the latest signed release, whatever the request holds, backs up first and restarts the server. The web server reads the progress from `/var/lib/sap13ns-update`, which only root writes. A compromised web process can at most ask for the latest official release to be installed.
 - **Content exports** (Tools → Export) need the settings capability, and each one is written to the audit log.
   - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, plugin OAuth tokens, AI keys or the instance and site secrets.
   - E-mail and IP addresses are only included when the administrator asks for them.

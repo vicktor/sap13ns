@@ -362,7 +362,10 @@ if [ "$UPGRADE" = 1 ]; then
         if [ -e "/etc/systemd/system/$u" ]; then run install -m 0644 "$here/systemd/$u" /etc/systemd/system/; fi
     done
     if [ -e /usr/local/sbin/sap13ns-network-backup ]; then run install -m 0750 "$here/sap13ns-network-backup" /usr/local/sbin/; fi
+    # Updates from the admin (System → Updates), on installs older than it too.
+    run install -m 0644 "$here/systemd/sap13ns-update.service" "$here/systemd/sap13ns-update.path" /etc/systemd/system/
     run systemctl daemon-reload
+    run systemctl enable --now sap13ns-update.path
     run systemctl restart sap13ns
     ok "$(/usr/local/bin/sap13ns version)"
     echo
@@ -572,7 +575,8 @@ fi
 ok "$ENV_FILE, $PASS_FILE"
 
 step "systemd"
-run install -m 0644 "$here/systemd/sap13ns.service" "$here/systemd/sap13ns-geoip.service" "$here/systemd/sap13ns-geoip.timer" /etc/systemd/system/
+run install -m 0644 "$here/systemd/sap13ns.service" "$here/systemd/sap13ns-geoip.service" "$here/systemd/sap13ns-geoip.timer" \
+    "$here/systemd/sap13ns-update.service" "$here/systemd/sap13ns-update.path" /etc/systemd/system/
 if [ "$MODE" = network ]; then
     # Each site is backed up by sap13ns at 03:30; this is the whole network.
     run install -m 0750 "$here/sap13ns-network-backup" /usr/local/sbin/
@@ -583,9 +587,9 @@ else
     BACKUP_TIMER=sap13ns-backup.timer
 fi
 run systemctl daemon-reload
-run systemctl enable sap13ns "$BACKUP_TIMER"
+run systemctl enable sap13ns "$BACKUP_TIMER" sap13ns-update.path
 [ "$GEOIP" = 1 ] && run systemctl enable sap13ns-geoip.timer
-ok "sap13ns.service, $BACKUP_TIMER$([ "$GEOIP" = 1 ] && echo ", sap13ns-geoip.timer")"
+ok "sap13ns.service, $BACKUP_TIMER, sap13ns-update.path$([ "$GEOIP" = 1 ] && echo ", sap13ns-geoip.timer")"
 
 
 setup_web
@@ -608,7 +612,7 @@ fi
 
 step "$(t "Start" "Arranque")"
 run systemctl restart sap13ns
-run systemctl start "$BACKUP_TIMER"
+run systemctl start "$BACKUP_TIMER" sap13ns-update.path
 if [ "$GEOIP" = 1 ]; then run systemctl start --no-block sap13ns-geoip.service; run systemctl start sap13ns-geoip.timer; fi
 if [ "$DRY" = 0 ]; then
     for _ in $(seq 1 30); do [ -S /run/sap13ns/sap13ns.sock ] && break; sleep 1; done

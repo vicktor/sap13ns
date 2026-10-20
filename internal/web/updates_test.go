@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"sap13ns/internal/config"
 	"sap13ns/internal/mail"
@@ -63,5 +67,38 @@ func TestUpdateNoticeChanges(t *testing.T) {
 	}
 	if strings.Contains(sys, "Already running") || strings.Contains(sys, "<script>alert") {
 		t.Errorf("changes show the running release or unsanitised notes:\n%s", sys[:min(len(sys), 2000)])
+	}
+
+	// Without the update service the page shows the shell commands only.
+	if strings.Contains(sys, `action="/admin/system/update"`) {
+		t.Error("Update now without the update service")
+	}
+
+	// With it: "Update now" leaves a request, and the page says it is on its way.
+	dir := t.TempDir()
+	e.s.updateStatus, e.s.updateRequest = filepath.Join(dir, "status"), filepath.Join(dir, "update-request")
+	os.Mkdir(e.s.updateStatus, 0o755)
+	if !strings.Contains(e.get("/admin/system", e.admin).Body.String(), `action="/admin/system/update"`) {
+		t.Fatal("no Update now with the update service")
+	}
+	update.PublicKey = "x" // a signed build
+	t.Cleanup(func() { update.PublicKey = "" })
+	if rec := e.postForm("/admin/system/update", url.Values{}); rec.Code != http.StatusSeeOther || !update.Requested(e.s.updateRequest) {
+		t.Fatalf("update now: %d, requested %v", rec.Code, update.Requested(e.s.updateRequest))
+	}
+	page := e.get("/admin/system", e.admin).Body.String()
+	page = page[strings.Index(page, `id="updates"`):]
+	if strings.Contains(page, `action="/admin/system/update"`) || !strings.Contains(page, `<div class="alert" role="status">`) {
+		t.Error("the page does not show the update under way")
+	}
+	if e.postAs("/admin/system/update", e.author, url.Values{"csrf": {e.acsrf}}).Code == http.StatusSeeOther {
+		t.Error("an author can update the server")
+	}
+
+	// The service's verdict.
+	os.Remove(e.s.updateRequest) // the service takes it
+	update.WriteStatus(e.s.updateStatus, update.Status{State: update.StateFailed, Error: "the backup failed", At: time.Now()})
+	if page := e.get("/admin/system", e.admin).Body.String(); !strings.Contains(page, `<div class="alert" data-variant="destructive" role="status">`) || !strings.Contains(page, "the backup failed") {
+		t.Error("a failed update is not shown")
 	}
 }

@@ -115,8 +115,8 @@ sudo systemctl restart sap13ns
 | `-force` | Reinstall the latest release even if it is not newer |
 
 Administrators see a banner in the admin when a newer release exists, and
-**System → Updates** shows the last check, its error if any, and a *Check
-now* button. The check reads the public GitHub API anonymously, so it only
+**System → Updates** shows the last check, its error if any, a *Check now*
+button and, with the update service, *Update now* (below). The check reads the public GitHub API anonymously, so it only
 sees releases of a public repository.
 
 `sap13ns update` needs `sudo` because it replaces `/usr/local/bin/sap13ns`.
@@ -136,6 +136,38 @@ It:
 If any step fails the installed binary is left as it was. The running server
 keeps the old code until it is restarted; it applies any new database
 migrations when it starts.
+
+## Updating from the admin
+
+With the update service installed (`deploy/setup.sh` and `deploy/install.sh`
+set it up), **System → Updates** has an **Update now** button while a newer
+release exists. The web server cannot write its own binary, so the button
+only leaves a request, `/var/lib/sap13ns/update-request`, which starts
+`sap13ns-update.path`. The root service it triggers:
+
+1. removes the request, so a failure cannot start it again in a loop;
+2. checks for the latest release; if there is nothing newer, it stops;
+3. runs the backup units that are installed (`sap13ns-backup.service` or
+   `sap13ns-network-backup.service`), and stops if a backup fails;
+4. installs the release as `sap13ns update` does (signature, checksum,
+   version check, `sap13ns.old` kept);
+5. restarts `sap13ns.service`.
+
+Its progress goes to `/var/lib/sap13ns-update/status.json`, which the System
+page reads; its log is `journalctl -u sap13ns-update`. To set it up on an
+older installation, run `deploy/setup.sh` from a release and choose the
+upgrade, or by hand:
+
+```sh
+sudo install -m 0644 deploy/systemd/sap13ns-update.service deploy/systemd/sap13ns-update.path /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sap13ns-update.path
+```
+
+To turn it off: `sudo systemctl disable --now sap13ns-update.path`. The
+button then gives way to the shell commands. The update installs the binary
+only: changes to the systemd units or the nginx site in `deploy/` need
+`deploy/setup.sh` (the release notes say when).
 
 ## Rolling back
 

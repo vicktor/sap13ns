@@ -25,11 +25,27 @@
         <div><dt>{{.Label}}</dt><dd>{{if .OK}}{{if deref .OK}}<span class="text-success" aria-label="OK">{{icon "circle-check" "size-4"}}</span>{{else}}<span class="text-warning" aria-label="{{T "Attention"}}">{{icon "triangle-alert" "size-4"}}</span>{{end}} {{end}}<span class="break-all">{{.Value}}</span></dd></div>
         {{end}}
       </dl>
+      {{$u := .D.Updater}}
+      {{if $u.Waiting}}
+      <div class="alert" role="status">{{icon "download"}}<h2>{{T "Updating"}}</h2><section>{{T "A backup first, then the new release. The site restarts by itself: reload this page in a few minutes."}}</section></div>
+      {{else}}{{with $u.Status}}{{if eq .State "failed"}}
+      <div class="alert" data-variant="destructive" role="status">{{icon "triangle-alert"}}<h2>{{T "The last update failed"}}</h2><section><span class="break-all">{{.Error}}</span> ({{.At.Local.Format "2006-01-02 15:04"}})</section></div>
+      {{else if eq .State "installed"}}
+      <p class="hint">{{T "%s was installed from the admin on %s." .To (.At.Local.Format "2006-01-02 15:04")}}</p>
+      {{end}}{{end}}{{end}}
+      {{if $u.On}}
+      <p class="hint">{{T "“Update now” takes a backup, installs the latest signed release and restarts the site. From the server's shell it is:"}}</p>
+      {{else}}
       <p class="hint">{{T "To install a release, take a backup and run on the server:"}}</p>
+      {{end}}
       <pre class="report">sudo sap13ns update
 sudo systemctl restart sap13ns</pre>
+      {{if not $u.On}}<p class="hint">{{T "To update from here instead, install the update service on the server (sap13ns-update.path, see docs/RELEASES.md)."}}</p>{{end}}
     </section>
-    {{if .D.Checks}}<footer><form method="post" action="/admin/system/update-check">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm">{{icon "refresh-cw"}}{{T "Check now"}}</button></form></footer>{{end}}
+    {{if .D.Checks}}<footer class="flex flex-wrap gap-2">
+      {{if and .D.Updater.On .D.Update (not .D.Updater.Waiting)}}<form method="post" action="/admin/system/update">{{.CSRFField}}<button class="btn" data-size="sm" data-confirm="{{T "Install sap13ns %s now? The site restarts, and is unavailable for a moment." .D.Update.Latest}}">{{icon "download"}}{{T "Update now"}}</button></form>{{end}}
+      <form method="post" action="/admin/system/update-check">{{.CSRFField}}<button class="btn" data-variant="outline" data-size="sm">{{icon "refresh-cw"}}{{T "Check now"}}</button></form>
+    </footer>{{end}}
   </section>
   {{with .D.Update}}
   <section class="card release-changes" id="changes">

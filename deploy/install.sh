@@ -74,9 +74,13 @@ fi
 echo "==> systemd"
 install -m 0644 "$here/systemd/sap13ns.service" "$here/systemd/sap13ns-backup.service" \
     "$here/systemd/sap13ns-backup.timer" "$here/systemd/sap13ns-geoip.service" \
-    "$here/systemd/sap13ns-geoip.timer" /etc/systemd/system/
+    "$here/systemd/sap13ns-geoip.timer" "$here/systemd/sap13ns-update.service" \
+    "$here/systemd/sap13ns-update.path" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable sap13ns sap13ns-backup.timer
+# "Update now" in the admin: the root service installs the latest signed
+# release when the web server asks (docs/RELEASES.md).
+systemctl enable --now sap13ns-update.path
 # sap13ns-geoip.timer stays off until SAP13NS_GEOIP_DB is set (docs/DEPLOY.md).
 
 echo "==> nginx"

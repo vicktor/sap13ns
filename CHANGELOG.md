@@ -5,6 +5,17 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.3 — 2026-10-20
+
+- Updates from the admin: **System → Updates → Update now** installs the
+  latest signed release, after a backup, and restarts the site. The web
+  server still cannot write its own binary: it leaves a request that a root
+  service, `sap13ns-update.path`, acts on. Run `deploy/setup.sh` from this
+  release and choose the upgrade once, to install that service; later
+  releases then install from the admin.
+- The System page says when an update is under way, and why the last one
+  failed.
+
 ## v0.2.2 — 2026-10-20
 
 - Updates: while a newer release exists, every admin page warns the

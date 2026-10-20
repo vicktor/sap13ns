@@ -1,0 +1,42 @@
+# Installs the latest signed sap13ns release, as `sudo sap13ns update` does,
+# when the admin asks for it (sap13ns-update.path). It runs as root because
+# it replaces /usr/local/bin/sap13ns, which the web server must not be able
+# to write. Whatever the request holds, it installs only the latest release
+# whose checksums are signed with the key built into the binary. It backs
+# up first (the units that are installed), writes its progress to
+# /var/lib/sap13ns-update/status.json for the System page, and restarts
+# sap13ns once installed. Logs: `journalctl -u sap13ns-update`.
+
+[Unit]
+Description=Install the latest signed sap13ns release
+Documentation=https://github.com/vicktor/sap13ns/blob/main/docs/RELEASES.md
+Wants=network-online.target
+After=network-online.target
+# The request is taken before anything else runs, so a failure cannot leave
+# it behind and start the service again and again.
+StartLimitIntervalSec=10min
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/rm -f /var/lib/sap13ns/update-request
+ExecStart=/usr/local/bin/sap13ns update -yes -status /var/lib/sap13ns-update \
+    -backup sap13ns-backup.service,sap13ns-network-backup.service -restart sap13ns.service
+StateDirectory=sap13ns-update
+StateDirectoryMode=0755
+UMask=0022
+TimeoutStartSec=1h
+SyslogIdentifier=sap13ns-update
+
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

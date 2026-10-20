@@ -87,9 +87,12 @@ type Server struct {
 
 	signIn atomic.Pointer[signInRouter] // the sign-in pages at the sign-in address (signin.go)
 
-	updates *update.Checker      // release checks (updates.go); nil in tests
-	stats   *analytics.Collector // cookie-less page views (stats.go)
-	geo     *geoip.DB            // visitor countries for the stats; nil when off
+	updates *update.Checker // release checks (updates.go); nil in tests
+	// The update service's request file and status directory
+	// (internal/update/request.go); tests point them elsewhere.
+	updateRequest, updateStatus string
+	stats                       *analytics.Collector // cookie-less page views (stats.go)
+	geo                         *geoip.DB            // visitor countries for the stats; nil when off
 
 	bot botState // site assistant and MCP (assistant.go, mcp.go)
 
@@ -163,28 +166,30 @@ type CacheSizes struct {
 func New(ctx context.Context, d Deps) (*Server, error) {
 	cs := d.CacheSizes
 	s := &Server{
-		cfg:        d.Config,
-		log:        d.Log,
-		store:      d.Store,
-		keys:       auth.NewKeys(d.Config.SecretKey),
-		ui:         d.UI,
-		plugins:    d.Plugins,
-		official:   d.Official,
-		mailer:     d.Mailer,
-		network:    d.Network,
-		hosts:      d.Hosts,
-		media:      &media.Processor{Dir: d.Config.UploadsDir, MaxBytes: d.Config.MaxUploadBytes},
-		pages:      cache.New(cmp.Or(cs.Pages, 2000), cmp.Or(cs.PagesBytes, 64<<20), 2*time.Minute),
-		content:    cache.New(cmp.Or(cs.Content, 1000), cmp.Or(cs.ContentBytes, 32<<20), 24*time.Hour),
-		loginIP:    auth.NewLimiter(20, 15*time.Minute),
-		loginUser:  auth.NewLimiter(8, 15*time.Minute),
-		mfaUser:    auth.NewLimiter(6, 15*time.Minute),
-		commentIP:  auth.NewLimiter(6, 10*time.Minute),
-		registerIP: auth.NewLimiter(5, time.Hour),
-		resetIP:    auth.NewLimiter(5, time.Hour),
-		uploadUser: auth.NewLimiter(120, time.Hour),
-		cop:        http.NewCrossOriginProtection(),
-		grav:       newGravatarState(),
+		updateRequest: update.RequestFile,
+		updateStatus:  update.StatusDir,
+		cfg:           d.Config,
+		log:           d.Log,
+		store:         d.Store,
+		keys:          auth.NewKeys(d.Config.SecretKey),
+		ui:            d.UI,
+		plugins:       d.Plugins,
+		official:      d.Official,
+		mailer:        d.Mailer,
+		network:       d.Network,
+		hosts:         d.Hosts,
+		media:         &media.Processor{Dir: d.Config.UploadsDir, MaxBytes: d.Config.MaxUploadBytes},
+		pages:         cache.New(cmp.Or(cs.Pages, 2000), cmp.Or(cs.PagesBytes, 64<<20), 2*time.Minute),
+		content:       cache.New(cmp.Or(cs.Content, 1000), cmp.Or(cs.ContentBytes, 32<<20), 24*time.Hour),
+		loginIP:       auth.NewLimiter(20, 15*time.Minute),
+		loginUser:     auth.NewLimiter(8, 15*time.Minute),
+		mfaUser:       auth.NewLimiter(6, 15*time.Minute),
+		commentIP:     auth.NewLimiter(6, 10*time.Minute),
+		registerIP:    auth.NewLimiter(5, time.Hour),
+		resetIP:       auth.NewLimiter(5, time.Hour),
+		uploadUser:    auth.NewLimiter(120, time.Hour),
+		cop:           http.NewCrossOriginProtection(),
+		grav:          newGravatarState(),
 
 		ssoFailures: auth.NewLimiter(10, 15*time.Minute),
 		checkout:    auth.NewLimiter(30, time.Hour),
