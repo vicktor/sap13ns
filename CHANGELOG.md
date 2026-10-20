@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.12 — 2026-10-20
+
+- Search ignores accents and case: "mediacion" finds "Mediación" and
+  "conciliación" finds "conciliacion", on the public search page and in the
+  admin's lists. The migration rebuilds the search index of every post once.
+
 ## v0.2.11 — 2026-10-20
 
 - Update now: the System page now stays behind a dialog while the update

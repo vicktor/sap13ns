@@ -129,12 +129,19 @@ func (q *PostQuery) where() *whereBuilder {
 		w.add(`EXISTS (SELECT 1 FROM post_terms pt WHERE pt.post_id = p.id AND pt.term_id = ?)`, id)
 	}
 	if q.Search != "" {
-		w.add(`p.search @@ websearch_to_tsquery('simple', ?)`, q.Search)
+		w.add(`p.search @@ websearch_to_tsquery('simple', `+searchFold("?")+`)`, q.Search)
 	}
 	if len(q.ExcludeIDs) > 0 {
 		w.add(`NOT (p.id = ANY(?))`, q.ExcludeIDs)
 	}
 	return w
+}
+
+// searchFold folds the text of a search as the posts.search column folds
+// the posts (migration 0018): lower case, accents off, so that "mediacion"
+// and "mediación" find each other.
+func searchFold(expr string) string {
+	return `translate(lower(` + expr + `), 'áàâäãåéèêëíìîïóòôöõúùûüýÿñç', 'aaaaaaeeeeiiiiooooouuuuyync')`
 }
 
 func (s *Store) ListPosts(ctx context.Context, q PostQuery) ([]Post, int, error) {
@@ -156,7 +163,7 @@ func (s *Store) ListPosts(ctx context.Context, q PostQuery) ([]Post, int, error)
 		order = ` ORDER BY lower(p.title) ASC, p.id ASC`
 	case "rank":
 		if q.Search != "" {
-			order = ` ORDER BY ts_rank(p.search, websearch_to_tsquery('simple', ` + w.arg(q.Search) + `)) DESC, p.published_at DESC`
+			order = ` ORDER BY ts_rank(p.search, websearch_to_tsquery('simple', ` + searchFold(w.arg(q.Search)) + `)) DESC, p.published_at DESC`
 		}
 	}
 	sql := postSelect + w.sql() + order + ` LIMIT ` + w.arg(q.Limit) + ` OFFSET ` + w.arg(q.Offset)
