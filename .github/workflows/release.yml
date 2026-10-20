@@ -50,6 +50,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The notes are the release's section of CHANGELOG.md and the older
+      # ones; the admin shows what changed since the version it runs.
+      - name: Release notes from CHANGELOG.md
+        run: go run ./scripts/changelog -version "$VERSION" CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -137,4 +142,4 @@ jobs:
           flags=()
           if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "$VERSION" dist/* \
-            --title "$VERSION" --generate-notes --verify-tag "${flags[@]}"
+            --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag "${flags[@]}"

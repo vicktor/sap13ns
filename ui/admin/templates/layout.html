@@ -142,8 +142,8 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
     </div>
   </header>
   <main id="main" class="admin-content" tabindex="-1">
-    {{with .Update}}<div class="alert update-notice" role="status">{{icon "download"}}<h2>{{T "sap13ns %s is available" .Latest}}</h2>
-      <section>{{T "This site runs %s." .Current}} {{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener">{{T "Release notes"}}</a> · {{end}}<a href="/admin/system#updates">{{T "How to update"}}</a></section></div>{{end}}
+    {{with .Update}}<div class="alert update-notice" data-variant="warning" role="status">{{icon "download"}}<h2>{{T "sap13ns %s is available" .Latest}}</h2>
+      <section>{{T "This site runs %s. Updating is important: new releases fix errors and security problems." .Current}} <a href="/admin/system#changes">{{T "See what changes"}}</a> · <a href="/admin/system#updates">{{T "How to update"}}</a></section></div>{{end}}
     {{template "content" .}}
   </main>
 </div>

@@ -3,10 +3,12 @@ package web
 import (
 	"context"
 	"errors"
+	"html/template"
 	"net/http"
 	"strings"
 	"time"
 
+	"sap13ns/internal/content"
 	"sap13ns/internal/update"
 )
 
@@ -18,7 +20,18 @@ import (
 type updateNotice struct {
 	Current string
 	Latest  string
-	URL     string // release notes on GitHub, "" if unknown
+	URL     string          // release notes on GitHub, "" if unknown
+	Changes []releaseChange // set by the System page
+
+	notes string
+}
+
+// releaseChange is one newer release's section of the notes, rendered
+// through the content pipeline (the notes come from GitHub).
+type releaseChange struct {
+	Version string
+	Date    string
+	HTML    template.HTML
 }
 
 // SetUpdateChecker attaches the release checker started by serve. Call it
@@ -34,7 +47,17 @@ func (s *Server) updateNotice() *updateNotice {
 	if rel == nil || !newer {
 		return nil
 	}
-	return &updateNotice{Current: Version, Latest: strings.TrimPrefix(rel.Version, "v"), URL: rel.URL}
+	return &updateNotice{Current: Version, Latest: strings.TrimPrefix(rel.Version, "v"), URL: rel.URL, notes: rel.Notes}
+}
+
+// changes renders the sections of the release notes newer than the running
+// version, for the System page.
+func (n *updateNotice) changes() []releaseChange {
+	var out []releaseChange
+	for _, c := range update.Since(n.notes, Version) {
+		out = append(out, releaseChange{Version: strings.TrimPrefix(c.Version, "v"), Date: c.Date, HTML: content.RenderPlain(c.Body)})
+	}
+	return out
 }
 
 func (s *Server) updateRows(r *http.Request) []sysRow {

@@ -569,6 +569,10 @@
   background: linear-gradient(transparent, var(--background) 40%);
 }
 .system-grid { @apply grid gap-6 lg:grid-cols-2; }
+/* The changes of the newer releases span the grid: they are for reading. */
+.system-grid > .release-changes { @apply lg:col-span-2; }
+.release-change h3 { @apply mb-2 font-semibold; }
+.release-change .prose li + li { @apply mt-1; }
 .action-tag { @apply rounded bg-muted px-1.5 py-0.5 text-foreground; text-decoration: none !important; }
 .audit-table tr[data-action$="failed"] .action-tag, .audit-table tr[data-action$="throttled"] .action-tag { color: var(--destructive); }
 

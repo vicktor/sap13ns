@@ -259,6 +259,7 @@ type systemData struct {
 	Groups  []sysGroup
 	Updates []sysRow
 	Checks  bool // release checks are on: offer "Check now"
+	Update  *updateNotice
 	// A single site: how a network of sites is started instead.
 	SingleSite bool
 	Guide      string
@@ -337,6 +338,9 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 		}},
 	}}
 	d.Updates, d.Checks = s.updateRows(r), s.updates != nil && !s.updates.Disabled
+	if d.Update = s.updateNotice(); d.Update != nil {
+		d.Update.Changes = d.Update.changes()
+	}
 	d.SingleSite, d.Guide = s.network == nil, multisiteGuide
 	s.renderAdmin(w, r, "system", s.tu(r, "System"), "system", d)
 }

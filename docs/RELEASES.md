@@ -39,6 +39,10 @@ release page, check it with `sha256sum -c SHA256SUMS`, replace the binary).
 
 ## Cutting a release
 
+First add the release's section to the top of [CHANGELOG.md](../CHANGELOG.md),
+headed `## v1.4.0 — YYYY-MM-DD`, and commit it. The workflow refuses a tag
+without one.
+
 ```sh
 git tag -a v1.4.0 -m v1.4.0
 git push origin v1.4.0
@@ -49,8 +53,10 @@ assets (`npm ci && npm run build`), tests, builds, packs and scans the official
 plugins into the bundle the binary embeds (`make plugins-test plugins`, see
 [PLUGINS.md](PLUGINS.md#official-plugins)), runs `go vet` and `go test ./...`,
 builds static binaries (CGO off, `-trimpath`) with the version and the public
-key embedded, then publishes a GitHub release with generated notes and these
-assets:
+key embedded, then publishes a GitHub release with these assets. Its notes are the
+release's section of CHANGELOG.md and the older ones
+(`go run ./scripts/changelog -version v1.4.0` prints them), so a site that
+skipped releases still learns what each one changed.
 
 | Asset                                        | Contents                                    |
 | -------------------------------------------- | ------------------------------------------- |
@@ -64,7 +70,8 @@ assets:
 The version in the file names has no `v`. `sap13ns update` depends on these
 names, so do not rename or re-upload assets by hand. A tag with a suffix
 (`v1.4.0-rc.1`) is published as a prerelease, which sites ignore. You can
-edit the release notes afterwards; the admin panel shows them.
+edit the release notes afterwards; the admin panel reads the `## vX.Y.Z`
+sections in them.
 
 To check a release by hand:
 
@@ -78,8 +85,10 @@ go run ./scripts/releasesign verify -pub '<public key>' SHA256SUMS SHA256SUMS.si
 A running server asks
 `https://api.github.com/repos/vicktor/sap13ns/releases/latest` a random 0 to
 10 minutes after it starts, then every 24 hours (or one hour after a failed
-check). It keeps the answer in memory only. When a newer version exists, the
-admin panel says so and links to the release notes. Drafts, prereleases and
+check). It keeps the answer in memory only. When a newer version exists, every admin page
+warns the administrators (whoever can manage the settings; on a network, the
+portal's) until the server is updated, and the System page lists what each
+newer release changes, from the notes. Drafts, prereleases and
 local builds (version `dev`) never trigger the notice.
 
 To turn the check off (no outbound requests at all), add this to
