@@ -558,7 +558,7 @@ func (s *Server) loadComments(r *http.Request, p *store.Post, pd *PageData) erro
 	}
 	if form.RequireLogin {
 		// Commenters need it, hidden administration or not.
-		form.LoginURL = s.signInBase()
+		form.LoginURL = s.signInLink(s.signInBase(), rctx(r).Lang)
 	}
 	if u := currentUser(r); u != nil {
 		form.LoggedIn, form.ViewerName = true, u.Name()

@@ -106,17 +106,48 @@ func (s *Server) signInLangPage(path string) bool {
 }
 
 // signInLang shows a sign-in page in the admin language of its ?lang=
-// instead of the site's. Nothing is stored, no cookie and no session: the
-// page carries the parameter in its forms and links, and the user's own
-// choice applies once they are signed in. These pages are never cached
+// instead of the site's main one; public pages in another language link
+// to it with theirs (signInLink). Without the parameter, it takes the
+// first language of the browser's Accept-Language that the site publishes
+// in and the admin speaks. Nothing is stored, no cookie and no session:
+// the page carries the parameter in its forms and links, and the user's
+// own choice applies once they are signed in. These pages are never cached
 // (only public GET routes are), and next stays apart (safeNext).
 func (s *Server) signInLang(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if l := r.URL.Query().Get("lang"); s.uiLanguage(l) {
 			rctx(r).UILang = l
+		} else if l := s.acceptedLang(r.Header.Get("Accept-Language")); l != "" {
+			rctx(r).UILang = l
 		}
+		w.Header().Add("Vary", "Accept-Language")
 		h(w, r)
 	}
+}
+
+// acceptedLang is the first language of an Accept-Language header (in the
+// order given, which is the order of preference) that the site publishes
+// in and the admin panel has a catalog for; "" when none is.
+func (s *Server) acceptedLang(accept string) string {
+	langs := s.siteLangs()
+	for part := range strings.SplitSeq(accept, ",") {
+		tag, _, _ := strings.Cut(strings.TrimSpace(part), ";")
+		base, _, _ := strings.Cut(strings.ToLower(tag), "-")
+		if slices.Contains(langs, base) && s.uiLanguage(base) {
+			return base
+		}
+	}
+	return ""
+}
+
+// signInLink is the sign-in page p as a public page in lang links to it:
+// with ?lang= when lang is not the site's main language, so that the page
+// keeps the visitor's language. "" stays "" (no visible sign-in).
+func (s *Server) signInLink(p, lang string) string {
+	if p == "" || lang == "" || lang == s.mainLang() || !s.uiLanguage(lang) {
+		return p
+	}
+	return p + "?lang=" + url.QueryEscape(lang)
 }
 
 // signInLangs is the language menu of a sign-in page: the same page in

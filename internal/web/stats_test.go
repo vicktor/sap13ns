@@ -36,8 +36,8 @@ func TestStatsMap(t *testing.T) {
 		`class="geo-5"><title>España: 90 visitas (90.0%)</title>`, // Spain, the most visited
 		`class="geo-3"><title>Francia: 9 visitas (9.0%)</title>`,
 		`class="geo-0"><title>Portugal</title>`, // no visits
-		"Singapur",                                 // too small for the map, still listed
-		"no tiene base de datos de países",         // no SAP13NS_GEOIP_DB
+		"Singapur",                              // too small for the map, still listed
+		"no tiene base de datos de países",      // no SAP13NS_GEOIP_DB
 	} {
 		if !strings.Contains(body, s) {
 			t.Errorf("missing %q", s)
@@ -50,4 +50,3 @@ func TestStatsMap(t *testing.T) {
 		t.Error("an author opened the analytics")
 	}
 }
-

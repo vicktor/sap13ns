@@ -455,7 +455,7 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		Tags:              markCurrent(d.tags, here, func(t *TermView) *bool { return &t.Current }, func(t *TermView) string { return t.URL }),
 		Archives:          markCurrent(d.archives, here, func(a *ArchiveLink) *bool { return &a.Current }, func(a *ArchiveLink) string { return a.URL }),
 		AllowRegistration: st.AllowRegistration,
-		LoginURL:          s.visibleSignIn(),
+		LoginURL:          s.signInLink(s.visibleSignIn(), lang),
 		FeedRSS:           s.langPath(lang, "/feed.xml"), FeedAtom: s.langPath(lang, "/feed.atom"), FeedJSON: s.langPath(lang, "/feed.json"),
 		Search:       s.langPath(lang, "/search"),
 		Blog:         s.langPath(lang, "/blog"),

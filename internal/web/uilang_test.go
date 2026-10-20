@@ -12,6 +12,7 @@ import (
 	"sap13ns/internal/config"
 	"sap13ns/internal/i18n"
 	"sap13ns/internal/mail"
+	"sap13ns/internal/store"
 	"sap13ns/internal/testutil"
 	"sap13ns/ui"
 )
@@ -235,5 +236,40 @@ func TestUILanguages(t *testing.T) {
 		if s.uiLanguage(l) {
 			t.Errorf("%q is an admin language", l)
 		}
+	}
+}
+
+// A sign-in page without ?lang= follows the browser among the site's
+// languages, and public pages in another language link to it with theirs.
+func TestSignInBrowserLanguage(t *testing.T) {
+	e := newCustomEnv(t)
+	e.s.mailer = mail.New(config.SMTP{}, e.s.log, false)
+	signIn := func(target, accept string) string {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.Header.Set("Accept-Language", accept)
+		return e.do(req, nil).Body.String()
+	}
+	if body := signIn("/login", "en-US,en;q=0.9"); !strings.Contains(body, `<html lang="es"`) {
+		t.Error("a site in Spanish only answered in English")
+	}
+	e.saveSettings(func(st *store.Settings) { st.Language, st.Languages = "es", []string{"en"} })
+	for _, tc := range []struct{ target, accept, want string }{
+		{"/login", "en-US,en;q=0.9", "en"},
+		{"/login", "fr-FR,en;q=0.8", "en"}, // the first the site has
+		{"/login", "fr-FR", "es"},
+		{"/login", "", "es"},
+		{"/login?lang=es", "en", "es"}, // the link wins
+	} {
+		if body := signIn(tc.target, tc.accept); !strings.Contains(body, `<html lang="`+tc.want+`"`) {
+			t.Errorf("%s with %q is not in %s", tc.target, tc.accept, tc.want)
+		}
+	}
+	for _, tc := range []struct{ lang, want string }{{"en", "/login?lang=en"}, {"es", "/login"}, {"", "/login"}, {"zz", "/login"}} {
+		if got := e.s.signInLink("/login", tc.lang); got != tc.want {
+			t.Errorf("signInLink(%q) = %q, want %q", tc.lang, got, tc.want)
+		}
+	}
+	if got := e.s.signInLink("", "en"); got != "" {
+		t.Errorf("a hidden sign-in became %q", got)
 	}
 }
