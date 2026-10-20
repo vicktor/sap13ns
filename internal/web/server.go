@@ -78,6 +78,8 @@ type Server struct {
 	registerIP *auth.Limiter
 	resetIP    *auth.Limiter
 	uploadUser *auth.Limiter
+	tokenIP    *auth.Limiter // failed personal access tokens, per IP (design_mcp.go)
+	agentUser  *auth.Limiter // design MCP calls, per user
 
 	cop        *http.CrossOriginProtection
 	setupMu    sync.Mutex
@@ -189,6 +191,8 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		registerIP:    auth.NewLimiter(5, time.Hour),
 		resetIP:       auth.NewLimiter(5, time.Hour),
 		uploadUser:    auth.NewLimiter(120, time.Hour),
+		tokenIP:       auth.NewLimiter(20, 10*time.Minute),
+		agentUser:     auth.NewLimiter(120, time.Minute),
 		cop:           http.NewCrossOriginProtection(),
 		grav:          newGravatarState(),
 

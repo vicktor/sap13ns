@@ -100,10 +100,18 @@ type mcpBackend interface {
 // limit) are handled before it.
 type mcpHandler struct {
 	backend      mcpBackend
+	toolset      mcpToolset // other tools than the site's search (design_mcp.go)
 	name         string
 	title        string
 	version      string
 	instructions string
+}
+
+// mcpToolset is a server's own tools, in place of search_posts and
+// get_post.
+type mcpToolset interface {
+	list() []map[string]any
+	call(ctx context.Context, name string, raw json.RawMessage) (string, any, bool, *rpcError)
 }
 
 var mcpLangRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
@@ -244,13 +252,25 @@ func (h *mcpHandler) handle(ctx context.Context, header http.Header, body []byte
 		result["instructions"] = h.instructions
 		result["_meta"] = map[string]any{mcpMetaServerInfo: h.serverInfo()}
 		result["ttlMs"], result["cacheScope"] = 3_600_000, "public"
+		if h.toolset != nil {
+			result["cacheScope"] = "private"
+		}
 	case "ping":
 		// 2025 revisions only; harmless to answer.
 	case "tools/list":
+		if h.toolset != nil {
+			result["tools"] = h.toolset.list()
+			result["ttlMs"], result["cacheScope"] = 3_600_000, "private"
+			break
+		}
 		result["tools"] = h.tools()
 		result["ttlMs"], result["cacheScope"] = 3_600_000, "public"
 	case "tools/call":
-		content, structured, isErr, rpcErr := h.call(ctx, params.Name, params.Arguments)
+		call := h.call
+		if h.toolset != nil {
+			call = h.toolset.call
+		}
+		content, structured, isErr, rpcErr := call(ctx, params.Name, params.Arguments)
 		if rpcErr != nil {
 			return fail(http.StatusOK, req.ID, rpcErr.Code, rpcErr.Message, rpcErr.Data)
 		}

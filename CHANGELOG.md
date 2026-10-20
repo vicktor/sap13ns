@@ -5,6 +5,18 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.7.0 — 2026-10-20
+
+- **Design with an AI agent (MCP).** Agents such as Claude Code can design a
+  site through `/admin/mcp`, with the tools `get_design_guide`,
+  `get_design_state` and `change_design`: the same guide, catalogue and
+  validation as the in-app assistant, and the changes go to the draft,
+  never published. See docs/DESIGN-AGENTS.md.
+- **Access tokens for AI agents** in Profile, for users who can change the
+  appearance: shown once, stored as a hash, with an expiry and the last
+  use, revocable at once (migration 0020). The design MCP server accepts
+  only these tokens, never the session cookie.
+
 ## v0.6.0 — 2026-10-20
 
 - **Design with AI.** The design screen has a **Design with AI** chat

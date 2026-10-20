@@ -30,6 +30,11 @@ func (s *Server) routes() *http.ServeMux {
 	for _, m := range []string{"POST", "GET", "DELETE"} {
 		mux.HandleFunc(m+" /mcp", s.handleMCP)
 	}
+	// The design tools for AI agents, with a personal access token
+	// (design_mcp.go); not through admin(), which needs a session.
+	for _, m := range []string{"POST", "GET", "DELETE"} {
+		mux.HandleFunc(m+" /admin/mcp", s.handleDesignMCP)
+	}
 	for file := range feedTypes {
 		mux.HandleFunc("GET /"+file, c(s.handleSiteFeed(file)))
 	}
@@ -247,6 +252,8 @@ func (s *Server) routes() *http.ServeMux {
 	admin("POST /admin/profile/language", auth.CapAdminPanel, s.adminLanguage) // uilang.go
 	admin("POST /admin/profile/password", auth.CapAdminPanel, s.adminPasswordChange)
 	admin("POST /admin/profile/sessions/revoke", auth.CapAdminPanel, s.adminRevokeSessions)
+	admin("POST /admin/profile/tokens", auth.CapAppearance, s.adminTokenCreate)
+	admin("POST /admin/profile/tokens/{id}/delete", auth.CapAdminPanel, s.adminTokenDelete)
 	admin("GET /admin/profile/2fa", auth.CapAdminPanel, s.admin2FA)
 	admin("POST /admin/profile/2fa/enable", auth.CapAdminPanel, s.admin2FAEnable)
 	admin("POST /admin/profile/2fa/disable", auth.CapAdminPanel, s.admin2FADisable)

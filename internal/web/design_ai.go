@@ -66,7 +66,8 @@ type designAIAnswer struct {
 	} `json:"block_edits"`
 }
 
-// designGuide is how sap13ns pages are made, for the model.
+// designGuide is how sap13ns pages are made, for the in-app model, which
+// answers one JSON object (designAISchema).
 const designGuide = `You are the design assistant of a sap13ns site (a CMS). You change the
 design of the site's theme by answering ONE JSON object:
 
@@ -84,7 +85,11 @@ design of the site's theme by answering ONE JSON object:
   {"block_id": "<id>", "lang": "" for the main language or a language code,
    "settings": "{\"title\": \"...\"}"} (a JSON object as a string, merged).
 
-DESIGN (the "Style and texts" tab):
+` + designGuideBody
+
+// designGuideBody is the part of the guide that the in-app assistant and
+// the design MCP server (design_mcp.go) share.
+const designGuideBody = `DESIGN (the "Style and texts" tab):
 - light / dark: colour tokens -> "#rrggbb" (TOKENS lists them). Keep enough
   contrast (WCAG AA) between each colour and its "-foreground".
 - fonts: {"body": {"stack": S}, "heading": {"stack": S or "body"}}, S in FONTS.
@@ -132,8 +137,8 @@ Rules:
   languages of the site when you create new content.
 - Images need media ids that you do not have: leave image fields empty and
   tell the user where to choose the pictures.
-- If the validator refuses your changes, you get the errors: send the whole
-  answer again, fixed.`
+- If the site refuses your changes, you get the errors: fix them and send the
+  changes again; nothing is saved until they all pass.`
 
 // designAIView is the design screen's assistant panel.
 type designAIView struct {

@@ -138,7 +138,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
 - **Indexing:** drafts, scheduled and private posts are never indexed, and any post can be hidden from the assistant with one switch in the editor. The index updates as you publish.
 - **The front page and the plans:** a theme's own front page or the page builder's sections (a one-page or landing site) are not posts, so the assistant reads the front page as it renders, split at its headings, and uses the sections that match the question. On a network's portal it also gets the hosting plans with their current prices.
 - **Limits:** per-IP and daily or monthly budgets, with known bots refused.
-- **MCP:** a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint (`/mcp`, tools `search_posts` and `get_post`) lets external AI agents search the same index, optionally behind a bearer token.
+- **MCP:** a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint (`/mcp`, tools `search_posts` and `get_post`) lets external AI agents search the same index, optionally behind a bearer token. A separate design server at `/admin/mcp` lets an agent such as Claude Code change the theme's draft design, with a personal access token from the user's profile ([docs/DESIGN-AGENTS.md](docs/DESIGN-AGENTS.md)).
 
 ### Users and security
 - **Roles:** administrator, editor, author, contributor and subscriber, with capability checks on every admin route.

@@ -464,6 +464,12 @@ type profileData struct {
 	Langs    []LangLink
 	Lang     string
 	SiteLang string
+	// Access tokens for AI agents (tokens.go): shown to users who can
+	// change the appearance; NewToken only right after creating one.
+	Tokens    []store.UserToken
+	CanTokens bool
+	NewToken  string
+	MCPURL    string
 }
 
 func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status int, u *store.User, tab, msg string) {
@@ -481,8 +487,20 @@ func (s *Server) renderProfile(w http.ResponseWriter, r *http.Request, status in
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdminStatus(w, r, status, "profile", s.tu(r, "Your profile"), "profile", profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks,
+	s.renderProfileData(w, r, status, profileData{User: u, Sessions: sessions, Current: cur, Error: msg, Tab: tab, Passkeys: pks,
 		CanLink: s.sso != nil && !u.Linked(), Langs: s.uiLanguages(""), Lang: s.userLang(u), SiteLang: langName(s.lang())})
+}
+
+func (s *Server) renderProfileData(w http.ResponseWriter, r *http.Request, status int, d profileData) {
+	if d.CanTokens = s.canHaveTokens(r, d.User); d.CanTokens {
+		toks, err := s.store.UserTokens(r.Context(), d.User.ID)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		d.Tokens, d.MCPURL = toks, s.cfg.AbsURL("/admin/mcp")
+	}
+	s.renderAdminStatus(w, r, status, "profile", s.tu(r, "Your profile"), "profile", d)
 }
 
 func (s *Server) adminProfile(w http.ResponseWriter, r *http.Request) {

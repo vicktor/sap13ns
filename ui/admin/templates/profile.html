@@ -154,6 +154,41 @@
     </section>
     {{end}}
 
+    {{if $d.CanTokens}}
+    <section class="card" id="tokens">
+      <header><h2>{{T "Access tokens for AI agents"}}</h2><p>{{T "A token lets an AI agent, such as Claude Code or another MCP client, change this site's design drafts as you, through its design tools. It never publishes: you check the preview and publish. Treat a token like a password."}}</p></header>
+      <section class="grid gap-4">
+        {{with $d.NewToken}}
+        <div class="alert" data-variant="success">{{icon "key-round"}}<h2>{{T "Copy the token now: it will not be shown again."}}</h2>
+          <section><p><code class="break-all select-all">{{.}}</code></p>
+          <p>{{T "To add it to Claude Code:"}}</p>
+          <p><code class="break-all select-all">claude mcp add --transport http sap13ns-design {{$d.MCPURL}} --header "Authorization: Bearer {{.}}"</code></p></section></div>
+        {{end}}
+        {{if $d.Tokens}}
+        <ul class="session-list">
+          {{range $d.Tokens}}
+          <li>
+            <span class="session-icon" aria-hidden="true">{{icon "key-round"}}</span>
+            <div>
+              <strong class="truncate">{{.Name}}</strong>
+              <small class="muted">{{T "Created %s" (shortDate .CreatedAt)}} · {{with .LastUsedAt}}{{T "used"}} {{ago .}}{{else}}{{T "never used"}}{{end}} · {{with .ExpiresAt}}{{T "expires %s" (shortDate .)}}{{else}}{{T "does not expire"}}{{end}}</small>
+            </div>
+            <form method="post" action="/admin/profile/tokens/{{.ID}}/delete">{{$.CSRFField}}<button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Revoke this token? Agents using it can no longer get in."}}">{{icon "trash-2"}}{{T "Revoke"}}</button></form>
+          </li>
+          {{end}}
+        </ul>
+        {{end}}
+        <form method="post" action="/admin/profile/tokens" class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">{{.CSRFField}}
+          <div class="field"><label for="token-name">{{T "Name"}}</label><input class="input" id="token-name" name="name" maxlength="80" required placeholder="{{T "For example: Claude Code on my laptop"}}"></div>
+          <div class="field"><label for="token-days">{{T "Expires"}}</label>
+            {{template "select" (selectbox "id" "token-days" "name" "days" "value" "90" "options" (list (list "30" (T "In 30 days")) (list "90" (T "In 90 days")) (list "365" (T "In a year")) (list "0" (T "Never"))))}}</div>
+          <button class="btn" type="submit">{{icon "plus"}}{{T "Create token"}}</button>
+        </form>
+        <p class="hint">{{T "The design tools are at %s. See docs/DESIGN-AGENTS.md for other MCP clients." $d.MCPURL}}</p>
+      </section>
+    </section>
+    {{end}}
+
     <section class="card">
       <header><h2>{{T "Sessions"}}</h2><p>{{T "Devices where you are logged in."}}</p></header>
       <section>
