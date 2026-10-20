@@ -5,6 +5,17 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.2.7 — 2026-10-20
+
+- Update now: the button showed only after the update service had run once,
+  because systemd creates its status directory then. The admin now also
+  counts the installed `sap13ns-update.path`, so it appears right after
+  setting up the service.
+- Sites of a network have no **System** page and no update notice: the
+  server's details and its updates belong to the portal. Their
+  administrators no longer see the memory, connections and database size of
+  the shared server.
+
 ## v0.2.6 — 2026-10-20
 
 - Theme uploads on a network: the exception for network admins now needs a

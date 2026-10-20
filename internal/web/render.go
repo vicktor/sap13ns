@@ -409,6 +409,9 @@ type adminPage struct {
 
 	// On every site of a network: the account's other sites (switcher.go).
 	Switcher *switcherView
+	// Tenant: a site of a network (not the portal), which has no System
+	// page and no update notice: the server is the operator's.
+	Tenant bool
 }
 
 func (p *adminPage) Can(c string) bool {
@@ -438,7 +441,8 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 	if sess := rctx(r).Session; sess != nil {
 		p.CSRF = sess.CSRFToken
 	}
-	if p.User != nil && auth.Can(p.User.Role, auth.CapManageSettings) {
+	p.Tenant = s.sso != nil
+	if p.User != nil && auth.Can(p.User.Role, auth.CapManageSettings) && !p.Tenant {
 		p.Update = s.updateNotice()
 	}
 	if p.User != nil && auth.Can(p.User.Role, auth.CapModerate) {

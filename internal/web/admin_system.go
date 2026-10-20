@@ -288,6 +288,19 @@ func (s *Server) cacheUse(r *http.Request, c *cache.Cache) string {
 	return out
 }
 
+// notTenant serves h except on a site of a network, whose administrators
+// do not run the server: the System page and the updates are the
+// portal's.
+func (s *Server) notTenant(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.sso != nil {
+			s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
+			return
+		}
+		h(w, r)
+	}
+}
+
 func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	yes, no := true, false

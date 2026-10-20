@@ -20,12 +20,18 @@ func TestRequestAndStatus(t *testing.T) {
 		t.Fatal("the request is not there")
 	}
 
-	status := filepath.Join(dir, "status")
-	if Updater(status) {
-		t.Fatal("an updater without its directory")
+	status, unit := filepath.Join(dir, "status"), filepath.Join(dir, "sap13ns-update.path")
+	if Updater(status, unit) {
+		t.Fatal("an updater without its directory or unit")
 	}
+	// Installed but never run: the unit only.
+	os.WriteFile(unit, []byte("[Path]\n"), 0o644)
+	if !Updater(status, unit) {
+		t.Fatal("the installed unit is not seen")
+	}
+	os.Remove(unit)
 	os.Mkdir(status, 0o755)
-	if !Updater(status) {
+	if !Updater(status, unit) {
 		t.Fatal("the updater is not seen")
 	}
 	if st, err := ReadStatus(status); st != nil || err != nil {

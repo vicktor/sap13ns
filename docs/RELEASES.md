@@ -87,7 +87,7 @@ A running server asks
 10 minutes after it starts, then every 24 hours (or one hour after a failed
 check). It keeps the answer in memory only. When a newer version exists, every admin page
 warns the administrators (whoever can manage the settings; on a network, the
-portal's) until the server is updated, and the System page lists what each
+portal's: the sites of a network have no System page) until the server is updated, and the System page lists what each
 newer release changes, from the notes. Drafts, prereleases and
 local builds (version `dev`) never trigger the notice.
 
@@ -141,7 +141,8 @@ migrations when it starts.
 
 With the update service installed (`deploy/setup.sh` and `deploy/install.sh`
 set it up), **System → Updates** has an **Update now** button while a newer
-release exists. The web server cannot write its own binary, so the button
+release exists; the admin offers it once `sap13ns-update.path` is
+installed, before the service has ever run. The web server cannot write its own binary, so the button
 only leaves a request, `/var/lib/sap13ns/update-request`, which starts
 `sap13ns-update.path`. The root service it triggers:
 

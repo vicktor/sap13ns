@@ -77,6 +77,7 @@ func TestUpdateNoticeChanges(t *testing.T) {
 	// With it: "Update now" leaves a request, and the page says it is on its way.
 	dir := t.TempDir()
 	e.s.updateStatus, e.s.updateRequest = filepath.Join(dir, "status"), filepath.Join(dir, "update-request")
+	e.s.updateUnit = filepath.Join(dir, "sap13ns-update.path")
 	os.Mkdir(e.s.updateStatus, 0o755)
 	if !strings.Contains(e.get("/admin/system", e.admin).Body.String(), `action="/admin/system/update"`) {
 		t.Fatal("no Update now with the update service")
@@ -100,5 +101,18 @@ func TestUpdateNoticeChanges(t *testing.T) {
 	update.WriteStatus(e.s.updateStatus, update.Status{State: update.StateFailed, Error: "the backup failed", At: time.Now()})
 	if page := e.get("/admin/system", e.admin).Body.String(); !strings.Contains(page, `<div class="alert" data-variant="destructive" role="status">`) || !strings.Contains(page, "the backup failed") {
 		t.Error("a failed update is not shown")
+	}
+
+	// A site of a network: no System page, no notice; the server is the
+	// operator's, who updates from the portal.
+	e.s.sso = &fakeSSO{}
+	if rec := e.get("/admin/system", e.admin); rec.Code != http.StatusNotFound {
+		t.Errorf("System on a tenant: %d", rec.Code)
+	}
+	if rec := e.postForm("/admin/system/update", url.Values{}); rec.Code != http.StatusNotFound {
+		t.Errorf("Update now on a tenant: %d", rec.Code)
+	}
+	if dash := e.get("/admin", e.admin).Body.String(); strings.Contains(dash, `href="/admin/system"`) || strings.Contains(dash, "update-notice") {
+		t.Error("a tenant's admin links to System or shows the update notice")
 	}
 }

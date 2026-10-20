@@ -101,7 +101,7 @@ type updaterView struct {
 }
 
 func (s *Server) updater() updaterView {
-	v := updaterView{On: update.Updater(s.updateStatus)}
+	v := updaterView{On: update.Updater(s.updateStatus, s.updateUnit)}
 	if !v.On {
 		return v
 	}
@@ -116,7 +116,7 @@ func (s *Server) updater() updaterView {
 
 // adminUpdateNow asks the update service to install the latest release.
 func (s *Server) adminUpdateNow(w http.ResponseWriter, r *http.Request) {
-	if s.updates == nil || s.updates.Disabled || !update.Updater(s.updateStatus) {
+	if s.updates == nil || s.updates.Disabled || !update.Updater(s.updateStatus, s.updateUnit) {
 		s.redirect(w, r, "/admin/system#updates", "error", s.tu(r, "Updates from the admin are not set up on this server."))
 		return
 	}

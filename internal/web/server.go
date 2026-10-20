@@ -90,9 +90,9 @@ type Server struct {
 	updates *update.Checker // release checks (updates.go); nil in tests
 	// The update service's request file and status directory
 	// (internal/update/request.go); tests point them elsewhere.
-	updateRequest, updateStatus string
-	stats                       *analytics.Collector // cookie-less page views (stats.go)
-	geo                         *geoip.DB            // visitor countries for the stats; nil when off
+	updateRequest, updateStatus, updateUnit string
+	stats                                   *analytics.Collector // cookie-less page views (stats.go)
+	geo                                     *geoip.DB            // visitor countries for the stats; nil when off
 
 	bot botState // site assistant and MCP (assistant.go, mcp.go)
 
@@ -168,6 +168,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	s := &Server{
 		updateRequest: update.RequestFile,
 		updateStatus:  update.StatusDir,
+		updateUnit:    update.PathUnit,
 		cfg:           d.Config,
 		log:           d.Log,
 		store:         d.Store,

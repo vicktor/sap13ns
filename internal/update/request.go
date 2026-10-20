@@ -25,6 +25,7 @@ import (
 const (
 	RequestFile = "/var/lib/sap13ns/update-request"
 	StatusDir   = "/var/lib/sap13ns-update"
+	PathUnit    = "/etc/systemd/system/sap13ns-update.path" // installed by deploy/setup.sh
 	statusFile  = "status.json"
 )
 
@@ -45,11 +46,15 @@ type Status struct {
 	At    time.Time `json:"at"`
 }
 
-// Updater reports whether the update service is installed: it owns
-// StatusDir.
-func Updater(dir string) bool {
-	fi, err := os.Stat(dir)
-	return err == nil && fi.IsDir()
+// Updater reports whether the update service is installed: its path unit
+// is, or its status directory exists. systemd creates that directory only
+// the first time the service runs, so the unit alone has to count.
+func Updater(dir, unit string) bool {
+	if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+		return true
+	}
+	fi, err := os.Stat(unit)
+	return err == nil && fi.Mode().IsRegular()
 }
 
 // Request asks the update service for an update. by says who asked, for

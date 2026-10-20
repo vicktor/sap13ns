@@ -101,7 +101,7 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
           {{template "nav-item" (dict "URL" "/admin/tools/export" "Icon" "download" "Label" (T "Export") "Current" (.Active "export"))}}
           {{template "nav-item" (dict "URL" "/admin/tools/backups" "Icon" "archive" "Label" (T "Backups") "Current" (.Active "backups"))}}{{end}}
           {{if .Can "audit.view"}}{{template "nav-item" (dict "URL" "/admin/audit" "Icon" "history" "Label" (T "Audit log") "Current" (.Active "audit"))}}{{end}}
-          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/system" "Icon" "server" "Label" (T "System") "Current" (.Active "system"))}}{{end}}
+          {{if and (.Can "settings.manage") (not .Tenant)}}{{template "nav-item" (dict "URL" "/admin/system" "Icon" "server" "Label" (T "System") "Current" (.Active "system"))}}{{end}}
         </ul>
       </div>
       {{end}}
