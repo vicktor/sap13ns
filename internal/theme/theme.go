@@ -607,7 +607,7 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 		}
 		out := buf.Bytes()
 		if tx != nil && tx.Mark {
-			out = markTexts(out)
+			out = markTexts(out, tx.nonce)
 		}
 		_, err := w.Write(out)
 		return err
@@ -632,7 +632,7 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 	}
 	out := lw.buf.Bytes()
 	if tx != nil && tx.Mark {
-		out = markTexts(out)
+		out = markTexts(out, tx.nonce)
 	}
 	_, err = w.Write(out)
 	return err

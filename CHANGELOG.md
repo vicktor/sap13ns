@@ -5,6 +5,13 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.8.1 — 2026-10-21
+
+- **The v0.8.0 release, fixed.** v0.8.0 did not build its release (a
+  module requirement the plugin tests need had been dropped). This release
+  ships it, and the preview's text marks now carry a random value per page,
+  so that characters in a post or a comment are never taken for them.
+
 ## v0.8.0 — 2026-10-21
 
 - **Type over any text of any theme.** In Appearance → Design, **Click to
