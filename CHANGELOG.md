@@ -5,6 +5,16 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.8.0 — 2026-10-21
+
+- **Type over any text of any theme.** In Appearance → Design, **Click to
+  edit** now works with every theme, also those that declare no texts in
+  theme.json (the sap13ns corporate theme, uploaded and pasted-HTML ones):
+  click a text in the preview and type. It is saved to the draft per
+  language and visitors see it once published; emptied, the theme's own
+  text comes back. Texts with placeholders and the licence credit stay as
+  they are. See docs/THEMES.md.
+
 ## v0.7.2 — 2026-10-21
 
 - **Analytics: Today.** A new period shows the calendar day so far, from

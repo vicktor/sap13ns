@@ -222,7 +222,7 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 	var buf bytes.Buffer
 	// An uploaded theme renders within an output and a time limit, and
 	// must render the credit (theme.RenderContext).
-	if err := th.RenderContext(ctx, &buf, page, pd.Site.Lang, pd); err != nil {
+	if err := th.RenderContext(theme.WithTexts(ctx, pd.Site.texts), &buf, page, pd.Site.Lang, pd); err != nil {
 		switch {
 		case errors.Is(err, theme.ErrRenderLimit), errors.Is(err, theme.ErrNoCredit):
 			s.log.Error("uploaded theme refused to render", "theme", th.Slug, "page", page, "path", r.URL.Path, "err", err)

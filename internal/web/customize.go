@@ -362,6 +362,7 @@ func (s *Server) applyCustom(r *http.Request, th *theme.Theme, sv *SiteView) {
 		sv.Custom.CSS, sv.Custom.Logo, sv.Custom.Partial = e.url, e.logo, e.partial
 		sv.content = &siteContent{design: d, media: e.mediaByID, main: s.mainLang()}
 	}
+	sv.texts = &theme.Texts{Over: d.Texts[sv.Lang], Mark: sv.Custom.Preview}
 	cv := sv.Custom
 	cv.Class = d.HTMLClasses()
 	cv.Motion = d.Motion.Used()

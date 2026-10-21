@@ -85,7 +85,11 @@ type Design struct {
 	// -> text); images are the same in every language.
 	Content     map[string]string            `json:"content,omitempty"`
 	ContentI18n map[string]map[string]string `json:"content_i18n,omitempty"`
-	Motion      Motion                       `json:"motion"`
+	// Texts replaces the theme's interface texts, the ones its templates
+	// write with T, in each language (lang -> English source -> text), so
+	// that any theme's texts can be typed over in the preview.
+	Texts  map[string]map[string]string `json:"texts,omitempty"`
+	Motion Motion                       `json:"motion"`
 }
 
 // Motion is the site's animations (internal/motion): how much they move,
@@ -192,6 +196,18 @@ type ContentSpec struct {
 	Key  string
 	Type string // text | textarea | lines | image
 }
+
+// Interface text limits: texts per language, and characters in a key and
+// in its text.
+const (
+	MaxTexts    = 400
+	MaxTextKey  = 1000
+	MaxTextLong = 2000
+)
+
+// ProtectedTexts are the interface texts a design may not change: the
+// licence credit is rendered with them (internal/theme.Protected).
+var ProtectedTexts = map[string]bool{"Powered by": true}
 
 // Content limits, in characters (lines: in all and per line).
 const (
@@ -547,6 +563,54 @@ func (d *Design) Normalize(c Context) (Errors, error) {
 		i18n = nil
 	}
 	d.ContentI18n = i18n
+
+	ui := map[string]map[string]string{}
+	for lang, m := range d.Texts {
+		if !contains(c.Langs, lang) {
+			if len(m) > 0 {
+				add("texts."+lang, "unknown language")
+			}
+			continue
+		}
+		if len(m) > MaxTexts {
+			add("texts."+lang, "at most %d texts per language", MaxTexts)
+			continue
+		}
+		out := map[string]string{}
+		for k, v := range m {
+			field := "texts." + lang + "." + k
+			switch {
+			case strings.TrimSpace(k) == "" || utf8.RuneCountInString(k) > MaxTextKey || strings.ContainsFunc(k, func(r rune) bool { return r < 0x20 && r != '\n' || r == 0x7f || r >= 0xE000 && r <= 0xF8FF }):
+				add(field, "not a text of the theme")
+			case ProtectedTexts[k]:
+				add(field, "the licence credit cannot change")
+			default:
+				v = strings.TrimSpace(strings.Map(func(r rune) rune {
+					if r == '\t' || r == '\n' || r == '\r' {
+						return ' '
+					}
+					if r < 0x20 || r == 0x7f || r >= 0xE000 && r <= 0xF8FF {
+						return -1
+					}
+					return r
+				}, v))
+				if utf8.RuneCountInString(v) > MaxTextLong {
+					add(field, "at most %d characters", MaxTextLong)
+					v = clip(v, MaxTextLong)
+				}
+				if v != "" {
+					out[k] = v
+				}
+			}
+		}
+		if len(out) > 0 {
+			ui[lang] = out
+		}
+	}
+	if len(ui) == 0 {
+		ui = nil
+	}
+	d.Texts = ui
 
 	if !contains(motion.Levels, d.Motion.Level) {
 		add("motion.level", "unknown value %q", d.Motion.Level)

@@ -64,6 +64,8 @@ type guard struct {
 	deadline time.Time
 	made     int
 	err      error
+	// tx changes the interface texts of this execution (texts.go).
+	tx *Texts
 }
 
 // closedGuard binds the pristine template sets of uploaded themes.
@@ -73,7 +75,7 @@ func (g *guard) start(ctx context.Context, deadline time.Time) {
 	g.ctx, g.deadline, g.made, g.err = ctx, deadline, 0, nil
 }
 
-func (g *guard) stop() { g.ctx, g.err = nil, errClosed }
+func (g *guard) stop() { g.ctx, g.err, g.tx = nil, errClosed, nil }
 
 func (g *guard) check() error {
 	if g.err != nil {
@@ -189,7 +191,7 @@ func (t *Theme) funcsFor(lang string, g *guard) template.FuncMap {
 			return "", err
 		}
 		if len(args) == 0 {
-			return text(key), nil
+			return g.tx.text(key, text(key)), nil
 		}
 		return g.sprintf(text(key), args)
 	}

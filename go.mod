@@ -9,7 +9,6 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oschwald/maxminddb-golang/v2 v2.7.0
 	github.com/tetratelabs/wazero v1.12.0
-	github.com/vicktor/sap13ns/pluginsdk v0.0.0
 	github.com/yuin/goldmark v1.8.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0

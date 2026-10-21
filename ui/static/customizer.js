@@ -175,7 +175,16 @@ function init(root) {
   // The theme texts the preview shows as they are typed.
   const live = new Set($$("[data-live]", form).map((el) => el.dataset.live));
   const mainLang = $("[data-content-lang]")?.dataset.contentLang || document.documentElement.lang;
-  const current = () => designFrom(fields(), state.options || {});
+  // The theme's interface texts typed over in the preview (lang -> source
+  // -> text): they have no field of their own.
+  const texts = structuredClone(state.design?.texts || {});
+  const current = () => {
+    const d = designFrom(fields(), state.options || {});
+    const t = {};
+    for (const [lang, m] of Object.entries(texts)) if (Object.keys(m).length) t[lang] = { ...m };
+    if (Object.keys(t).length) d.texts = t;
+    return d;
+  };
   const values = () => {
     const out = {};
     for (const el of form.elements) {
@@ -414,15 +423,80 @@ function init(root) {
     }, { once: true });
   }
 
+  // editText lets the visitor type over one of the theme's interface texts
+  // (marked by the server with data-sap-text in previews): it goes to the
+  // design's texts, in the preview's language, and every copy of it on the
+  // page follows. Emptied, the theme's own text comes back. Enter ends it,
+  // Escape puts back what it said.
+  function editText(el, doc) {
+    const key = el.dataset.sapText;
+    const lang = doc.documentElement.lang || mainLang;
+    const shownBefore = el.textContent;
+    const had = texts[lang]?.[key];
+    const copies = () => [...doc.querySelectorAll("[data-sap-text]")].filter((x) => x !== el && x.dataset.sapText === key);
+    typing = el;
+    el.contentEditable = "plaintext-only";
+    if (el.contentEditable !== "plaintext-only") el.contentEditable = "true";
+    el.spellcheck = true;
+    el.style.outline = "2px solid #3b82f6";
+    el.style.outlineOffset = "3px";
+    el.style.cursor = "text";
+    el.focus({ preventScroll: true });
+    const set = (v) => {
+      const m = (texts[lang] ??= {});
+      if (v) m[key] = v; else delete m[key];
+      for (const x of copies()) x.textContent = v || shownBefore;
+    };
+    const sync = () => {
+      set(el.innerText.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim());
+      schedule(700);
+    };
+    const keydown = (e) => {
+      if (e.key === "Escape") {
+        el.textContent = shownBefore;
+        set(had || "");
+        el.blur();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        el.blur();
+      }
+    };
+    const paste = (e) => {
+      e.preventDefault();
+      doc.execCommand("insertText", false, (e.clipboardData?.getData("text/plain") || "").replace(/\s+/g, " "));
+    };
+    el.addEventListener("input", sync);
+    el.addEventListener("keydown", keydown);
+    el.addEventListener("paste", paste);
+    el.addEventListener("blur", () => {
+      el.removeEventListener("input", sync);
+      el.removeEventListener("keydown", keydown);
+      el.removeEventListener("paste", paste);
+      el.removeAttribute("contenteditable");
+      el.style.outline = el.style.outlineOffset = el.style.cursor = "";
+      typing = null;
+      // Emptied: the theme's text comes back when the preview reloads.
+      if (!el.textContent.trim()) { el.textContent = shownBefore; save().then(reloadFrame); return; }
+      schedule(100);
+    }, { once: true });
+  }
+
   // In the preview, the marked texts and images open their field when
   // clicked (and show it on hover), unless the edit mode is off.
   function markEditable(doc) {
-    const label = (key) => $(`[data-content-field="${key}"] label, [data-content-field="${key}"] .label`, content)?.textContent.trim() || key;
+    const label = (key) => (content && $(`[data-content-field="${key}"] label, [data-content-field="${key}"] .label`, content)?.textContent.trim()) || key;
     // The text field of key in lang that the preview shows as it is typed.
     const liveInput = (key, lang) => $(`[data-live="${key}"][lang="${lang}"]`, content);
     const typeable = (el) => !el.matches("img, picture, video") && !el.querySelector("img, picture, video, svg") &&
       liveInput(el.dataset.sapEdit, doc.documentElement.lang);
     doc.addEventListener("click", (e) => {
+      const t = editMode && e.target.closest?.("[data-sap-text]");
+      if (t && !t.closest("[data-sap-edit]")) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (!t.isContentEditable) editText(t, doc);
+        return;
+      }
       const el = editMode && e.target.closest?.("[data-sap-edit]");
       if (!el) return;
       e.preventDefault();
@@ -434,6 +508,21 @@ function init(root) {
       else openField(el.dataset.sapEdit, lang);
     }, true);
     doc.addEventListener("mouseover", (e) => {
+      const t = editMode && e.target.closest?.("[data-sap-text]");
+      if (t && !t.closest("[data-sap-edit]")) {
+        if (t.dataset.sapHover || t.isContentEditable) return;
+        t.dataset.sapHover = "";
+        t.style.outline = "2px dashed #3b82f6";
+        t.style.outlineOffset = "3px";
+        t.style.cursor = "text";
+        t.title = fmt(msg.msgType, t.textContent.trim().slice(0, 60));
+        t.addEventListener("mouseleave", () => {
+          delete t.dataset.sapHover;
+          t.removeAttribute("title");
+          if (!t.isContentEditable) t.style.outline = t.style.outlineOffset = t.style.cursor = "";
+        }, { once: true });
+        return;
+      }
       const el = editMode && e.target.closest?.("[data-sap-edit]");
       if (!el || el.dataset.sapHover || el.isContentEditable) return;
       el.dataset.sapHover = "";
@@ -488,8 +577,8 @@ function init(root) {
     const doc = frameDoc();
     if (!doc) return;
     applyScheme();
+    markEditable(doc);
     if (content) {
-      markEditable(doc);
       // The preview went to another language: edit its texts.
       const lang = doc.documentElement.lang;
       if (lang && lang !== textLang && $(`[data-content-lang="${lang}"]`, content)) showLang(lang, false);

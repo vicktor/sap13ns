@@ -297,6 +297,8 @@ type SiteView struct {
 	server *Server
 	// content: the theme's edited texts and images (theme_content.go).
 	content *siteContent
+	// texts changes the theme's interface texts in this render (applyCustom).
+	texts *theme.Texts
 	// The cookie consent, computed on first use (consent.go).
 	consent     *ConsentView
 	consentDone bool

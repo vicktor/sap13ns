@@ -580,16 +580,36 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 			}
 		}
 	}
+	tx := textsFrom(ctx)
 	if !t.Uploaded {
-		set, err := t.forLang(page, lang)
-		if err != nil {
-			return err
-		}
 		var buf bytes.Buffer
-		if err := set.ExecuteTemplate(&buf, "layout", data); err != nil {
-			return err
+		if tx == nil {
+			set, err := t.forLang(page, lang)
+			if err != nil {
+				return err
+			}
+			if err := set.ExecuteTemplate(&buf, "layout", data); err != nil {
+				return err
+			}
+		} else {
+			// Texts to change: a copy whose T reads them from its own
+			// slot, one execution at a time.
+			s, err := t.acquireWith(ctx, page, lang+"\x00texts", time.Now().Add(RenderTimeout), func() (*slot, error) { return t.newTextSlot(page, lang) })
+			if err != nil {
+				return err
+			}
+			s.g.tx = tx
+			err = s.set.ExecuteTemplate(&buf, "layout", data)
+			t.release(s)
+			if err != nil {
+				return err
+			}
 		}
-		_, err = w.Write(buf.Bytes())
+		out := buf.Bytes()
+		if tx != nil && tx.Mark {
+			out = markTexts(out)
+		}
+		_, err := w.Write(out)
 		return err
 	}
 	deadline := time.Now().Add(RenderTimeout)
@@ -599,6 +619,7 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 	}
 	defer t.release(s)
 	s.g.start(ctx, deadline)
+	s.g.tx = tx
 	lw := &limitWriter{g: s.g, max: MaxRenderBytes}
 	if err := s.set.ExecuteTemplate(lw, "layout", data); err != nil {
 		if s.g.err != nil {
@@ -609,7 +630,11 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 	if !bytes.Contains(lw.buf.Bytes(), []byte(CreditMarker)) {
 		return ErrNoCredit
 	}
-	_, err = w.Write(lw.buf.Bytes())
+	out := lw.buf.Bytes()
+	if tx != nil && tx.Mark {
+		out = markTexts(out)
+	}
+	_, err = w.Write(out)
 	return err
 }
 
@@ -664,6 +689,11 @@ func (t *Theme) newSlot(page, lang string) (*slot, error) {
 // acquire takes a free slot of page in lang, makes one while the pool has
 // fewer than maxSlots, or waits for one until the deadline.
 func (t *Theme) acquire(ctx context.Context, page, lang string, deadline time.Time) (*slot, error) {
+	return t.acquireWith(ctx, page, lang, deadline, func() (*slot, error) { return t.newSlot(page, lang) })
+}
+
+// acquireWith is acquire with mk making the new slots; lang names the pool.
+func (t *Theme) acquireWith(ctx context.Context, page, lang string, deadline time.Time, mk func() (*slot, error)) (*slot, error) {
 	key := page + "\x00" + lang
 	t.mu.Lock()
 	if t.pools == nil {
@@ -683,7 +713,7 @@ func (t *Theme) acquire(ctx context.Context, page, lang string, deadline time.Ti
 	if p.made < maxSlots {
 		p.made++
 		t.mu.Unlock()
-		s, err := t.newSlot(page, lang)
+		s, err := mk()
 		if err != nil {
 			t.mu.Lock()
 			p.made--
@@ -728,27 +758,58 @@ func (t *Theme) forLang(page, lang string) (*template.Template, error) {
 	if err != nil {
 		return nil, err
 	}
-	funcs := t.langFuncs(lang)
-	if cat := t.i18n[lang]; len(cat) > 0 {
-		if core, ok := funcs["T"].(func(string, ...any) string); ok {
-			funcs["T"] = func(key string, args ...any) string {
-				v, ok := cat[key]
-				if !ok || v == "" {
-					return core(key, args...)
-				}
-				if len(args) > 0 {
-					return fmt.Sprintf(v, args...)
-				}
-				return v
-			}
-		}
-	}
-	set.Funcs(funcs)
+	set.Funcs(t.builtinFuncs(lang, nil))
 	if t.byLang[lang] == nil {
 		t.byLang[lang] = map[string]*template.Template{}
 	}
 	t.byLang[lang][page] = set
 	return set, nil
+}
+
+// builtinFuncs are the language functions of a theme that is not an
+// upload: T reads the theme's own catalog first, and then, with g, the
+// texts of g's execution.
+func (t *Theme) builtinFuncs(lang string, g *guard) template.FuncMap {
+	funcs := t.langFuncs(lang)
+	core, ok := funcs["T"].(func(string, ...any) string)
+	if !ok {
+		return funcs
+	}
+	cat := t.i18n[lang]
+	if len(cat) == 0 && g == nil {
+		return funcs
+	}
+	funcs["T"] = func(key string, args ...any) string {
+		v, ok := cat[key]
+		if !ok || v == "" {
+			if len(args) > 0 || g == nil {
+				return core(key, args...)
+			}
+			return g.tx.text(key, core(key))
+		}
+		if len(args) > 0 {
+			return fmt.Sprintf(v, args...)
+		}
+		if g != nil {
+			return g.tx.text(key, v)
+		}
+		return v
+	}
+	return funcs
+}
+
+// newTextSlot copies the pristine set of page, a theme that is not an
+// upload, with T reading the texts of the slot's execution.
+func (t *Theme) newTextSlot(page, lang string) (*slot, error) {
+	set, err := t.pages[page].Clone()
+	if err != nil {
+		return nil, err
+	}
+	g := &guard{err: errClosed}
+	if t.langFuncs != nil {
+		set.Funcs(t.builtinFuncs(lang, g))
+	}
+	return &slot{set: set, g: g}, nil
 }
 
 // Has reports whether the theme ships its own template for page ("front",
