@@ -61,6 +61,9 @@ type PortalAdmin interface {
 	// ErrConflict for a taken one, ErrNetworkState when the account has
 	// one already.
 	RequestSite(ctx context.Context, accountID int64, slug string) (*NetSite, error)
+	// NetworkStats measures the network and every served site, with the
+	// activity from from to to (dates, both included).
+	NetworkStats(ctx context.Context, from, to time.Time) (*NetStats, error)
 
 	// The custom domains of tenant sites (admin_domains.go).
 	PortalDomains

@@ -26,13 +26,15 @@ func (f *fakeImageAI) Image(context.Context, ai.ImageRequest) ([]ai.Image, error
 	return []ai.Image{{Data: f.img, MIME: "image/png", Width: 64, Height: 36}}, nil
 }
 
-// An image job finishes, with the image in the library.
+// An image job finishes, with the image in the library and the calls in
+// the usage statistics, under who made them.
 func TestAIImageJob(t *testing.T) {
 	e := newPluginEnv(t)
 	var buf bytes.Buffer
 	png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 64, 36)))
 	e.s.ai.mu.Lock()
-	e.s.ai.settings = &store.AISettings{Enabled: true, Provider: "anthropic", MinRole: "author"}
+	e.s.ai.settings = &store.AISettings{Enabled: true, Provider: "anthropic", MinRole: "author",
+		ImageProvider: "alibaba", ImageModel: "qwen-image-2.1-pro"}
 	e.s.ai.provider = &fakeImageAI{img: buf.Bytes()}
 	e.s.ai.mu.Unlock()
 	body, _ := json.Marshal(map[string]any{"title": "Faro", "content": "Un faro.", "lang": "es", "kind": "header"})
@@ -56,6 +58,19 @@ func TestAIImageJob(t *testing.T) {
 		if job.Done {
 			if job.Error != "" {
 				t.Fatalf("job: %s", job.Error)
+			}
+			st, err := e.s.store.SiteStats(context.Background(), time.Now().AddDate(0, 0, -1), time.Now().AddDate(0, 0, 1))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var img, text bool
+			for _, c := range st.Calls {
+				img = img || c.Feature == "image" && c.Kind == store.AIKindImage && c.Provider == "alibaba" &&
+					c.Model == "qwen-image-2.1-pro" && c.Source == store.AICallOwn && c.Requests == 1 && c.Images == 1
+				text = text || c.Feature == "image" && c.Kind == store.AIKindText && c.Provider == "anthropic" && c.Requests == 1
+			}
+			if !img || !text || st.AIImages != 1 {
+				t.Errorf("statistics: %+v, %d AI images", st.Calls, st.AIImages)
 			}
 			return
 		}

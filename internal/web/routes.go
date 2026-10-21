@@ -94,6 +94,7 @@ func (s *Server) routes() *http.ServeMux {
 		network("POST /admin/network/admins", s.adminNetAdminAdd)
 		network("POST /admin/network/admins/{account}/delete", s.adminNetAdminRemove)
 		network("GET /admin/network/plans", s.adminNetPlans)
+		network("GET /admin/network/stats", s.adminNetStats)
 		if s.reviews != nil {
 			network("GET /admin/network/plugins", s.adminNetPlugins)
 			network("POST /admin/network/plugins/review", s.adminNetPluginReview)

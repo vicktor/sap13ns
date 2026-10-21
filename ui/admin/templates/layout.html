@@ -53,6 +53,7 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
           {{template "nav-item" (dict "URL" "/admin/network/sites" "Icon" "layers" "Label" (T "Sites") "Current" (.Active "net-sites") "Badge" .NetPending)}}
           {{template "nav-item" (dict "URL" "/admin/network/admins" "Icon" "shield-check" "Label" (T "Network administrators") "Current" (.Active "net-admins"))}}
           {{template "nav-item" (dict "URL" "/admin/network/plans" "Icon" "package" "Label" (T "Plans") "Current" (.Active "net-plans"))}}
+          {{if .SuperAdmin}}{{template "nav-item" (dict "URL" "/admin/network/stats" "Icon" "chart-column" "Label" (T "Usage statistics") "Current" (.Active "net-stats"))}}{{end}}
           {{if .Billing}}{{template "nav-item" (dict "URL" "/admin/network/billing" "Icon" "triangle-alert" "Label" (T "Billing events") "Current" (.Active "net-billing") "Badge" .NetFailing)}}{{end}}
           {{if .Reviews}}{{template "nav-item" (dict "URL" "/admin/network/plugins" "Icon" "puzzle" "Label" (T "Plugin reviews") "Current" (.Active "net-plugins") "Badge" .NetReviews)}}{{end}}
           {{end}}

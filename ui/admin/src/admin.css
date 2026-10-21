@@ -670,6 +670,24 @@ ul.warnings { @apply mt-2 max-h-80 list-disc space-y-1 overflow-auto pl-5 text-s
 .stats-chart .tick { stroke: var(--border); stroke-width: 1; }
 .stats-chart .tick-label { fill: var(--muted-foreground); font-size: 11px; text-anchor: end; dominant-baseline: middle; }
 .stats-table { @apply mt-4 text-sm; }
+.stats-chart .bar-2 { fill: var(--chart-2, oklch(0.7 0.14 160)); }
+
+/* Network usage statistics */
+.net-stats-head { @apply mb-3 mt-2 text-base font-semibold; }
+.net-stats-grid { @apply xl:grid-cols-3 2xl:grid-cols-4; }
+.net-stats-charts { @apply mb-6 grid gap-4 lg:grid-cols-2; }
+.net-stats-charts .stats-chart > header { @apply flex flex-wrap items-baseline justify-between gap-2; }
+.net-legend { @apply flex flex-wrap gap-3 text-xs text-muted-foreground; }
+.net-legend span { @apply inline-flex items-center gap-1.5; }
+.net-legend svg { @apply size-2.5; }
+.net-stats-breakdowns { @apply mb-6 grid gap-4 lg:grid-cols-2; }
+.net-stats-breakdowns .num, .net-stats-sites .num { @apply text-right tabular-nums; }
+.net-stats-breakdowns td:first-child { @apply min-w-40; }
+.net-stats-breakdowns .net-name { @apply block truncate; }
+.net-stats-breakdowns meter { @apply mt-1 block h-1.5 w-full appearance-none rounded-full border-0 bg-muted; }
+.net-stats-breakdowns meter::-webkit-meter-bar { @apply h-1.5 rounded-full border-0 bg-muted; }
+.net-stats-breakdowns meter::-webkit-meter-optimum-value { @apply rounded-full bg-primary; }
+.net-stats-breakdowns meter::-moz-meter-bar { @apply rounded-full bg-primary; }
 .stats-geo > section { @apply grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]; }
 .geo-map { @apply h-auto w-full; }
 .geo-map path { fill: var(--muted); stroke: var(--card); stroke-width: 0.5; stroke-linejoin: round; }

@@ -168,6 +168,7 @@ func (s *Server) aiCharge(r *http.Request, u *store.User, task string, m *ai.Met
 		s.log.Error("ai usage", "err", err)
 	}
 	s.chargeDaily(context.WithoutCancel(r.Context()), use.Requests, use.Images)
+	s.recordAICalls(context.WithoutCancel(r.Context()), task, use)
 	s.audit(r, u.ID, "ai."+task, ref, map[string]string{"requests": strconv.Itoa(use.Requests),
 		"tokens": strconv.Itoa(use.InputTokens + use.OutputTokens), "images": strconv.Itoa(use.Images)})
 }

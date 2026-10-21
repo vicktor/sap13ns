@@ -148,6 +148,7 @@ type statsChart struct {
 type statsBar struct {
 	X, Y, W, H float64
 	Label      string
+	Second     bool // of a chart's second series
 }
 
 type statsTick struct {

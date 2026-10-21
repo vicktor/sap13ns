@@ -252,6 +252,17 @@ A site that moves to a plan without the network's AI sees its AI switched off un
 
 Qwen-Image (Alibaba Cloud Model Studio) works with Claude for the text: `SAP13NS_NETWORK_AI_PROVIDER=anthropic` with `SAP13NS_NETWORK_AI_IMAGE_PROVIDER=alibaba`. The default address is the international region (`https://ap-southeast-1.maas.qwencloudapi.com`); a workspace address goes in `_IMAGE_BASE_URL`.
 
+### Usage statistics
+
+Super admins have **Network → Usage statistics** (`/admin/network/stats`), for today, 7, 30 or 90 days, or 12 months. It shows:
+
+- **The network:** sites by status and by plan, accounts, active subscriptions, storage, and the new sites and accounts per day.
+- **The content of every site:** posts and pages (published and drafts), media (and how many images were made with AI), approved comments and page views, with the new ones per day.
+- **The AI:** requests, input and output tokens and generated images per day and since the start. They are broken down by provider, model, feature (summaries, SEO, writing, images, translations, Design with AI, the site assistant) and source (the sites' own keys or the network's AI).
+- **The sites:** the 50 that used the most AI in the period.
+
+Each site keeps its AI calls in the `ai_calls` table of its schema (one row per day, feature, provider, model and source), counted from v0.10.0. The totals since the start also include the earlier monthly counters. The page measures every served site when it opens, four at a time. A site that cannot be measured is left out, counted at the top, and its error goes to the log. Dates are UTC.
+
 ## Plugins and themes
 
 - **The catalogue.** The plugins installed on the portal (valid, and not blocked by the scanner) form the network's catalogue. Every site sees them under **Plugins → From the network** and installs them from there, disabled. The site's administrator then reviews their permissions and enables them, as on any site.

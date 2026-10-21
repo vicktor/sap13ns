@@ -364,10 +364,12 @@ func New(cfg Config, client *http.Client) (Provider, error) {
 
 // Usage counts what went through a Metered provider.
 type Usage struct {
-	Requests     int
-	InputTokens  int
-	OutputTokens int
-	Images       int
+	Requests      int // images included
+	InputTokens   int
+	OutputTokens  int
+	Images        int
+	ImageRequests int
+	TextModel     string // the model that answered the last text request, when it says
 }
 
 // Metered wraps a Provider and adds up usage, so that the caller can charge
@@ -388,6 +390,9 @@ func (m *Metered) Text(ctx context.Context, req TextRequest) (*TextResponse, err
 	if res != nil {
 		m.u.InputTokens += res.InputTokens
 		m.u.OutputTokens += res.OutputTokens
+		if res.Model != "" {
+			m.u.TextModel = res.Model
+		}
 	}
 	m.mu.Unlock()
 	return res, err
@@ -397,6 +402,7 @@ func (m *Metered) Image(ctx context.Context, req ImageRequest) ([]Image, error) 
 	imgs, err := m.Provider.Image(ctx, req)
 	m.mu.Lock()
 	m.u.Requests++
+	m.u.ImageRequests++
 	m.u.Images += len(imgs)
 	m.mu.Unlock()
 	return imgs, err

@@ -56,6 +56,9 @@ func (m *Metered) TextStream(ctx context.Context, req TextRequest, fn func(Delta
 	if res != nil {
 		m.u.InputTokens += res.InputTokens
 		m.u.OutputTokens += res.OutputTokens
+		if res.Model != "" {
+			m.u.TextModel = res.Model
+		}
 	}
 	m.mu.Unlock()
 	return res, err

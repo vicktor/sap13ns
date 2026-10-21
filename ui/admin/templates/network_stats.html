@@ -1,0 +1,91 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$s := $d.S}}
+<div class="page-header">
+  <div><h1>{{T "Usage statistics"}}</h1><p>{{T "The whole network: its sites and accounts, their content and what the AI did."}} {{$s.From.Format "2006-01-02"}} – {{$s.To.Format "2006-01-02"}} (UTC)</p></div>
+  <nav class="filter-tabs" aria-label="{{T "Period"}}">
+    {{range $d.Ranges}}<a href="/admin/network/stats?range={{.}}"{{if eq . $d.Range}} aria-current="page"{{end}}>{{if eq . "today"}}{{T "Today"}}{{else if eq . "7d"}}{{T "7 days"}}{{else if eq . "30d"}}{{T "30 days"}}{{else if eq . "90d"}}{{T "90 days"}}{{else}}{{T "12 months"}}{{end}}</a>{{end}}
+  </nav>
+</div>
+{{if $s.Failed}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Some sites could not be measured"}}</h2><section>{{printf (T "%d sites are left out; the server log says why.") $s.Failed}}</section></div>{{end}}
+
+<h2 class="net-stats-head">{{T "Network and content"}}</h2>
+<div class="stat-grid net-stats-grid">
+  {{range $d.Cards}}<div class="card stat">
+    <span class="stat-icon" aria-hidden="true">{{icon .Icon}}</span>
+    <span class="stat-label">{{.Label}}</span>
+    <strong class="stat-value">{{.Value}}</strong>
+    <span class="stat-foot">{{.Foot}}</span>
+  </div>{{end}}
+</div>
+
+<h2 class="net-stats-head">{{T "AI in the period"}}</h2>
+<div class="stat-grid net-stats-grid">
+  {{range $d.AI}}<div class="card stat">
+    <span class="stat-icon" aria-hidden="true">{{icon .Icon}}</span>
+    <span class="stat-label">{{.Label}}</span>
+    <strong class="stat-value">{{.Value}}</strong>
+    <span class="stat-foot">{{.Foot}}</span>
+  </div>{{end}}
+</div>
+
+<div class="net-stats-charts">
+  {{range $d.Charts}}{{$c := .}}
+  <section class="card stats-chart">
+    <header><h2>{{.Title}}</h2>
+      <p class="net-legend">{{range .Legend}}<span><svg viewBox="0 0 10 10" aria-hidden="true"><rect class="{{.Class}}" width="10" height="10" rx="2"/></svg>{{.Label}}</span>{{end}}</p></header>
+    <section>
+      {{if .Empty}}<p class="muted text-sm">{{T "Nothing in this period."}}</p>{{else}}
+      <svg viewBox="-40 -8 {{add $c.W 48}} {{add $c.H 16}}" role="img" aria-label="{{.Title}}">
+        {{range $c.Ticks}}<line class="tick" x1="0" x2="{{$c.W}}" y1="{{.Y}}" y2="{{.Y}}"/><text class="tick-label" x="-6" y="{{.Y}}">{{.Label}}</text>{{end}}
+        {{range $c.Bars}}<rect class="bar{{if .Second}} bar-2{{end}}" x="{{.X}}" y="{{.Y}}" width="{{.W}}" height="{{.H}}"><title>{{.Label}}</title></rect>{{end}}
+      </svg>{{end}}
+    </section>
+  </section>
+  {{end}}
+</div>
+
+<h2 class="net-stats-head">{{T "AI by provider, model, feature and source"}}</h2>
+{{if not $s.Total.Calls}}<p class="muted text-sm">{{T "No AI calls in this period. They are counted from version 0.10.0 on."}}</p>{{else}}
+<div class="net-stats-breakdowns">
+  {{range $d.Breakdowns}}
+  <section class="card">
+    <header><h2>{{.Title}}</h2></header>
+    <section>
+      <div class="table-wrap"><table class="table text-sm">
+        <thead><tr><th></th><th class="num">{{T "Requests"}}</th><th class="num">{{T "Input"}}</th><th class="num">{{T "Output"}}</th><th class="num">{{T "Images"}}</th></tr></thead>
+        <tbody>{{range .Rows}}<tr>
+          <td><span class="net-name">{{.Name}}</span><meter min="0" max="100" value="{{.Share}}" aria-label="{{printf "%.1f%%" .Share}}">{{printf "%.1f%%" .Share}}</meter></td>
+          <td class="num">{{.Requests}}</td><td class="num">{{.Input}}</td><td class="num">{{.Output}}</td><td class="num">{{.Image}}</td></tr>{{end}}</tbody>
+      </table></div>
+    </section>
+  </section>
+  {{end}}
+</div>{{end}}
+
+<div class="net-stats-breakdowns">
+  <section class="card">
+    <header><h2>{{T "Sites by plan"}}</h2></header>
+    <section>
+      {{if $s.ByPlan}}<ol class="stats-list">{{range $s.ByPlan}}<li><span class="stats-name">{{if .Name}}{{.Name}}{{else}}{{T "No plan"}}{{end}}</span><span class="stats-num">{{.N}}</span></li>{{end}}</ol>
+      {{else}}<p class="muted text-sm">{{T "No sites yet."}}</p>{{end}}
+    </section>
+  </section>
+</div>
+
+<section class="card net-stats-sites">
+  <header><h2>{{T "Sites"}}</h2><p>{{T "The 50 that used the most AI in the period. Posts, pages and media are what they hold now; the rest, the period's."}}</p></header>
+  <section>
+    {{if $d.Top}}
+    <div class="table-wrap"><table class="table text-sm">
+      <thead><tr><th>{{T "Site"}}</th><th class="max-sm:hidden">{{T "Plan"}}</th><th class="num">{{T "Posts"}}</th><th class="num max-md:hidden">{{T "Pages"}}</th><th class="num max-md:hidden">{{T "Media"}}</th><th class="num max-lg:hidden">{{T "Page views"}}</th><th class="num">{{T "AI requests"}}</th><th class="num">{{T "Tokens"}}</th><th class="num max-sm:hidden">{{T "AI images"}}</th><th class="num max-lg:hidden">{{T "Storage"}}</th></tr></thead>
+      <tbody>{{range $d.Top}}<tr>
+        <td><a href="/admin/network/sites/{{.ID}}">{{.Slug}}</a>{{if ne .Status "active"}} {{template "site-status" .Status}}{{end}}</td>
+        <td class="max-sm:hidden">{{.Plan}}</td><td class="num">{{.Posts}}</td><td class="num max-md:hidden">{{.Pages}}</td><td class="num max-md:hidden">{{.Media}}</td>
+        <td class="num max-lg:hidden">{{.Views}}</td><td class="num">{{.Requests}}</td><td class="num">{{.Tokens}}</td><td class="num max-sm:hidden">{{.Images}}</td>
+        <td class="num max-lg:hidden">{{filesize .StorageBytes}}</td></tr>{{end}}</tbody>
+    </table></div>
+    {{else}}<p class="muted text-sm">{{T "No sites yet."}}</p>{{end}}
+  </section>
+</section>
+{{end}}

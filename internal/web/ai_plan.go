@@ -138,3 +138,55 @@ func (s *Server) chargeDaily(ctx context.Context, requests, images int) {
 		s.log.Error("network AI usage", "err", err)
 	}
 }
+
+// aiLabels names who answers the text and the images of st: provider and
+// model, for the usage statistics.
+func (s *Server) aiLabels(ctx context.Context, st store.AISettings) (text, image [2]string) {
+	if st.Source == store.AISourceNetwork {
+		plan, err := s.aiPlan(ctx)
+		if err != nil || plan.Text == nil {
+			return
+		}
+		text = [2]string{plan.Text.Provider, plan.Text.TextModel}
+		image = [2]string{plan.Text.Provider, plan.Text.ImageModel}
+		if plan.Image != nil {
+			image = [2]string{plan.Image.Provider, plan.Image.ImageModel}
+		}
+		return
+	}
+	text = [2]string{st.Provider, st.TextModel}
+	image = [2]string{st.Provider, st.ImageModel}
+	if st.ImageProvider != "" {
+		image[0] = st.ImageProvider
+	}
+	return
+}
+
+// recordAICalls counts use in the day's AI statistics (ai_calls), under
+// feature: the writing task, "design" or "assistant".
+func (s *Server) recordAICalls(ctx context.Context, feature string, use ai.Usage) {
+	st, err := s.aiSettingsSaved(ctx)
+	if err != nil {
+		return
+	}
+	source := store.AICallOwn
+	if st.Source == store.AISourceNetwork {
+		source = store.AICallNetwork
+	}
+	text, image := s.aiLabels(ctx, st)
+	if use.TextModel != "" {
+		text[1] = use.TextModel
+	}
+	day := s.today()
+	calls := []store.AICall{
+		{Day: day, Feature: feature, Kind: store.AIKindText, Provider: text[0], Model: text[1], Source: source,
+			Requests: int64(use.Requests - use.ImageRequests), InputTokens: int64(use.InputTokens), OutputTokens: int64(use.OutputTokens)},
+		{Day: day, Feature: feature, Kind: store.AIKindImage, Provider: image[0], Model: image[1], Source: source,
+			Requests: int64(use.ImageRequests), Images: int64(use.Images)},
+	}
+	for _, c := range calls {
+		if err := s.store.AddAICall(ctx, c); err != nil {
+			s.log.Error("ai statistics", "err", err)
+		}
+	}
+}

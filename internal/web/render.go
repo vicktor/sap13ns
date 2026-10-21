@@ -401,6 +401,7 @@ type adminPage struct {
 	// also have the network admin area, with the sites waiting for them.
 	Portal       bool
 	NetworkAdmin bool
+	SuperAdmin   bool // sees the usage statistics
 	NetPending   int
 	Billing      bool // the network has billing
 	NetFailing   int  // billing events that failed, for network admins
@@ -455,6 +456,7 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 		p.Portal, p.Billing = true, s.billing != nil
 		if ok, err := s.portal.IsNetworkAdmin(r.Context(), p.User.ID); err == nil && ok {
 			p.NetworkAdmin = true
+			p.SuperAdmin, _ = s.portal.IsSuperAdmin(r.Context(), p.User.ID)
 			if _, n, err := s.portal.Sites(r.Context(), NetSiteQuery{Status: "pending", Limit: 1}); err == nil {
 				p.NetPending = n
 			}

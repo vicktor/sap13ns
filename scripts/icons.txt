@@ -5,10 +5,12 @@ align-left
 align-right
 archive
 arrow-down
+arrow-down-to-line
 arrow-left
 arrow-right
 arrow-right-left
 arrow-up
+arrow-up-from-line
 arrow-up-right
 at-sign
 award
@@ -67,6 +69,7 @@ graduation-cap
 grid-2x2
 grip-vertical
 handshake
+hard-drive
 hard-drive-download
 hash
 heading

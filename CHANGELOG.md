@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.10.0 — 2026-10-21
+
+- **Usage statistics for super admins.** Network → **Usage statistics** covers the whole network over today, 7, 30 or 90 days, or 12 months. It shows sites by status and plan, accounts, subscriptions and storage, and every site's posts, pages, media (and AI images), comments and page views. For the AI it shows requests, input and output tokens and images, per day and since the start, broken down by provider, model, feature and source. Charts show the new content, growth, AI requests, tokens, images and page views per day. A table lists the 50 sites that use the most AI.
+- **Every AI call is counted by provider and model.** Each site records its calls per day, feature (summary, SEO, writing, image, translation, Design with AI, site assistant), kind, provider, model, and whether the AI came from the site's key or the network's. Text calls are counted under the model that answered.
+
 ## v0.9.1 — 2026-10-21
 
 - **Qwen-Image works out of the box.** Alibaba Cloud's default address is now

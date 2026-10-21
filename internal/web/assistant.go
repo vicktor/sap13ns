@@ -288,6 +288,7 @@ func (s *Server) chargeAssistant(m *ai.Metered, embeddings int) {
 		s.log.Error("assistant usage", "err", err)
 	}
 	s.chargeDaily(context.Background(), u.Requests, 0)
+	s.recordAICalls(context.Background(), "assistant", u)
 }
 
 // apiAssistant answers POST /api/assistant. It takes JSON only (cross-site
