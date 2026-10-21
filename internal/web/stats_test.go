@@ -48,6 +48,12 @@ func TestStatsMap(t *testing.T) {
 	if strings.Contains(body, "db-ip.com") {
 		t.Error("a DB-IP credit with no database")
 	}
+
+	// Today: the day so far, without the per-day chart.
+	body = e.get("/admin/analytics?range=today", e.admin).Body.String()
+	if !strings.Contains(body, `aria-current="page">Hoy</a>`) || !strings.Contains(body, "Singapur") || strings.Contains(body, "stats-chart") {
+		t.Error("the Today range")
+	}
 	if rec := e.get("/admin/analytics", e.author); rec.Code == http.StatusOK {
 		t.Error("an author opened the analytics")
 	}

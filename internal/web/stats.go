@@ -93,9 +93,12 @@ func pruneStats(ctx context.Context, st *store.Store, log *slog.Logger) {
 var statsRanges = []struct {
 	Key  string
 	Days int
-}{{"7d", 7}, {"30d", 30}, {"90d", 90}, {"12m", 365}}
+}{{"today", 1}, {"7d", 7}, {"30d", 30}, {"90d", 90}, {"12m", 365}}
 
 type statsData struct {
+	// Today is the calendar day so far, from midnight in the site's time
+	// zone: one day of the daily aggregates, so no chart.
+	Today  bool
 	Range  string
 	Ranges []string
 	Off    bool
@@ -153,13 +156,13 @@ type statsTick struct {
 }
 
 func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
-	key, days := statsRanges[1].Key, statsRanges[1].Days
+	key, days := statsRanges[2].Key, statsRanges[2].Days
 	for _, rg := range statsRanges {
 		if r.URL.Query().Get("range") == rg.Key {
 			key, days = rg.Key, rg.Days
 		}
 	}
-	d := statsData{Range: key, Off: s.settings().AnalyticsOff}
+	d := statsData{Today: key == "today", Range: key, Off: s.settings().AnalyticsOff}
 	for _, rg := range statsRanges {
 		d.Ranges = append(d.Ranges, rg.Key)
 	}

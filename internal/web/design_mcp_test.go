@@ -125,4 +125,3 @@ func TestDesignMCP(t *testing.T) {
 		t.Errorf("after revoking: %d", rec.Code)
 	}
 }
-

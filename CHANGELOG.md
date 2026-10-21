@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.7.2 — 2026-10-21
+
+- **Analytics: Today.** A new period shows the calendar day so far, from
+  midnight in the site's time zone until now, compared with all of
+  yesterday.
+
 ## v0.7.1 — 2026-10-21
 
 - **A clearer Design with AI chat.** The conversation is a scrolling chat:

@@ -4,7 +4,7 @@
 <div class="page-header">
   <div><h1>{{T "Analytics"}}</h1><p>{{T "Cookie-less statistics: no personal data is stored and visitors are not tracked across days."}}</p></div>
   <nav class="filter-tabs" aria-label="{{T "Period"}}">
-    {{range $d.Ranges}}<a href="/admin/analytics?range={{.}}"{{if eq . $d.Range}} aria-current="page"{{end}}>{{if eq . "7d"}}{{T "7 days"}}{{else if eq . "30d"}}{{T "30 days"}}{{else if eq . "90d"}}{{T "90 days"}}{{else}}{{T "12 months"}}{{end}}</a>{{end}}
+    {{range $d.Ranges}}<a href="/admin/analytics?range={{.}}"{{if eq . $d.Range}} aria-current="page"{{end}}>{{if eq . "today"}}{{T "Today"}}{{else if eq . "7d"}}{{T "7 days"}}{{else if eq . "30d"}}{{T "30 days"}}{{else if eq . "90d"}}{{T "90 days"}}{{else}}{{T "12 months"}}{{end}}</a>{{end}}
   </nav>
 </div>
 {{if $d.Off}}<div class="alert" data-variant="warning" role="status">{{icon "triangle-alert"}}<h2>{{T "Analytics are switched off"}}</h2><section>{{T "No new visits are being counted."}}{{if .Can "settings.manage"}} <a href="/admin/settings#discovery">{{T "Turn them on in Settings"}}</a>{{end}}</section></div>{{end}}
@@ -14,16 +14,17 @@
     <span class="stat-icon" aria-hidden="true">{{icon "users"}}</span>
     <span class="stat-label">{{T "Visitors"}}</span>
     <strong class="stat-value">{{$s.Visitors}}</strong>
-    <span class="stat-foot">{{with $s.VisitorsChange.String}}<span class="{{if $s.VisitorsChange.Up}}text-success{{else if $s.VisitorsChange.Down}}text-warning{{end}}">{{.}}</span> {{T "vs previous period"}}{{else}}{{T "No previous period to compare"}}{{end}}</span>
+    <span class="stat-foot">{{with $s.VisitorsChange.String}}<span class="{{if $s.VisitorsChange.Up}}text-success{{else if $s.VisitorsChange.Down}}text-warning{{end}}">{{.}}</span> {{if $d.Today}}{{T "vs all of yesterday"}}{{else}}{{T "vs previous period"}}{{end}}{{else}}{{T "No previous period to compare"}}{{end}}</span>
   </div>
   <div class="card stat">
     <span class="stat-icon" aria-hidden="true">{{icon "eye"}}</span>
     <span class="stat-label">{{T "Page views"}}</span>
     <strong class="stat-value">{{$s.Views}}</strong>
-    <span class="stat-foot">{{with $s.ViewsChange.String}}<span class="{{if $s.ViewsChange.Up}}text-success{{else if $s.ViewsChange.Down}}text-warning{{end}}">{{.}}</span> {{T "vs previous period"}}{{else}}{{T "No previous period to compare"}}{{end}}</span>
+    <span class="stat-foot">{{with $s.ViewsChange.String}}<span class="{{if $s.ViewsChange.Up}}text-success{{else if $s.ViewsChange.Down}}text-warning{{end}}">{{.}}</span> {{if $d.Today}}{{T "vs all of yesterday"}}{{else}}{{T "vs previous period"}}{{end}}{{else}}{{T "No previous period to compare"}}{{end}}</span>
   </div>
 </div>
 
+{{if not $d.Today}}
 <section class="card stats-chart">
   <header><h2>{{T "Views per day"}}</h2><p>{{$s.From.Format "2006-01-02"}} – {{$s.To.Format "2006-01-02"}}</p></header>
   <section>
@@ -38,6 +39,7 @@
     </details>
   </section>
 </section>
+{{end}}
 
 {{$m := $d.Map}}
 <section class="card stats-geo">
