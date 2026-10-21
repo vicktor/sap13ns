@@ -179,6 +179,14 @@ func planFeatures(p NetPlan, sitesDomain string) []PlanFeature {
 	if p.ThemeUploads {
 		f = append(f, PlanFeature{Text: "Upload your own themes"})
 	}
+	switch {
+	case p.AIRequestsPerDay > 0 && p.AIImagesPerDay > 0:
+		f = append(f, PlanFeature{Text: "AI included, with %s images a day", Arg: strconv.Itoa(p.AIImagesPerDay)})
+	case p.AIRequestsPerDay > 0:
+		f = append(f, PlanFeature{Text: "AI included"})
+	default:
+		f = append(f, PlanFeature{Text: "AI with your own provider and key"})
+	}
 	if p.HandApproved {
 		f = append(f, PlanFeature{Text: "Reviewed by a person before it goes live"})
 	}

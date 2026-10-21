@@ -80,6 +80,7 @@ type Config struct {
 	MemoryLimitMB  int           // soft heap limit of the process; 0 = none
 	TLS            string        // "proxy" (nginx or Caddy terminate TLS) or "autocert"
 	Stripe         Stripe        // billing; off when Stripe.SecretKey is empty
+	NetworkAI      NetworkAI     // the AI the paid plans include; off when Provider is empty
 
 	// Custom domains point to the network with a CNAME to DomainTarget (by
 	// default the BaseURL host), or with A/AAAA records: the addresses in
@@ -120,6 +121,54 @@ type Stripe struct {
 	// PortalConfiguration is the Customer Portal configuration (bpc_...)
 	// of the portal sessions; "" uses the account's default.
 	PortalConfiguration string
+}
+
+// NetworkAI is the AI provider a network gives the sites of its paid
+// plans (SAP13NS_NETWORK_AI_*): text with Provider, and images with
+// ImageProvider when it is set (Qwen-Image on Alibaba Cloud, say).
+type NetworkAI struct {
+	Provider, APIKey, BaseURL, TextModel                 string
+	ImageProvider, ImageAPIKey, ImageBaseURL, ImageModel string
+}
+
+// Enabled reports whether the network gives AI to its paid plans.
+func (n NetworkAI) Enabled() bool { return n.Provider != "" }
+
+// String keeps the keys out of logs.
+func (n NetworkAI) String() string {
+	if !n.Enabled() {
+		return "network-ai(off)"
+	}
+	return "network-ai(" + n.Provider + "," + n.ImageProvider + ")"
+}
+
+var networkAIProviders = []string{"anthropic", "openai", "gemini", "alibaba"}
+
+// loadNetworkAI reads the network's AI provider; it is off without
+// SAP13NS_NETWORK_AI_PROVIDER.
+func loadNetworkAI() (NetworkAI, error) {
+	n := NetworkAI{Provider: env("NETWORK_AI_PROVIDER", ""), APIKey: env("NETWORK_AI_API_KEY", ""),
+		BaseURL: env("NETWORK_AI_BASE_URL", ""), TextModel: env("NETWORK_AI_TEXT_MODEL", ""),
+		ImageProvider: env("NETWORK_AI_IMAGE_PROVIDER", ""), ImageAPIKey: env("NETWORK_AI_IMAGE_API_KEY", ""),
+		ImageBaseURL: env("NETWORK_AI_IMAGE_BASE_URL", ""), ImageModel: env("NETWORK_AI_IMAGE_MODEL", "")}
+	if n.Provider == "" {
+		return NetworkAI{}, nil
+	}
+	if !slices.Contains(networkAIProviders, n.Provider) {
+		return NetworkAI{}, errors.New("SAP13NS_NETWORK_AI_PROVIDER must be anthropic, openai, gemini or alibaba")
+	}
+	if n.APIKey == "" {
+		return NetworkAI{}, errors.New("SAP13NS_NETWORK_AI_API_KEY is required with SAP13NS_NETWORK_AI_PROVIDER")
+	}
+	if n.ImageProvider != "" {
+		if n.ImageProvider == "anthropic" || !slices.Contains(networkAIProviders, n.ImageProvider) {
+			return NetworkAI{}, errors.New("SAP13NS_NETWORK_AI_IMAGE_PROVIDER must be openai, gemini or alibaba")
+		}
+		if n.ImageAPIKey == "" {
+			return NetworkAI{}, errors.New("SAP13NS_NETWORK_AI_IMAGE_API_KEY is required with SAP13NS_NETWORK_AI_IMAGE_PROVIDER")
+		}
+	}
+	return n, nil
 }
 
 // StripePrices are the price IDs of one plan.
@@ -484,7 +533,10 @@ func (c *Config) loadMultisite() error {
 			return err
 		}
 	}
-	c.Stripe, err = loadStripe()
+	if c.Stripe, err = loadStripe(); err != nil {
+		return err
+	}
+	c.NetworkAI, err = loadNetworkAI()
 	return err
 }
 
@@ -653,6 +705,7 @@ func ForSite(base *Config, p SiteParams) (*Config, error) {
 
 	c := *base
 	c.Stripe = Stripe{}
+	c.NetworkAI = NetworkAI{} // given to the site through its plan (web.SiteLimits)
 	c.TrustedProxies = slices.Clone(base.TrustedProxies)
 	c.DomainAddresses = slices.Clone(base.DomainAddresses)
 	c.SecretKey = slices.Clone(p.Secret)

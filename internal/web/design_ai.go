@@ -161,6 +161,17 @@ func (s *Server) designAIView(r *http.Request) *designAIView {
 	if v.Model == "" {
 		v.Model = ai.DefaultTextModel(st.Provider)
 	}
+	if st.Source == store.AISourceNetwork {
+		plan, _ := s.aiPlan(r.Context())
+		if plan.Text == nil {
+			return nil
+		}
+		v.Model = plan.Text.TextModel
+		if v.Model == "" {
+			v.Model = ai.DefaultTextModel(plan.Text.Provider)
+		}
+		return v
+	}
 	if b := strings.ToLower(st.BaseURL); st.AllowLocal || strings.Contains(b, "localhost") || strings.Contains(b, "127.0.0.1") ||
 		strings.Contains(b, "://192.168.") || strings.Contains(b, "://10.") || strings.Contains(b, ".local") {
 		v.Local = true

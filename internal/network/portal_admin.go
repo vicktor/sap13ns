@@ -74,10 +74,14 @@ func (h portalHooks) Sites(ctx context.Context, q web.NetSiteQuery) ([]web.NetSi
 	return out, total, err
 }
 
-func netPlan(p *Plan) *web.NetPlan {
-	return &web.NetPlan{Slug: p.Slug, Name: p.Name, Paid: p.Paid, HandApproved: p.HandApproved, Commercial: p.Commercial,
+func (h portalHooks) netPlan(p *Plan) *web.NetPlan {
+	v := &web.NetPlan{Slug: p.Slug, Name: p.Name, Paid: p.Paid, HandApproved: p.HandApproved, Commercial: p.Commercial,
 		SitesPerGrant: p.SitesPerGrant, StorageBytes: p.StorageBytes, CustomDomains: p.CustomDomains,
 		PluginUploads: p.PluginUploads, ThemeUploads: p.ThemeUploads}
+	if h.r.cfg.NetworkAI.Enabled() && p.Paid {
+		v.AIRequestsPerDay, v.AIImagesPerDay = p.AIRequestsPerDay, p.AIImagesPerDay
+	}
+	return v
 }
 
 // withBilling adds the plan and the subscription of a site to its view.
@@ -133,7 +137,7 @@ func (h portalHooks) SiteDetail(ctx context.Context, siteID int64) (*web.NetSite
 	}
 	d := &web.NetSiteDetail{Site: site}
 	if p, ok := plans[s.Plan]; ok {
-		d.Plan = netPlan(&p)
+		d.Plan = h.netPlan(&p)
 	}
 	domains, err := h.r.net.Domains(ctx, siteID)
 	if err != nil {
@@ -231,7 +235,7 @@ func (h portalHooks) Plans(ctx context.Context) ([]web.NetPlan, error) {
 	}
 	out := make([]web.NetPlan, 0, len(plans))
 	for i := range plans {
-		out = append(out, *netPlan(&plans[i]))
+		out = append(out, *h.netPlan(&plans[i]))
 	}
 	return out, nil
 }

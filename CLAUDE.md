@@ -63,7 +63,7 @@ make check                                   # vet + Go and JS tests + i18n + ev
 
   | Package | What it does |
   |---|---|
-  | `internal/ai` | Writing assistant. Adapters: Anthropic, OpenAI-compatible (also used for LM Studio, Ollama and llama.cpp), Gemini |
+  | `internal/ai` | Writing assistant. Adapters: Anthropic, OpenAI-compatible (also used for LM Studio, Ollama and llama.cpp), Gemini, Alibaba (Qwen); text and images may come from two providers (`ai.Split`) |
   | `internal/assistant` | Public site chatbot: chunking, hybrid pgvector and full-text search, cited answers. Exposed at `/api/assistant`, `/ask` and a read-only `/mcp` |
   | `internal/analytics` | Cookie-less daily aggregates |
   | `internal/update` | Signed self-update from GitHub releases |

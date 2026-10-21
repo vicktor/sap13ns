@@ -5,6 +5,21 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.9.0 — 2026-10-21
+
+- **One AI section.** Administration → **AI** gathers everything: where the
+  AI comes from, the text provider and model, the images and the site
+  assistant (in a tab). Images can come from another provider than the
+  text, for example Claude for writing and Qwen-Image for pictures.
+- **Qwen (Alibaba Cloud).** A new provider for text and images
+  (Qwen-Image), in each site's AI page and for the network.
+- **AI on the plans.** On a network with `SAP13NS_NETWORK_AI_*` set, the
+  paid plans include its AI with nothing to configure: Pro 200 requests
+  and 3 images a day, Business 1,000 requests and 15 images. On any plan a
+  site can use its own provider and key, with every AI feature and no
+  daily limit. A site that leaves the paid plan sees the included AI
+  switched off. The pricing table lists it. See docs/MULTISITE.md.
+
 ## v0.8.1 — 2026-10-21
 
 - **The v0.8.0 release, fixed.** v0.8.0 did not build its release (a

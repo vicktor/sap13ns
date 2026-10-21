@@ -3,11 +3,12 @@
 {{$d := .D}}{{$s := $d.S}}{{$st := $d.Status}}
 <div class="page-header">
   <div>
-    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
+    <p class="eyebrow"><a href="/admin/settings/ai">{{icon "arrow-left" "size-3.5"}} {{T "AI"}}</a></p>
     <h1>{{T "Site assistant"}}</h1>
     <p>{{T "A chat on the public site that answers visitors from your published posts and pages only, with links to them. Posts marked “Hide from the site assistant” are never used."}}</p>
   </div>
 </div>
+{{template "ai-tabs" "assistant"}}
 {{template "form-error" $d.Error}}
 {{with $d.Notice}}<div class="alert" data-variant="success">{{icon "circle-check"}}<h2>{{.}}</h2></div>{{end}}
 {{with $d.NewToken}}
@@ -15,7 +16,7 @@
   <section><p>{{T "Send it as “Authorization: Bearer …”. It is shown only now."}}</p><p><code class="mono break-all">{{.}}</code></p></section></div>
 {{end}}
 {{if not $d.AIOn}}<div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The AI provider is off"}}</h2>
-  <section><p>{{T "Answers are written by the provider set up in"}} <a href="/admin/settings/ai">{{T "AI provider"}}</a>. {{T "Turn it on there for visitors to see the chat. Search over MCP works without it."}}</p></section></div>{{end}}
+  <section><p>{{T "Answers are written by the provider set up in"}} <a href="/admin/settings/ai">{{T "AI"}}</a>. {{T "Turn it on there for visitors to see the chat. Search over MCP works without it."}}</p></section></div>{{end}}
 
 <form method="post" action="/admin/settings/assistant" class="stack" data-unsaved>
   {{.CSRFField}}
@@ -99,7 +100,7 @@
     <section class="form">
       <div class="field"><label for="embed_provider">{{T "Provider"}}</label>
         {{$o := list}}{{range $d.Providers}}{{$o = append $o (opt .Code .Name)}}{{end}}{{template "select" (selectbox "id" "embed_provider" "name" "embed_provider" "value" $s.EmbedProvider "options" $o)}}
-        {{if eq $s.EmbedProvider "same"}}<p class="hint">{{T "Now: %s, with the key and address of Settings › AI provider." $d.AIProvider}}</p>{{end}}</div>
+        {{if eq $s.EmbedProvider "same"}}<p class="hint">{{T "Now: %s, with the key and address of AI." $d.AIProvider}}</p>{{end}}</div>
       <div class="field"><label for="embed_base_url">{{T "API address (optional)"}}</label>
         <input class="input mono" id="embed_base_url" name="embed_base_url" value="{{$s.EmbedBaseURL}}" maxlength="300" placeholder="http://127.0.0.1:1234/v1" spellcheck="false" autocapitalize="none">
         <p class="hint">{{T "For OpenAI-compatible servers. Ignored with “The AI provider”."}}</p></div>

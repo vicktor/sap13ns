@@ -365,3 +365,11 @@
 <script type="module" src="{{asset "design-ai.js"}}"></script>
 {{end}}
 {{end}}
+
+{{/* ai-tabs: the pages of the AI section. Data: the current tab. */}}
+{{define "ai-tabs"}}
+<nav class="mb-4 flex w-fit gap-1 rounded-lg bg-muted p-1" aria-label="{{T "AI"}}">
+  <a class="btn" data-size="sm" data-variant="{{if eq . "provider"}}secondary{{else}}ghost{{end}}" href="/admin/settings/ai"{{if eq . "provider"}} aria-current="page"{{end}}>{{icon "wand-sparkles"}}{{T "Provider, models and images"}}</a>
+  <a class="btn" data-size="sm" data-variant="{{if eq . "assistant"}}secondary{{else}}ghost{{end}}" href="/admin/settings/assistant"{{if eq . "assistant"}} aria-current="page"{{end}}>{{icon "message-circle"}}{{T "Site assistant"}}</a>
+</nav>
+{{end}}

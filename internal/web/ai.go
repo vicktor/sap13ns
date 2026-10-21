@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -35,6 +34,9 @@ type aiState struct {
 	provider ai.Provider
 	noImages bool // the provider answered an image request with ErrUnsupported
 	jobs     map[string]*aiJob
+	// The plan's AI (ai_plan.go), looked up at most once a minute.
+	plan   *AIPlan
+	planAt time.Time
 }
 
 type aiJob struct {
@@ -50,11 +52,25 @@ type aiJob struct {
 
 func (s *Server) resetAI() {
 	s.ai.mu.Lock()
-	s.ai.settings, s.ai.provider, s.ai.noImages = nil, nil, false
+	s.ai.settings, s.ai.provider, s.ai.noImages, s.ai.plan = nil, nil, false, nil
 	s.ai.mu.Unlock()
 }
 
+// aiSettings are the AI settings in effect: with the network's AI, off
+// while the site's plan does not include it (ai_plan.go).
 func (s *Server) aiSettings(ctx context.Context) (store.AISettings, error) {
+	st, err := s.aiSettingsSaved(ctx)
+	if err != nil || st.Source != store.AISourceNetwork || !st.Enabled {
+		return st, err
+	}
+	if plan, err := s.aiPlan(ctx); err != nil || !plan.Included() {
+		st.Enabled = false
+	}
+	return st, nil
+}
+
+// aiSettingsSaved are the AI settings as saved.
+func (s *Server) aiSettingsSaved(ctx context.Context) (store.AISettings, error) {
 	s.ai.mu.Lock()
 	cached := s.ai.settings
 	s.ai.mu.Unlock()
@@ -92,17 +108,7 @@ func (s *Server) aiProvider(ctx context.Context) (ai.Provider, store.AISettings,
 	if p != nil {
 		return p, st, nil
 	}
-	key, err := s.aiKey(st)
-	if err != nil {
-		return nil, st, fmt.Errorf("decrypt AI key: %w", err)
-	}
-	cfg := ai.Config{Provider: st.Provider, APIKey: key, BaseURL: st.BaseURL, TextModel: st.TextModel,
-		ImageModel: st.ImageModel, AllowInsecureLocal: st.AllowLocal, NoThinking: st.NoThinking}
-	if st.AllowLocal {
-		cfg.Timeout = 5 * time.Minute // local models on a laptop are slow
-	}
-	p, err = ai.New(cfg, nil)
-	if err != nil {
+	if p, err = s.newAIProvider(ctx, st); err != nil {
 		return nil, st, err
 	}
 	s.ai.mu.Lock()
@@ -139,6 +145,9 @@ func (s *Server) aiAvailable(r *http.Request) bool {
 var errBudget = errors.New("budget exceeded")
 
 func (s *Server) aiBudget(ctx context.Context, st store.AISettings, u *store.User, images int) error {
+	if err := s.aiDaily(ctx, st, images); err != nil {
+		return err
+	}
 	use, err := s.store.AIUsageOf(ctx, u.ID, time.Now())
 	if err != nil {
 		return err
@@ -158,6 +167,7 @@ func (s *Server) aiCharge(r *http.Request, u *store.User, task string, m *ai.Met
 		int64(use.InputTokens), int64(use.OutputTokens), use.Images); err != nil {
 		s.log.Error("ai usage", "err", err)
 	}
+	s.chargeDaily(context.WithoutCancel(r.Context()), use.Requests, use.Images)
 	s.audit(r, u.ID, "ai."+task, ref, map[string]string{"requests": strconv.Itoa(use.Requests),
 		"tokens": strconv.Itoa(use.InputTokens + use.OutputTokens), "images": strconv.Itoa(use.Images)})
 }
@@ -166,19 +176,23 @@ func (s *Server) aiCharge(r *http.Request, u *store.User, task string, m *ai.Met
 func (s *Server) aiErrorMessage(r *http.Request, err error) string {
 	switch {
 	case errors.Is(err, errBudget):
-		return s.tu(r, "You have used this month's AI allowance. An administrator can raise it in Settings → AI provider.")
+		return s.tu(r, "You have used this month's AI allowance. An administrator can raise it in AI.")
+	case errors.Is(err, errAIDaily):
+		return s.tu(r, "The site has used today's AI included in its plan. It starts again tomorrow; with your own provider in AI there is no daily limit.")
+	case errors.Is(err, errAIImagesDaily):
+		return s.tu(r, "The site has made all the images its plan includes today. It starts again tomorrow; with your own provider in AI there is no daily limit.")
 	case errors.Is(err, media.ErrQuota):
 		return s.storageFull(r)
 	case errors.Is(err, ai.ErrAuth):
-		return s.tu(r, "The AI provider rejected the API key. Check Settings → AI provider.")
+		return s.tu(r, "The AI provider rejected the API key. Check AI.")
 	case errors.Is(err, ai.ErrRateLimited):
 		return s.tu(r, "The AI provider is busy (rate limit). Try again in a minute.")
 	case errors.Is(err, ai.ErrUnsupported):
-		return s.tu(r, "This provider or model cannot do that. Choose another model in Settings → AI provider.")
+		return s.tu(r, "This provider or model cannot do that. Choose another model in AI.")
 	case errors.Is(err, ai.ErrRefused):
 		return s.tu(r, "The model declined this request.")
 	case errors.Is(err, ai.ErrThinking):
-		return s.tu(r, "The model used its whole budget thinking. Turn on “Answer without thinking” in Settings → AI provider, or choose a larger model.")
+		return s.tu(r, "The model used its whole budget thinking. Turn on “Answer without thinking” in AI, or choose a larger model.")
 	case errors.Is(err, ai.ErrTruncated):
 		return s.tu(r, "The answer was cut short. Try with a shorter text.")
 	case errors.Is(err, errDesignAITooLong):
@@ -519,16 +533,22 @@ type aiSettingsData struct {
 	Chat       string // the state of the chat on the site: chatOn, chatOff or chatWaiting
 	HasKey     bool
 	Providers  []LangLink
+	ImageProvs []LangLink // "" is the text provider
+	HasImgKey  bool
 	TextModels map[string][]ai.Model
 	ImgModels  map[string][]ai.Model
 	Roles      []string
 	Usage      []store.AIUsage
 	Error      string
 	Notice     string
+	// A site of a network: what its plan includes, and today's use of it.
+	Network bool
+	Plan    AIPlan
+	Today   store.AINetworkUsage
 }
 
 func (s *Server) adminAISettings(w http.ResponseWriter, r *http.Request) {
-	st, err := s.aiSettings(r.Context())
+	st, err := s.aiSettingsSaved(r.Context())
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -537,28 +557,42 @@ func (s *Server) adminAISettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status int, st store.AISettings, msg, notice string) {
-	usage, err := s.store.AIUsageMonth(r.Context(), time.Now())
+	ctx := r.Context()
+	usage, err := s.store.AIUsageMonth(ctx, time.Now())
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	chat, err := s.siteChatState(r.Context())
+	chat, err := s.siteChatState(ctx)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	d := aiSettingsData{S: st, Chat: chat, HasKey: len(st.APIKeyEnc) > 0, Roles: aiRoles, Usage: usage, Error: msg, Notice: notice,
+	d := aiSettingsData{S: st, Chat: chat, HasKey: len(st.APIKeyEnc) > 0, HasImgKey: len(st.ImageKeyEnc) > 0, Roles: aiRoles,
+		Usage: usage, Error: msg, Notice: notice,
 		Providers: []LangLink{{Code: ai.ProviderAnthropic, Name: "Claude (Anthropic)"}, {Code: ai.ProviderOpenAI, Name: s.tu(r, "OpenAI or compatible (Ollama, llama.cpp, OpenRouter…)")},
-			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}},
-		TextModels: map[string][]ai.Model{}, ImgModels: map[string][]ai.Model{}}
+			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}, {Code: ai.ProviderAlibaba, Name: "Qwen (Alibaba Cloud)"}},
+		ImageProvs: []LangLink{{Code: "", Name: s.tu(r, "The same as the text")}, {Code: ai.ProviderOpenAI, Name: "OpenAI (GPT Image)"},
+			{Code: ai.ProviderGemini, Name: "Gemini (Nano Banana)"}, {Code: ai.ProviderAlibaba, Name: "Qwen-Image (Alibaba Cloud)"}},
+		TextModels: map[string][]ai.Model{}, ImgModels: map[string][]ai.Model{}, Network: s.limits != nil}
 	for _, p := range ai.Providers {
 		d.TextModels[p], d.ImgModels[p] = ai.Models(p)
 	}
-	s.renderAdminStatus(w, r, status, "ai_settings", s.tu(r, "AI provider"), "settings", d)
+	if d.Network {
+		if d.Plan, err = s.aiPlan(ctx); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		if d.Today, err = s.store.AINetworkUsageOn(ctx, s.today()); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+	}
+	s.renderAdminStatus(w, r, status, "ai_settings", s.tu(r, "AI"), "ai", d)
 }
 
 func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
-	old, err := s.aiSettings(r.Context())
+	old, err := s.aiSettingsSaved(r.Context())
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -573,7 +607,19 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.MinRole = r.FormValue("min_role")
 	st.MonthlyRequests, st.MonthlyImages = formInt(r, "monthly_requests", 0), formInt(r, "monthly_images", 0)
 	st.ImageStyle = trimmed(r, "image_style")
+	st.Source = r.FormValue("source")
+	st.ImageProvider = r.FormValue("image_provider")
+	st.ImageBaseURL = strings.TrimRight(trimmed(r, "image_base_url"), "/")
 	fail := func(msg string) { s.renderAISettings(w, r, http.StatusUnprocessableEntity, st, msg, "") }
+	if st.Source == store.AISourceNetwork {
+		if plan, err := s.aiPlan(r.Context()); err != nil {
+			s.serverError(w, r, err)
+			return
+		} else if !plan.Included() {
+			fail(s.tu(r, "The site's plan does not include the network's AI. Use your own provider, or move to a paid plan."))
+			return
+		}
+	}
 	// The rules are shared with restores (sitecheck).
 	if bad := sitecheck.AI(st); len(bad) > 0 {
 		switch bad[0] {
@@ -585,6 +631,10 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 			fail(s.tu(r, "Invalid number."))
 		case "base_url":
 			fail(s.tu(r, "The address must start with https:// (or http://localhost with local models allowed)."))
+		case "image_base_url":
+			fail(s.tu(r, "The address must start with https://."))
+		case "source", "image_provider":
+			fail(s.tu(r, "Choose a provider."))
 		default:
 			fail(s.tu(r, "The text is too long."))
 		}
@@ -604,6 +654,20 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	} else if r.FormValue("remove_key") == "1" || st.Provider != old.Provider {
 		st.APIKeyEnc = nil
 	}
+	if key := strings.TrimSpace(r.FormValue("image_api_key")); key != "" && st.ImageProvider != "" {
+		if len(key) > 500 {
+			fail(s.tu(r, "The text is too long."))
+			return
+		}
+		enc, err := s.keys.Encrypt([]byte(key), []byte("ai-image-key"))
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		st.ImageKeyEnc = enc
+	} else if r.FormValue("remove_image_key") == "1" || st.ImageProvider != old.ImageProvider {
+		st.ImageKeyEnc = nil
+	}
 	if err := s.store.SaveAISettings(r.Context(), st); err != nil {
 		s.serverError(w, r, err)
 		return
@@ -612,7 +676,8 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	if st.Enabled != old.Enabled {
 		s.contentChanged() // the site's chat shows or hides with the provider
 	}
-	s.audit(r, uid(r), "settings.ai_saved", st.Provider, map[string]string{"enabled": strconv.FormatBool(st.Enabled)})
+	s.audit(r, uid(r), "settings.ai_saved", st.Provider, map[string]string{"enabled": strconv.FormatBool(st.Enabled),
+		"source": st.Source, "image_provider": st.ImageProvider})
 	if r.FormValue("test") == "1" {
 		p, _, err := s.aiProvider(r.Context())
 		if err == nil && p == nil {

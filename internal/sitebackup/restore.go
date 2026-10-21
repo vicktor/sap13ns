@@ -963,10 +963,14 @@ func applySettings(ctx context.Context, st *store.Store, side *sidecar, o Restor
 		if next.Provider == cur.Provider && next.BaseURL == cur.BaseURL {
 			next.APIKeyEnc = cur.APIKeyEnc
 		} else if len(cur.APIKeyEnc) > 0 {
-			rep.warn("the writing assistant's API key was removed: the backup uses another provider or address; enter its key in Settings → AI provider")
+			rep.warn("the writing assistant's API key was removed: the backup uses another provider or address; enter its key in AI")
 		}
-		if next.Enabled && len(next.APIKeyEnc) == 0 {
-			rep.warn("the writing assistant is on, but API keys are not in backups: enter the key again in Settings → AI provider")
+		next.ImageKeyEnc = nil
+		if next.ImageProvider != "" && next.ImageProvider == cur.ImageProvider && next.ImageBaseURL == cur.ImageBaseURL {
+			next.ImageKeyEnc = cur.ImageKeyEnc
+		}
+		if next.Enabled && next.Source == "" && len(next.APIKeyEnc) == 0 {
+			rep.warn("the writing assistant is on, but API keys are not in backups: enter the key again in AI")
 		}
 		if err := st.SaveAISettings(ctx, next); err != nil {
 			return set, err

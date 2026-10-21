@@ -48,7 +48,7 @@ func TestPortalPlans(t *testing.T) {
 		t.Fatalf("without billing: %+v", views)
 	}
 	want := []PlanFeature{{Text: "1 site"}, {Text: "An address under %s", Arg: "sap13ns.site"}, {Text: "%s storage", Arg: "1 GB"},
-		{Text: "Plugins from the network's catalogue"}, {Text: "Reviewed by a person before it goes live"}}
+		{Text: "Plugins from the network's catalogue"}, {Text: "AI with your own provider and key"}, {Text: "Reviewed by a person before it goes live"}}
 	if !reflect.DeepEqual(views[0].Features, want) {
 		t.Fatalf("personal features: %+v", views[0].Features)
 	}
@@ -84,7 +84,7 @@ func TestPortalPlans(t *testing.T) {
 		t.Fatalf("business: only a yearly price, VAT added: %+v", business)
 	}
 	want = []PlanFeature{{Text: "1 site"}, {Text: "Up to %s custom domains with HTTPS", Arg: "2"}, {Text: "%s storage", Arg: "10 GB"},
-		{Text: "Upload your own plugins, reviewed before they run"}, {Text: "Upload your own themes"}}
+		{Text: "Upload your own plugins, reviewed before they run"}, {Text: "Upload your own themes"}, {Text: "AI with your own provider and key"}}
 	if !reflect.DeepEqual(pro.Features, want) {
 		t.Fatalf("pro features: %+v", pro.Features)
 	}

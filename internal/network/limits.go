@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sap13ns/internal/ai"
 	"strconv"
 	"time"
 
@@ -131,6 +132,26 @@ func (h siteHooks) ThemePolicy(ctx context.Context) (web.ThemePolicy, error) {
 		return web.ThemePolicy{}, err
 	}
 	return web.ThemePolicy{Plan: p.Name, Uploads: p.ThemeUploads}, nil
+}
+
+func (h siteHooks) AIPlan(ctx context.Context) (web.AIPlan, error) {
+	s, err := h.r.net.Site(ctx, h.id)
+	if err != nil {
+		return web.AIPlan{}, err
+	}
+	p, err := h.r.net.Plan(ctx, s.Plan)
+	if err != nil {
+		return web.AIPlan{}, err
+	}
+	out := web.AIPlan{Plan: p.Name, Paid: p.Paid, RequestsPerDay: p.AIRequestsPerDay, ImagesPerDay: p.AIImagesPerDay}
+	if n := h.r.cfg.NetworkAI; n.Enabled() && p.Paid {
+		out.Text = &ai.Config{Provider: n.Provider, APIKey: n.APIKey, BaseURL: n.BaseURL, TextModel: n.TextModel, ImageModel: n.ImageModel}
+		if n.ImageProvider != "" {
+			out.Image = &ai.Config{Provider: n.ImageProvider, APIKey: n.ImageAPIKey, BaseURL: n.ImageBaseURL, ImageModel: n.ImageModel}
+			out.Text.ImageModel = ""
+		}
+	}
+	return out, nil
 }
 
 func (h siteHooks) NetworkAdmin(ctx context.Context, accountID int64) (bool, error) {

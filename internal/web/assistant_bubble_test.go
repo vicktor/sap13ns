@@ -277,8 +277,8 @@ func TestChatStateInAdmin(t *testing.T) {
 	} {
 		e.setChat(c.assistant, c.ai, nil)
 		page := e.get("/admin/settings/ai", e.admin).Body.String()
-		if !strings.Contains(page, "<h1>"+tr("AI provider")+"</h1>") {
-			t.Error("the AI page is not called AI provider")
+		if !strings.Contains(page, "<h1>"+tr("AI")+"</h1>") {
+			t.Error("the AI page is not called AI")
 		}
 		got := alert.FindString(page)
 		switch {
@@ -303,7 +303,7 @@ func TestChatStateInAdmin(t *testing.T) {
 	}
 	// The settings menu names the page the same way.
 	if body := e.get("/admin/settings", e.admin).Body.String(); !strings.Contains(body, `<a href="/admin/settings/ai">`) ||
-		!strings.Contains(body, tr("AI provider")+"</a>") {
-		t.Error("the settings menu does not say AI provider")
+		!strings.Contains(body, tr("AI")+"</a>") {
+		t.Error("the settings menu does not say AI")
 	}
 }

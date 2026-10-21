@@ -471,7 +471,7 @@ func (w *writer) sidecar(ctx context.Context, st *store.Store, o Options, m *Man
 	if err != nil {
 		return err
 	}
-	ai.APIKeyEnc = nil
+	ai.APIKeyEnc, ai.ImageKeyEnc = nil, nil
 	as, err := st.AssistantSettings(ctx)
 	if err != nil {
 		return err

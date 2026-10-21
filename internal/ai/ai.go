@@ -37,9 +37,10 @@ const (
 	ProviderAnthropic = "anthropic"
 	ProviderOpenAI    = "openai" // any OpenAI-compatible server
 	ProviderGemini    = "gemini"
+	ProviderAlibaba   = "alibaba" // Alibaba Cloud Model Studio: Qwen
 )
 
-var Providers = []string{ProviderAnthropic, ProviderOpenAI, ProviderGemini}
+var Providers = []string{ProviderAnthropic, ProviderOpenAI, ProviderGemini, ProviderAlibaba}
 
 // Provider is one configured AI backend.
 type Provider interface {
@@ -231,6 +232,17 @@ var catalog = map[string]struct{ text, image []Model }{
 			{"gemini-3.1-flash-lite-image", "Gemini 3.1 Flash-Lite Image"},
 		},
 	},
+	ProviderAlibaba: {
+		text: []Model{
+			{"qwen-plus", "Qwen Plus"},
+			{"qwen3-max", "Qwen3 Max"},
+			{"qwen-flash", "Qwen Flash"},
+		},
+		image: []Model{
+			{"qwen-image-2.0-pro", "Qwen-Image 2.0 Pro"},
+			{"qwen-image-2.0", "Qwen-Image 2.0"},
+		},
+	},
 }
 
 // Models lists the known models of a provider, the default first. Other IDs
@@ -306,6 +318,8 @@ func New(cfg Config, client *http.Client) (Provider, error) {
 		defaultBase = "https://api.openai.com/v1"
 	case ProviderGemini:
 		defaultBase = "https://generativelanguage.googleapis.com/v1beta"
+	case ProviderAlibaba:
+		defaultBase = alibabaBase
 	default:
 		return nil, fmt.Errorf("unknown AI provider %q", cfg.Provider)
 	}
@@ -336,6 +350,10 @@ func New(cfg Config, client *http.Client) (Provider, error) {
 		return &openAI{t: t, base: cfg.BaseURL, model: cfg.TextModel, imageModel: cfg.ImageModel,
 			official: u.Hostname() == "api.openai.com", noThinking: cfg.NoThinking,
 			embedModel: cfg.EmbedModel, embedDims: cfg.EmbedDimensions}, nil
+	case ProviderAlibaba:
+		root := alibabaRoot(cfg.BaseURL)
+		return &alibaba{openAI: &openAI{t: t, base: root + "/compatible-mode/v1", model: cfg.TextModel,
+			embedModel: cfg.EmbedModel, embedDims: cfg.EmbedDimensions}, root: root, imageModel: cfg.ImageModel}, nil
 	default:
 		return &gemini{t: t, base: cfg.BaseURL, model: strings.TrimPrefix(cfg.TextModel, "models/"),
 			imageModel: strings.TrimPrefix(cfg.ImageModel, "models/"),

@@ -17,6 +17,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"sap13ns/internal/ai"
 	"strconv"
 	"time"
 
@@ -51,7 +52,24 @@ type SiteLimits interface {
 	// NetworkAdmin reports whether an account of the portal is a network
 	// admin, who uploads themes to a site whatever its plan.
 	NetworkAdmin(ctx context.Context, accountID int64) (bool, error)
+	// AIPlan is the AI the plan includes now.
+	AIPlan(ctx context.Context) (AIPlan, error)
 }
+
+// AIPlan is the network's AI as a site's plan gives it: on a paid plan of
+// a network that has an AI provider, Text (and Image, for images from
+// another provider) configure it, within the daily allowances. Without
+// it, the site uses AI only with its own provider and key.
+type AIPlan struct {
+	Plan           string // its name
+	Paid           bool
+	Text, Image    *ai.Config // nil: none
+	RequestsPerDay int
+	ImagesPerDay   int
+}
+
+// Included reports whether the plan gives the network's AI.
+func (p AIPlan) Included() bool { return p.Paid && p.Text != nil }
 
 // ThemePolicy is the theme policy of a site's plan.
 type ThemePolicy struct {

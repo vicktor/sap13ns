@@ -8,11 +8,18 @@ import (
 	"sap13ns/internal/store"
 )
 
-// The fields of Settings → AI provider, in the order of its checks.
+// The fields of AI, in the order of its checks.
 var aiFields = func() []field[store.AISettings] {
 	type S = store.AISettings
 	return []field[S]{
+		{"source", func(s *S) bool { return s.Source == "" || s.Source == store.AISourceNetwork }, func(d, s *S) { d.Source = s.Source }},
 		{"provider", func(s *S) bool { return slices.Contains(ai.Providers, s.Provider) }, func(d, s *S) { d.Provider = s.Provider }},
+		{"image_provider", func(s *S) bool {
+			return s.ImageProvider == "" || s.ImageProvider != ai.ProviderAnthropic && slices.Contains(ai.Providers, s.ImageProvider)
+		}, func(d, s *S) { d.ImageProvider = s.ImageProvider }},
+		{"image_base_url", func(s *S) bool {
+			return s.ImageBaseURL == "" || len(s.ImageBaseURL) <= 300 && ServiceURL(s.ImageBaseURL, false)
+		}, func(d, s *S) { d.ImageBaseURL = s.ImageBaseURL }},
 		{"min_role", func(s *S) bool { return slices.Contains(AIRoles, s.MinRole) }, func(d, s *S) { d.MinRole = s.MinRole }},
 		{"monthly_requests", func(s *S) bool { return s.MonthlyRequests >= 0 && s.MonthlyRequests <= 1_000_000 },
 			func(d, s *S) { d.MonthlyRequests = s.MonthlyRequests }},

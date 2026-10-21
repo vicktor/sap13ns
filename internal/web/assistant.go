@@ -249,8 +249,17 @@ func (s *Server) admitQuestion(r *http.Request, as store.AssistantSettings, ques
 	if err != nil {
 		return err
 	}
+	busy := &assistantError{http.StatusTooManyRequests, s.i18n.T(lang, "The assistant has answered all the questions it can for now. Please come back later.")}
 	if as.DailyRequests > 0 && day.Requests >= as.DailyRequests || as.MonthlyRequests > 0 && month.Requests >= as.MonthlyRequests {
-		return &assistantError{http.StatusTooManyRequests, s.i18n.T(lang, "The assistant has answered all the questions it can for now. Please come back later.")}
+		return busy
+	}
+	// The network's AI: within the plan's requests of the day.
+	if aiSt, err := s.aiSettings(r.Context()); err != nil {
+		return err
+	} else if err := s.aiDaily(r.Context(), aiSt, 0); errors.Is(err, errAIDaily) {
+		return busy
+	} else if err != nil {
+		return err
 	}
 	return s.store.AddAssistantUsage(r.Context(), now, 1, 0, 0, 0)
 }
@@ -278,6 +287,7 @@ func (s *Server) chargeAssistant(m *ai.Metered, embeddings int) {
 	if err := s.store.AddAssistantUsage(context.Background(), time.Now(), 0, int64(u.InputTokens), int64(u.OutputTokens), embeddings); err != nil {
 		s.log.Error("assistant usage", "err", err)
 	}
+	s.chargeDaily(context.Background(), u.Requests, 0)
 }
 
 // apiAssistant answers POST /api/assistant. It takes JSON only (cross-site
@@ -518,7 +528,7 @@ func (s *Server) renderAssistantSettings(w http.ResponseWriter, r *http.Request,
 	d := assistantSettingsData{S: st, Langs: s.extraLangs(), Texts: map[string]assistantTextForm{}, HasKey: len(st.EmbedKeyEnc) > 0,
 		AIOn: aiSt.Enabled, State: chatState(saved.Enabled, aiSt.Enabled),
 		AIProvider: aiSt.Provider, MCPURL: s.cfg.AbsURL("/mcp"), NewToken: token, Error: msg, Notice: notice,
-		Providers: []LangLink{{Code: "same", Name: s.tu(r, "The AI provider (Settings › AI provider)")},
+		Providers: []LangLink{{Code: "same", Name: s.tu(r, "The AI provider (AI)")},
 			{Code: ai.ProviderOpenAI, Name: s.tu(r, "OpenAI or compatible (LM Studio, Ollama, llama.cpp…)")},
 			{Code: ai.ProviderGemini, Name: "Gemini (Google)"}, {Code: "none", Name: s.tu(r, "None: full-text search only")}}}
 	for _, p := range []string{ai.ProviderOpenAI, ai.ProviderGemini} {

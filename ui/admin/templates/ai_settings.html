@@ -3,11 +3,11 @@
 {{$d := .D}}{{$s := $d.S}}
 <div class="page-header">
   <div>
-    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
-    <h1>{{T "AI provider"}}</h1>
-    <p>{{T "The language model behind the writing help in the editor (summaries, SEO, translations, images) and the answers of the chat on your site. Texts go to the provider you choose only when someone presses a button in the editor or a visitor asks the chat a question."}}</p>
+    <h1>{{T "AI"}}</h1>
+    <p>{{T "The language model behind the writing help in the editor (summaries, SEO, translations, images), Design with AI and the answers of the chat on your site. Texts go to the provider only when someone presses a button in the editor or a visitor asks the chat a question."}}</p>
   </div>
 </div>
+{{template "ai-tabs" "provider"}}
 {{template "form-error" $d.Error}}
 {{with $d.Notice}}<div class="alert" data-variant="success">{{icon "circle-check"}}<h2>{{.}}</h2></div>{{end}}
 {{if eq $d.Chat "off"}}<div class="alert" data-chat-alert>{{icon "message-circle"}}<h2>{{T "The chat on your site is off."}}</h2>
@@ -17,27 +17,62 @@
 <form method="post" action="/admin/settings/ai" class="stack" data-unsaved>
   {{.CSRFField}}
   <section class="card">
-    <header><h2>{{T "Provider"}}</h2></header>
+    <header><h2>{{T "Where the AI comes from"}}</h2></header>
     <section class="form">
-      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Turn on the AI provider"}}</label>
+      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{T "Turn on AI on this site"}}</label>
+      {{if $d.Network}}{{$p := $d.Plan}}
+      <fieldset class="field ai-source" data-ai-source>
+        <legend class="sr-only">{{T "Where the AI comes from"}}</legend>
+        <label class="check ai-choice"><input type="radio" class="input" name="source" value="network"{{if eq $s.Source "network"}} checked{{end}}{{if not $p.Included}} disabled{{end}}>
+          <span><strong>{{T "The AI included in your plan"}}</strong>
+          {{if $p.Included}}<span class="hint block">{{T "Nothing to set up. %s includes %d requests and %d images a day for the whole site." $p.Plan $p.RequestsPerDay $p.ImagesPerDay}}{{if eq $s.Source "network"}} {{T "Today: %d requests and %d images." $d.Today.Requests $d.Today.Images}}{{end}}</span>
+          {{else if $p.Paid}}<span class="hint block">{{T "This network does not offer AI of its own yet."}}</span>
+          {{else}}<span class="hint block">{{T "Available on the paid plans. On %s, use AI with your own provider and key." $p.Plan}}</span>{{end}}</span></label>
+        <label class="check ai-choice"><input type="radio" class="input" name="source" value=""{{if ne $s.Source "network"}} checked{{end}}>
+          <span><strong>{{T "Your own provider and key"}}</strong><span class="hint block">{{T "Any plan, with every AI feature and no daily limit: you pay the provider."}}</span></span></label>
+      </fieldset>
+      {{end}}
+    </section>
+  </section>
+  <section class="card" data-ai-own>
+    <header><h2>{{T "Text: provider and model"}}</h2><p>{{T "Writes summaries, SEO, translations, designs and the chat's answers."}}</p></header>
+    <section class="form">
       <div class="field"><label for="provider">{{T "Provider"}}</label>
         {{$o := list}}{{range $d.Providers}}{{$o = append $o (opt .Code .Name)}}{{end}}{{template "select" (selectbox "id" "provider" "name" "provider" "value" $s.Provider "options" $o)}}</div>
       <div class="field"><label for="api_key">{{T "API key"}}</label>
         <input class="input mono" id="api_key" name="api_key" type="password" autocomplete="off" maxlength="500" placeholder="{{if $d.HasKey}}{{T "Saved (leave empty to keep it)"}}{{end}}">
         <p class="hint">{{T "Stored encrypted. Local servers (Ollama, llama.cpp) may not need one."}}</p>
         {{if $d.HasKey}}<label class="check"><input type="checkbox" class="input" name="remove_key" value="1"> {{T "Remove the saved key"}}</label>{{end}}</div>
-      <div class="field"><label for="base_url">{{T "API address (optional)"}}</label>
-        <input class="input mono" id="base_url" name="base_url" value="{{$s.BaseURL}}" maxlength="300" placeholder="http://127.0.0.1:11434/v1" spellcheck="false" autocapitalize="none">
-        <p class="hint">{{T "Only for OpenAI-compatible servers or proxies. Empty uses the provider's public API."}}</p></div>
-      <label class="check"><input type="checkbox" class="input" role="switch" name="allow_local" value="1"{{if $s.AllowLocal}} checked{{end}}> {{T "Allow plain http:// to this machine (local models)"}}</label>
-      <div class="field"><label class="check"><input type="checkbox" class="input" role="switch" name="no_thinking" value="1"{{if $s.NoThinking}} checked{{end}}> {{T "Answer without thinking (local models)"}}</label>
-        <p class="hint">{{T "Much faster with reasoning models such as Qwen or GLM on llama.cpp and vLLM. In LM Studio, turn thinking off in the model's settings instead."}}</p></div>
-      <div class="grid-2">
-        <div class="field"><label for="text_model">{{T "Text model"}}</label><input class="input mono" id="text_model" name="text_model" value="{{$s.TextModel}}" list="text-models" maxlength="100" placeholder="{{T "Default"}}"></div>
-        <div class="field"><label for="image_model">{{T "Image model"}}</label><input class="input mono" id="image_model" name="image_model" value="{{$s.ImageModel}}" list="image-models" maxlength="100" placeholder="{{T "Default"}}"></div>
-      </div>
+      <div class="field"><label for="text_model">{{T "Text model"}}</label><input class="input mono" id="text_model" name="text_model" value="{{$s.TextModel}}" list="text-models" maxlength="100" placeholder="{{T "Default"}}"></div>
+      <details class="ai-advanced">
+        <summary>{{T "Advanced: own servers and local models"}}</summary>
+        <div class="field"><label for="base_url">{{T "API address (optional)"}}</label>
+          <input class="input mono" id="base_url" name="base_url" value="{{$s.BaseURL}}" maxlength="300" placeholder="http://127.0.0.1:11434/v1" spellcheck="false" autocapitalize="none">
+          <p class="hint">{{T "Only for OpenAI-compatible servers, proxies or another region (Alibaba Cloud: your workspace's address). Empty uses the provider's public API."}}</p></div>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="allow_local" value="1"{{if $s.AllowLocal}} checked{{end}}> {{T "Allow plain http:// to this machine (local models)"}}</label>
+        <div class="field"><label class="check"><input type="checkbox" class="input" role="switch" name="no_thinking" value="1"{{if $s.NoThinking}} checked{{end}}> {{T "Answer without thinking (local models)"}}</label>
+          <p class="hint">{{T "Much faster with reasoning models such as Qwen or GLM on llama.cpp and vLLM. In LM Studio, turn thinking off in the model's settings instead."}}</p></div>
+      </details>
       <datalist id="text-models">{{range $p, $ms := $d.TextModels}}{{range $ms}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}</datalist>
-      <datalist id="image-models">{{range $p, $ms := $d.ImgModels}}{{range $ms}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}</datalist>
+    </section>
+  </section>
+  <section class="card">
+    <header><h2>{{T "Images"}}</h2><p>{{T "Header and inline images the editor generates."}}</p></header>
+    <section class="form">
+      <div data-ai-own>
+        <div class="field"><label for="image_provider">{{T "Image provider"}}</label>
+          {{$o := list}}{{range $d.ImageProvs}}{{$o = append $o (opt .Code .Name)}}{{end}}{{template "select" (selectbox "id" "image_provider" "name" "image_provider" "value" $s.ImageProvider "options" $o)}}
+          <p class="hint">{{T "Claude writes but does not draw: pair it with Qwen-Image, GPT Image or Gemini for the images."}}</p></div>
+        <div data-image-own>
+          <div class="field"><label for="image_api_key">{{T "Image provider's API key"}}</label>
+            <input class="input mono" id="image_api_key" name="image_api_key" type="password" autocomplete="off" maxlength="500" placeholder="{{if $d.HasImgKey}}{{T "Saved (leave empty to keep it)"}}{{end}}">
+            {{if $d.HasImgKey}}<label class="check"><input type="checkbox" class="input" name="remove_image_key" value="1"> {{T "Remove the saved key"}}</label>{{end}}</div>
+          <div class="field"><label for="image_base_url">{{T "API address (optional)"}}</label>
+            <input class="input mono" id="image_base_url" name="image_base_url" value="{{$s.ImageBaseURL}}" maxlength="300" placeholder="https://dashscope-intl.aliyuncs.com" spellcheck="false" autocapitalize="none"></div>
+        </div>
+        <div class="field"><label for="image_model">{{T "Image model"}}</label><input class="input mono" id="image_model" name="image_model" value="{{$s.ImageModel}}" list="image-models" maxlength="100" placeholder="{{T "Default"}}"></div>
+        <datalist id="image-models">{{range $p, $ms := $d.ImgModels}}{{range $ms}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}</datalist>
+      </div>
       <div class="field"><label for="image_style">{{T "House style for images"}}</label><textarea class="textarea" id="image_style" name="image_style" rows="2" maxlength="500" placeholder="{{T "e.g. flat editorial illustration, soft violet and teal palette"}}">{{$s.ImageStyle}}</textarea></div>
     </section>
   </section>
@@ -63,4 +98,5 @@
     <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
   </div>
 </form>
+<script src="{{asset "ai-settings.js"}}" defer></script>
 {{end}}

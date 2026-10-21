@@ -172,10 +172,14 @@ type Plan struct {
 	PluginUploads bool   `db:"plugin_uploads"`
 	ThemeUploads  bool   `db:"theme_uploads"`
 	Position      int    `db:"position"`
+	// What the network's AI gives a site of the plan each day (paid
+	// plans only).
+	AIRequestsPerDay int `db:"ai_requests_per_day"`
+	AIImagesPerDay   int `db:"ai_images_per_day"`
 }
 
 const planCols = `slug, name, paid, hand_approved, commercial, sites_per_grant, storage_bytes, custom_domains,
-	plugin_uploads, theme_uploads, position`
+	plugin_uploads, theme_uploads, position, ai_requests_per_day, ai_images_per_day`
 
 func (n *Network) Plans(ctx context.Context) ([]Plan, error) {
 	rows, err := n.db.Query(ctx, `SELECT `+planCols+` FROM plans ORDER BY position, slug`)

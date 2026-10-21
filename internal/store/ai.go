@@ -10,8 +10,12 @@ import (
 // Settings because they hold the provider's API key, encrypted with the
 // server secret (APIKey is never filled in by the store).
 type AISettings struct {
-	Enabled    bool   `json:"enabled"`
-	Provider   string `json:"provider"` // "anthropic", "openai" or "gemini"
+	Enabled bool `json:"enabled"`
+	// Source is where the AI comes from: "" the site's own provider and
+	// key below, or "network" the provider of the network the site is on,
+	// which its plan includes (internal/web SiteLimits.AIPlan).
+	Source     string `json:"source,omitempty"`
+	Provider   string `json:"provider"` // "anthropic", "openai", "gemini" or "alibaba"
 	APIKeyEnc  []byte `json:"api_key_enc,omitempty"`
 	BaseURL    string `json:"base_url"`
 	TextModel  string `json:"text_model"`
@@ -23,7 +27,15 @@ type AISettings struct {
 	MonthlyRequests int    `json:"monthly_requests"`
 	MonthlyImages   int    `json:"monthly_images"`
 	ImageStyle      string `json:"image_style"`
+	// ImageProvider makes the images with another provider than the text:
+	// "" the same one, or a provider with its own key and base URL.
+	ImageProvider string `json:"image_provider,omitempty"`
+	ImageKeyEnc   []byte `json:"image_key_enc,omitempty"`
+	ImageBaseURL  string `json:"image_base_url,omitempty"`
 }
+
+// AISourceNetwork is AISettings.Source for the network's provider.
+const AISourceNetwork = "network"
 
 const aiSettingsKey = "ai"
 
@@ -85,4 +97,33 @@ func (s *Store) AIUsageMonth(ctx context.Context, at time.Time) ([]AIUsage, erro
 	return collect[AIUsage](s.DB.Query(ctx, `SELECT a.month, a.user_id, coalesce(nullif(u.display_name, ''), u.username) AS user_name,
 		a.requests, a.input_tokens, a.output_tokens, a.images
 		FROM ai_usage a JOIN users u ON u.id = a.user_id WHERE a.month = $1 ORDER BY a.requests DESC`, monthOf(at)))
+}
+
+// AINetworkUsage is a site's use of the network's AI on one day.
+type AINetworkUsage struct {
+	Requests int
+	Images   int
+}
+
+// AINetworkUsageOn returns the use of the network's AI on day (a date,
+// in the site's time zone).
+func (s *Store) AINetworkUsageOn(ctx context.Context, day time.Time) (AINetworkUsage, error) {
+	var u AINetworkUsage
+	err := s.DB.QueryRow(ctx, `SELECT requests, images FROM ai_network_usage WHERE day = $1`, dateOf(day)).Scan(&u.Requests, &u.Images)
+	if err != nil && !errors.Is(mapErr(err), ErrNotFound) {
+		return u, err
+	}
+	return u, nil
+}
+
+// AddAINetworkUsage counts requests and images on day.
+func (s *Store) AddAINetworkUsage(ctx context.Context, day time.Time, requests, images int) error {
+	_, err := s.DB.Exec(ctx, `INSERT INTO ai_network_usage (day, requests, images) VALUES ($1, $2, $3)
+		ON CONFLICT (day) DO UPDATE SET requests = ai_network_usage.requests + EXCLUDED.requests,
+			images = ai_network_usage.images + EXCLUDED.images`, dateOf(day), requests, images)
+	return err
+}
+
+func dateOf(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }

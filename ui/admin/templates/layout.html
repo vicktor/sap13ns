@@ -92,7 +92,7 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
         {{template "nav-group-head" (dict "ID" "admin" "Label" (T "Administration"))}}
         <ul id="nav-admin-items">
           {{if .Can "plugins.manage"}}{{template "nav-item" (dict "URL" "/admin/plugins" "Icon" "puzzle" "Label" (T "Plugins") "Current" (.Active "plugins"))}}{{end}}
-          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings/assistant" "Icon" "message-circle" "Label" (T "Site assistant") "Current" (.Active "assistant"))}}{{end}}
+          {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings/ai" "Icon" "wand-sparkles" "Label" (T "AI") "Current" (or (.Active "ai") (.Active "assistant")))}}{{end}}
           {{if .Can "users.manage"}}{{template "nav-item" (dict "URL" "/admin/users" "Icon" "users" "Label" (T "Users") "Current" (.Active "users"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/settings" "Icon" "settings" "Label" (T "Settings") "Current" (.Active "settings"))}}{{end}}
           {{if .Can "settings.manage"}}{{template "nav-item" (dict "URL" "/admin/tools/redirects" "Icon" "arrow-right-left" "Label" (T "Redirects") "Current" (.Active "redirects"))}}

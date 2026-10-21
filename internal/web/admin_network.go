@@ -148,6 +148,9 @@ type NetPlan struct {
 	CustomDomains int
 	PluginUploads bool
 	ThemeUploads  bool
+	// The network's AI each day (0 when the network has none).
+	AIRequestsPerDay int
+	AIImagesPerDay   int
 }
 
 type NetAdmin struct {

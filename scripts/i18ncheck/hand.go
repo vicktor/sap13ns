@@ -28,7 +28,8 @@ var handSources = []struct {
 		From: "internal/assistant/engine.go",
 		Keys: []string{
 			"embeddings are off: full-text search only",
-			"the AI provider is switched off (Settings › AI provider)",
+			"the AI provider is switched off (AI)",
+			"the network's AI does not make embeddings: choose an embeddings provider",
 			"Claude has no embeddings API: choose an embeddings provider",
 			"pgvector is not available: full-text search only",
 		},
