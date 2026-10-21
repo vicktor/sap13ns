@@ -280,6 +280,27 @@ func (h portalHooks) RequestSite(ctx context.Context, accountID int64, slug stri
 	return &out, err
 }
 
+func (h portalHooks) SiteGrants(ctx context.Context, accountID int64) ([]web.NetGrant, error) {
+	grants, err := h.r.net.Grants(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	var out []web.NetGrant
+	for _, g := range grants {
+		out = append(out, web.NetGrant{SubscriptionID: g.SubscriptionID, PlanName: g.PlanName, Used: g.Used, Total: g.Total})
+	}
+	return out, nil
+}
+
+func (h portalHooks) AddGrantSite(ctx context.Context, accountID, subscriptionID int64, slug string) (*web.NetSite, error) {
+	s, err := h.r.net.AddGrantSite(ctx, accountID, subscriptionID, slug)
+	if err != nil {
+		return nil, webErr(err)
+	}
+	out, err := h.netSite(ctx, s)
+	return &out, err
+}
+
 // ------------------------------------------------------------- billing --
 
 var _ web.PortalBilling = portalHooks{}

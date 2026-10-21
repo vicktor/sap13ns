@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.11.0 — 2026-10-21
+
+- **Business covers two sites.** One Business subscription now pays for two independent sites, each with its own content, users, domains and limits. The owner creates the second one in **My sites → Add a site to your Business plan**. It opens at once, with no other payment and no approval. Upgrading a Personal site to Business also joins a subscription with room. The pricing table lists "2 sites".
+- **A plan change to one with fewer sites** (Business to Pro) keeps the oldest site on the subscription and moves the others to the free plan.
+- **Deleted sites no longer take a place** on a subscription.
+
 ## v0.10.1 — 2026-10-21
 
 - **The sap13ns theme is version 1.1.0.** A site still running the uploaded 1.0.0 shows an empty line on the pricing table for "AI included, with N images a day", a feature added in v0.9.0. Upload the theme again to show it. A test now covers that feature too.

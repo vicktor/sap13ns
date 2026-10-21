@@ -222,13 +222,13 @@ The inert instance is unloaded when the emergency access ends, within a minute o
 
 Plans are rows of `network.plans`. **Network → Plans** lists them. The network starts with three:
 
-| Plan | Price | Approval | Storage | Custom domains | Plugin uploads | Theme uploads |
-|---|---|---|---|---|---|---|
-| Personal | free, non-commercial | by a network administrator | 1 GB | 0 | no (the catalogue and the official plugins) | no |
-| Pro | Stripe subscription | none | 10 GB | 2 | yes, reviewed | yes, checked, not reviewed |
-| Business | Stripe subscription | none | 50 GB | 2 | yes, reviewed | yes, checked, not reviewed |
+| Plan | Price | Sites | Approval | Storage | Custom domains | Plugin uploads | Theme uploads |
+|---|---|---|---|---|---|---|---|
+| Personal | free, non-commercial | 1 per account | by a network administrator | 1 GB | 0 | no (the catalogue and the official plugins) | no |
+| Pro | Stripe subscription | 1 per subscription | none | 10 GB | 2 | yes, reviewed | yes, checked, not reviewed |
+| Business | Stripe subscription | 2 per subscription | none | 50 GB | 2 | yes, reviewed | yes, checked, not reviewed |
 
-**One subscription is one site.** Each account may have one Personal site.
+**Sites per subscription** (`sites_per_grant` of `network.plans`). Each account may have one Personal site. A Business subscription covers two independent sites, each with its own content, users, domains and limits: the owner creates the second one in **My sites → Add a site to your Business plan**, and it opens at once, without another payment or approval. Upgrading a Personal site to Business also joins a subscription with room instead of opening Checkout. Both sites share the subscription's state: a failed renewal or a cancellation holds both. When the plan changes to one with fewer sites (Business to Pro), the oldest sites stay on it and the others move to the free plan.
 
 **Billing** is off until `SAP13NS_STRIPE_SECRET_KEY` is set. The network then has Personal sites, plus any site an operator creates on another plan with `site create -plan`. With Stripe, an owner upgrades a site from **My sites**:
 1. Stripe Checkout takes the payment.

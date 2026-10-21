@@ -161,7 +161,7 @@ func TestMigrate(t *testing.T) {
 	if p := plans[0]; p.Slug != "personal" || p.Paid || !p.HandApproved || p.SitesPerGrant != 1 || p.StorageBytes != 1<<30 || p.CustomDomains != 0 {
 		t.Fatalf("personal plan: %+v", p)
 	}
-	if p := plans[2]; p.Slug != "business" || !p.Paid || p.HandApproved || p.SitesPerGrant != 1 || !p.PluginUploads {
+	if p := plans[2]; p.Slug != "business" || !p.Paid || p.HandApproved || p.SitesPerGrant != 2 || !p.PluginUploads {
 		t.Fatalf("business plan: %+v", p)
 	}
 	var site, net int

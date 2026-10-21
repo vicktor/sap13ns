@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -1217,5 +1218,53 @@ func TestBillingSitesPerGrant(t *testing.T) {
 	})
 	if plans["pro"] != 1 || plans["personal"] != 1 {
 		t.Fatalf("sites per grant: %v", plans)
+	}
+}
+
+// TestBillingBusinessTwoSites: a Business subscription covers two sites;
+// the owner creates the second one in My sites, open at once on the same
+// subscription, and a change to Pro moves it to the free plan.
+func TestBillingBusinessTwoSites(t *testing.T) {
+	e, fs, _ := newBillingEnv(t)
+	a := e.personal("alpha")
+	md := e.subscribe(fs, a, "business:month", "sub_test0007", "price_biz_month")
+	sub := e.subscription(a.ID)
+	b := e.browser()
+	csrf := b.portalSignIn(e.owner)
+	if page := b.page("/admin/sites"); !strings.Contains(page, "Añade un sitio a tu plan Business") || !strings.Contains(page, "Tu suscripción incluye 2 sitios y usas 1.") {
+		t.Fatal("no card to add the second site")
+	}
+	n := fs.sessions()
+	b.post("/admin/sites/add", "/admin/sites", url.Values{"csrf": {csrf}, "subscription": {strconv.FormatInt(sub.ID, 10)}, "slug": {"second"}})
+	var id int64
+	if err := e.n.db.QueryRow(e.ctx, `SELECT id FROM sites WHERE slug = 'second'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if s := e.row(id); s.Status != StatusActive || s.Plan != "business" || s.SubscriptionID == nil || *s.SubscriptionID != sub.ID || fs.sessions() != n {
+		t.Fatalf("second site: %+v", s)
+	}
+	if page := b.page("/admin/sites"); strings.Contains(page, "Añade un sitio a tu plan") {
+		t.Fatal("the card stays on a full subscription")
+	}
+	// Full: a third one is refused, and so is a subscription of another account.
+	rec := b.do("POST", portalURL+"/admin/sites/add", url.Values{"csrf": {csrf}, "subscription": {strconv.FormatInt(sub.ID, 10)}, "slug": {"third"}})
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "Tu suscripción ya tiene todos los sitios que incluye.") {
+		t.Fatalf("third: %d", rec.Code)
+	}
+	if _, err := e.n.AddGrantSite(e.ctx, e.owner+1000, sub.ID, "alien"); !errors.Is(err, ErrState) {
+		t.Fatalf("another account: %v", err)
+	}
+
+	// Business to Pro: the oldest site keeps the subscription.
+	fs.set("sub_test0007", "active", "price_pro_month")
+	e.mustHook("evt_down", "customer.subscription.updated", 50, subJSON("sub_test0007", "active", md))
+	if res := e.result("evt_down"); res != resultApplied {
+		t.Fatal(res)
+	}
+	if s := e.row(a.ID); s.Plan != "pro" || s.SubscriptionID == nil {
+		t.Fatalf("alpha: %+v", s)
+	}
+	if s := e.row(id); s.Plan != PlanPersonal || s.SubscriptionID != nil {
+		t.Fatalf("second after the downgrade: %+v", s)
 	}
 }

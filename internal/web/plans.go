@@ -37,7 +37,7 @@ var samplePlans = []PlanView{
 		Features: []PlanFeature{{Text: "Custom domain with HTTPS"}, {Text: "10 GB storage"}, {Text: "Your own themes and plugins"}, {Text: "Daily backups"}}},
 	{Slug: "business", Name: "Business", Description: "For teams that publish a lot.", Price: "30\u00a0€", Interval: "month",
 		YearlyPrice: "330\u00a0€", YearlySaving: "30\u00a0€", FreeMonths: 1, Tax: "added", Commercial: true, SignupURL: "/register",
-		Features: []PlanFeature{{Text: "Everything in Pro"}, {Text: "50 GB storage"}, {Text: "AI assistant credits"}, {Text: "Priority support"}}},
+		Features: []PlanFeature{{Text: "Everything in Pro"}, {Text: "%s sites", Arg: "2"}, {Text: "50 GB storage"}, {Text: "AI assistant credits"}, {Text: "Priority support"}}},
 }
 
 // planCacheTTL bounds how long the portal's pricing table may lag behind

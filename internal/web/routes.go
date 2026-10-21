@@ -102,6 +102,7 @@ func (s *Server) routes() *http.ServeMux {
 		}
 		admin("GET /admin/sites", auth.CapAdminPanel, s.adminMySites)
 		admin("POST /admin/sites/request", auth.CapAdminPanel, s.adminSiteRequest)
+		admin("POST /admin/sites/add", auth.CapAdminPanel, s.adminSiteAdd)
 		// The custom domains of the account's own sites (admin_domains.go).
 		admin("GET /admin/sites/{id}/domains", auth.CapAdminPanel, s.adminMyDomains)
 		admin("POST /admin/sites/{id}/domains", auth.CapAdminPanel, s.adminMyDomainAdd)

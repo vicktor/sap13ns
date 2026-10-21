@@ -61,6 +61,13 @@ type PortalAdmin interface {
 	// ErrConflict for a taken one, ErrNetworkState when the account has
 	// one already.
 	RequestSite(ctx context.Context, accountID int64, slug string) (*NetSite, error)
+	// SiteGrants lists the account's active subscriptions with room for
+	// another site (a plan with more than one site per subscription).
+	SiteGrants(ctx context.Context, accountID int64) ([]NetGrant, error)
+	// AddGrantSite creates a site on one of them, open at once:
+	// ErrNetworkInvalid and ErrConflict as RequestSite, ErrNetworkState
+	// when the subscription is not the account's or has no room.
+	AddGrantSite(ctx context.Context, accountID, subscriptionID int64, slug string) (*NetSite, error)
 	// NetworkStats measures the network and every served site, with the
 	// activity from from to to (dates, both included).
 	NetworkStats(ctx context.Context, from, to time.Time) (*NetStats, error)
@@ -648,9 +655,19 @@ func (s *Server) adminNetPlans(w http.ResponseWriter, r *http.Request) {
 
 // ------------------------------------------------------------ my sites --
 
+// NetGrant is a subscription with room for more sites than it pays for
+// now.
+type NetGrant struct {
+	SubscriptionID int64
+	PlanName       string
+	Used, Total    int
+}
+
 type mySitesData struct {
 	Sites      []NetSite
 	CanRequest bool   // the portal takes requests and the account has no Personal site
+	Grants     []NetGrant
+	Grant      int64 // the subscription the name and error are for
 	Open       bool   // the portal takes requests
 	Domain     string // of the default hosts
 	Slug       string
@@ -673,6 +690,9 @@ func (s *Server) mySitesData(r *http.Request) (mySitesData, error) {
 	}
 	d := mySitesData{Sites: sites, Open: s.settings().AllowRegistration, Domain: s.cfg.SitesDomain}
 	d.CanRequest = d.Open && !slices.ContainsFunc(sites, func(x NetSite) bool { return x.OwnerID == u.ID && x.Plan == "personal" })
+	if d.Grants, err = s.portal.SiteGrants(r.Context(), u.ID); err != nil {
+		return d, err
+	}
 	if s.billing == nil {
 		return d, nil
 	}
@@ -758,4 +778,46 @@ func (s *Server) adminSiteRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, u.ID, "network.site_requested", site.Slug, map[string]string{"site": strconv.FormatInt(site.ID, 10), "plan": site.Plan})
 	s.redirect(w, r, "/admin/sites", "success", s.tu(r, "Your site %s was requested. It opens once a network administrator approves it.", site.Host))
+}
+
+// adminSiteAdd creates another site on a subscription with room for it.
+func (s *Server) adminSiteAdd(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	slug := strings.ToLower(trimmed(r, "slug"))
+	grant, _ := strconv.ParseInt(r.PostFormValue("subscription"), 10, 64)
+	fail := func(status int, msg string) {
+		d, err := s.mySitesData(r)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		d.Slug, d.Error = slug, msg
+		// On the card of the subscription when it is shown, else apart.
+		if slices.ContainsFunc(d.Grants, func(g NetGrant) bool { return g.SubscriptionID == grant }) {
+			d.Grant = grant
+		}
+		s.renderAdminStatus(w, r, status, "my_sites", s.tu(r, "My sites"), "my-sites", d)
+	}
+	site, err := s.portal.AddGrantSite(r.Context(), u.ID, grant, slug)
+	switch {
+	case errors.Is(err, ErrNetworkInvalid):
+		fail(http.StatusUnprocessableEntity, s.tu(r, "Choose another name: 1 to 63 lower-case letters, digits and hyphens, not starting or ending with a hyphen, and not a reserved name."))
+		return
+	case errors.Is(err, store.ErrConflict):
+		fail(http.StatusConflict, s.tu(r, "That name is taken. Choose another one."))
+		return
+	case errors.Is(err, ErrNetworkState):
+		fail(http.StatusConflict, s.tu(r, "Your subscription has no room for another site."))
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	}
+	s.audit(r, u.ID, "network.site_added", site.Slug, map[string]string{"site": strconv.FormatInt(site.ID, 10), "plan": site.Plan,
+		"subscription": strconv.FormatInt(grant, 10)})
+	if site.Status == "pending" {
+		s.redirect(w, r, "/admin/sites", "success", s.tu(r, "Your site %s was created. It opens once a network administrator approves it.", site.Host))
+		return
+	}
+	s.redirect(w, r, "/admin/sites", "success", s.tu(r, "Your site %s is ready, on your subscription.", site.Host))
 }

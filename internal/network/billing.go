@@ -457,7 +457,7 @@ func (b *Billing) attachToGrant(ctx context.Context, site *Site, plan *Plan) (bo
 	err := b.n.mutate(ctx, site.ID, func(tx pgx.Tx) error {
 		var subID int64
 		err := tx.QueryRow(ctx, `SELECT sub.id FROM subscriptions sub WHERE sub.account_id = $1 AND sub.plan = $2 AND sub.state = 'active' AND NOT sub.manual
-			AND (SELECT count(*) FROM sites x WHERE x.subscription_id = sub.id) < $3
+			AND (SELECT count(*) FROM sites x WHERE x.subscription_id = sub.id AND x.status <> 'deleted') < $3
 			ORDER BY sub.id LIMIT 1 FOR UPDATE`, site.OwnerID, plan.Slug, plan.SitesPerGrant).Scan(&subID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -467,7 +467,7 @@ func (b *Billing) attachToGrant(ctx context.Context, site *Site, plan *Plan) (bo
 		// Counted again under the lock.
 		tag, err := tx.Exec(ctx, `UPDATE sites SET subscription_id = $2, plan = $3, updated_at = now()
 			WHERE id = $1 AND kind = 'tenant' AND status = 'active'
-				AND (SELECT count(*) FROM sites x WHERE x.subscription_id = $2) < $4`, site.ID, subID, plan.Slug, plan.SitesPerGrant)
+				AND (SELECT count(*) FROM sites x WHERE x.subscription_id = $2 AND x.status <> 'deleted') < $4`, site.ID, subID, plan.Slug, plan.SitesPerGrant)
 		attached = err == nil && tag.RowsAffected() == 1
 		return err
 	})
@@ -793,7 +793,7 @@ func (a *applyRun) link(row *Subscription, stripeID, customer string, r ref) (*S
 		WHERE s.id = $1 AND s.kind = 'tenant' AND s.owner_id = $3 AND s.status <> 'deleted'
 			AND (s.subscription_id IS NULL OR s.subscription_id = $2
 				OR (SELECT o.state = 'canceled' OR o.manual FROM subscriptions o WHERE o.id = s.subscription_id))
-			AND (SELECT count(*) FROM sites x WHERE x.subscription_id = $2 AND x.id <> s.id)
+			AND (SELECT count(*) FROM sites x WHERE x.subscription_id = $2 AND x.id <> s.id AND x.status <> 'deleted')
 				< (SELECT p.sites_per_grant FROM plans p WHERE p.slug = $4)`, r.site, row.ID, row.AccountID, row.Plan)
 	if err != nil {
 		return nil, "", err
@@ -944,6 +944,22 @@ func (a *applyRun) sync(row *Subscription, note string) (string, error) {
 		return "", err
 	}
 	if state == string(billing.StateActive) {
+		// A plan with fewer sites per subscription (Business to Pro) keeps
+		// the oldest ones; the others go back to the free plan.
+		rows, err := a.tx.Query(a.ctx, `UPDATE sites SET subscription_id = NULL, plan = $3, updated_at = now()
+			WHERE id IN (SELECT x.id FROM sites x WHERE x.subscription_id = $1 AND x.kind = 'tenant' AND x.status <> 'deleted'
+				ORDER BY x.id OFFSET (SELECT p.sites_per_grant FROM plans p WHERE p.slug = $2))
+			RETURNING id`, row.ID, plan, PlanPersonal)
+		if err != nil {
+			return "", err
+		}
+		left, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		if err != nil {
+			return "", err
+		}
+		if len(left) > 0 {
+			a.b.log.Warn("sites left a subscription whose plan pays for fewer", "subscription", row.ID, "plan", plan, "sites", left)
+		}
 		if _, err := a.tx.Exec(a.ctx, `UPDATE sites SET plan = $2, updated_at = now()
 			WHERE subscription_id = $1 AND kind = 'tenant' AND plan IS DISTINCT FROM $2`, row.ID, plan); err != nil {
 			return "", err

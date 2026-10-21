@@ -12,8 +12,11 @@ A year costs eleven months: one month free.
 
 Paid plans use Stripe Checkout (hosted page) to subscribe, the Stripe Customer
 Portal for self-service (card, invoices, plan change, cancellation), and
-webhooks to keep each site's billing state in sync. **One subscription pays
-for one site.** The client code is in `internal/billing` (standard library
+webhooks to keep each site's billing state in sync. **A subscription pays
+for the plan's `sites_per_grant` sites:** one on Pro, two on Business. The
+owner adds the second one from **My sites** (**Add a site to your Business
+plan**); it opens at once on the same subscription. A plan change to one with
+fewer sites keeps the oldest sites and moves the others to the free plan. The client code is in `internal/billing` (standard library
 only, pinned to Stripe API version `2026-09-30.endive`); the network side
 (prices, Checkout, the webhook processor, holds) is in
 `internal/network/billing.go`.

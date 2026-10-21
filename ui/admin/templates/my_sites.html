@@ -39,8 +39,26 @@
   {{template "empty" (dict "Icon" "globe" "Title" (T "You are not a member of any site yet"))}}
   {{end}}
 </section>
-{{if or (and $d.Billing $d.Upgradable $d.Offers) $d.CanRequest $d.Error}}
+{{if or (and $d.Billing $d.Upgradable $d.Offers) $d.Grants $d.CanRequest $d.Error}}
 <div class="dash-grid">
+  {{range $d.Grants}}{{$g := .}}
+  <section class="card" id="add-{{.SubscriptionID}}">
+    <header><h2>{{T "Add a site to your %s plan" .PlanName}}</h2><p>{{T "Your subscription covers %s sites and you use %s. The new site has the same plan, opens at once and costs nothing more." (printf "%d" .Total) (printf "%d" .Used)}}</p></header>
+    <section>
+      {{if eq $d.Grant .SubscriptionID}}{{template "form-error" $d.Error}}{{end}}
+      <form method="post" action="/admin/sites/add" class="form">
+        {{$.CSRFField}}
+        <input type="hidden" name="subscription" value="{{.SubscriptionID}}">
+        <div class="field">
+          <label for="add-slug-{{.SubscriptionID}}">{{T "Name"}}</label>
+          <input class="input mono" id="add-slug-{{.SubscriptionID}}" name="slug" value="{{if eq $d.Grant .SubscriptionID}}{{$d.Slug}}{{end}}" required maxlength="63" pattern="[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?" autocapitalize="none" spellcheck="false" autocomplete="off">
+          <p class="hint">{{T "Its address will be %s." (printf "<name>.%s" $d.Domain)}}</p>
+        </div>
+        <div><button class="btn" type="submit">{{icon "plus"}}{{T "Create the site"}}</button></div>
+      </form>
+    </section>
+  </section>
+  {{end}}
   {{if and $d.Billing $d.Upgradable $d.Offers}}
   <section class="card">
     <header><h2>{{T "Upgrade a site"}}</h2><p>{{T "A paid plan gives a site more storage, custom domains and your own plugins. You pay on Stripe's secure page; cancel any time from “Manage billing”."}}</p></header>
@@ -63,7 +81,7 @@
   <section class="card" id="request">
     <header><h2>{{T "Request a site"}}</h2><p>{{T "A free Personal site, which opens once a network administrator approves it. You can have one."}}</p></header>
     <section>
-      {{template "form-error" $d.Error}}
+      {{if not $d.Grant}}{{template "form-error" $d.Error}}{{end}}
       <form method="post" action="/admin/sites/request" class="form">
         {{.CSRFField}}
         <div class="field">
@@ -75,7 +93,7 @@
       </form>
     </section>
   </section>
-  {{else if $d.Error}}
+  {{else if and $d.Error (not $d.Grant)}}
   <section class="card"><section>{{template "form-error" $d.Error}}</section></section>
   {{end}}
 </div>

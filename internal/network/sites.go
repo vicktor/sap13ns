@@ -232,6 +232,9 @@ type NewSite struct {
 	// have no other site of the plan that is not deleted, and the site
 	// waits for a network admin's approval whatever its plan says.
 	Requested bool
+	// Grant is the subscription the site joins, which must be the owner's,
+	// active, of the plan, and have room for it (sites_per_grant).
+	Grant int64
 }
 
 // RequestSite creates the Personal site an account asks for on the
@@ -239,6 +242,56 @@ type NewSite struct {
 // at most, not counting deleted (and rejected) ones: ErrState otherwise.
 func (n *Network) RequestSite(ctx context.Context, accountID int64, slug string) (*Site, error) {
 	return n.CreateSite(ctx, NewSite{Slug: slug, OwnerID: accountID, Plan: PlanPersonal, Requested: true})
+}
+
+// Grant is a subscription of an account with room for more sites than
+// it pays for now (a plan whose sites_per_grant is above 1).
+type Grant struct {
+	SubscriptionID int64
+	Plan, PlanName string
+	Used, Total    int // its sites that are not deleted, and the plan's
+}
+
+// Grants returns the active subscriptions of an account that have room
+// for another site, oldest first.
+func (n *Network) Grants(ctx context.Context, accountID int64) ([]Grant, error) {
+	rows, err := n.db.Query(ctx, `SELECT sub.id, p.slug, p.name,
+			(SELECT count(*) FROM sites x WHERE x.subscription_id = sub.id AND x.status <> 'deleted')::int AS used, p.sites_per_grant
+		FROM subscriptions sub JOIN plans p ON p.slug = sub.plan
+		WHERE sub.account_id = $1 AND sub.state = 'active' AND NOT sub.manual AND p.sites_per_grant > 1
+		ORDER BY sub.id`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	all, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Grant, error) {
+		var g Grant
+		err := r.Scan(&g.SubscriptionID, &g.Plan, &g.PlanName, &g.Used, &g.Total)
+		return g, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, g := range all {
+		if g.Used < g.Total {
+			out = append(out, g)
+		}
+	}
+	return out, nil
+}
+
+// AddGrantSite creates a site on a subscription of the account that has
+// room for it: it opens at once, on the subscription's plan, with no
+// payment and no approval unless the plan is approved by hand. ErrState
+// when the subscription is not the account's, not active, or full.
+func (n *Network) AddGrantSite(ctx context.Context, accountID, subscriptionID int64, slug string) (*Site, error) {
+	sub, err := n.Subscription(ctx, subscriptionID)
+	if errors.Is(err, store.ErrNotFound) || err == nil && sub.AccountID != accountID {
+		return nil, fmt.Errorf("%w: no subscription %d of the account", ErrState, subscriptionID)
+	} else if err != nil {
+		return nil, err
+	}
+	return n.CreateSite(ctx, NewSite{Slug: slug, OwnerID: accountID, Plan: sub.Plan, Grant: sub.ID})
 }
 
 // CreateSite provisions a site: the row (with its sealed secret and
@@ -283,6 +336,20 @@ func (n *Network) CreateSite(ctx context.Context, ns NewSite) (*Site, error) {
 				return fmt.Errorf("%w: the account already has its %s sites", ErrState, plan.Name)
 			}
 		}
+		var grant *int64
+		if ns.Grant != 0 {
+			// Locking the subscription serialises the sites added to it.
+			var room bool
+			err := tx.QueryRow(ctx, `SELECT sub.account_id = $2 AND sub.plan = $3 AND sub.state = 'active' AND NOT sub.manual
+					AND (SELECT count(*) FROM sites x WHERE x.subscription_id = sub.id AND x.status <> 'deleted') < $4
+				FROM subscriptions sub WHERE sub.id = $1 FOR UPDATE`, ns.Grant, ns.OwnerID, plan.Slug, plan.SitesPerGrant).Scan(&room)
+			if errors.Is(err, pgx.ErrNoRows) || err == nil && !room {
+				return fmt.Errorf("%w: subscription %d has no room for another %s site", ErrState, ns.Grant, plan.Name)
+			} else if err != nil {
+				return err
+			}
+			grant = &ns.Grant
+		}
 		if err := tx.QueryRow(ctx, `SELECT nextval('sites_id_seq')`).Scan(&id); err != nil {
 			return err
 		}
@@ -290,9 +357,9 @@ func (n *Network) CreateSite(ctx context.Context, ns NewSite) (*Site, error) {
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO sites (id, kind, slug, schema_name, owner_id, plan, status, secret, rp_id)
-			VALUES ($1, 'tenant', $2, $3, $4, $5, 'provisioning', $6, $7)`,
-			id, ns.Slug, db.SiteSchema(id), ns.OwnerID, plan.Slug, sealed, host); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO sites (id, kind, slug, schema_name, owner_id, plan, status, secret, rp_id, subscription_id)
+			VALUES ($1, 'tenant', $2, $3, $4, $5, 'provisioning', $6, $7, $8)`,
+			id, ns.Slug, db.SiteSchema(id), ns.OwnerID, plan.Slug, sealed, host, grant); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO domains (host, site_id, kind, is_primary, verified_at)
