@@ -5,6 +5,15 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.7.1 — 2026-10-21
+
+- **A clearer Design with AI chat.** The conversation is a scrolling chat:
+  the assistant's messages on the left, yours on the right, each in its own
+  soft colour with the corner nearest the speaker square, and a bubble while
+  the assistant works. The send button sits next to the input (Enter sends,
+  Shift+Enter starts a new line), and a new conversation is an icon at the
+  top right of the panel.
+
 ## v0.7.0 — 2026-10-20
 
 - **Design with an AI agent (MCP).** Agents such as Claude Code can design a

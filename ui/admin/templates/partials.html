@@ -342,21 +342,23 @@
   data-msg-working="{{T "Working on it… This can take a minute."}}" data-msg-failed="{{T "The assistant could not do it: %s"}}"
   data-msg-reloading="{{T "Done. Reloading the editor with the changes…"}}" data-msg-you="{{T "You"}}" data-msg-ai="{{T "Assistant"}}">
   <header>
-    <h2>{{icon "wand-sparkles"}} {{T "Design with AI"}}</h2>
+    <div class="flex items-center justify-between gap-2">
+      <h2>{{icon "wand-sparkles"}} {{T "Design with AI"}}</h2>
+      <button class="btn" data-size="icon-sm" data-variant="ghost" type="button" data-design-ai-clear aria-label="{{T "New conversation"}}" title="{{T "New conversation"}}">{{icon "message-square-plus"}}</button>
+    </div>
     <p>{{T "Ask in your own words: a one-page site about your subject, other colours, an animation, or a text to change (“change «Welcome» on the front page to «Aloha!»”). The changes go to the draft: check them in the preview and publish them yourself."}}</p>
   </header>
   <section>
     <div class="alert mb-3" data-variant="{{if .Local}}warning{{else}}info{{end}}">{{icon "info"}}<h2>{{if .Local}}{{T "This site uses a local model (%s)." .Model}}{{else}}{{T "Model: %s" .Model}}{{end}}</h2>
       <section>{{T "Designing pages needs a recent model that is good at structured answers, such as a current Claude, GPT or Gemini model. Small or local models often make mistakes; what the site refuses is never saved."}}</section></div>
-    <ol class="design-ai-log grid gap-2 text-sm" data-design-ai-log aria-live="polite"></ol>
-    <form class="grid gap-2 mt-3" data-design-ai-form>
+    <ol class="design-ai-log" data-design-ai-log aria-live="polite"></ol>
+    <form class="mt-3 grid gap-1" data-design-ai-form>
       <label class="sr-only" for="design-ai-prompt">{{T "What should change?"}}</label>
-      <textarea class="textarea" id="design-ai-prompt" rows="3" maxlength="8000" placeholder="{{T "For example: make the front page a one-page site about our sailing school, with animations"}}" required></textarea>
-      <div class="flex flex-wrap items-center gap-2">
-        <button class="btn" data-size="sm" type="submit" data-design-ai-send>{{icon "send"}}{{T "Send"}}</button>
-        <button class="btn" data-size="sm" data-variant="ghost" type="button" data-design-ai-clear>{{icon "rotate-ccw"}}{{T "New conversation"}}</button>
-        <p class="text-sm text-muted-foreground" data-design-ai-status role="status"></p>
+      <div class="design-ai-input">
+        <textarea class="textarea" id="design-ai-prompt" rows="2" maxlength="8000" placeholder="{{T "For example: make the front page a one-page site about our sailing school, with animations"}}" required></textarea>
+        <button class="btn" data-size="icon" type="submit" data-design-ai-send aria-label="{{T "Send"}}" title="{{T "Send"}}">{{icon "send"}}</button>
       </div>
+      <p class="text-xs text-muted-foreground" data-design-ai-status role="status"></p>
     </form>
   </section>
 </section>

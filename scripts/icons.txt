@@ -106,6 +106,7 @@ megaphone
 menu
 message-circle
 message-square
+message-square-plus
 message-square-warning
 minus
 monitor

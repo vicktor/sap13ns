@@ -122,3 +122,41 @@
 @media (prefers-reduced-motion: reduce) {
   .cz-frame iframe, .cz-chevron { transition: none; }
 }
+
+/* Design with AI: a chat. The assistant speaks from the left, the user
+   from the right, each in its own soft colour, with the corner nearest
+   the speaker square. */
+.design-ai {
+  --ai-bubble: oklch(0.955 0.03 170);
+  --ai-bubble-border: oklch(0.88 0.05 170);
+  --you-bubble: color-mix(in oklch, var(--primary) 11%, var(--card));
+  --you-bubble-border: color-mix(in oklch, var(--primary) 28%, var(--card));
+}
+.dark .design-ai {
+  --ai-bubble: oklch(0.27 0.035 170);
+  --ai-bubble-border: oklch(0.36 0.05 170);
+  --you-bubble: color-mix(in oklch, var(--primary) 20%, var(--card));
+  --you-bubble-border: color-mix(in oklch, var(--primary) 38%, var(--card));
+}
+.design-ai-log {
+  @apply flex max-h-[26rem] flex-col gap-3 overflow-y-auto overscroll-contain rounded-lg border bg-background p-3;
+  scrollbar-gutter: stable;
+}
+.design-ai-log:empty { @apply hidden; }
+.design-ai-msg {
+  @apply max-w-[85%] rounded-2xl border px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line text-foreground;
+  overflow-wrap: anywhere;
+}
+.design-ai-msg[data-role="assistant"] {
+  @apply self-start rounded-tl-none;
+  background: var(--ai-bubble);
+  border-color: var(--ai-bubble-border);
+}
+.design-ai-msg[data-role="user"] {
+  @apply self-end rounded-tr-none;
+  background: var(--you-bubble);
+  border-color: var(--you-bubble-border);
+}
+.design-ai-msg[data-pending] { @apply animate-pulse text-muted-foreground; }
+.design-ai-input { @apply flex items-end gap-2; }
+.design-ai-input .textarea { @apply min-h-11 flex-1 resize-y; }

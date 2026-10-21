@@ -33,27 +33,29 @@ if (box) {
   const save = (h) => { try { sessionStorage.setItem(key, JSON.stringify(trimHistory(h, 40))); } catch { /* private mode */ } };
   let history = load();
 
-  function render() {
-    log.replaceChildren();
-    for (const m of history) {
-      const li = document.createElement("li");
-      li.className = m.role === "user" ? "rounded-md bg-muted p-2" : "rounded-md border p-2";
-      const who = document.createElement("strong");
-      who.className = "block text-xs text-muted-foreground";
-      who.textContent = m.role === "user" ? msg.msgYou : msg.msgAi;
-      const p = document.createElement("p");
-      p.className = "whitespace-pre-line";
-      p.textContent = m.content;
-      li.append(who, p);
-      log.append(li);
-    }
+  function bubble(role, text, pending) {
+    const li = document.createElement("li");
+    li.className = "design-ai-msg";
+    li.dataset.role = role;
+    if (pending) li.dataset.pending = "";
+    const who = document.createElement("span");
+    who.className = "sr-only";
+    who.textContent = `${role === "user" ? msg.msgYou : msg.msgAi}: `;
+    li.append(who, text);
+    return li;
+  }
+
+  function render(pending = false) {
+    log.replaceChildren(...history.map((m) => bubble(m.role, m.content)));
+    if (pending) log.append(bubble("assistant", msg.msgWorking, true));
+    log.scrollTop = log.scrollHeight;
   }
 
   function show(open) {
     box.hidden = !open;
     toggle?.setAttribute("aria-expanded", String(open));
     try { sessionStorage.setItem(openKey, open ? "1" : ""); } catch { /* private mode */ }
-    if (open) input.focus();
+    if (open) { log.scrollTop = log.scrollHeight; input.focus(); }
   }
   toggle?.addEventListener("click", () => show(box.hidden));
   let wasOpen = "";
@@ -84,16 +86,24 @@ if (box) {
     }
   }
 
+  // Enter sends; Shift+Enter starts a new line.
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text || send.disabled) return;
     history.push({ role: "user", content: text });
     save(history);
-    render();
+    render(true);
     input.value = "";
     send.disabled = true;
-    status.textContent = msg.msgWorking;
+    status.textContent = "";
     const lang = document.querySelector("iframe")?.contentDocument?.documentElement.lang || "";
     try {
       const res = await fetch(msg.url, {
