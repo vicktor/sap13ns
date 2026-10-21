@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.10.1 — 2026-10-21
+
+- **The sap13ns theme is version 1.1.0.** A site still running the uploaded 1.0.0 shows an empty line on the pricing table for "AI included, with N images a day", a feature added in v0.9.0. Upload the theme again to show it. A test now covers that feature too.
+
 ## v0.10.0 — 2026-10-21
 
 - **Usage statistics for super admins.** Network → **Usage statistics** covers the whole network over today, 7, 30 or 90 days, or 12 months. It shows sites by status and plan, accounts, subscriptions and storage, and every site's posts, pages, media (and AI images), comments and page views. For the AI it shows requests, input and output tokens and images, per day and since the start, broken down by provider, model, feature and source. Charts show the new content, growth, AI requests, tokens, images and page views per day. A table lists the 50 sites that use the most AI.
