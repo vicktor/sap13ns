@@ -250,7 +250,7 @@ A site uses AI in one of two ways, chosen in its **AI** page:
 
 A site that moves to a plan without the network's AI sees its AI switched off until it chooses its own provider; its settings stay. The network's AI makes no embeddings for the site assistant's semantic search: that needs an embeddings provider of the site's own, or full-text search. The pricing table lists what each plan includes.
 
-Qwen-Image (Alibaba Cloud Model Studio) works with Claude for the text: `SAP13NS_NETWORK_AI_PROVIDER=anthropic` with `SAP13NS_NETWORK_AI_IMAGE_PROVIDER=alibaba`. The default address is the international region (`https://dashscope-intl.aliyuncs.com`); a workspace address goes in `_IMAGE_BASE_URL`.
+Qwen-Image (Alibaba Cloud Model Studio) works with Claude for the text: `SAP13NS_NETWORK_AI_PROVIDER=anthropic` with `SAP13NS_NETWORK_AI_IMAGE_PROVIDER=alibaba`. The default address is the international region (`https://ap-southeast-1.maas.qwencloudapi.com`); a workspace address goes in `_IMAGE_BASE_URL`.
 
 ## Plugins and themes
 

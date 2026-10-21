@@ -239,6 +239,7 @@ var catalog = map[string]struct{ text, image []Model }{
 			{"qwen-flash", "Qwen Flash"},
 		},
 		image: []Model{
+			{"qwen-image-2.1-pro", "Qwen-Image 2.1 Pro"},
 			{"qwen-image-2.0-pro", "Qwen-Image 2.0 Pro"},
 			{"qwen-image-2.0", "Qwen-Image 2.0"},
 		},

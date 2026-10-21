@@ -346,6 +346,7 @@ func (s *Server) startAIJob(r *http.Request, u *store.User, kind string, run fun
 		j.Done, j.Result, j.finished = true, res, time.Now()
 		if err != nil {
 			j.Error = s.aiErrorMessage(r, err)
+			s.log.Warn("ai job", "kind", kind, "after", time.Since(j.Started).Round(time.Second), "err", err)
 		}
 		s.ai.mu.Unlock()
 	})

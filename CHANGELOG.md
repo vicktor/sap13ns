@@ -5,6 +5,16 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.9.1 — 2026-10-21
+
+- **Qwen-Image works out of the box.** Alibaba Cloud's default address is now
+  Model Studio's `https://ap-southeast-1.maas.qwencloudapi.com`, where the
+  keys of its console belong. Before, images went to `dashscope-intl`, and
+  the request hung until the image timeout. Qwen-Image 2.1 Pro is in the
+  model list.
+- **AI job failures are logged.** A writing-assistant job that fails, such as
+  an image, now leaves a warning with the error in the server's log.
+
 ## v0.9.0 — 2026-10-21
 
 - **One AI section.** Administration → **AI** gathers everything: where the

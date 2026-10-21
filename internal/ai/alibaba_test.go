@@ -54,7 +54,7 @@ func TestAlibaba(t *testing.T) {
 	}
 	params, _ := imgBody["parameters"].(map[string]any)
 	msgs, _ := imgBody["input"].(map[string]any)["messages"].([]any)
-	if imgBody["model"] != "qwen-image-2.0-pro" || params["size"] != "1664*928" || params["watermark"] != false || len(msgs) != 1 ||
+	if imgBody["model"] != "qwen-image-2.1-pro" || params["size"] != "1664*928" || params["watermark"] != false || len(msgs) != 1 ||
 		!strings.Contains(mustJSON(msgs), "a junk boat at dawn") {
 		t.Errorf("request: %v", imgBody)
 	}

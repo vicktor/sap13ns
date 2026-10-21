@@ -15,10 +15,10 @@ type alibaba struct {
 	imageModel string
 }
 
-// The default host is the international (Singapore) region; a workspace
-// host ({id}.ap-southeast-1.maas.aliyuncs.com) or the Beijing one
-// (dashscope.aliyuncs.com) go in the base URL.
-const alibabaBase = "https://dashscope-intl.aliyuncs.com"
+// The default host is Model Studio's international (Singapore) region;
+// another one (dashscope-intl.aliyuncs.com, the Beijing
+// dashscope.aliyuncs.com, a workspace's) goes in the base URL.
+const alibabaBase = "https://ap-southeast-1.maas.qwencloudapi.com"
 
 // alibabaSize maps an aspect ratio to a size Qwen-Image takes: any width
 // and height with between 512×512 and 2048×2048 pixels in all.

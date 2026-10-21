@@ -68,7 +68,7 @@
             <input class="input mono" id="image_api_key" name="image_api_key" type="password" autocomplete="off" maxlength="500" placeholder="{{if $d.HasImgKey}}{{T "Saved (leave empty to keep it)"}}{{end}}">
             {{if $d.HasImgKey}}<label class="check"><input type="checkbox" class="input" name="remove_image_key" value="1"> {{T "Remove the saved key"}}</label>{{end}}</div>
           <div class="field"><label for="image_base_url">{{T "API address (optional)"}}</label>
-            <input class="input mono" id="image_base_url" name="image_base_url" value="{{$s.ImageBaseURL}}" maxlength="300" placeholder="https://dashscope-intl.aliyuncs.com" spellcheck="false" autocapitalize="none"></div>
+            <input class="input mono" id="image_base_url" name="image_base_url" value="{{$s.ImageBaseURL}}" maxlength="300" placeholder="https://ap-southeast-1.maas.qwencloudapi.com" spellcheck="false" autocapitalize="none"></div>
         </div>
         <div class="field"><label for="image_model">{{T "Image model"}}</label><input class="input mono" id="image_model" name="image_model" value="{{$s.ImageModel}}" list="image-models" maxlength="100" placeholder="{{T "Default"}}"></div>
         <datalist id="image-models">{{range $p, $ms := $d.ImgModels}}{{range $ms}}<option value="{{.ID}}">{{.Label}}</option>{{end}}{{end}}</datalist>
