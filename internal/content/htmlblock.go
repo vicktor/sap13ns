@@ -19,6 +19,9 @@ import (
 //   - class and id attributes, a fixed set of aria-* attributes and role,
 //     and data-* attributes other than the ones this site's own scripts
 //     and templates act on (reservedData);
+//   - inline SVG drawings such as the icons a section shows: shapes and
+//     their geometry and stroke only, without links (href), styles,
+//     animation, foreignObject or <use>;
 //   - never script, style (elements or attributes), event handlers,
 //     iframes, objects, forms or javascript: and data: URLs. The CSP forbids
 //     inline scripts and styles anyway; the policy keeps them out of the
@@ -34,6 +37,14 @@ var (
 	htmlBlockIDRef = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_ -]{0,200}$`)
 	htmlBlockRole  = regexp.MustCompile(`^(?:note|region|group|list|listitem|img|presentation|none|separator|navigation|complementary|figure|heading|status|term|definition|doc-subtitle)$`)
 	htmlBlockData  = regexp.MustCompile(`^data-[a-z][a-z0-9-]{0,40}$`)
+
+	// The geometry of inline SVG: numbers, path commands and the colours
+	// that need no url() (a paint server could point anywhere).
+	svgShapes  = []string{"svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon"}
+	svgNumbers = regexp.MustCompile(`^[-+0-9.eE, ]+$`)
+	svgLength  = regexp.MustCompile(`^[-+]?[0-9]*\.?[0-9]+(?:px|em|rem|%)?$`)
+	svgPath    = regexp.MustCompile(`^[-+0-9.eEMmLlHhVvCcSsQqTtAaZz, ]+$`)
+	svgPaint   = regexp.MustCompile(`^(?:none|currentColor|#[0-9A-Fa-f]{3,8})$`)
 )
 
 // reservedData are the data-* attributes (exact names, or prefixes ending
@@ -68,6 +79,19 @@ func HTMLBlockPolicy() *bluemonday.Policy {
 		p.AllowAttrs("rel").Matching(regexp.MustCompile(`^(?:nofollow|noopener|noreferrer|sponsored|ugc|external|me)(?: (?:nofollow|noopener|noreferrer|sponsored|ugc|external|me)){0,6}$`)).OnElements("a")
 		p.AllowAttrs("colspan", "rowspan").Matching(regexp.MustCompile(`^[1-9][0-9]?$`)).OnElements("td", "th")
 		p.AllowAttrs("scope").Matching(regexp.MustCompile(`^(?:row|col|rowgroup|colgroup)$`)).OnElements("th")
+		p.AllowElements("svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon")
+		p.AllowAttrs("xmlns").Matching(regexp.MustCompile(`^http://www\.w3\.org/2000/svg$`)).OnElements("svg")
+		p.AllowAttrs("viewbox").Matching(svgNumbers).OnElements("svg")
+		p.AllowAttrs("width", "height").Matching(svgLength).OnElements("svg", "rect")
+		p.AllowAttrs("fill", "stroke").Matching(svgPaint).OnElements(svgShapes...)
+		p.AllowAttrs("stroke-width", "stroke-opacity", "fill-opacity", "opacity").Matching(svgLength).OnElements(svgShapes...)
+		p.AllowAttrs("stroke-linecap").Matching(regexp.MustCompile(`^(?:butt|round|square)$`)).OnElements(svgShapes...)
+		p.AllowAttrs("stroke-linejoin").Matching(regexp.MustCompile(`^(?:miter|round|bevel)$`)).OnElements(svgShapes...)
+		p.AllowAttrs("fill-rule", "clip-rule").Matching(regexp.MustCompile(`^(?:nonzero|evenodd)$`)).OnElements(svgShapes...)
+		p.AllowAttrs("d").Matching(svgPath).OnElements("path")
+		p.AllowAttrs("points").Matching(svgNumbers).OnElements("polyline", "polygon")
+		p.AllowAttrs("cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2").Matching(svgLength).OnElements("circle", "ellipse", "rect", "line")
+		p.AllowAttrs("focusable").Matching(regexp.MustCompile(`^false$`)).OnElements("svg")
 		p.AllowURLSchemes("tel")
 		p.RequireNoFollowOnLinks(false)
 		p.RequireNoFollowOnFullyQualifiedLinks(false)

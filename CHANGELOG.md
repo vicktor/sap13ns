@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.12.0 — 2026-10-22
+
+- **Edit a section as HTML.** In Design, a section's settings have **Edit as HTML**. It opens the section's markup, as the preview shows it, in a code editor. Applying it turns the section into one HTML block with the same anchor, appearance and class, and Undo brings the blocks back. This works on landing, one-page and theme sections alike. The section with the footer credits or the post's content stays as blocks.
+- **A code editor** (CodeMirror, served by sap13ns, no CDN) for the HTML block and for Custom CSS, in Design and in Style and texts: line numbers, syntax colours, search, undo, and Tab to indent. It runs inside the strict CSP.
+- **HTML blocks keep SVG icons.** Inline SVG drawings survive the sanitiser as shapes only: no links, `<use>`, images, animation, `foreignObject` or `url()` paints.
+
 ## v0.11.0 — 2026-10-21
 
 - **Business covers two sites.** One Business subscription now pays for two independent sites, each with its own content, users, domains and limits. The owner creates the second one in **My sites → Add a site to your Business plan**. It opens at once, with no other payment and no approval. Upgrading a Personal site to Business also joins a subscription with room. The pricing table lists "2 sites".

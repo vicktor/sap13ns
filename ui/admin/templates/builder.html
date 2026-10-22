@@ -32,6 +32,9 @@
   data-msg-top-bar="{{T "Show the Top bar widget area above the header"}}"
   data-msg-section="{{T "Section %d"}}" data-msg-column="{{T "Column %d"}}" data-msg-columns="{{T "%d columns"}}"
   data-msg-add-block="{{T "Add block"}}" data-msg-add-section="{{T "Add section"}}" data-msg-empty="{{T "No blocks yet."}}"
+  data-msg-edit-html="{{T "Edit as HTML"}}" data-msg-edit-html-hint="{{T "See and change the section's markup in a code editor."}}"
+  data-msg-edit-html-locked="{{T "This section holds the credits or the page's content, which stay blocks."}}"
+  data-msg-edit-html-no-preview="{{T "Open this page in the preview to copy the section's markup."}}" data-msg-edit-html-done="{{T "The section is now HTML."}}"
   data-msg-move="{{T "Move (drag, or arrow keys)"}}" data-msg-duplicate="{{T "Duplicate"}}" data-msg-delete="{{T "Delete"}}"
   data-msg-edit="{{T "Settings"}}" data-msg-moved="{{T "Moved: %s"}}" data-msg-deleted="{{T "Deleted. Undo with Ctrl+Z."}}"
   data-msg-cannot-move="{{T "It cannot move further."}}" data-msg-required="{{T "This block is required here."}}"
@@ -112,6 +115,23 @@
   </div>
 </dialog>
 
+<dialog id="bl-html-dialog" class="dialog bl-html-dialog" aria-labelledby="bl-html-title" aria-describedby="bl-html-help">
+  <div>
+    <header>
+      <h2 id="bl-html-title">{{T "Edit as HTML"}} · <span id="bl-html-where"></span></h2>
+      <p id="bl-html-help">{{T "The section's markup as the preview shows it. Applying it turns the section into one HTML block: its blocks stop being edited with fields, and what changes by itself (posts, menus, prices) stops changing. Scripts, <style>, style=\"\" and forms are removed when saved; give elements a class and style them in Custom CSS. Undo brings the blocks back."}}</p>
+    </header>
+    <section>
+      <label class="sr-only" for="bl-html-input">HTML</label>
+      <textarea class="textarea cz-code w-full" id="bl-html-input" rows="18" maxlength="50000" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    </section>
+    <footer>
+      <button type="button" class="btn" data-variant="outline" data-dialog-close>{{T "Cancel"}}</button>
+      <button type="button" class="btn" data-html-apply>{{icon "code"}}{{T "Apply"}}</button>
+    </footer>
+  </div>
+</dialog>
+
 {{/* Icons for the editor's script, which cannot render them itself. */}}
 <template id="bl-icons">{{range $d.Icons}}<span data-icon="{{.}}">{{icon .}}</span>{{end}}</template>
 
@@ -158,5 +178,6 @@
     </section>
   </div>
 </section>
+<script defer src="{{asset "vendor/codemirror/code-editor.min.js"}}"></script>
 <script type="module" src="{{asset "builder.js"}}"></script>
 {{end}}

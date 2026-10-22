@@ -242,7 +242,7 @@ var Types = []Type{
 		Help: "Your own markup: sections, text, links, images, lists, tables. Scripts, <style> and style=\"\" are removed; the looks go in Custom CSS.",
 		Fields: []Field{
 			{Key: "html", Type: "html", Label: "HTML", Max: MaxHTML, I18n: true,
-				Help: "Allowed: structural and text elements, links, images, lists, tables, figure, details, and class, id, aria-* and data-* attributes. Scripts, <style>, style=\"\" attributes, event handlers (onclick…), iframes and forms are removed when saved: the site's security policy would block them. Give elements a class and style them in Custom CSS."},
+				Help: "Allowed: structural and text elements, links, images, lists, tables, figure, details, SVG icons, and class, id, aria-* and data-* attributes. Scripts, <style>, style=\"\" attributes, event handlers (onclick…), iframes and forms are removed when saved: the site's security policy would block them. Give elements a class and style them in Custom CSS."},
 			{Key: "class", Type: "class", Label: "CSS class", Help: classHelp},
 			onOff("prose", "Use the theme's text styles", "true"),
 		}},

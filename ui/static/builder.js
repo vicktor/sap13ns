@@ -118,6 +118,47 @@ export function duplicateSection(l, name, s, types, rand) {
   });
 }
 
+/** sectionToHTML turns section s into one HTML block with markup html,
+ * keeping its id, anchor, appearance and class: a section that is one HTML
+ * block already keeps that block (and its translations). */
+export function sectionToHTML(l, name, s, markup, rand) {
+  return edit(l, name, (r) => {
+    const sec = r.sections[s];
+    const sole = sec.columns.flat();
+    if (sole.length === 1 && sole[0].type === "html") {
+      sole[0].settings = { ...(sole[0].settings || {}), html: markup };
+      sec.layout = "1";
+      sec.columns = [[sole[0]]];
+      return;
+    }
+    sec.layout = "1";
+    sec.columns = [[{ id: newID(l, "html", new Set(), rand), type: "html", settings: { html: markup, prose: "false" } }]];
+  });
+}
+
+/** sectionHTML is the markup a section shows in the preview document doc,
+ * as an HTML block can hold it: the columns of a block section in their
+ * grid, a theme's section as it rendered, without the preview's text marks
+ * (data-sap-text spans). "" when the preview does not show the section. */
+export function sectionHTML(doc, sec) {
+  const sole = (sec.columns || []).flat();
+  if (sole.length === 1 && sole[0].type === "html") return sole[0].settings?.html || "";
+  const el = doc?.getElementById(sec.anchor || `sap-${sec.id}`);
+  if (!el) return "";
+  const inner = el.classList.contains("sap-theme-section") ? el : el.querySelector(":scope > .sap-section-inner");
+  if (!inner) return "";
+  const copy = inner.cloneNode(true);
+  for (const m of copy.querySelectorAll("span[data-sap-text]")) m.replaceWith(...m.childNodes);
+  for (const e of [copy, ...copy.querySelectorAll("*")]) {
+    for (const a of [...e.attributes]) if (a.name.startsWith("data-sap-")) e.removeAttribute(a.name);
+  }
+  const body = tidyMarkup(copy.innerHTML);
+  return (PRESETS[sec.layout] || 1) > 1 && copy !== el ? `<div class="sap-cols sap-cols-${sec.layout}">\n${body}\n</div>` : body;
+}
+
+// tidyMarkup drops the blank lines and the indentation templates leave.
+const tidyMarkup = (markup) => markup.split("\n").map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim()).join("\n").trim();
+
 /** fitColumns gives cols exactly n columns: extra columns are merged into
  * the last one, missing ones are added empty (as the server does). */
 export function fitColumns(cols, n) {
@@ -825,7 +866,54 @@ function init(root) {
       h("section", { class: "bl-form" }, ...errs, presets, anchorField(sec, pos), ...fields,
         // The credits' section takes no class (the server refuses one).
         hasBlock(sec, META) ? null : sectionClassField(sec, pos),
+        htmlButton(sec, pos),
         moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
+  }
+
+  // ---------------------------------------------------- edit as HTML --
+  // A section's markup, as the preview shows it, in the code editor;
+  // applying it makes the section one HTML block (sanitised on the server).
+  // The credits and the content of posts cannot go: they stay blocks.
+  const htmlDialog = document.getElementById("bl-html-dialog");
+  const htmlBox = document.getElementById("bl-html-input");
+  let htmlAt = null;
+  function htmlButton(sec, pos) {
+    if (!htmlDialog) return null;
+    const locked = sec.columns.flat().some((b) => b.type === META || b.type === CONTENT);
+    return h("div", { class: "field" },
+      h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", disabled: locked || null, onclick: () => openHTML(sec, pos) }, icon("code"), msg.msgEditHtml),
+      h("p", { class: "hint", text: locked ? msg.msgEditHtmlLocked : msg.msgEditHtmlHint }));
+  }
+  function openHTML(sec, pos) {
+    const markup = sectionHTML(frameDoc(), sec);
+    const sole = sec.columns.flat();
+    if (!markup && !(sole.length === 1 && sole[0].type === "html")) { toast("info", msg.msgEditHtmlNoPreview); return; }
+    htmlAt = { id: sec.id, s: pos.s };
+    document.getElementById("bl-html-where").textContent = fmt(msg.msgSection, pos.s + 1);
+    const ed = codeEditor(htmlBox, "html");
+    if (ed) ed.value = markup; else htmlBox.value = markup;
+    htmlDialog.showModal();
+    (ed || htmlBox).focus();
+  }
+  if (htmlDialog) {
+    htmlDialog.querySelector("[data-html-apply]").addEventListener("click", () => {
+      const at = htmlAt && find(layout(), region, htmlAt.id);
+      htmlDialog.close();
+      if (!at) return;
+      selected = htmlAt.id;
+      commit(sectionToHTML(layout(), region, at.s, htmlBox.value));
+      say(msg.msgEditHtmlDone);
+    });
+  }
+
+  // codeEditor puts the code editor (ui/admin/src/code-editor.js) over a
+  // textarea once it is in the page; without it the textarea stays.
+  function codeEditor(textarea, lang) {
+    const api = window.sapCodeEditor;
+    if (!api) return null;
+    if (textarea.isConnected) return api.attach(textarea, { lang });
+    queueMicrotask(() => { if (textarea.isConnected) api.attach(textarea, { lang }); });
+    return null;
   }
 
   // classInput is a CSS class field: checked as it is typed, and only
@@ -953,6 +1041,7 @@ function init(root) {
         input = h("textarea", { class: "textarea w-full bl-code", rows: 14, maxlength: f.max || null, spellcheck: "false", autocapitalize: "off",
           autocomplete: "off", ...common, oninput: (e) => set(e.target.value) });
         input.value = stored;
+        codeEditor(input, "html");
         break;
       case "textarea": case "markdown":
         input = h("textarea", { class: "textarea w-full", rows: f.type === "markdown" ? 7 : 3, maxlength: f.max || null, placeholder: main || (lang ? null : f.default) || null, ...common, oninput: (e) => set(e.target.value) });
@@ -1433,6 +1522,9 @@ function init(root) {
   if (cssBox) {
     cssBox.value = cssSaved;
     if (cssSaved) cssBox.closest("details").open = true;
+    const cssEditor = codeEditor(cssBox, "css");
+    // An editor in a closed <details> measures itself once it shows.
+    cssBox.closest("details")?.addEventListener("toggle", () => cssEditor?.view.requestMeasure());
     if (cssBadge) cssBadge.hidden = !state.css_pending;
     cssBox.addEventListener("input", () => { clearTimeout(cssTimer); cssTimer = setTimeout(() => { cssTimer = 0; saveCSS(); }, 900); });
   }

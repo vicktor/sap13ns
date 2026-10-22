@@ -165,3 +165,8 @@
 .bl-keys dt { @apply whitespace-nowrap; }
 .bl-keys dd { @apply text-muted-foreground; }
 .bl-keys kbd { @apply rounded border bg-muted px-1.5 py-0.5 font-mono text-[0.7rem]; }
+
+/* The code editor (ui/admin/src/code-editor.js) over a code field. */
+.sap-code-editor { display: block; }
+.bl-html-dialog { width: min(64rem, calc(100vw - 2rem)); max-width: none; }
+.bl-html-dialog .sap-code-editor { --sap-code-min: 50vh; }

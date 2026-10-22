@@ -32,7 +32,7 @@ func TestSanitizeHTMLBlockKeeps(t *testing.T) {
 // harmless).
 func TestSanitizeHTMLBlockHostile(t *testing.T) {
 	forbidden := []string{"<script", "<style", "style=", "onerror", "onclick", "onload", "onmouseover", "<iframe", "<object", "<embed",
-		"<form", "<input", "<button", "<textarea", "<select", "javascript:", "vbscript:", "data:text", "<svg", "<math", "<base", "<meta", "<link",
+		"<form", "<input", "<button", "<textarea", "<select", "javascript:", "vbscript:", "data:text", "<math", "<base", "<meta", "<link",
 		"srcdoc", "formaction", "data-video-src", "data-form", "data-assistant", "data-theme-toggle", "<template", "<noscript"}
 	for _, in := range []string{
 		`<script>alert(1)</script>`,
@@ -70,6 +70,36 @@ func TestSanitizeHTMLBlockHostile(t *testing.T) {
 		`<div id="x" class="a" STYLE="x:expression(alert(1))">x</div>`,
 		`<!--<script>alert(1)</script>-->`,
 		`<p>unclosed <a href="/x" onclick="alert(1)">`,
+	} {
+		out := strings.ToLower(SanitizeHTMLBlock(in))
+		for _, f := range forbidden {
+			if strings.Contains(out, f) {
+				t.Errorf("SanitizeHTMLBlock(%q) = %q: contains %q", in, out, f)
+			}
+		}
+	}
+}
+
+// TestSanitizeHTMLBlockSVG: an icon's drawing stays; nothing in an SVG
+// that links, styles, animates or embeds does.
+func TestSanitizeHTMLBlockSVG(t *testing.T) {
+	icon := `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="lucide"><path d="M20 6 9 17l-5-5"></path><circle cx="12" cy="12" r="10"></circle></svg>`
+	got := SanitizeHTMLBlock(icon)
+	for _, want := range []string{`viewbox="0 0 24 24"`, `stroke="currentColor"`, `<path d="M20 6 9 17l-5-5">`, `<circle cx="12" cy="12" r="10">`, `aria-hidden="true"`, `class="lucide"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the icon lost %s: %s", want, got)
+		}
+	}
+	forbidden := []string{"href", "<use", "<image", "<animate", "<set", "<foreignobject", "<style", "<script", "url(", "onload", "onclick", "style=", "javascript:", "<a "}
+	for _, in := range []string{
+		`<svg><use href="#x"></use><use xlink:href="https://evil.example/s.svg#x"></use></svg>`,
+		`<svg><image href="https://evil.example/x.png"></image></svg>`,
+		`<svg><a href="javascript:alert(1)"><circle r="5"></circle></a></svg>`,
+		`<svg><animate attributeName="href" to="javascript:alert(1)"></animate><set attributeName="onmouseover" to="alert(1)"></set></svg>`,
+		`<svg><foreignObject><iframe src="https://evil.example"></iframe></foreignObject></svg>`,
+		`<svg><style>*{display:none}</style><script>alert(1)</script></svg>`,
+		`<svg onload="alert(1)"><path d="M0 0" fill="url(https://evil.example/#p)" style="fill:red" onclick="alert(1)"></path></svg>`,
+		`<svg><path d="M0 0;alert(1)"></path><rect width="expression(alert(1))"></rect></svg>`,
 	} {
 		out := strings.ToLower(SanitizeHTMLBlock(in))
 		for _, f := range forbidden {

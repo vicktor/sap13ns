@@ -6,7 +6,7 @@ import {
   setStyle, insertBlock, removeBlock, moveBlock, dropIndex, duplicateBlock, setValue, find, step, count, allowed,
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
   addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
-  validClasses, setSectionClass, hasBlock, emptyRegion,
+  validClasses, setSectionClass, hasBlock, emptyRegion, sectionToHTML, sectionHTML,
 } from "../../static/builder.js";
 
 // A seeded random source, so ids are reproducible.
@@ -353,4 +353,37 @@ test("summary of an HTML block is its text", () => {
 
 test("parseErrorPath marks a section's class", () => {
   assert.deepEqual(parseErrorPath("pages.front.sections[2].class"), { region: "front", s: 2, c: null, b: null, item: null, key: "", lang: "", sectionClass: true });
+});
+
+test("sectionToHTML: a section becomes one HTML block and keeps its settings", () => {
+  const l = { pages: { front: { sections: [
+    { id: "s-1", layout: "1-1", anchor: "offer", class: "promo", style: { padding: "large" },
+      columns: [[{ id: "hero-1", type: "hero", settings: { title: "Hi" } }], [{ id: "image-1", type: "image", settings: {} }]] },
+  ] } } };
+  const out = sectionToHTML(l, "front", 0, "<p>Hi</p>", seeded());
+  const sec = getRegion(out, "front").sections[0];
+  assert.equal(sec.id, "s-1");
+  assert.equal(sec.anchor, "offer");
+  assert.equal(sec.class, "promo");
+  assert.deepEqual(sec.style, { padding: "large" });
+  assert.equal(sec.layout, "1");
+  assert.equal(sec.columns.length, 1);
+  assert.equal(sec.columns[0].length, 1);
+  assert.equal(sec.columns[0][0].type, "html");
+  assert.equal(sec.columns[0][0].settings.html, "<p>Hi</p>");
+  assert.ok(!ids(l).has(sec.columns[0][0].id), "a new id");
+  // The original is untouched (undo keeps it).
+  assert.equal(getRegion(l, "front").sections[0].columns.length, 2);
+
+  // A section that is one HTML block keeps the block and its translations.
+  const again = sectionToHTML(out, "front", 0, "<p>Hola</p>");
+  const b = getRegion(again, "front").sections[0].columns[0][0];
+  assert.equal(b.id, sec.columns[0][0].id);
+  assert.equal(b.settings.html, "<p>Hola</p>");
+});
+
+test("sectionHTML: an HTML block section gives its stored markup", () => {
+  const sec = { id: "s-1", layout: "1", columns: [[{ id: "h", type: "html", settings: { html: "<p>x</p>" } }]] };
+  assert.equal(sectionHTML(null, sec), "<p>x</p>");
+  assert.equal(sectionHTML(null, { id: "s-2", layout: "1", columns: [[{ id: "a", type: "hero" }]] }), "");
 });

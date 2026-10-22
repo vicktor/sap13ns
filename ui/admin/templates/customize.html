@@ -266,7 +266,7 @@
       <div class="cz-body">
         <div class="field">
           <label for="cz-css">{{T "Extra CSS rules"}}</label>
-          <textarea class="textarea cz-code" id="cz-css" name="css" rows="12" maxlength="65536" spellcheck="false" autocapitalize="off" aria-describedby="cz-css-help">{{$D.CSS}}</textarea>
+          <textarea class="textarea cz-code" id="cz-css" name="css" data-code-editor="css" rows="12" maxlength="65536" spellcheck="false" autocapitalize="off" aria-describedby="cz-css-help">{{$D.CSS}}</textarea>
           <p class="hint" id="cz-css-help">{{T "Up to 64 KB, served as a separate file after the theme's styles. Not allowed: @import, url() to other sites, javascript:, expression(), behavior and -moz-binding. Use the theme's variables, such as var(--primary)."}} {{T "Sections and HTML blocks of the page builder can have a CSS class for these rules."}}</p>
         </div>
       </div>
@@ -331,6 +331,7 @@
     </section>
   </div>
 </section>
+<script defer src="{{asset "vendor/codemirror/code-editor.min.js"}}"></script>
 <script type="module" src="{{asset "customizer.js"}}"></script>
 {{if $d.Content}}{{template "media-dialog" .}}{{end}}
 {{end}}

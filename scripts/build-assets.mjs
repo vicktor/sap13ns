@@ -61,6 +61,19 @@ async function buildBundles() {
   }
 }
 
+// 3b. The code editor (CodeMirror 6, ui/admin/src/code-editor.js): one
+// minified file that only the pages with code fields load.
+async function buildCodeEditor() {
+  const out = join(root, "ui/static/vendor/codemirror");
+  mkdirSync(out, { recursive: true });
+  await esbuild.build({
+    entryPoints: [join(root, "ui/admin/src/code-editor.js")], bundle: true, format: "iife", minify: true,
+    charset: "utf8", legalComments: "none", outfile: join(out, "code-editor.min.js"), logLevel: "warning",
+  });
+  copyFileSync(join(root, "node_modules/@codemirror/view/LICENSE"), join(out, "LICENSE"));
+  console.log(`code editor: ${(readFileSync(join(out, "code-editor.min.js")).length / 1024).toFixed(1)} KiB`);
+}
+
 // 4. Tailwind CSS: admin panel and one stylesheet per theme.
 function cssTargets() {
   const targets = [
@@ -84,6 +97,7 @@ if (!process.argv.includes("--css-only")) {
   buildIcons();
   copyBasecoatJS();
   await buildBundles();
+  if (!watch) await buildCodeEditor();
 }
 
 if (process.argv.includes("--no-css")) {
