@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.12.1 — 2026-10-22
+
+- **Edit as HTML is easier to find.** Each section's row in Design → Structure has a `</>` button, the button is now the first thing in a section's settings, and a block's settings have **Edit its section as HTML**.
+- **Start from the theme's HTML.** A page that still uses the theme's own template (before it is built with blocks) can start from that template's markup: it opens in the code editor and becomes one full-width HTML section. The pages that hold a post's content or the footer credits keep starting from blocks.
+
 ## v0.12.0 — 2026-10-22
 
 - **Edit a section as HTML.** In Design, a section's settings have **Edit as HTML**. It opens the section's markup, as the preview shows it, in a code editor. Applying it turns the section into one HTML block with the same anchor, appearance and class, and Undo brings the blocks back. This works on landing, one-page and theme sections alike. The section with the footer credits or the post's content stays as blocks.

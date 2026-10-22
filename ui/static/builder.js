@@ -147,13 +147,25 @@ export function sectionHTML(doc, sec) {
   if (!el) return "";
   const inner = el.classList.contains("sap-theme-section") ? el : el.querySelector(":scope > .sap-section-inner");
   if (!inner) return "";
-  const copy = inner.cloneNode(true);
+  const body = cleanMarkup(inner);
+  return (PRESETS[sec.layout] || 1) > 1 && inner !== el ? `<div class="sap-cols sap-cols-${sec.layout}">\n${body}\n</div>` : body;
+}
+
+/** themeHTML is what the theme's own template shows in the main part of
+ * the preview document doc, for a region that is not laid out yet. */
+export function themeHTML(doc) {
+  const main = doc?.querySelector("main");
+  return main ? cleanMarkup(main) : "";
+}
+
+// cleanMarkup is el's inner markup without the preview's text marks.
+function cleanMarkup(el) {
+  const copy = el.cloneNode(true);
   for (const m of copy.querySelectorAll("span[data-sap-text]")) m.replaceWith(...m.childNodes);
   for (const e of [copy, ...copy.querySelectorAll("*")]) {
     for (const a of [...e.attributes]) if (a.name.startsWith("data-sap-")) e.removeAttribute(a.name);
   }
-  const body = tidyMarkup(copy.innerHTML);
-  return (PRESETS[sec.layout] || 1) > 1 && copy !== el ? `<div class="sap-cols sap-cols-${sec.layout}">\n${body}\n</div>` : body;
+  return tidyMarkup(copy.innerHTML);
 }
 
 // tidyMarkup drops the blank lines and the indentation templates leave.
@@ -699,7 +711,10 @@ function init(root) {
         h("button", { type: "button", class: "btn", "data-size": "sm", "data-variant": presets.length ? "outline" : null, onclick: build },
           icon("plus"), presets.length ? msg.msgBuildBasic : msg.msgBuild),
         h("button", { type: "button", class: "btn", "data-variant": presets.length ? "ghost" : "outline", "data-size": "sm", onclick: empty },
-          icon("columns-2"), msg.msgStartEmpty)),
+          icon("columns-2"), msg.msgStartEmpty),
+        // Regions with the credits or the content stay blocks.
+        htmlDialog && !emptyRegion(region).sections.flat().some((sec) => htmlLocked(sec))
+          ? h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", onclick: openThemeHTML }, icon("code"), msg.msgStartHtml) : null),
         h("p", { class: "hint", text: msg.msgEmptyNext }));
     } else {
       if (r.sections.some((s) => s.anchor)) {
@@ -756,6 +771,7 @@ function init(root) {
           h("button", { type: "button", class: "bl-grip", "data-grip": "section", "data-s": s, "aria-label": `${label}: ${msg.msgMove}`, title: msg.msgMove }, icon("grip-vertical")),
           h("button", { type: "button", class: "bl-select", "data-select": sec.id, "aria-pressed": selected === sec.id ? "true" : "false", onclick: () => select(sec.id) },
             icon("columns-2"), h("span", { class: "bl-name", text: label }), meta ? h("span", { class: "bl-meta", text: meta }) : null),
+          htmlDialog ? iconButton("code", `${label}: ${msg.msgEditHtml}`, () => openHTML(sec, { s }), { disabled: htmlLocked(sec) || null }) : null,
           iconButton("copy", `${label}: ${msg.msgDuplicate}`, () => commit(duplicateSection(layout(), region, s, types))),
           iconButton("trash-2", `${label}: ${msg.msgDelete}`, () => {
             if (sec.columns.flat().some((b) => required(b.type, region))) { toast("info", msg.msgRequired); return; }
@@ -863,10 +879,9 @@ function init(root) {
     const down = () => { commit(moveSection(layout(), region, pos.s, pos.s + 1)); say(fmt(msg.msgMoved, label)); };
     const errs = errors.filter((e) => e.region === region && e.s === pos.s && e.c == null && !e.anchor && !e.sectionClass).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
     settings.replaceChildren(header("columns-2", `${label} · ${msg.msgSectionSettings}`),
-      h("section", { class: "bl-form" }, ...errs, presets, anchorField(sec, pos), ...fields,
+      h("section", { class: "bl-form" }, ...errs, htmlButton(sec, pos, msg.msgEditHtml), presets, anchorField(sec, pos), ...fields,
         // The credits' section takes no class (the server refuses one).
         hasBlock(sec, META) ? null : sectionClassField(sec, pos),
-        htmlButton(sec, pos),
         moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
   }
 
@@ -877,11 +892,12 @@ function init(root) {
   const htmlDialog = document.getElementById("bl-html-dialog");
   const htmlBox = document.getElementById("bl-html-input");
   let htmlAt = null;
-  function htmlButton(sec, pos) {
+  const htmlLocked = (sec) => sec.columns.flat().some((b) => b.type === META || b.type === CONTENT);
+  function htmlButton(sec, pos, text) {
     if (!htmlDialog) return null;
-    const locked = sec.columns.flat().some((b) => b.type === META || b.type === CONTENT);
-    return h("div", { class: "field" },
-      h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", disabled: locked || null, onclick: () => openHTML(sec, pos) }, icon("code"), msg.msgEditHtml),
+    const locked = htmlLocked(sec);
+    return h("div", { class: "field bl-html-field" },
+      h("button", { type: "button", class: "btn w-full", "data-variant": "secondary", disabled: locked || null, onclick: () => openHTML(sec, { s: pos.s }) }, icon("code"), text),
       h("p", { class: "hint", text: locked ? msg.msgEditHtmlLocked : msg.msgEditHtmlHint }));
   }
   function openHTML(sec, pos) {
@@ -895,8 +911,32 @@ function init(root) {
     htmlDialog.showModal();
     (ed || htmlBox).focus();
   }
+  // openThemeHTML starts a region from its theme template's markup: one
+  // section holding it as an HTML block.
+  function openThemeHTML() {
+    const markup = themeHTML(frameDoc());
+    if (!markup) { toast("info", msg.msgEditHtmlNoPreview); return; }
+    htmlAt = { fresh: region };
+    document.getElementById("bl-html-where").textContent = regions.find((r) => r.name === region)?.label || region;
+    const ed = codeEditor(htmlBox, "html");
+    if (ed) ed.value = markup; else htmlBox.value = markup;
+    htmlDialog.showModal();
+    (ed || htmlBox).focus();
+  }
   if (htmlDialog) {
     htmlDialog.querySelector("[data-html-apply]").addEventListener("click", () => {
+      if (htmlAt?.fresh) {
+        htmlDialog.close();
+        if (htmlAt.fresh !== region || getRegion(layout(), region)) return;
+        // The theme's markup brings its own widths and spacing.
+        const start = emptyRegion(region, layout());
+        start.sections[0].style = { padding: "none", width: "full" };
+        const next = setRegion(layout(), region, start);
+        selected = getRegion(next, region).sections[0].id;
+        commit(sectionToHTML(next, region, 0, htmlBox.value));
+        say(msg.msgEditHtmlDone);
+        return;
+      }
       const at = htmlAt && find(layout(), region, htmlAt.id);
       htmlDialog.close();
       if (!at) return;
@@ -1074,6 +1114,8 @@ function init(root) {
     const up = step(layout(), region, pos, "up");
     const down = step(layout(), region, pos, "down");
     form.append(moveButtons(() => moveTo(pos, up, t.label), () => moveTo(pos, down, t.label), Boolean(up), Boolean(down)));
+    const html = htmlButton(r.sections[pos.s], pos, msg.msgEditSectionHtml);
+    if (html) form.append(html);
     parts.push(form);
     settings.replaceChildren(...parts);
   }

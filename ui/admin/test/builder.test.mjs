@@ -6,7 +6,7 @@ import {
   setStyle, insertBlock, removeBlock, moveBlock, dropIndex, duplicateBlock, setValue, find, step, count, allowed,
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
   addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
-  validClasses, setSectionClass, hasBlock, emptyRegion, sectionToHTML, sectionHTML,
+  validClasses, setSectionClass, hasBlock, emptyRegion, sectionToHTML, sectionHTML, themeHTML,
 } from "../../static/builder.js";
 
 // A seeded random source, so ids are reproducible.
@@ -386,4 +386,9 @@ test("sectionHTML: an HTML block section gives its stored markup", () => {
   const sec = { id: "s-1", layout: "1", columns: [[{ id: "h", type: "html", settings: { html: "<p>x</p>" } }]] };
   assert.equal(sectionHTML(null, sec), "<p>x</p>");
   assert.equal(sectionHTML(null, { id: "s-2", layout: "1", columns: [[{ id: "a", type: "hero" }]] }), "");
+});
+
+test("themeHTML: nothing without a preview's main part", () => {
+  assert.equal(themeHTML(null), "");
+  assert.equal(themeHTML({ querySelector: () => null }), "");
 });
