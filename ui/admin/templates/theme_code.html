@@ -1,0 +1,78 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$th := $d.Theme}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/appearance/themes">{{icon "arrow-left" "size-3.5"}} {{T "Themes"}}</a></p>
+    <h1>{{T "Code of %s" $th.Name}} {{if $d.Active}}<span class="badge" data-variant="success">{{T "Active"}}</span>{{end}}</h1>
+    <p>{{T "The theme's templates, stylesheets and texts. Every save goes through the checks of a theme upload: a file with a mistake is not saved, and the page says where it is."}}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" data-variant="outline" data-size="sm" href="/?preview_theme={{$th.Slug}}" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a>
+    <a class="btn" data-variant="outline" data-size="sm" href="/admin/appearance/themes/{{$th.Slug}}/customize">{{icon "paintbrush"}}{{T "Design"}}</a>
+    {{if not $d.Active}}<form method="post" action="/admin/appearance/themes/{{$th.Slug}}/activate">{{.CSRFField}}<button class="btn" data-size="sm" type="submit">{{T "Activate"}}</button></form>{{end}}
+  </div>
+</div>
+
+{{if $d.Copy}}
+<div class="alert" data-variant="info" id="code-copy">
+  {{icon "copy"}}
+  <h2>{{if $th.Builtin}}{{T "This theme comes with sap13ns and cannot change"}}{{else}}{{T "This theme belongs to the network and cannot change"}}{{end}}</h2>
+  <section>
+    <p>{{T "Saving creates “%s”: a copy with your change, which starts with this theme's options and Design. This theme stays as it is, and the copy is not activated until you activate it." $d.CopyName}}</p>
+    {{with $d.Copies}}<p>{{T "Copies you have already:"}} {{range $i, $c := .}}{{if $i}}, {{end}}<a href="/admin/appearance/themes/{{$c.Slug}}/code">{{$c.Name}}</a>{{end}}</p>{{end}}
+  </section>
+</div>
+{{end}}
+
+{{with $d.Refused}}
+<div class="alert" data-variant="destructive" role="alert" id="refused">
+  {{icon "octagon-alert"}}
+  <h2>{{T "The change was not saved"}}</h2>
+  <section>
+    <p>{{T "The checks found problems. Nothing changed: fix them and save again."}}</p>
+    <ul class="finding-list">
+      {{range .Problems}}
+      <li data-severity="critical">{{icon "octagon-alert"}}<div><p>{{.Message}}</p>{{with .Where}}<p class="rule">{{.}}</p>{{end}}</div></li>
+      {{end}}
+    </ul>
+    {{with .More}}<p class="hint">{{plural . "…and %d more problem." "…and %d more problems."}}</p>{{end}}
+  </section>
+</div>
+{{end}}
+
+<div class="code-layout">
+  <nav class="card code-files" aria-label="{{T "Files"}}">
+    <section>
+      <ul>
+        {{$dir := "-"}}
+        {{range $d.Files}}
+        {{if ne .Dir $dir}}{{$dir = .Dir}}{{with .Dir}}<li class="code-dir">{{icon "folder" "size-3.5"}}{{.}}</li>{{end}}{{end}}
+        <li><a href="?file={{.Name}}"{{if .Current}} aria-current="page"{{end}}{{if .Dir}} class="code-nested"{{end}}>{{icon "file-code" "size-3.5"}}{{.Base}}</a></li>
+        {{end}}
+      </ul>
+    </section>
+  </nav>
+  {{if $d.File}}
+  <form method="post" class="card code-form" data-unsaved>
+    {{.CSRFField}}
+    <input type="hidden" name="file" value="{{$d.File}}">
+    <header>
+      <h2><label for="code-content" class="code-name">{{$d.File}}</label></h2>
+      {{if eq $d.File "static/theme.css"}}<p>{{T "The theme's compiled stylesheet. A class the theme did not use before has no rule here: write plain CSS rules for what you add."}}</p>
+      {{else if eq $d.Lang "css"}}{{if hasPrefix $d.File "src/"}}<p>{{T "The stylesheet's source, for rebuilding the theme with Tailwind. The site does not read it: its pages use static/theme.css."}}</p>{{end}}
+      {{else if eq $d.File "theme.json"}}<p>{{T "The theme's name, options, menus, widget areas and sections."}}</p>
+      {{else if hasPrefix $d.File "i18n/"}}<p>{{T "Translations of the theme's own texts: the English text, then its translation."}}</p>
+      {{else}}<p>{{T "A Go template: what goes between double braces is filled in on every visit, such as the site's title, the posts or a translated text."}}</p>{{end}}
+    </header>
+    <section>
+      <textarea class="textarea code-area" id="code-content" name="content" data-code-editor="{{$d.Lang}}" rows="30" spellcheck="false" autocapitalize="off">{{$d.Content}}</textarea>
+    </section>
+    <footer>
+      <button class="btn" type="submit">{{icon "save"}}{{if $d.Copy}}{{T "Save as a copy"}}{{else}}{{T "Save"}}{{end}}</button>
+    </footer>
+  </form>
+  {{end}}
+</div>
+<script defer src="{{asset "vendor/codemirror/code-editor.min.js"}}"></script>
+{{end}}

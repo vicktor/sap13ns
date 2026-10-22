@@ -7,7 +7,7 @@
 // itself it would add a <style> element, which the CSP blocks. The admin's
 // colour tokens are custom properties, so they reach it.
 // Only what a code field needs, to keep the file small: the legacy xml
-// (HTML) and css modes rather than the full language packages.
+// (HTML), css and json modes rather than the full language packages.
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, highlightSpecialChars } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -15,6 +15,7 @@ import { StreamLanguage, syntaxHighlighting, defaultHighlightStyle, bracketMatch
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { html as htmlMode } from "@codemirror/legacy-modes/mode/xml";
 import { css as cssMode } from "@codemirror/legacy-modes/mode/css";
+import { json as jsonMode } from "@codemirror/legacy-modes/mode/javascript";
 
 const setup = [
   lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), history(), drawSelection(), indentOnInput(),
@@ -23,7 +24,7 @@ const setup = [
 ];
 
 const theme = EditorView.theme({
-  "&": { minHeight: "var(--sap-code-min, 14rem)", maxHeight: "70vh", fontSize: "13px", color: "var(--foreground)", backgroundColor: "var(--background)", border: "1px solid var(--border)", borderRadius: "var(--radius-md, 6px)" },
+  "&": { minHeight: "var(--sap-code-min, 14rem)", maxHeight: "var(--sap-code-max, 70vh)", fontSize: "13px", color: "var(--foreground)", backgroundColor: "var(--background)", border: "1px solid var(--border)", borderRadius: "var(--radius-md, 6px)" },
   "&.cm-focused": { outline: "2px solid var(--ring)", outlineOffset: "1px" },
   ".cm-scroller": { overflow: "auto", fontFamily: "var(--font-mono, ui-monospace, monospace)", lineHeight: "1.55" },
   ".cm-content": { caretColor: "var(--foreground)" },
@@ -34,10 +35,10 @@ const theme = EditorView.theme({
   ".cm-tooltip": { backgroundColor: "var(--popover)", color: "var(--popover-foreground)", border: "1px solid var(--border)" },
 });
 
-/** attach puts an editor over textarea (lang "html" or "css") and returns it. */
+/** attach puts an editor over textarea (lang "html", "css" or "json") and returns it. */
 function attach(textarea, opts = {}) {
   if (textarea._sapEditor) return textarea._sapEditor;
-  const lang = StreamLanguage.define(opts.lang === "css" ? cssMode : htmlMode);
+  const lang = StreamLanguage.define(opts.lang === "css" ? cssMode : opts.lang === "json" ? jsonMode : htmlMode);
   const host = document.createElement("div");
   host.className = "sap-code-editor";
   const root = host.attachShadow({ mode: "open" });

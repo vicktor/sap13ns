@@ -119,6 +119,7 @@
       <a class="btn" data-variant="outline" data-size="sm" href="/?preview_theme={{.Slug}}" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview"}}</a>
       {{if .Options}}<a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/options">{{icon "settings"}}{{T "Options"}}</a>{{end}}
       <a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/customize">{{icon "paintbrush"}}{{T "Design"}}</a>
+      {{if $d.Uploads}}<a class="btn" data-variant="ghost" data-size="sm" href="/admin/appearance/themes/{{.Slug}}/code">{{icon "code"}}{{T "Edit code"}}</a>{{end}}
       {{if ne .Slug $d.Active}}
       {{if .Own}}<form method="post" action="/admin/appearance/themes/{{.Slug}}/delete">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="sm" type="submit" data-confirm="{{T "Delete the theme “%s”? This cannot be undone." .Name}}" aria-label="{{T "Delete %s" .Name}}" title="{{T "Delete"}}">{{icon "trash-2"}}</button></form>{{end}}
       <form method="post" action="/admin/appearance/themes/{{.Slug}}/activate" class="ml-auto">{{$.CSRFField}}<button class="btn" data-size="sm" type="submit">{{T "Activate"}}</button></form>

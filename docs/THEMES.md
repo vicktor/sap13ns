@@ -11,22 +11,23 @@ This is the contract between sap13ns and its themes: the folder layout, the mani
 1. [Folder layout](#folder-layout)
 2. [Installing a theme](#installing-a-theme)
 3. [Uploading a theme](#uploading-a-theme)
-4. [theme.json](#themejson)
-5. [Templates](#templates)
-6. [Front pages and one-page sites](#front-pages-and-one-page-sites)
-7. [Shared templates](#shared-templates)
-8. [Template data](#template-data)
-9. [Translations](#translations)
-10. [CSS and design tokens](#css-and-design-tokens)
-11. [Light and dark](#light-and-dark)
-12. [Videos and images in posts](#videos-and-images-in-posts)
-13. [Cookie consent](#cookie-consent)
-14. [Content Security Policy](#content-security-policy)
-15. [Accessibility](#accessibility)
-16. [The customiser](#the-customiser)
-17. [The page builder](#the-page-builder)
-18. [Animations](#animations)
-19. [Checklist](#checklist)
+4. [Editing a theme's code](#editing-a-themes-code)
+5. [theme.json](#themejson)
+6. [Templates](#templates)
+7. [Front pages and one-page sites](#front-pages-and-one-page-sites)
+8. [Shared templates](#shared-templates)
+9. [Template data](#template-data)
+10. [Translations](#translations)
+11. [CSS and design tokens](#css-and-design-tokens)
+12. [Light and dark](#light-and-dark)
+13. [Videos and images in posts](#videos-and-images-in-posts)
+14. [Cookie consent](#cookie-consent)
+15. [Content Security Policy](#content-security-policy)
+16. [Accessibility](#accessibility)
+17. [The customiser](#the-customiser)
+18. [The page builder](#the-page-builder)
+19. [Animations](#animations)
+20. [Checklist](#checklist)
 
 ## Folder layout
 
@@ -138,6 +139,16 @@ An administrator can install a theme from a `.zip` file, without access to the s
 **Rendering limits.** An uploaded theme renders each page into a buffer of at most 8 MB, within 5 seconds, and stops when the visitor goes away. Every function its templates call checks these limits first, so a page stops even between two writes, and counts the text it returns: at most 16 MB per page. The functions that format (`printf`, `print`, `println`, `html`, `js`, `urlquery`, `join`, `paragraphs`, `T`, `plural`) compute the length of their text before they make it, from the format actually used (for `T` and `plural`, the translation, not the key) and from their arguments, and refuse a text over 1 MB. The template sets of an uploaded theme are loaded with these functions turned off: only the bounded copies the server makes for each render run them. The rendered page must hold the credit. A page over a limit is not sent: the visitor gets a 500, and the log says `uploaded theme refused to render` with the theme and the page. Built-in and hand-installed themes render as before.
 
 **What the checks do not decide.** The stylesheet can still hide the credit, as custom CSS can; the CPAL-1.0 licence requires it to stay visible, and the site answers for that. Design, accessibility and the content of the theme's own texts are the author's.
+
+## Editing a theme's code
+
+**Appearance → Themes → Edit code** opens a theme's files in the admin's code editor, as WordPress's theme file editor does: `theme.json`, the templates, the stylesheets (`static/` and `src/`) and the translations. Fonts and images are kept but not edited. It needs the appearance capability and, on a network, a plan that allows theme uploads (or a network admin).
+
+- **Every save is an upload.** The theme is packed again with the changed file and goes through [the checks of an upload](#uploading-a-theme): a mistake refuses the save, lists the problems with their file and line, and keeps the text in the editor; nothing on disk changes. A save that passes replaces the theme at once, and the files count against the site's storage.
+- **Built-in and network themes are copied.** They cannot change, so the first save installs a copy in the site's own directory, `<slug>-custom` (then `-custom-2`…), named “<Name> (custom)”, with the change. The copy starts with the original's options and Design (customiser and page builder, draft and published), is not activated, and is edited in place from then on. The original stays as it was.
+- **A theme of the site's own directory** is changed in place. Uploading a new version of it later replaces the edits.
+- **The compiled stylesheet.** `static/theme.css` is what pages load; a minified one opens one rule a line (only whitespace changes). It holds the Tailwind classes the theme used when it was built, so a new class has no rule: write plain CSS for what you add, or rebuild from `src/` outside the admin.
+- Saves are audited as `theme.copied` or `theme.edited`, with the file and the new SHA-256.
 
 ## theme.json
 

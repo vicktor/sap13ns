@@ -36,7 +36,7 @@ type UploadInfo struct {
 	SHA256     string    `json:"sha256"` // of the archive
 	UploadedAt time.Time `json:"uploaded_at"`
 	UserID     int64     `json:"user_id,omitempty"` // 0 for the command line
-	Source     string    `json:"source"`            // "upload" | "cli"
+	Source     string    `json:"source"`            // "upload" | "cli" | "editor" (theme code editor)
 	// ImportedFrom is the kind of theme it was converted from
 	// (internal/themeimport: "wordpress-block"); "" for a sap13ns theme.
 	ImportedFrom string `json:"imported_from,omitempty"`
@@ -59,7 +59,7 @@ func readUploadInfo(fsys fs.FS) *UploadInfo {
 // InstallOptions describe who installs a theme.
 type InstallOptions struct {
 	UserID int64
-	Source string // "upload" | "cli"
+	Source string // "upload" | "cli" | "editor"
 	// ImportedFrom: the archive was converted from another CMS's theme
 	// (themeimport's Report.Source).
 	ImportedFrom string

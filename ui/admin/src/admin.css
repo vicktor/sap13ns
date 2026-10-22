@@ -454,6 +454,17 @@
 .theme-grid { @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3; }
 .theme-card { @apply gap-4 pt-0; }
 .theme-card.is-active { @apply ring-2 ring-primary; }
+.code-layout { @apply grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] items-start; }
+.code-files { @apply py-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto; }
+.code-files > section { @apply px-2; }
+.code-files ul { @apply grid gap-0.5 text-sm; }
+.code-files a { @apply flex items-center gap-2 rounded-md px-2 py-1.5 text-foreground no-underline hover:bg-accent break-all; }
+.code-files a[aria-current="page"] { @apply bg-accent font-medium; }
+.code-files .code-nested { @apply pl-6; }
+.code-dir { @apply flex items-center gap-2 px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground; }
+.code-form { --sap-code-min: 60vh; }
+.code-form .sap-code-editor { --sap-code-max: 75vh; }
+.code-name { @apply font-mono text-base break-all; }
 .theme-swatches { @apply block h-24 w-full; }
 .theme-card > footer { @apply mt-auto; }
 .theme-card h2 { @apply flex flex-wrap items-center gap-2; }

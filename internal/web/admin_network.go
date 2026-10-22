@@ -665,9 +665,9 @@ type NetGrant struct {
 
 type mySitesData struct {
 	Sites      []NetSite
-	CanRequest bool   // the portal takes requests and the account has no Personal site
+	CanRequest bool // the portal takes requests and the account has no Personal site
 	Grants     []NetGrant
-	Grant      int64 // the subscription the name and error are for
+	Grant      int64  // the subscription the name and error are for
 	Open       bool   // the portal takes requests
 	Domain     string // of the default hosts
 	Slug       string

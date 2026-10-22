@@ -5,6 +5,14 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.13.0 — 2026-10-22
+
+- **Edit a theme's code**, as in WordPress's theme file editor. Appearance → Themes → **Edit code** lists the theme's templates, stylesheets, translations and `theme.json`, and opens them in the code editor (now with JSON highlighting).
+- **Every save is checked like an upload.** A file with a mistake is not saved, and the page lists the problems with their file and line.
+- **Built-in and network themes are copied on the first save** as “<Name> (custom)”, with the original's options and Design. The original stays as it is, and the copy is activated only when you choose.
+- A minified `static/theme.css` opens one rule a line.
+- It needs a plan that allows theme uploads, like uploads do.
+
 ## v0.12.1 — 2026-10-22
 
 - **Edit as HTML is easier to find.** Each section's row in Design → Structure has a `</>` button, the button is now the first thing in a section's settings, and a block's settings have **Edit its section as HTML**.

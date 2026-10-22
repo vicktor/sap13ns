@@ -136,3 +136,17 @@ func SaveThemeOptionsTx(ctx context.Context, tx pgx.Tx, theme string, opts map[s
 		ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`, "theme:"+theme, json.RawMessage(b))
 	return err
 }
+
+// CopyThemeData gives theme to what from has: its options and its
+// customiser and builder work (draft and published), so a copy of a theme
+// starts where the original is. What to already has stays.
+func (s *Store) CopyThemeData(ctx context.Context, from, to string) error {
+	if _, err := s.DB.Exec(ctx, `INSERT INTO settings (key, value) SELECT 'theme:' || $2, value FROM settings WHERE key = 'theme:' || $1
+		ON CONFLICT (key) DO NOTHING`, from, to); err != nil {
+		return err
+	}
+	_, err := s.DB.Exec(ctx, `INSERT INTO theme_custom (theme, kind, draft, published, draft_at, published_at, updated_by)
+		SELECT $2, kind, draft, published, draft_at, published_at, updated_by FROM theme_custom WHERE theme = $1
+		ON CONFLICT (theme, kind) DO NOTHING`, from, to)
+	return err
+}
