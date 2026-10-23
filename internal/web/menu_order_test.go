@@ -3,8 +3,10 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -51,5 +53,29 @@ func TestMenuOrder(t *testing.T) {
 	all, _ = e.st.AllMenus(ctx)
 	if got := all["primary"]; got[0].Label != "C" {
 		t.Errorf("a refused order changed the menu: %v", got)
+	}
+
+	// An item is saved as it is edited: the page's script asks for JSON.
+	save := func(label, link string) int {
+		v := url.Values{"label": {label}, "url": {link}, "csrf": {e.csrf}}
+		req := httptest.NewRequest("POST", "http://example.test/admin/appearance/menus/"+id(p[0].ID), strings.NewReader(v.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Accept", "application/json")
+		req.AddCookie(e.cookie)
+		rec := httptest.NewRecorder()
+		e.s.Handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := save("Inicio", "/inicio"); code != http.StatusOK {
+		t.Fatalf("autosave: %d", code)
+	}
+	if code := save("Inicio", "javascript:alert(1)"); code != http.StatusUnprocessableEntity {
+		t.Fatalf("a bad link: %d", code)
+	}
+	all, _ = e.st.AllMenus(ctx)
+	for _, it := range all["primary"] {
+		if it.ID == p[0].ID && (it.Label != "Inicio" || it.URL != "/inicio") {
+			t.Errorf("saved: %+v", it)
+		}
 	}
 }

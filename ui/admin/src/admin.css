@@ -469,7 +469,7 @@
 .theme-card > footer { @apply mt-auto; }
 .theme-card h2 { @apply flex flex-wrap items-center gap-2; }
 .menu-items { @apply flex flex-col gap-2; }
-.menu-item-form { @apply grid gap-2 rounded-lg border bg-background p-2 sm:grid-cols-[auto_1fr_1.4fr_auto]; }
+.menu-item-form { @apply grid gap-2 rounded-lg border bg-background p-2 sm:grid-cols-[auto_1fr_1.4fr_auto] sm:items-center; }
 .menu-grip { @apply cursor-grab touch-none text-muted-foreground; }
 .menu-items > li.dragging { @apply relative z-10 opacity-80 shadow-md; }
 .menu-items > li.dragging .menu-grip { @apply cursor-grabbing; }

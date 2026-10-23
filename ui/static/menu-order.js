@@ -1,6 +1,7 @@
 // Menus (Appearance → Menus): the items of a menu are reordered by dragging
 // their grip, or with the arrow keys on it, and the new order is saved at
-// once (POST data-menu-order, ids in order).
+// once (POST data-menu-order, ids in order). An item's label and link are
+// saved as soon as one of them changes.
 (() => {
   const lists = document.querySelectorAll("ol[data-menu-order]");
   if (!lists.length) return;
@@ -31,6 +32,24 @@
         toast("error", list.dataset.msgFailed);
       }
     };
+
+    list.addEventListener("change", async (e) => {
+      const form = e.target.closest("form.menu-item-form");
+      if (!form || !form.reportValidity()) return;
+      try {
+        const res = await fetch(form.action, {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          body: new URLSearchParams(new FormData(form)),
+          credentials: "same-origin",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || list.dataset.msgFailed);
+        toast("success", list.dataset.msgSaved);
+      } catch (err) {
+        toast("error", err.message);
+      }
+    });
 
     list.addEventListener("keydown", (e) => {
       const grip = e.target.closest(".menu-grip");

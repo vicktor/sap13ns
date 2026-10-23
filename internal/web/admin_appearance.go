@@ -257,9 +257,16 @@ func (s *Server) adminMenuUpdate(w http.ResponseWriter, r *http.Request) {
 		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
 		return
 	}
+	// The page's script saves an item as it is edited, and asks for JSON.
+	script := strings.Contains(r.Header.Get("Accept"), "application/json")
 	label, link := trimmed(r, "label"), trimmed(r, "url")
 	if !sitecheck.MenuItem(label, link) {
-		s.redirect(w, r, menusPath(s.menuScope(r)), "error", s.tu(r, "Enter a label and a valid link (/path or https://…)."))
+		msg := s.tu(r, "Enter a label and a valid link (/path or https://…).")
+		if script {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": msg})
+			return
+		}
+		s.redirect(w, r, menusPath(s.menuScope(r)), "error", msg)
 		return
 	}
 	if err := s.store.UpdateMenuItem(r.Context(), id, label, link); err != nil {
@@ -267,6 +274,10 @@ func (s *Server) adminMenuUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.contentChanged()
+	if script {
+		writeJSON(w, http.StatusOK, map[string]string{"message": s.tu(r, "Saved.")})
+		return
+	}
 	s.redirect(w, r, menusPath(s.menuScope(r)), "success", s.tu(r, "Saved."))
 }
 

@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.14.1 — 2026-10-23
+
+- **Menu items save themselves.** In Appearance → Menus, a change to an item's label or link is saved as soon as you leave the field, as a new item and a new order already were. The save button is gone.
+
 ## v0.14.0 — 2026-10-23
 
 - **Design with AI builds whole pages in HTML.** The model can now answer with a page as full-width sections written in HTML, plus the site's custom CSS, the way a site is built by hand: far easier for it to get right than nested block patches. It also sees the site's latest images and can use them. On its last try, what the site's checks still refuse is left out and the rest is saved to the draft, instead of nothing at all; the answer says what happened. The design MCP server takes the same `html_regions` and `css`.
