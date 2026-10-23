@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -306,6 +307,12 @@ func (s *Server) adminMenuAction(w http.ResponseWriter, r *http.Request) {
 // adminMenuOrder saves a menu's order after a drag: ids, every item of
 // one menu in their new order. It answers 204, for the page's script.
 func (s *Server) adminMenuOrder(w http.ResponseWriter, r *http.Request) {
+	s.reorder(w, r, s.store.ReorderMenu, s.tu(r, "The menu changed meanwhile. Reload the page."))
+}
+
+// reorder saves the order the page's script sends (ids, in order) with
+// save; changed is the answer when the ids are not those of one group.
+func (s *Server) reorder(w http.ResponseWriter, r *http.Request, save func(context.Context, []int64) error, changed string) {
 	if err := r.ParseForm(); err != nil || len(r.PostForm["ids"]) > 500 {
 		http.Error(w, s.tu(r, "Invalid request."), http.StatusBadRequest)
 		return
@@ -319,9 +326,9 @@ func (s *Server) adminMenuOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		ids = append(ids, id)
 	}
-	switch err := s.store.ReorderMenu(r.Context(), ids); {
-	case errors.Is(err, store.ErrMenuOrder), errors.Is(err, store.ErrNotFound):
-		http.Error(w, s.tu(r, "The menu changed meanwhile. Reload the page."), http.StatusConflict)
+	switch err := save(r.Context(), ids); {
+	case errors.Is(err, store.ErrOrder), errors.Is(err, store.ErrNotFound):
+		http.Error(w, changed, http.StatusConflict)
 		return
 	case err != nil:
 		s.serverError(w, r, err)
@@ -450,6 +457,10 @@ func (s *Server) adminWidgetUpdate(w http.ResponseWriter, r *http.Request) {
 	s.redirect(w, r, fmt.Sprintf("/admin/appearance/widgets#widget-%d", id), "success", s.tu(r, "Saved."))
 }
 
+func (s *Server) adminWidgetOrder(w http.ResponseWriter, r *http.Request) {
+	s.reorder(w, r, s.store.ReorderWidgets, s.tu(r, "The widgets changed meanwhile. Reload the page."))
+}
+
 func (s *Server) adminWidgetAction(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -458,10 +469,6 @@ func (s *Server) adminWidgetAction(w http.ResponseWriter, r *http.Request) {
 	}
 	var err error
 	switch r.PathValue("action") {
-	case "up":
-		err = s.store.MoveWidget(r.Context(), id, -1)
-	case "down":
-		err = s.store.MoveWidget(r.Context(), id, 1)
 	case "delete":
 		err = s.store.DeleteWidget(r.Context(), id)
 	default:

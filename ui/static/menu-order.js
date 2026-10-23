@@ -1,7 +1,7 @@
-// Menus (Appearance → Menus): the items of a menu are reordered by dragging
+// Menus and widgets (Appearance): the items of a list are reordered by dragging
 // their grip, or with the arrow keys on it, and the new order is saved at
 // once (POST data-menu-order, ids in order). An item's label and link are
-// saved as soon as one of them changes.
+// saved as soon as one of them changes (widgets keep their Save button).
 (() => {
   const lists = document.querySelectorAll("ol[data-menu-order]");
   if (!lists.length) return;

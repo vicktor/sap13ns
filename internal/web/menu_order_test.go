@@ -79,3 +79,43 @@ func TestMenuOrder(t *testing.T) {
 		}
 	}
 }
+
+// Widgets are reordered like menu items, one area at a time.
+func TestWidgetOrder(t *testing.T) {
+	e := newPluginEnv(t)
+	ctx := context.Background()
+	for _, title := range []string{"A", "B", "C"} {
+		if err := e.st.AddWidget(ctx, "sidebar", "", "text", title, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.st.AddWidget(ctx, "footer", "", "text", "F", nil); err != nil {
+		t.Fatal(err)
+	}
+	all, _ := e.st.AllWidgets(ctx)
+	sb, ft := all["sidebar"], all["footer"]
+	order := func(ids ...int64) int {
+		v := url.Values{}
+		for _, i := range ids {
+			v.Add("ids", strconv.FormatInt(i, 10))
+		}
+		return e.admin("/admin/appearance/widgets/order", v).Code
+	}
+	if code := order(sb[1].ID, sb[2].ID, sb[0].ID); code != http.StatusNoContent {
+		t.Fatalf("reorder: %d", code)
+	}
+	all, _ = e.st.AllWidgets(ctx)
+	if got := all["sidebar"]; got[0].Title != "B" || got[1].Title != "C" || got[2].Title != "A" {
+		t.Fatalf("order: %v", got)
+	}
+	if code := order(sb[0].ID, sb[1].ID, ft[0].ID); code != http.StatusConflict {
+		t.Fatalf("another area: %d", code)
+	}
+	if code := order(sb[0].ID); code != http.StatusConflict {
+		t.Fatalf("missing ones: %d", code)
+	}
+	if rec := e.do("GET", "/admin/appearance/widgets", nil, "", e.cookie); !strings.Contains(rec.Body.String(), `data-menu-order="/admin/appearance/widgets/order"`) ||
+		strings.Contains(rec.Body.String(), "/up\"") {
+		t.Fatal("the widgets page has no drag list, or still has arrows")
+	}
+}

@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.15.4 — 2026-10-23
+
+- **Widgets are dragged too.** In Appearance → Widgets, each widget has a grip: drag it (or use the arrow keys on it) to reorder the widgets of an area, with the same lift, gap and slide as Menus, and the order is saved at once. The up and down arrows are gone.
+
 ## v0.15.3 — 2026-10-23
 
 - **Dragging is visual.** In Menus and in Design → Structure, the item you drag lifts and follows the pointer, a dashed gap opens where it will land and the other items slide aside to make room; in Menus it glides into place when dropped. With reduced motion the items move without animation.

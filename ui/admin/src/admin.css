@@ -479,7 +479,10 @@
 @media (prefers-reduced-motion: reduce) { .menu-items > li.dragging { rotate: none; scale: none; } }
 .item-actions { @apply flex flex-wrap items-center gap-1; }
 .widget-areas { @apply grid gap-6 lg:grid-cols-2; }
-.widget-item { @apply rounded-lg border; }
+.widget-row { @apply flex items-start gap-1; }
+.widget-row > .menu-grip { @apply mt-1.5; }
+.widget-item { @apply min-w-0 flex-1 rounded-lg border bg-background; }
+.menu-items > li.dragging .widget-item { @apply border-primary; }
 .widget-item > summary, .revision > summary { @apply flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm [&::-webkit-details-marker]:hidden; }
 .widget-item > form { @apply border-t p-3; }
 .widget-item[open] .rev-chevron, .revision[open] .rev-chevron { @apply rotate-180; }

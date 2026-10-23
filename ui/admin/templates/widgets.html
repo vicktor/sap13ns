@@ -13,7 +13,11 @@
   <section class="card" id="area-{{.ID}}">
     <header><h2>{{themeT $d.Theme .Label}}</h2>{{with .Description}}<p>{{themeT $d.Theme .}}</p>{{end}}</header>
     <section class="stack">
-      {{range (index $d.Widgets $area)}}
+      {{with index $d.Widgets $area}}
+      <ol class="menu-items" data-menu-order="/admin/appearance/widgets/order" data-msg-moved="{{T "Order saved."}}" data-msg-failed="{{T "The order could not be saved. Reload the page."}}">
+      {{range .}}
+      <li data-id="{{.ID}}" class="widget-row">
+      <button class="btn menu-grip" data-variant="ghost" data-size="icon-sm" type="button" aria-label="{{T "Drag to reorder (or use the arrow keys)"}}" title="{{T "Drag to reorder"}}">{{icon "grip-vertical"}}</button>
       <details class="widget-item" id="widget-{{.ID}}">
         <summary><span><strong>{{or .Title (index $d.Labels .Kind) .Kind}}</strong> <span class="muted text-xs">{{or (index $d.Labels .Kind) .Kind}}</span>{{if .Lang}} <span class="badge" data-variant="outline">{{.Lang}}</span>{{end}}</span>{{icon "chevron-down" "rev-chevron"}}</summary>
         <form method="post" action="/admin/appearance/widgets/{{.ID}}" class="form">
@@ -24,12 +28,13 @@
           {{template "widget-config" (dict "Kind" .Kind "Config" .Config "ID" .ID "Fields" (index $d.Fields .Kind))}}
           <div class="form-actions">
             <button class="btn" data-size="sm" type="submit">{{icon "save"}}{{T "Save"}}</button>
-            <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/up" aria-label="{{T "Move up"}}">{{icon "arrow-up"}}</button>
-            <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/down" aria-label="{{T "Move down"}}">{{icon "arrow-down"}}</button>
             <button class="btn ml-auto" data-variant="ghost" data-size="sm" type="submit" formaction="/admin/appearance/widgets/{{.ID}}/delete" data-confirm="{{T "Remove this widget?"}}">{{icon "trash-2"}}{{T "Remove"}}</button>
           </div>
         </form>
       </details>
+      </li>
+      {{end}}
+      </ol>
       {{else}}
       <p class="muted text-sm">{{T "No widgets in this area."}}</p>
       {{end}}

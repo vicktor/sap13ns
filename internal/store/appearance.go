@@ -62,72 +62,54 @@ func (s *Store) DeleteMenuItem(ctx context.Context, id int64) error {
 	return err
 }
 
-// ErrMenuOrder: the order sent is not that of one whole menu.
-var ErrMenuOrder = errors.New("store: not the items of one menu")
+// ErrOrder: the order sent is not that of one whole group (one menu, or
+// the widgets of one area).
+var ErrOrder = errors.New("store: not the rows of one group")
 
 // ReorderMenu puts the items of one menu in the order of ids, which must
 // be every item of that menu (one location and language), each once.
 func (s *Store) ReorderMenu(ctx context.Context, ids []int64) error {
-	if len(ids) == 0 {
-		return ErrMenuOrder
-	}
 	return s.InTx(ctx, func(tx pgx.Tx) error {
 		var loc, lang string
-		if err := tx.QueryRow(ctx, `SELECT location, lang FROM menu_items WHERE id = $1`, ids[0]).Scan(&loc, &lang); err != nil {
-			return mapErr(err)
-		}
-		rows, err := tx.Query(ctx, `SELECT id FROM menu_items WHERE location = $1 AND lang = $2 FOR UPDATE`, loc, lang)
-		if err != nil {
-			return err
-		}
-		have, err := pgx.CollectRows(rows, pgx.RowTo[int64])
-		if err != nil {
-			return err
-		}
-		if len(have) != len(ids) {
-			return ErrMenuOrder
-		}
-		seen := make(map[int64]bool, len(ids))
-		for _, id := range have {
-			seen[id] = false
-		}
-		for _, id := range ids {
-			if done, ok := seen[id]; !ok || done {
-				return ErrMenuOrder
-			}
-			seen[id] = true
-		}
-		for pos, id := range ids {
-			if _, err := tx.Exec(ctx, `UPDATE menu_items SET position = $2 WHERE id = $1`, id, pos); err != nil {
-				return err
+		if len(ids) > 0 {
+			if err := tx.QueryRow(ctx, `SELECT location, lang FROM menu_items WHERE id = $1`, ids[0]).Scan(&loc, &lang); err != nil {
+				return mapErr(err)
 			}
 		}
-		return nil
+		return reorderRows(ctx, tx, "menu_items", "location = $1 AND lang = $2", []any{loc, lang}, ids)
 	})
 }
 
-// moveRow renumbers the rows of a group and swaps one with its neighbour.
-// table and where are compile-time constants, never user input.
-func moveRow(ctx context.Context, tx pgx.Tx, table, where string, args []any, id int64, dir int) error {
-	rows, err := tx.Query(ctx, `SELECT id FROM `+table+` WHERE `+where+` ORDER BY position, id FOR UPDATE`, args...)
+// reorderRows numbers the rows of one group in the order of ids, which must
+// be every row of the group, each once. table and where are compile-time
+// constants, never user input.
+func reorderRows(ctx context.Context, tx pgx.Tx, table, where string, args []any, ids []int64) error {
+	if len(ids) == 0 {
+		return ErrOrder
+	}
+	rows, err := tx.Query(ctx, `SELECT id FROM `+table+` WHERE `+where+` FOR UPDATE`, args...)
 	if err != nil {
 		return err
 	}
-	ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	have, err := pgx.CollectRows(rows, pgx.RowTo[int64])
 	if err != nil {
 		return err
 	}
-	for i, v := range ids {
-		if v == id {
-			j := i + dir
-			if j >= 0 && j < len(ids) {
-				ids[i], ids[j] = ids[j], ids[i]
-			}
-			break
+	if len(have) != len(ids) {
+		return ErrOrder
+	}
+	seen := make(map[int64]bool, len(ids))
+	for _, id := range have {
+		seen[id] = false
+	}
+	for _, id := range ids {
+		if done, ok := seen[id]; !ok || done {
+			return ErrOrder
 		}
+		seen[id] = true
 	}
-	for pos, v := range ids {
-		if _, err := tx.Exec(ctx, `UPDATE `+table+` SET position = $2 WHERE id = $1`, v, pos); err != nil {
+	for pos, id := range ids {
+		if _, err := tx.Exec(ctx, `UPDATE `+table+` SET position = $2 WHERE id = $1`, id, pos); err != nil {
 			return err
 		}
 	}
@@ -182,12 +164,16 @@ func (s *Store) DeleteWidget(ctx context.Context, id int64) error {
 	return err
 }
 
-func (s *Store) MoveWidget(ctx context.Context, id int64, dir int) error {
+// ReorderWidgets puts the widgets of one area in the order of ids, which
+// must be every widget of that area, each once.
+func (s *Store) ReorderWidgets(ctx context.Context, ids []int64) error {
 	return s.InTx(ctx, func(tx pgx.Tx) error {
 		var area string
-		if err := tx.QueryRow(ctx, `SELECT area FROM widgets WHERE id = $1`, id).Scan(&area); err != nil {
-			return mapErr(err)
+		if len(ids) > 0 {
+			if err := tx.QueryRow(ctx, `SELECT area FROM widgets WHERE id = $1`, ids[0]).Scan(&area); err != nil {
+				return mapErr(err)
+			}
 		}
-		return moveRow(ctx, tx, "widgets", "area = $1", []any{area}, id, dir)
+		return reorderRows(ctx, tx, "widgets", "area = $1", []any{area}, ids)
 	})
 }
