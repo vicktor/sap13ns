@@ -484,6 +484,7 @@ type customizeData struct {
 	State        string // JSON for customizer.js: design, defaults, options
 	HasDraft     bool
 	FrontOffer   bool           // publishing can make the front layout the site's front page
+	AIPages      int            // the design assistant's draft pages, published with the design
 	Animations   []selectOption // the motion library's, for the texts and images
 	MotionLevels []selectOption
 	DraftAt      *time.Time
@@ -571,6 +572,8 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 		Options: th.OptionValues(effective), Active: s.themes.Active(s.settings().ActiveTheme) == th}
 	data.Animations = s.animationOptions(r)
 	data.AI = s.designAIView(r)
+	data.AIPages = s.aiPagesPending(r, th)
+	data.HasDraft = data.HasDraft || data.AIPages > 0
 	// The draft's new front page shows in the preview, though the site's
 	// front page is something else for now.
 	if data.FrontOffer = s.frontOffer(r, th); data.FrontOffer {

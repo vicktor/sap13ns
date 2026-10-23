@@ -9,7 +9,7 @@
 {{$d := .D}}{{$th := $d.Theme}}
 {{$base := printf "/admin/appearance/themes/%s/builder" $th.Slug}}
 {{$cz := printf "/admin/appearance/themes/%s/customize" $th.Slug}}
-{{template "design-header" (dict "Theme" $th "Tab" "structure" "HasDraft" $d.HasDraft "Active" $d.Active "CSRF" .CSRFField "AI" $d.AI "FrontOffer" $d.FrontOffer)}}
+{{template "design-header" (dict "Theme" $th "Tab" "structure" "HasDraft" $d.HasDraft "Active" $d.Active "CSRF" .CSRFField "AI" $d.AI "FrontOffer" $d.FrontOffer "AIPages" $d.AIPages)}}
 <noscript><div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The page builder needs JavaScript."}}</h2></div></noscript>
 
 <div class="builder" data-builder data-base="{{$base}}" data-state="{{$d.State}}"

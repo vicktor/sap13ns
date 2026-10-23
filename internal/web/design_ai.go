@@ -426,7 +426,7 @@ func (s *Server) designAINotes(r *http.Request, res *designAIResult) string {
 		for _, p := range res.Pages {
 			list = append(list, "«"+p.Title+"» ("+p.Path+")")
 		}
-		notes = append(notes, s.tu(r, "Pages created as drafts: %s. Review and publish them in Pages, and add them to the menu in Appearance → Menus.", strings.Join(list, ", ")))
+		notes = append(notes, s.tu(r, "Pages created as drafts: %s. They are published with the design when you press Publish; add them to the menu in Appearance → Menus.", strings.Join(list, ", ")))
 	}
 	if res.PagesRefused {
 		notes = append(notes, s.tu(r, "The pages were not created: your role cannot create pages."))
@@ -611,6 +611,16 @@ func (s *Server) designAIPages(ctx context.Context, r *http.Request, pages []des
 		res.Pages = append(res.Pages, designAICreated{ID: id, Title: title, Edit: fmt.Sprintf("/admin/posts/%d", id), Path: "/" + slug})
 	}
 	if len(res.Pages) > 0 {
+		ids, err := s.store.DesignAIPages(ctx, res.theme)
+		if err != nil {
+			return err
+		}
+		for _, p := range res.Pages {
+			ids = append(ids, p.ID)
+		}
+		if err := s.store.SetDesignAIPages(ctx, res.theme, ids); err != nil {
+			return err
+		}
 		s.contentChanged()
 	}
 	return nil

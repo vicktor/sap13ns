@@ -487,6 +487,7 @@ type builderData struct {
 	State       string        // JSON for builder.js
 	HasDraft    bool
 	FrontOffer  bool // publishing can make the front layout the site's front page
+	AIPages     int  // the design assistant's draft pages, published with the design
 	DraftAt     *time.Time
 	PublishedAt *time.Time
 	Revisions   []store.CustomRevision
@@ -661,7 +662,8 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	b, _ := json.Marshal(st)
 	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil || css.draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
 		Revisions: revs, Active: s.themes.Active(s.settings().ActiveTheme) == th, Icons: append([]string{}, builderIcons...),
-		AI: s.designAIView(r), FrontOffer: s.frontOffer(r, th)}
+		AI: s.designAIView(r), FrontOffer: s.frontOffer(r, th), AIPages: s.aiPagesPending(r, th)}
+	data.HasDraft = data.HasDraft || data.AIPages > 0
 	for _, t := range builder.Types {
 		data.Icons = append(data.Icons, t.Icon)
 	}

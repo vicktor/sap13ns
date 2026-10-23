@@ -294,6 +294,22 @@ func TestDesignAIHTML(t *testing.T) {
 	if res := run("¿y las otras?"); !strings.Contains(res.Reply, "No se ha guardado nada") {
 		t.Fatalf("a claim with nothing saved: %+v", res)
 	}
+	// Publish takes the assistant's pages along.
+	if page := e.do("GET", "/admin/appearance/themes/onepage/builder", nil, "", e.cookie).Body.String(); !strings.Contains(page, `name="publish_pages"`) {
+		t.Fatal("Publish does not offer the assistant's pages")
+	}
+	if rec := e.admin("/admin/appearance/themes/onepage/customize/publish", url.Values{"publish_pages": {"1"}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", rec.Code)
+	}
+	if p, _ := e.st.PostBySlug(ctx, "page", "es", "precio"); p == nil || p.Status != store.StatusPublished {
+		t.Fatalf("the page was not published: %+v", p)
+	}
+	if body := e.do("GET", "/precio", nil, "").Body.String(); !strings.Contains(body, "7 € / 5 L") {
+		t.Error("the published page does not show")
+	}
+	if strings.Contains(e.do("GET", "/admin/appearance/themes/onepage/builder", nil, "", e.cookie).Body.String(), `name="publish_pages"`) {
+		t.Error("still offered after publishing")
+	}
 
 	res := run("añade la muestra gratuita")
 	if !res.Layout || res.Dropped == 0 || !strings.Contains(res.Reply, "dejado fuera") {

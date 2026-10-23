@@ -465,6 +465,38 @@ func setTerms(ctx context.Context, tx pgx.Tx, postID int64, termIDs []int64) err
 	return err
 }
 
+// PublishDraftPages publishes the pages of ids that are still drafts, now,
+// and returns the ids it published.
+func (s *Store) PublishDraftPages(ctx context.Context, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := s.DB.Query(ctx, `UPDATE posts SET status = 'published', published_at = coalesce(published_at, now()), updated_at = now()
+		WHERE id = ANY($1) AND type = 'page' AND status = 'draft' RETURNING id`, ids)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[int64])
+}
+
+// DesignAIPages are the pages the design assistant created for a theme and
+// the design screen's Publish publishes with it; SetDesignAIPages replaces
+// them.
+func (s *Store) DesignAIPages(ctx context.Context, theme string) ([]int64, error) {
+	var ids []int64
+	if err := s.GetJSON(ctx, "design_ai_pages:"+theme, &ids); err != nil && !errors.Is(err, ErrNotFound) {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *Store) SetDesignAIPages(ctx context.Context, theme string, ids []int64) error {
+	if ids == nil {
+		ids = []int64{}
+	}
+	return s.SetJSON(ctx, "design_ai_pages:"+theme, ids)
+}
+
 func (s *Store) SetPostStatus(ctx context.Context, id int64, status string) error {
 	tag, err := s.DB.Exec(ctx, `UPDATE posts SET status = $2, updated_at = now() WHERE id = $1`, id, status)
 	if err == nil && tag.RowsAffected() == 0 {

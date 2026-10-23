@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.15.2 — 2026-10-23
+
+- **Publish takes the assistant's pages along.** The pages Design with AI creates stay drafts until the design screen's Publish, which now offers **Also publish the pages the assistant created**, checked: one click puts the new design, the new front page and the new pages live.
+- **The HTML editor is wide.** The Edit as HTML window takes at least 75% of the screen.
+
 ## v0.15.1 — 2026-10-23
 
 - **A new front page shows, and goes live in one click.** When the draft builds a front page but the site's front page is something else (the latest posts, a static page), the design screen's preview now shows the new one, and Publish offers **Make it the site's front page**, checked: publishing then switches Settings → Reading to it.
