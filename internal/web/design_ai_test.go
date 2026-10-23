@@ -285,7 +285,7 @@ func TestDesignAIHTML(t *testing.T) {
 		  "new_pages": [{"title": "Precio", "slug": "precio", "markdown": "## 7 € / 5 L"}, {"title": "Promoción", "slug": "", "markdown": "**2x1**"}]}`,
 		`{"reply": "He creado cuatro páginas nuevas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [], "new_pages": []}`,
 	}, fake.answers...)
-	if res := run("crea las páginas de precio y promoción"); len(res.Pages) != 2 || !strings.Contains(res.Reply, "«Precio», «Promoción»") {
+	if res := run("crea las páginas de precio y promoción"); len(res.Pages) != 2 || !strings.Contains(res.Reply, "«Precio» (/precio), «Promoción» (/promocion)") {
 		t.Fatalf("pages: %+v", res)
 	}
 	if p, err := e.st.PostBySlug(ctx, "page", "es", "promocion"); err != nil || p.Status != store.StatusDraft || p.Content != "**2x1**" {
@@ -301,5 +301,46 @@ func TestDesignAIHTML(t *testing.T) {
 	}
 	if body := e.do("GET", "/?customize=draft", nil, "", e.cookie).Body.String(); !strings.Contains(body, "Muestra gratis") {
 		t.Error("the part that passed was not saved")
+	}
+}
+
+// A draft front page on a site whose front page is something else: the
+// preview shows it, and Publish can make it the site's front page.
+func TestDesignFrontOffer(t *testing.T) {
+	e := newPluginEnv(t)
+	ctx := context.Background()
+	if rec := e.admin("/admin/appearance/themes/onepage/activate", url.Values{}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("activate: %d", rec.Code)
+	}
+	set, _ := e.st.LoadSettings(ctx)
+	set.FrontPage = FrontPosts
+	if err := e.st.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.ReloadSettings(ctx); err != nil {
+		t.Fatal(err)
+	}
+	const box = `name="use_front"`
+	if strings.Contains(e.do("GET", "/admin/appearance/themes/onepage/builder", nil, "", e.cookie).Body.String(), box) {
+		t.Fatal("offered without a front layout")
+	}
+	layout := `{"pages": {"front": {"sections": [{"id": "s1", "layout": "1", "columns": [[{"id": "b1", "type": "html", "settings": {"html": "<p>Portada nueva</p>"}}]]}]}}}`
+	if err := e.st.SaveCustomDraft(ctx, "onepage", store.CustomLayout, []byte(layout), 1); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(e.do("GET", "/admin/appearance/themes/onepage/builder", nil, "", e.cookie).Body.String(), box) {
+		t.Fatal("not offered")
+	}
+	if page := e.do("GET", "/admin/appearance/themes/onepage/customize", nil, "", e.cookie).Body.String(); !strings.Contains(page, "front=1") {
+		t.Error("the style tab's preview does not show the new front page")
+	}
+	if rec := e.admin("/admin/appearance/themes/onepage/builder/publish", url.Values{"use_front": {"1"}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", rec.Code)
+	}
+	if e.s.settings().FrontPage != FrontTheme {
+		t.Fatalf("front page: %q", e.s.settings().FrontPage)
+	}
+	if body := e.do("GET", "/", nil, "").Body.String(); !strings.Contains(body, "Portada nueva") {
+		t.Error("visitors do not see the new front page")
 	}
 }

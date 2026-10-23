@@ -166,7 +166,8 @@ Every key is required: send [] or "" for what you do not change.
   its text in Markdown (headings, lists, **bold**, links, images as
   ![alt](url from MEDIA); no HTML). They look like every page of the
   theme. Do not put them in html_regions: no region is one page. Link
-  them from the front page with "/slug" links; the user publishes the
+  them from the front page with "/slug" links (never "#slug": that is a
+  section of the front page); the user publishes the
   pages in Pages and adds them to the menu in Appearance → Menus.
 - design_patch: "" or a JSON merge patch (RFC 7386) over DESIGN, as a string.
 - layout_patch: "" or a JSON merge patch over LAYOUT, as a string. Arrays are
@@ -365,6 +366,7 @@ type designAICreated struct {
 	ID    int64  `json:"id"`
 	Title string `json:"title"`
 	Edit  string `json:"edit_url"`
+	Path  string `json:"path"` // its address once published
 }
 
 func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider, th *theme.Theme, msgs []ai.Message, lang string) (*designAIResult, error) {
@@ -422,7 +424,7 @@ func (s *Server) designAINotes(r *http.Request, res *designAIResult) string {
 	if len(res.Pages) > 0 {
 		var list []string
 		for _, p := range res.Pages {
-			list = append(list, "«"+p.Title+"»")
+			list = append(list, "«"+p.Title+"» ("+p.Path+")")
 		}
 		notes = append(notes, s.tu(r, "Pages created as drafts: %s. Review and publish them in Pages, and add them to the menu in Appearance → Menus.", strings.Join(list, ", ")))
 	}
@@ -433,7 +435,7 @@ func (s *Server) designAINotes(r *http.Request, res *designAIResult) string {
 		notes = append(notes, s.tu(r, "This theme is not the site's active theme: visitors will see these changes once you activate it in Appearance → Themes."))
 	}
 	if res.Front && s.settings().FrontPage != "theme" {
-		notes = append(notes, s.tu(r, "The new front page is in the draft, but the site's front page does not use the theme's design: choose it in Settings → Reading to see it."))
+		notes = append(notes, s.tu(r, "The new front page is in the draft and in the preview. The site's front page is something else for now: when you publish, leave “Make it the site's front page” checked."))
 	}
 	if res.Dropped > 0 {
 		notes = append(notes, s.tu(r, "Part of these changes did not pass the site's checks and was left out; the rest is in the draft. Look at the preview, and ask again for what is missing."))
@@ -606,7 +608,7 @@ func (s *Server) designAIPages(ctx context.Context, r *http.Request, pages []des
 			return err
 		}
 		s.audit(r, u.ID, "page.created", fmt.Sprintf("#%d %s", id, title), map[string]string{"status": store.StatusDraft, "by": "design_ai"})
-		res.Pages = append(res.Pages, designAICreated{ID: id, Title: title, Edit: fmt.Sprintf("/admin/posts/%d", id)})
+		res.Pages = append(res.Pages, designAICreated{ID: id, Title: title, Edit: fmt.Sprintf("/admin/posts/%d", id), Path: "/" + slug})
 	}
 	if len(res.Pages) > 0 {
 		s.contentChanged()

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strings"
 
+	"sap13ns/internal/auth"
 	"sap13ns/internal/store"
 	"sap13ns/internal/theme"
 )
@@ -45,6 +46,22 @@ func (s *Server) showsFront(r *http.Request, th *theme.Theme) bool {
 		mode = FrontTheme
 	}
 	return mode == FrontTheme && (th.Has("front") || s.hasFrontLayout(r, th))
+}
+
+// frontOffer reports whether the design screen offers to make th's front
+// page the site's on publishing: th is active, the site's front page is
+// not the theme's, the draft builds one, and the user may change that.
+func (s *Server) frontOffer(r *http.Request, th *theme.Theme) bool {
+	st := s.settings()
+	if st.FrontPage == FrontTheme || th.Slug != s.themes.Active(st.ActiveTheme).Slug {
+		return false
+	}
+	if u := currentUser(r); u == nil || !auth.Can(u.Role, auth.CapManageSettings) {
+		return false
+	}
+	ctx := r.Context()
+	l, _, err := s.draftLayout(ctx, th, s.mediaSet(ctx))
+	return err == nil && l.Region("front") != nil
 }
 
 // hasFrontLayout reports whether th's layouts build the front page: the

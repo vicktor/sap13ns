@@ -17,6 +17,30 @@ import (
 // publishDesignAll publishes th's draft design (with its theme options and
 // custom CSS) and its draft layout. It reports false when neither had
 // unpublished changes.
+// publishDesign is the design screen's Publish: the whole draft and, with
+// use_front checked (frontOffer), the design's front page as the site's.
+// It returns the flash message and its kind.
+func (s *Server) publishDesign(r *http.Request, th *theme.Theme) (kind, msg string, err error) {
+	front := r.FormValue("use_front") == "1" && s.frontOffer(r, th)
+	done, err := s.publishDesignAll(r, th)
+	if err != nil {
+		return "", "", err
+	}
+	if front {
+		st := s.settings()
+		st.FrontPage = FrontTheme
+		if err := s.saveSettings(r, st); err != nil {
+			return "", "", err
+		}
+		s.audit(r, uid(r), "settings.front_page", FrontTheme, map[string]string{"theme": th.Slug})
+		return "success", s.tu(r, "Published. The site's front page is now the design's, and the latest posts are at /blog."), nil
+	}
+	if !done {
+		return "info", s.tu(r, "There are no unpublished changes."), nil
+	}
+	return "success", s.tu(r, "Published. Visitors now see the new design."), nil
+}
+
 func (s *Server) publishDesignAll(r *http.Request, th *theme.Theme) (bool, error) {
 	ctx := r.Context()
 	ms := s.mediaSet(ctx)

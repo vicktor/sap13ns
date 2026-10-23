@@ -57,7 +57,7 @@
 {{define "content"}}
 {{$d := .D}}{{$th := $d.Theme}}{{$D := $d.Design}}
 {{$base := printf "/admin/appearance/themes/%s/customize" $th.Slug}}
-{{template "design-header" (dict "Theme" $th "Tab" "style" "HasDraft" $d.HasDraft "Active" $d.Active "CSRF" .CSRFField "AI" $d.AI)}}
+{{template "design-header" (dict "Theme" $th "Tab" "style" "HasDraft" $d.HasDraft "Active" $d.Active "CSRF" .CSRFField "AI" $d.AI "FrontOffer" $d.FrontOffer)}}
 <noscript><div class="alert" data-variant="warning">{{icon "triangle-alert"}}<h2>{{T "The customiser needs JavaScript for its live preview."}}</h2></div></noscript>
 <div class="customizer" data-customizer data-base="{{$base}}" data-slug="{{$th.Slug}}" data-state="{{$d.State}}"
   data-msg-saving="{{T "Saving draft…"}}" data-msg-saved="{{T "Draft saved at %s"}}" data-msg-failed="{{T "The draft was not saved: %s"}}"

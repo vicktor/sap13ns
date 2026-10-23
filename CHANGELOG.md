@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.15.1 — 2026-10-23
+
+- **A new front page shows, and goes live in one click.** When the draft builds a front page but the site's front page is something else (the latest posts, a static page), the design screen's preview now shows the new one, and Publish offers **Make it the site's front page**, checked: publishing then switches Settings → Reading to it.
+- **Design with AI gives the real addresses** of the pages it creates (`/pricing`), and is told that `#…` links are sections of the front page, not pages.
+
 ## v0.15.0 — 2026-10-23
 
 - **Design with AI creates pages.** Ask for “a pricing page and an offers page” and it creates them as draft pages in Pages, with their text in Markdown and the site's images; you review and publish them, and add them to the menu.

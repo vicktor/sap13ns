@@ -486,6 +486,7 @@ type builderData struct {
 	AI          *designAIView // nil: no design assistant
 	State       string        // JSON for builder.js
 	HasDraft    bool
+	FrontOffer  bool // publishing can make the front layout the site's front page
 	DraftAt     *time.Time
 	PublishedAt *time.Time
 	Revisions   []store.CustomRevision
@@ -660,7 +661,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 	b, _ := json.Marshal(st)
 	data := builderData{Theme: th, State: string(b), HasDraft: row.Draft != nil || css.draft != nil, DraftAt: row.DraftAt, PublishedAt: row.PublishedAt,
 		Revisions: revs, Active: s.themes.Active(s.settings().ActiveTheme) == th, Icons: append([]string{}, builderIcons...),
-		AI: s.designAIView(r)}
+		AI: s.designAIView(r), FrontOffer: s.frontOffer(r, th)}
 	for _, t := range builder.Types {
 		data.Icons = append(data.Icons, t.Icon)
 	}
@@ -864,16 +865,12 @@ func (s *Server) adminBuilderPublish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	done, err := s.publishDesignAll(r, th)
+	kind, msg, err := s.publishDesign(r, th)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	if !done {
-		s.builderDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
-		return
-	}
-	s.builderDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new design."))
+	s.builderDone(w, r, th, kind, msg)
 }
 
 func (s *Server) adminBuilderDiscard(w http.ResponseWriter, r *http.Request) {

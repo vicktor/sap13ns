@@ -483,6 +483,7 @@ type customizeData struct {
 	Colors       []colorRow
 	State        string // JSON for customizer.js: design, defaults, options
 	HasDraft     bool
+	FrontOffer   bool           // publishing can make the front layout the site's front page
 	Animations   []selectOption // the motion library's, for the texts and images
 	MotionLevels []selectOption
 	DraftAt      *time.Time
@@ -570,6 +571,11 @@ func (s *Server) adminCustomize(w http.ResponseWriter, r *http.Request) {
 		Options: th.OptionValues(effective), Active: s.themes.Active(s.settings().ActiveTheme) == th}
 	data.Animations = s.animationOptions(r)
 	data.AI = s.designAIView(r)
+	// The draft's new front page shows in the preview, though the site's
+	// front page is something else for now.
+	if data.FrontOffer = s.frontOffer(r, th); data.FrontOffer {
+		data.PreviewURL += "&front=1"
+	}
 	data.MotionLevels = []selectOption{{Value: "", Label: s.tu(r, "Normal")}, {Value: "subtle", Label: s.tu(r, "Subtle")},
 		{Value: "expressive", Label: s.tu(r, "Expressive")}, {Value: "off", Label: s.tu(r, "Off: nothing moves")}}
 	if lr, err := s.store.ThemeCustom(ctx, th.Slug, store.CustomLayout); err == nil {
@@ -783,16 +789,12 @@ func (s *Server) adminCustomizePublish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	done, err := s.publishDesignAll(r, th)
+	kind, msg, err := s.publishDesign(r, th)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	if !done {
-		s.customizeDone(w, r, th, "info", s.tu(r, "There are no unpublished changes."))
-		return
-	}
-	s.customizeDone(w, r, th, "success", s.tu(r, "Published. Visitors now see the new design."))
+	s.customizeDone(w, r, th, kind, msg)
 }
 
 func (s *Server) adminCustomizeDiscard(w http.ResponseWriter, r *http.Request) {

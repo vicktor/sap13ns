@@ -160,3 +160,4 @@
 .design-ai-msg[data-pending] { @apply animate-pulse text-muted-foreground; }
 .design-ai-input { @apply flex items-end gap-2; }
 .design-ai-input .textarea { @apply min-h-11 flex-1 resize-y; }
+.design-publish { @apply flex flex-wrap items-center gap-3; }

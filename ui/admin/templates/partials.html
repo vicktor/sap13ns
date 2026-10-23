@@ -329,7 +329,7 @@
   <div class="page-actions">
     <p class="cz-status" id="{{if $cz}}cz-status{{else}}bl-status{{end}}" role="status" aria-live="polite">{{if .HasDraft}}{{T "Unpublished changes"}}{{else}}{{T "Up to date with the published design"}}{{end}}</p>
     <form method="post" action="{{$base}}/discard">{{.CSRF}}<button class="btn" data-variant="outline" data-size="sm" type="submit" id="{{if $cz}}cz-discard{{else}}bl-discard{{end}}" data-confirm="{{T "Discard every unpublished change (style, texts and structure) and go back to the published design?"}}"{{if not .HasDraft}} disabled{{end}}>{{icon "undo-2"}}{{T "Discard draft"}}</button></form>
-    <form method="post" action="{{$base}}/publish"{{if $cz}} data-cz-publish{{else}} data-bl-publish{{end}}>{{.CSRF}}<button class="btn" data-size="sm" type="submit" id="{{if $cz}}cz-publish{{else}}bl-publish{{end}}"{{if not .HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
+    <form method="post" action="{{$base}}/publish"{{if $cz}} data-cz-publish{{else}} data-bl-publish{{end}} class="design-publish">{{.CSRF}}{{if .FrontOffer}}<label class="check text-sm"><input type="checkbox" class="input" name="use_front" value="1" checked>{{T "Make it the site's front page"}}</label>{{end}}<button class="btn" data-size="sm" type="submit" id="{{if $cz}}cz-publish{{else}}bl-publish{{end}}"{{if not .HasDraft}} disabled{{end}}>{{icon "upload"}}{{T "Publish"}}</button></form>
   </div>
 </div>
 <nav class="mb-4 flex w-fit gap-1 rounded-lg bg-muted p-1" aria-label="{{T "Design"}}">
