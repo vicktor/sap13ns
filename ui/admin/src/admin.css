@@ -471,8 +471,12 @@
 .menu-items { @apply flex flex-col gap-2; }
 .menu-item-form { @apply grid gap-2 rounded-lg border bg-background p-2 sm:grid-cols-[auto_1fr_1.4fr_auto] sm:items-center; }
 .menu-grip { @apply cursor-grab touch-none text-muted-foreground; }
-.menu-items > li.dragging { @apply relative z-10 opacity-80 shadow-md; }
-.menu-items > li.dragging .menu-grip { @apply cursor-grabbing; }
+.menu-items > li.dragging { @apply pointer-events-none fixed z-50 m-0 shadow-xl; rotate: 1deg; scale: 1.02; }
+.menu-items > li.dragging .menu-item-form { @apply border-primary; }
+.menu-items > li.dropping { transition: left .16s ease-out, top .16s ease-out, rotate .16s, scale .16s; rotate: 0deg; scale: 1; }
+.menu-gap { @apply rounded-lg border-2 border-dashed border-primary/50 bg-primary/5; }
+.menu-dragging, .menu-dragging * { cursor: grabbing !important; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .menu-items > li.dragging { rotate: none; scale: none; } }
 .item-actions { @apply flex flex-wrap items-center gap-1; }
 .widget-areas { @apply grid gap-6 lg:grid-cols-2; }
 .widget-item { @apply rounded-lg border; }

@@ -1245,15 +1245,29 @@ function init(root) {
   }
 
   // ------------------------------------------------------- drag and drop --
+  // The dragged section or block is lifted: a copy follows the pointer,
+  // the item leaves the list, and a gap of its size opens where it would
+  // land, the other items sliding aside (flip).
   let drag = null;
-  const line = h("div", { class: "bl-drop-line", "aria-hidden": "true" });
+  const gap = h("li", { class: "bl-gap", "aria-hidden": "true" });
+  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function flip(change) {
+    const items = $$(".bl-section, .bl-block, .bl-add-section", structure);
+    const before = new Map(items.map((el) => [el, el.getBoundingClientRect().top]));
+    change();
+    if (reduced()) return;
+    for (const el of items) {
+      const d = before.get(el) - el.getBoundingClientRect().top;
+      if (d) el.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" });
+    }
+  }
 
   structure.addEventListener("pointerdown", (e) => {
     const grip = e.target.closest(".bl-grip");
     if (!grip || e.button !== 0) return;
     const kind = grip.dataset.grip;
     const from = kind === "section" ? { s: +grip.dataset.s } : { s: +grip.dataset.s, c: +grip.dataset.c, b: +grip.dataset.b };
-    drag = { kind, from, grip, x: e.clientX, y: e.clientY, active: false, target: null, item: grip.closest("li") };
+    drag = { kind, from, grip, x: e.clientX, y: e.clientY, active: false, target: null, item: grip.closest("li"), ghost: null };
     grip.setPointerCapture(e.pointerId);
   });
   structure.addEventListener("pointermove", (e) => {
@@ -1261,13 +1275,26 @@ function init(root) {
     if (!drag.active) {
       if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
       drag.active = true;
-      drag.item.classList.add("is-dragging");
+      const rc = drag.item.getBoundingClientRect();
+      drag.dx = drag.x - rc.left;
+      drag.dy = drag.y - rc.top;
+      // CSSOM (allowed by the CSP): the copy and the gap are sized by script.
+      drag.ghost = drag.item.cloneNode(true);
+      drag.ghost.classList.add("bl-ghost");
+      drag.ghost.removeAttribute("data-id");
+      drag.ghost.style.width = `${rc.width}px`;
+      document.body.append(drag.ghost);
+      gap.style.height = `${Math.min(rc.height, drag.kind === "section" ? 120 : rc.height)}px`;
+      gap.dataset.kind = drag.kind;
+      flip(() => { drag.item.before(gap); drag.item.classList.add("is-dragging"); });
       root.classList.add("is-dragging");
-      structure.append(line);
     }
     e.preventDefault();
-    drag.target = dropTarget(e.clientX, e.clientY);
-    showLine(drag.target);
+    drag.ghost.style.left = `${e.clientX - drag.dx}px`;
+    drag.ghost.style.top = `${e.clientY - drag.dy}px`;
+    const t = dropTarget(e.clientX, e.clientY);
+    if (t && (!drag.target || t.s !== drag.target.s || t.c !== drag.target.c || t.b !== drag.target.b)) flip(() => placeGap(t));
+    drag.target = t;
     autoscroll(e.clientY);
   });
   const endDrag = (e, cancel) => {
@@ -1275,7 +1302,8 @@ function init(root) {
     const d = drag;
     drag = null;
     try { d.grip.releasePointerCapture(e.pointerId); } catch (_) {}
-    line.remove();
+    d.ghost?.remove();
+    gap.remove();
     root.classList.remove("is-dragging");
     d.item.classList.remove("is-dragging");
     if (!d.active || cancel || !d.target) return;
@@ -1316,26 +1344,17 @@ function init(root) {
     return { s: +ul.dataset.s, c: +ul.dataset.c, b };
   }
 
-  function showLine(t) {
-    if (!t) { line.hidden = true; return; }
-    line.hidden = false;
-    const box = structure.getBoundingClientRect();
-    let rc, top;
+  // placeGap puts the gap where target t would drop the item.
+  function placeGap(t) {
     if (drag.kind === "section") {
       const items = $$(":scope > .bl-sections > .bl-section", structure);
-      const list = $(".bl-sections", structure).getBoundingClientRect();
-      rc = list;
-      top = t.s < items.length ? items[t.s].getBoundingClientRect().top - 4 : items.at(-1).getBoundingClientRect().bottom + 2;
-    } else {
-      const ul = $(`.bl-blocks[data-s="${t.s}"][data-c="${t.c}"]`, structure);
-      const items = [...ul.querySelectorAll(":scope > .bl-block")];
-      rc = ul.getBoundingClientRect();
-      top = t.b < items.length ? items[t.b].getBoundingClientRect().top - 2 : (items.at(-1)?.getBoundingClientRect().bottom ?? rc.top) + 1;
+      if (t.s < items.length) items[t.s].before(gap); else $(".bl-sections", structure).append(gap);
+      return;
     }
-    // CSSOM (allowed by the CSP): the line follows the pointer.
-    line.style.top = `${top - box.top}px`;
-    line.style.left = `${rc.left - box.left}px`;
-    line.style.width = `${rc.width}px`;
+    const ul = $(`.bl-blocks[data-s="${t.s}"][data-c="${t.c}"]`, structure);
+    if (!ul) return;
+    const items = [...ul.querySelectorAll(":scope > .bl-block")];
+    if (t.b < items.length) items[t.b].before(gap); else ul.append(gap);
   }
 
   function autoscroll(y) {

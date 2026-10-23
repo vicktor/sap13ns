@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.15.3 — 2026-10-23
+
+- **Dragging is visual.** In Menus and in Design → Structure, the item you drag lifts and follows the pointer, a dashed gap opens where it will land and the other items slide aside to make room; in Menus it glides into place when dropped. With reduced motion the items move without animation.
+
 ## v0.15.2 — 2026-10-23
 
 - **Publish takes the assistant's pages along.** The pages Design with AI creates stay drafts until the design screen's Publish, which now offers **Also publish the pages the assistant created**, checked: one click puts the new design, the new front page and the new pages live.
