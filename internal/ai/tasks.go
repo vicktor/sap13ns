@@ -3,8 +3,10 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -231,15 +233,21 @@ func Summarize(ctx context.Context, p Provider, a Article, lang string) (string,
 	if err != nil {
 		return "", err
 	}
-	res, err := ask(ctx, p, TextRequest{
+	clean := func(t string) string {
+		return stripLabel(cleanLine(t), "excerpt:", "extracto:", "resumen:", "summary:")
+	}
+	res, _, err := askRevised(ctx, p, TextRequest{
 		System:    fmt.Sprintf(summarizePrompt, ln) + "\n\n" + StyleGuide(tag),
 		Messages:  userMsg(articleBlock(a)),
 		MaxTokens: 400,
+	}, func(t string) []string {
+		s := clean(t)
+		return append(lengthProblem("The excerpt", s, ExcerptMax), lintProblems(s, tag)...)
 	})
 	if err != nil {
 		return "", err
 	}
-	s := stripLabel(cleanLine(res.Text), "excerpt:", "extracto:", "resumen:", "summary:")
+	s := clean(res.Text)
 	if s == "" {
 		return "", fmt.Errorf("%s: %w: empty excerpt", p.Name(), ErrBadResponse)
 	}
@@ -274,13 +282,13 @@ func SEO(ctx context.Context, p Provider, a Article, lang string) (*SEOResult, e
 	if err != nil {
 		return nil, err
 	}
-	res, err := ask(ctx, p, TextRequest{
+	res, _, err := askRevised(ctx, p, TextRequest{
 		System:    fmt.Sprintf(seoPrompt, ln) + "\n\n" + StyleGuide(tag),
 		Messages:  userMsg(articleBlock(a)),
 		MaxTokens: 700,
 		JSON:      true,
 		Schema:    seoSchema,
-	})
+	}, func(t string) []string { return seoProblems(t, tag) })
 	if err != nil {
 		return nil, err
 	}
@@ -289,6 +297,31 @@ func SEO(ctx context.Context, p Provider, a Article, lang string) (*SEOResult, e
 		return nil, fmt.Errorf("%s: %w", p.Name(), err)
 	}
 	return seo, nil
+}
+
+// seoProblems checks the answer before parseSEO cuts its fields to size.
+func seoProblems(raw, lang string) []string {
+	obj, err := extractJSON(raw)
+	var v struct {
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Keywords    []string `json:"keywords"`
+		OGTitle     string   `json:"og_title"`
+	}
+	if err != nil || json.Unmarshal([]byte(obj), &v) != nil {
+		return []string{"It is not the JSON object described: send only that object."}
+	}
+	var out []string
+	if cleanLine(v.Title) == "" || cleanLine(v.Description) == "" {
+		out = append(out, `"title" and "description" must not be empty.`)
+	}
+	out = append(out, lengthProblem(`"title"`, cleanLine(v.Title), SEOTitleMax)...)
+	out = append(out, lengthProblem(`"description"`, cleanLine(v.Description), SEODescriptionMax)...)
+	out = append(out, lengthProblem(`"og_title"`, cleanLine(v.OGTitle), OGTitleMax)...)
+	if len(v.Keywords) > MaxKeywords {
+		out = append(out, fmt.Sprintf(`"keywords" has %d phrases; give at most %d.`, len(v.Keywords), MaxKeywords))
+	}
+	return append(out, lintProblems(v.Title+"\n\n"+v.Description+"\n\n"+v.OGTitle, lang)...)
 }
 
 func parseSEO(raw string) (*SEOResult, error) {
@@ -457,11 +490,11 @@ func Translate(ctx context.Context, p Provider, a Article, from, to string) (*Ar
 			b.WriteString(chunk) // only code
 			continue
 		}
-		res, err := ask(ctx, p, TextRequest{
+		res, _, err := askRevised(ctx, p, TextRequest{
 			System:    system,
 			Messages:  userMsg(tagged("markdown", strings.TrimSpace(chunk))),
 			MaxTokens: min(len(chunk)/2+1024, 16_000),
-		})
+		}, func(t string) []string { return chunkProblems(chunk, cleanMarkdown(t)) })
 		if err != nil {
 			return nil, err
 		}
@@ -478,6 +511,29 @@ func Translate(ctx context.Context, p Provider, a Article, from, to string) (*Ar
 	}
 	out.Content = restored
 	return out, nil
+}
+
+// chunkProblems checks the translation of one section: the code
+// placeholders and the Markdown structure must survive, and the text must
+// have been translated at all.
+func chunkProblems(src, dst string) []string {
+	var out []string
+	want, got := placeholderRe.FindAllString(src, -1), placeholderRe.FindAllString(dst, -1)
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(want, got) {
+		out = append(out, "Keep every @@CODE_n@@ placeholder exactly as written, once each, where it was.")
+	}
+	var se *StructureError
+	if err := CheckStructure(src, dst); errors.As(err, &se) {
+		for _, p := range se.Problems {
+			out = append(out, "The Markdown structure changed ("+p+"): keep headings, links, URLs, inline code and shortcodes as in the source.")
+		}
+	}
+	if runeLen(src) > 200 && strings.TrimSpace(src) == strings.TrimSpace(dst) {
+		out = append(out, "The text was not translated: translate it.")
+	}
+	return out
 }
 
 // cleanMarkdown removes wrappers models add around a Markdown answer.
@@ -509,10 +565,15 @@ func ImagePrompt(ctx context.Context, p Provider, a Article, style string) (stri
 	if utf8.RuneCountInString(style) > maxStyleChars {
 		return "", fmt.Errorf("%w: style is too long", ErrInvalidInput)
 	}
-	res, err := ask(ctx, p, TextRequest{
+	res, _, err := askRevised(ctx, p, TextRequest{
 		System:    fmt.Sprintf(imagePromptTemplate, style),
 		Messages:  userMsg(articleBlock(a)),
 		MaxTokens: 400,
+	}, func(t string) []string {
+		if n := len(strings.Fields(t)); n > 90 {
+			return []string{fmt.Sprintf("It has %d words; the limit is 90.", n)}
+		}
+		return nil
 	})
 	if err != nil {
 		return "", err
@@ -604,9 +665,39 @@ func Write(ctx context.Context, p Provider, req WriteRequest) (string, error) {
 	case ModeContinue, ModeOutline:
 		maxTokens = 1500
 	}
-	res, err := ask(ctx, p, TextRequest{System: system, Messages: userMsg(user.String()), MaxTokens: maxTokens})
+	res, left, err := askRevised(ctx, p, TextRequest{System: system, Messages: userMsg(user.String()), MaxTokens: maxTokens},
+		func(t string) []string { return writeProblems(req.Mode, text, cleanMarkdown(t), tag) })
 	if err != nil {
 		return "", err
 	}
-	return cleanMarkdown(res.Text), nil
+	out := cleanMarkdown(res.Text)
+	if len(left) > 0 {
+		out = stripWrapper(out)
+	}
+	return out, nil
+}
+
+// writeProblems checks a Write answer: no remarks to the author around it,
+// no clichés, and what the mode asks of its length and form.
+func writeProblems(mode, text, out, lang string) []string {
+	problems := wrapperProblems(out)
+	switch mode {
+	case ModeDraft, ModeOutline:
+		if strings.HasPrefix(out, "# ") {
+			problems = append(problems, "Do not start with a # title: the post has its own title; use ## headings for sections.")
+		}
+	case ModeShorten:
+		if n, m := runeLen(out), runeLen(text); n > m*7/10 {
+			problems = append(problems, fmt.Sprintf("It has %d characters and the original %d: shorten it to about half, around %d.", n, m, m/2))
+		}
+	case ModeContinue:
+		tail := strings.TrimSpace(text)
+		if r := []rune(tail); len(r) > 120 {
+			tail = string(r[len(r)-120:])
+		}
+		if runeLen(tail) >= 40 && strings.Contains(out, tail) {
+			problems = append(problems, "It repeats text already written: send only the new text that follows it.")
+		}
+	}
+	return append(problems, lintProblems(out, lang)...)
 }

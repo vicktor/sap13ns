@@ -5,6 +5,15 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.16.0 — 2026-10-23
+
+- **The AI checks its own work.** Every AI answer now goes through checks in code before you see it, and a failed check earns one corrected answer: the model is shown what is wrong and asked to fix it, and the better of the two answers is kept.
+  - **Excerpt, SEO and image prompt:** lengths are checked instead of the answer being cut mid-sentence, and the style linter's clichés are sent back to be rewritten.
+  - **Writing (draft, improve, continue, shorten, outline):** no "Sure! Here is…" before the text or "Would you like me to…" after it (removed if the model insists), no `#` title, the linter's clichés rewritten, a shortened text really about half as long, a continuation that does not repeat what is written.
+  - **Translation:** each section must keep its headings, links, URLs, inline code, shortcodes and code placeholders, and must actually be translated; a section that breaks is redone before the whole translation could fail.
+  - **Design with AI:** an answer that changes nothing (the model describing the work instead of doing it) is sent back once with that said, and an answer that is not JSON is asked for again instead of failing.
+- **Passing provider errors are retried.** A provider that is overloaded, briefly unavailable or rate-limited for a few seconds (HTTP 429, 500, 502, 503, 504, 529, or a dropped connection) is tried again after 1 and 3 seconds, or after its Retry-After up to 20 seconds. An exhausted quota, a bad key or a bad request is reported at once. This covers every provider, streaming and the site assistant.
+
 ## v0.15.4 — 2026-10-23
 
 - **Widgets are dragged too.** In Appearance → Widgets, each widget has a grip: drag it (or use the arrow keys on it) to reorder the widgets of an area, with the same lift, gap and slide as Menus, and the order is saved at once. The up and down arrows are gone.

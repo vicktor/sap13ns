@@ -383,8 +383,13 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 	system := designGuide + "\n\n" + s.designAICatalog(ctx, th) + "\n\n" + s.designAIState(ctx, th, d, designJSON, layoutJSON, lang)
 	conv := slices.Clone(msgs)
 	var lastErr error
+	nudged := false
 	for attempt := range designAIAttempts {
 		resp, err := p.Text(ctx, ai.TextRequest{System: system, Messages: conv, MaxTokens: designAIMaxTokens, JSON: true, Schema: designAISchema})
+		if errors.Is(err, ai.ErrBadResponse) && !errors.Is(err, ai.ErrTruncated) {
+			lastErr = err // no JSON object in the answer: ask again
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -402,6 +407,14 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 		if err != nil {
 			return nil, err
 		}
+		// An answer that changes nothing, when the request asked for a
+		// change, is the model describing work instead of doing it: it is
+		// told so once.
+		if len(problems) == 0 && !res.Design && !res.Layout && len(res.Pages) == 0 && !res.PagesRefused && !nudged && attempt < designAIAttempts-1 {
+			nudged = true
+			conv = append(conv, ai.Message{Role: ai.RoleAssistant, Content: resp.Text}, ai.Message{Role: ai.RoleUser, Content: designAINothing})
+			continue
+		}
 		if len(problems) == 0 {
 			res.Reply = strings.TrimSpace(ans.Reply) + s.designAINotes(r, res)
 			return res, nil
@@ -413,6 +426,9 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 	}
 	return nil, lastErr
 }
+
+const designAINothing = `Your answer changes nothing on the site: html_regions, css, new_pages, design_patch, layout_patch and block_edits are all empty, so nothing was saved, whatever your reply says.
+If my request asks for a change, make it now in those fields, and say in "reply" only what they really do. If it was only a question, send the same answer again.`
 
 // designAINotes says what was really saved, after the model's reply: the
 // model may claim more than its answer did.

@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -148,25 +149,11 @@ func (t *transport) post(ctx context.Context, endpoint string, hdr http.Header, 
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	resp, err := t.send(ctx, endpoint, hdr, body, "application/json")
 	if err != nil {
-		return t.errorf("%w: cannot build request", ErrInvalidInput)
-	}
-	for k, v := range hdr {
-		req.Header[k] = v
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "sap13ns")
-	resp, err := t.api.Do(req)
-	if err != nil {
-		return t.requestError(ctx, err)
+		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
-		return t.apiError(resp, raw)
-	}
 	raw, err := readLimited(resp.Body, limit)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -178,6 +165,87 @@ func (t *transport) post(ctx context.Context, endpoint string, hdr http.Header, 
 		return t.errorf("%w: %v", ErrBadResponse, err)
 	}
 	return nil
+}
+
+// retryDelays are the waits before the second and third try of a request
+// that failed for a passing reason (a test shortens them).
+var retryDelays = []time.Duration{time.Second, 3 * time.Second}
+
+// maxRetryWait is the longest Retry-After worth waiting for; a provider
+// that asks for more is reported at once.
+var maxRetryWait = 20 * time.Second
+
+// send POSTs body and returns the response once its status is 2xx. A
+// passing failure (the provider overloaded or briefly unavailable, a rate
+// limit that lifts within maxRetryWait, a connection dropped before any
+// answer) is tried again, up to len(retryDelays) times, while the
+// context's deadline leaves room. Nothing was generated, so nothing is
+// paid twice.
+func (t *transport) send(ctx context.Context, endpoint string, hdr http.Header, body []byte, accept string) (*http.Response, error) {
+	for try := 0; ; try++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return nil, t.errorf("%w: cannot build request", ErrInvalidInput)
+		}
+		for k, v := range hdr {
+			req.Header[k] = v
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", accept)
+		req.Header.Set("User-Agent", "sap13ns")
+		resp, err := t.api.Do(req)
+		var fail error
+		var wait time.Duration
+		switch {
+		case err != nil:
+			fail = t.requestError(ctx, err)
+			if ctx.Err() != nil || !droppedConn(err) {
+				return nil, fail
+			}
+		case resp.StatusCode < 200 || resp.StatusCode > 299:
+			raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
+			resp.Body.Close()
+			e := t.apiError(resp, raw).(*APIError)
+			if !passing(e) {
+				return nil, e
+			}
+			fail, wait = e, e.RetryAfter
+		default:
+			return resp, nil
+		}
+		if try >= len(retryDelays) || wait > maxRetryWait {
+			return nil, fail
+		}
+		wait = max(wait, retryDelays[try])
+		if dl, ok := ctx.Deadline(); ok && time.Until(dl) < wait+5*time.Second {
+			return nil, fail
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fail
+		case <-time.After(wait):
+		}
+	}
+}
+
+// passing reports whether a provider error is worth one more try: an
+// overloaded or unavailable server, or a rate limit, but not an exhausted
+// quota or a bad request.
+func passing(e *APIError) bool {
+	switch e.Status {
+	case http.StatusTooManyRequests:
+		t := strings.ToLower(e.Type + " " + e.Message)
+		return !strings.Contains(t, "quota") && !strings.Contains(t, "billing") && !strings.Contains(t, "credit")
+	case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, 529:
+		return true
+	}
+	return false
+}
+
+// droppedConn reports whether a request failed because the connection was
+// closed or reset, as opposed to refused (nothing listening) or timed out.
+func droppedConn(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET)
 }
 
 // fetch downloads an image URL returned by a provider. No credentials are sent.

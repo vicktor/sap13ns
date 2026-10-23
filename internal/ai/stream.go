@@ -71,26 +71,7 @@ func (t *transport) openStream(ctx context.Context, endpoint string, hdr http.He
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, t.errorf("%w: cannot build request", ErrInvalidInput)
-	}
-	for k, v := range hdr {
-		req.Header[k] = v
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("User-Agent", "sap13ns")
-	resp, err := t.api.Do(req)
-	if err != nil {
-		return nil, t.requestError(ctx, err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		defer resp.Body.Close()
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
-		return nil, t.apiError(resp, raw)
-	}
-	return resp, nil
+	return t.send(ctx, endpoint, hdr, body, "text/event-stream")
 }
 
 // isEventStream reports whether a response is SSE; some compatible servers

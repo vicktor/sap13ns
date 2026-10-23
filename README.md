@@ -124,6 +124,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
   - drafting, improving, shortening, outlining and continuing text;
   - **design with AI** on the design screen: ask for a one-page site about a subject, other colours, animations, or a text change ("change «Welcome» on the front page to «Aloha!»"). The model gets a guide to how sap13ns pages are made and the theme's catalogue, and answers with changes that go through the editors' own validation into the draft; the owner publishes them. It needs a recent model that is good at structured answers.
 - **A local style linter** flags clichés and filler phrases ("in today's world…", "it is crucial to note…"), both in your writing and in the model's.
+- **Checked answers:** every answer is checked in code before you see it: lengths (excerpt, SEO fields, image prompt), the style linter, remarks to you around the text ("Sure! Here is…"), whether a shortened text is shorter, whether a translation kept its Markdown, links and code. When a check fails, the model is shown the problems and asked once for a corrected answer, and the better of the two is kept. Design with AI is told when its answer changed nothing and asked to make the change. A provider that is briefly overloaded or rate-limited is tried again, twice at most.
 - **Controls:**
   - the API key is encrypted at rest;
   - a minimum role, plus monthly per-user request and image budgets;

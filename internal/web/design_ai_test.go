@@ -284,6 +284,11 @@ func TestDesignAIHTML(t *testing.T) {
 		`{"reply": "He creado las páginas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [],
 		  "new_pages": [{"title": "Precio", "slug": "precio", "markdown": "## 7 € / 5 L"}, {"title": "Promoción", "slug": "", "markdown": "**2x1**"}]}`,
 		`{"reply": "He creado cuatro páginas nuevas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [], "new_pages": []}`,
+		`{"reply": "Ya están creadas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [], "new_pages": []}`,
+		// Told it changed nothing, the model does the work.
+		`{"reply": "Voy a crear la página de ventajas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [], "new_pages": []}`,
+		`{"reply": "He creado la página de ventajas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [],
+		  "new_pages": [{"title": "Ventajas", "slug": "ventajas", "markdown": "Lava en frío."}]}`,
 	}, fake.answers...)
 	if res := run("crea las páginas de precio y promoción"); len(res.Pages) != 2 || !strings.Contains(res.Reply, "«Precio» (/precio), «Promoción» (/promocion)") {
 		t.Fatalf("pages: %+v", res)
@@ -293,6 +298,12 @@ func TestDesignAIHTML(t *testing.T) {
 	}
 	if res := run("¿y las otras?"); !strings.Contains(res.Reply, "No se ha guardado nada") {
 		t.Fatalf("a claim with nothing saved: %+v", res)
+	}
+	if n := len(fake.reqs); !strings.Contains(fake.reqs[n-1].Messages[len(fake.reqs[n-1].Messages)-1].Content, "Your answer changes nothing") {
+		t.Fatal("the model was not told its answer changed nothing")
+	}
+	if res := run("crea la de ventajas"); len(res.Pages) != 1 || res.Pages[0].Title != "Ventajas" {
+		t.Fatalf("after the nudge: %+v", res)
 	}
 	// Publish takes the assistant's pages along.
 	if page := e.do("GET", "/admin/appearance/themes/onepage/builder", nil, "", e.cookie).Body.String(); !strings.Contains(page, `name="publish_pages"`) {
