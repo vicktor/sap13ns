@@ -56,17 +56,16 @@
       <header><h2>{{themeT $d.Theme .Label}}</h2><p class="mono text-xs">{{.ID}}</p></header>
       <section>
         {{with index $d.Menus $loc}}
-        <ol class="menu-items">
+        <ol class="menu-items" data-menu-order="/admin/appearance/menus/order" data-msg-moved="{{T "Order saved."}}" data-msg-failed="{{T "The order could not be saved. Reload the page."}}">
           {{range $i, $it := .}}
-          <li>
+          <li data-id="{{$it.ID}}">
             <form method="post" action="/admin/appearance/menus/{{$it.ID}}" class="menu-item-form">
+              <button class="btn menu-grip" data-variant="ghost" data-size="icon-sm" type="button" aria-label="{{T "Drag to reorder (or use the arrow keys)"}}" title="{{T "Drag to reorder"}}">{{icon "grip-vertical"}}</button>
               {{$.CSRFField}}{{if $d.Lang}}<input type="hidden" name="lang" value="{{$d.Lang}}">{{end}}
               <input class="input" name="label" value="{{$it.Label}}" required maxlength="100" aria-label="{{T "Label"}}">
               <input class="input" name="url" value="{{$it.URL}}" required maxlength="1000" aria-label="{{T "Link"}}">
               <div class="item-actions">
                 <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Save"}}" title="{{T "Save"}}">{{icon "save"}}</button>
-                <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/menus/{{$it.ID}}/up" aria-label="{{T "Move up"}}" title="{{T "Move up"}}">{{icon "arrow-up"}}</button>
-                <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/menus/{{$it.ID}}/down" aria-label="{{T "Move down"}}" title="{{T "Move down"}}">{{icon "arrow-down"}}</button>
                 <button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" formaction="/admin/appearance/menus/{{$it.ID}}/delete" formnovalidate aria-label="{{T "Remove"}}" title="{{T "Remove"}}">{{icon "trash-2"}}</button>
               </div>
             </form>

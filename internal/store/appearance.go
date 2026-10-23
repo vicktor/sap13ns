@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -61,14 +62,47 @@ func (s *Store) DeleteMenuItem(ctx context.Context, id int64) error {
 	return err
 }
 
-// MoveMenuItem swaps an item with its neighbour (dir = -1 up, +1 down).
-func (s *Store) MoveMenuItem(ctx context.Context, id int64, dir int) error {
+// ErrMenuOrder: the order sent is not that of one whole menu.
+var ErrMenuOrder = errors.New("store: not the items of one menu")
+
+// ReorderMenu puts the items of one menu in the order of ids, which must
+// be every item of that menu (one location and language), each once.
+func (s *Store) ReorderMenu(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return ErrMenuOrder
+	}
 	return s.InTx(ctx, func(tx pgx.Tx) error {
 		var loc, lang string
-		if err := tx.QueryRow(ctx, `SELECT location, lang FROM menu_items WHERE id = $1`, id).Scan(&loc, &lang); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT location, lang FROM menu_items WHERE id = $1`, ids[0]).Scan(&loc, &lang); err != nil {
 			return mapErr(err)
 		}
-		return moveRow(ctx, tx, "menu_items", "location = $1 AND lang = $2", []any{loc, lang}, id, dir)
+		rows, err := tx.Query(ctx, `SELECT id FROM menu_items WHERE location = $1 AND lang = $2 FOR UPDATE`, loc, lang)
+		if err != nil {
+			return err
+		}
+		have, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		if err != nil {
+			return err
+		}
+		if len(have) != len(ids) {
+			return ErrMenuOrder
+		}
+		seen := make(map[int64]bool, len(ids))
+		for _, id := range have {
+			seen[id] = false
+		}
+		for _, id := range ids {
+			if done, ok := seen[id]; !ok || done {
+				return ErrMenuOrder
+			}
+			seen[id] = true
+		}
+		for pos, id := range ids {
+			if _, err := tx.Exec(ctx, `UPDATE menu_items SET position = $2 WHERE id = $1`, id, pos); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

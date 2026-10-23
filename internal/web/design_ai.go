@@ -41,9 +41,26 @@ const (
 var designAISchema = json.RawMessage(`{
   "type": "object",
   "additionalProperties": false,
-  "required": ["reply", "design_patch", "layout_patch", "block_edits"],
+  "required": ["reply", "html_regions", "css", "design_patch", "layout_patch", "block_edits"],
   "properties": {
     "reply": {"type": "string"},
+    "html_regions": {"type": "array", "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["region", "sections"],
+      "properties": {"region": {"type": "string"}, "sections": {"type": "array", "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["anchor", "html", "translations"],
+        "properties": {"anchor": {"type": "string"}, "html": {"type": "string"}, "translations": {"type": "array", "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lang", "html"],
+          "properties": {"lang": {"type": "string"}, "html": {"type": "string"}}
+        }}}
+      }}}
+    }},
+    "css": {"type": "string"},
     "design_patch": {"type": "string"},
     "layout_patch": {"type": "string"},
     "block_edits": {"type": "array", "items": {
@@ -56,9 +73,11 @@ var designAISchema = json.RawMessage(`{
 }`)
 
 type designAIAnswer struct {
-	Reply       string `json:"reply"`
-	DesignPatch string `json:"design_patch"`
-	LayoutPatch string `json:"layout_patch"`
+	Reply       string               `json:"reply"`
+	HTMLRegions []designAIHTMLRegion `json:"html_regions"`
+	CSS         string               `json:"css"`
+	DesignPatch string               `json:"design_patch"`
+	LayoutPatch string               `json:"layout_patch"`
 	BlockEdits  []struct {
 		BlockID  string `json:"block_id"`
 		Lang     string `json:"lang"`
@@ -66,16 +85,60 @@ type designAIAnswer struct {
 	} `json:"block_edits"`
 }
 
+// designAIHTMLRegion is one region of an html_regions answer.
+type designAIHTMLRegion struct {
+	Region   string                `json:"region"`
+	Sections []designAIHTMLSection `json:"sections"`
+}
+
+// designAIHTMLSection is one section of an html_regions answer: an HTML
+// block filling the width, with its translations.
+type designAIHTMLSection struct {
+	Anchor       string `json:"anchor"`
+	HTML         string `json:"html"`
+	Translations []struct {
+		Lang string `json:"lang"`
+		HTML string `json:"html"`
+	} `json:"translations"`
+}
+
 // designGuide is how sap13ns pages are made, for the in-app model, which
 // answers one JSON object (designAISchema).
 const designGuide = `You are the design assistant of a sap13ns site (a CMS). You change the
 design of the site's theme by answering ONE JSON object:
 
-  {"reply": "...", "design_patch": "...", "layout_patch": "...", "block_edits": [...]}
+  {"reply": "...", "html_regions": [...], "css": "...", "design_patch": "...",
+   "layout_patch": "...", "block_edits": [...]}
+
+Every key is required: send [] or "" for what you do not change.
 
 - reply: what you did or what you need, short, in the language the user writes in.
   Say that the changes are in the draft and show in the preview; the user
   publishes them. If something cannot be done with these tools, say so.
+- html_regions: THE EASIEST WAY TO BUILD A PAGE OR A WHOLE SITE. Each item
+  replaces one region with sections you write as HTML:
+  {"region": "front", "sections": [{"anchor": "how", "html": "<section
+   class=\"x-how\">...</section>", "translations": [{"lang": "en", "html":
+   "..."}]}]}
+  region is one of "front", "home", "header", "footer", "archive", "search",
+  "404" (not "single" or "page": those show a post's text). Each section is
+  shown full width, in order; anchor ("" for none) lets a menu link to
+  "#how". translations: the same HTML in each other language of the site.
+  The footer keeps the site's credits line after your sections. Keep the
+  theme's header (it has the menus and the language switch) unless the
+  user asks for another one; to link the menu to your sections, tell the
+  user to add links such as "#how" in Appearance → Menus.
+  HTML rules: elements, class and id, links, <img src="..." alt="...">,
+  lists, tables, details, inline <svg> icons. NO <script>, NO <style>, NO
+  style="" attributes, NO onclick, NO iframes or forms: they are removed.
+  Give elements classes (prefix them "x-") and style them in css.
+- css: "" to keep the custom CSS as it is, or the COMPLETE custom CSS of the
+  site (it replaces DESIGN.css, so keep the rules you still need). Use the
+  theme's colours so that light and dark mode both work: var(--background),
+  var(--foreground), var(--card), var(--muted), var(--muted-foreground),
+  var(--border), var(--primary), var(--primary-foreground), var(--accent),
+  var(--accent-foreground), var(--radius). No @import, no external url().
+  Make it responsive (flex/grid, @media (min-width: 48rem) {...}).
 - design_patch: "" or a JSON merge patch (RFC 7386) over DESIGN, as a string.
 - layout_patch: "" or a JSON merge patch over LAYOUT, as a string. Arrays are
   replaced whole: to change a region, send its complete "sections" list.
@@ -135,8 +198,9 @@ Rules:
   replace, and say so.
 - Write the texts in the site's main language, and translations for the other
   languages of the site when you create new content.
-- Images need media ids that you do not have: leave image fields empty and
-  tell the user where to choose the pictures.
+- Images: use the site's images in MEDIA (in HTML by their url, in block
+  image fields by their id). If there are none that fit, leave the image
+  out and tell the user to upload the pictures in Media and ask again.
 - If the site refuses your changes, you get the errors: fix them and send the
   changes again; nothing is saved until they all pass.`
 
@@ -257,9 +321,10 @@ func designAIMessages(in []ai.Message) []ai.Message {
 
 // designAIResult is the job's result for the design screen.
 type designAIResult struct {
-	Reply  string `json:"reply"`
-	Design bool   `json:"design"` // the style and texts changed
-	Layout bool   `json:"layout"` // the structure changed
+	Reply   string `json:"reply"`
+	Design  bool   `json:"design"`  // the style and texts changed
+	Layout  bool   `json:"layout"`  // the structure changed
+	Dropped int    `json:"dropped"` // parts left out on the last attempt
 }
 
 func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider, th *theme.Theme, msgs []ai.Message, lang string) (*designAIResult, error) {
@@ -273,10 +338,10 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 		return nil, err
 	}
 	designJSON, layoutJSON := d.JSON(), l.JSON()
-	system := designGuide + "\n\n" + s.designAICatalog(th) + "\n\n" + s.designAIState(ctx, th, d, designJSON, layoutJSON, lang)
+	system := designGuide + "\n\n" + s.designAICatalog(ctx, th) + "\n\n" + s.designAIState(ctx, th, d, designJSON, layoutJSON, lang)
 	conv := slices.Clone(msgs)
 	var lastErr error
-	for range designAIAttempts {
+	for attempt := range designAIAttempts {
 		resp, err := p.Text(ctx, ai.TextRequest{System: system, Messages: conv, MaxTokens: designAIMaxTokens, JSON: true, Schema: designAISchema})
 		if err != nil {
 			return nil, err
@@ -291,12 +356,15 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 				ai.Message{Role: ai.RoleUser, Content: "Your answer was not the JSON object described. Send it again, as that JSON object only."})
 			continue
 		}
-		res, problems, err := s.applyDesignAI(ctx, r, th, ms, designJSON, layoutJSON, &ans)
+		res, problems, err := s.applyDesignAI(ctx, r, th, ms, designJSON, layoutJSON, &ans, attempt == designAIAttempts-1)
 		if err != nil {
 			return nil, err
 		}
 		if len(problems) == 0 {
 			res.Reply = strings.TrimSpace(ans.Reply)
+			if res.Dropped > 0 {
+				res.Reply += "\n\n" + s.tu(r, "Part of these changes did not pass the site's checks and was left out; the rest is in the draft. Look at the preview, and ask again for what is missing.")
+			}
 			return res, nil
 		}
 		lastErr = fmt.Errorf("%w: %s", errDesignAIRefused, strings.Join(problems, "; "))
@@ -314,20 +382,42 @@ var (
 
 // applyDesignAI applies the model's answer to the drafts it was shown and
 // saves them; problems are what the validators refused (nothing is saved
-// then).
-func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.Theme, ms *mediaSet, designJSON, layoutJSON []byte, ans *designAIAnswer) (*designAIResult, []string, error) {
-	var problems []string
+// then). With lenient (the last attempt), what the validators refuse is
+// left out instead, as when a stored design is loaded, and listed in
+// res.Dropped; only an answer that cannot be read at all saves nothing.
+func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.Theme, ms *mediaSet, designJSON, layoutJSON []byte, ans *designAIAnswer, lenient bool) (*designAIResult, []string, error) {
+	var problems, dropped []string
 	res := &designAIResult{}
 	var newDesign *customize.Design
+	design, designChanged := designJSON, false
 	if p := strings.TrimSpace(ans.DesignPatch); p != "" && p != "{}" && p != "null" {
-		merged, err := mergePatchJSON(designJSON, []byte(p))
+		merged, err := mergePatchJSON(design, []byte(p))
 		if err != nil {
 			problems = append(problems, "design_patch: "+err.Error())
-		} else if newDesign, err = customize.Parse(merged, s.designContext(th, ms)); err != nil {
+		} else {
+			design, designChanged = merged, true
+		}
+	}
+	if css := strings.TrimSpace(ans.CSS); css != "" {
+		patch, _ := json.Marshal(map[string]string{"css": css})
+		if merged, err := mergePatchJSON(design, patch); err == nil {
+			design, designChanged = merged, true
+		}
+	}
+	if designChanged && len(problems) == 0 {
+		var err error
+		if newDesign, err = customize.Parse(design, s.designContext(th, ms)); err != nil {
 			if ms.err != nil {
 				return nil, nil, ms.err
 			}
-			problems = append(problems, validationProblems("design", err)...)
+			refused := validationProblems("design", err)
+			if !lenient {
+				problems = append(problems, refused...)
+			} else if newDesign, err = customize.Load(design, s.designContext(th, ms)); err != nil {
+				return nil, nil, err
+			} else {
+				dropped = append(dropped, refused...)
+			}
 		}
 	}
 	layout := layoutJSON
@@ -340,11 +430,24 @@ func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.T
 			layout, layoutChanged = merged, true
 		}
 	}
+	if len(ans.HTMLRegions) > 0 {
+		edited, errs := applyHTMLRegions(layout, ans, s.designAILangs())
+		if lenient {
+			dropped = append(dropped, errs...)
+		} else {
+			problems = append(problems, errs...)
+		}
+		layout, layoutChanged = edited, true
+	}
 	if len(ans.BlockEdits) > 0 {
 		edited, errs := editBlocks(layout, ans.BlockEdits)
-		problems = append(problems, errs...)
-		if len(errs) == 0 {
+		switch {
+		case len(errs) == 0:
 			layout, layoutChanged = edited, true
+		case lenient:
+			dropped = append(dropped, errs...)
+		default:
+			problems = append(problems, errs...)
 		}
 	}
 	var newLayout *builder.Layouts
@@ -355,11 +458,22 @@ func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.T
 			if ms.err != nil {
 				return nil, nil, ms.err
 			}
-			problems = append(problems, validationProblems("layout", err)...)
+			refused := validationProblems("layout", err)
+			if !lenient {
+				problems = append(problems, refused...)
+			} else if newLayout, err = builder.Load(layout, s.layoutContext(th, ms)); err != nil {
+				return nil, nil, err
+			} else {
+				dropped = append(dropped, refused...)
+			}
 		}
 	}
 	if len(problems) > 0 {
 		return nil, problems, nil
+	}
+	res.Dropped = len(dropped)
+	if len(dropped) > 0 {
+		s.log.Info("design assistant: left out what the site refused", "theme", th.Slug, "problems", strings.Join(dropped, "; "))
 	}
 	if newDesign != nil && string(newDesign.JSON()) != string(designJSON) {
 		if err := s.store.SaveCustomDraft(ctx, th.Slug, store.CustomDesign, newDesign.JSON(), uid(r)); err != nil {
@@ -377,6 +491,15 @@ func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.T
 		s.audit(r, uid(r), "theme.design_ai", th.Slug, map[string]string{"design": fmt.Sprint(res.Design), "layout": fmt.Sprint(res.Layout)})
 	}
 	return res, nil, nil
+}
+
+// designAILangs are the site's languages, the main one first.
+func (s *Server) designAILangs() []string {
+	langs := []string{s.mainLang()}
+	for _, l := range s.extraLangs() {
+		langs = append(langs, l.Code)
+	}
+	return langs
 }
 
 // validationProblems lists a validator's field errors for the model.
@@ -514,7 +637,7 @@ func editBlocks(layout []byte, edits []struct {
 }
 
 // designAICatalog is what th can use, for the model.
-func (s *Server) designAICatalog(th *theme.Theme) string {
+func (s *Server) designAICatalog(ctx context.Context, th *theme.Theme) string {
 	var b strings.Builder
 	langs := append([]string{s.mainLang()}, func() (out []string) {
 		for _, l := range s.extraLangs() {
@@ -577,6 +700,7 @@ func (s *Server) designAICatalog(th *theme.Theme) string {
 		}
 	}
 	fmt.Fprintf(&b, "THEME TEXTS: %s\n", jsonString(texts))
+	b.WriteString(s.designAIMedia(ctx))
 	return b.String()
 }
 
@@ -613,6 +737,125 @@ func (s *Server) designAIState(ctx context.Context, th *theme.Theme, d *customiz
 	}
 	fmt.Fprintf(&b, "CURRENT TEXTS (lang -> key -> what the page shows): %s\n", jsonString(current))
 	return b.String()
+}
+
+// designAIMediaMax is how many of the latest images the model is shown.
+const designAIMediaMax = 60
+
+// designAIMedia lists the site's latest images for the model.
+func (s *Server) designAIMedia(ctx context.Context) string {
+	list, total, err := s.store.ListMedia(ctx, store.MediaQuery{ImagesOnly: true, Limit: designAIMediaMax})
+	if err != nil {
+		s.log.Error("design assistant: list media", "err", err)
+		return ""
+	}
+	type img struct {
+		ID     int64  `json:"id"`
+		URL    string `json:"url"`
+		Large  string `json:"url_large,omitempty"`
+		Name   string `json:"name"`
+		Alt    string `json:"alt,omitempty"`
+		Width  int    `json:"width,omitempty"`
+		Height int    `json:"height,omitempty"`
+	}
+	out := make([]img, 0, len(list))
+	for i := range list {
+		m := &list[i]
+		it := img{ID: m.ID, URL: m.URL(), Name: m.OriginalName, Alt: m.Alt, Width: m.Width, Height: m.Height}
+		if v := m.VariantURL("large"); v != it.URL {
+			it.Large = v
+		}
+		out = append(out, it)
+	}
+	note := ""
+	if total > len(list) {
+		note = fmt.Sprintf(" (the latest %d of %d)", len(list), total)
+	}
+	return fmt.Sprintf("MEDIA%s: %s\n", note, jsonString(out))
+}
+
+// designAIRegions are the regions html_regions may replace, and where they
+// are in LAYOUT.
+var designAIRegions = map[string][]string{
+	"header": {"header"}, "footer": {"footer"},
+	"front": {"pages", "front"}, "home": {"pages", "home"}, "archive": {"pages", "archive"},
+	"search": {"pages", "search"}, "404": {"pages", "404"},
+}
+
+// applyHTMLRegions replaces the regions of html_regions in layout with
+// full-width sections of one HTML block each.
+func applyHTMLRegions(layout []byte, ans *designAIAnswer, langs []string) ([]byte, []string) {
+	if len(ans.HTMLRegions) == 0 {
+		return layout, nil
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(layout, &doc); err != nil || doc == nil {
+		doc = map[string]any{}
+	}
+	var problems []string
+	done := map[string]bool{}
+	for _, reg := range ans.HTMLRegions {
+		name := strings.TrimSpace(strings.ToLower(reg.Region))
+		path, ok := designAIRegions[name]
+		if !ok {
+			problems = append(problems, fmt.Sprintf("html_regions: unknown region %q (use one of front, home, header, footer, archive, search, 404)", reg.Region))
+			continue
+		}
+		if done[name] {
+			problems = append(problems, fmt.Sprintf("html_regions: region %q is sent twice", name))
+			continue
+		}
+		done[name] = true
+		anchors := map[string]bool{}
+		sections := []any{}
+		for i, sec := range reg.Sections {
+			html := strings.TrimSpace(sec.HTML)
+			if html == "" {
+				continue
+			}
+			if n := len([]rune(html)); n > builder.MaxHTML {
+				problems = append(problems, fmt.Sprintf("html_regions %s section %d: %d characters, at most %d: split it in several sections", name, i+1, n, builder.MaxHTML))
+				continue
+			}
+			id := fmt.Sprintf("ai-%s-%d", strings.ReplaceAll(name, "404", "nf"), i+1)
+			block := map[string]any{"id": id + "-b", "type": "html", "settings": map[string]any{"html": html, "prose": "false"}}
+			tr := map[string]any{}
+			for _, t := range sec.Translations {
+				if l := strings.TrimSpace(t.Lang); l != langs[0] && slices.Contains(langs, l) && strings.TrimSpace(t.HTML) != "" {
+					tr[l] = map[string]any{"html": strings.TrimSpace(t.HTML)}
+				}
+			}
+			if len(tr) > 0 {
+				block["i18n"] = tr
+			}
+			section := map[string]any{"id": id, "layout": "1", "style": map[string]any{"padding": "none", "width": "full"},
+				"columns": []any{[]any{block}}}
+			if a := strings.TrimSpace(sec.Anchor); a != "" && builder.ValidAnchor(a) && !anchors[a] {
+				anchors[a] = true
+				section["anchor"] = a
+			}
+			sections = append(sections, section)
+		}
+		if name == "footer" {
+			sections = append(sections, map[string]any{"id": "ai-footer-credits", "layout": "1",
+				"columns": []any{[]any{map[string]any{"id": "ai-footer-credits-b", "type": "footer-meta"}}}})
+		}
+		parent := doc
+		for _, k := range path[:len(path)-1] {
+			next, _ := parent[k].(map[string]any)
+			if next == nil {
+				next = map[string]any{}
+				parent[k] = next
+			}
+			parent = next
+		}
+		parent[path[len(path)-1]] = map[string]any{"sections": sections}
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return layout, append(problems, "html_regions: "+err.Error())
+	}
+	return out, problems
 }
 
 func jsonString(v any) string {

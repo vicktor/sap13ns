@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -277,10 +278,6 @@ func (s *Server) adminMenuAction(w http.ResponseWriter, r *http.Request) {
 	}
 	var err error
 	switch r.PathValue("action") {
-	case "up":
-		err = s.store.MoveMenuItem(r.Context(), id, -1)
-	case "down":
-		err = s.store.MoveMenuItem(r.Context(), id, 1)
 	case "delete":
 		err = s.store.DeleteMenuItem(r.Context(), id)
 	default:
@@ -293,6 +290,34 @@ func (s *Server) adminMenuAction(w http.ResponseWriter, r *http.Request) {
 	}
 	s.contentChanged()
 	s.redirect(w, r, menusPath(s.menuScope(r)), "", "")
+}
+
+// adminMenuOrder saves a menu's order after a drag: ids, every item of
+// one menu in their new order. It answers 204, for the page's script.
+func (s *Server) adminMenuOrder(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || len(r.PostForm["ids"]) > 500 {
+		http.Error(w, s.tu(r, "Invalid request."), http.StatusBadRequest)
+		return
+	}
+	var ids []int64
+	for _, v := range r.PostForm["ids"] {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, s.tu(r, "Invalid request."), http.StatusBadRequest)
+			return
+		}
+		ids = append(ids, id)
+	}
+	switch err := s.store.ReorderMenu(r.Context(), ids); {
+	case errors.Is(err, store.ErrMenuOrder), errors.Is(err, store.ErrNotFound):
+		http.Error(w, s.tu(r, "The menu changed meanwhile. Reload the page."), http.StatusConflict)
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	}
+	s.contentChanged()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --------------------------------------------------------------- widgets --

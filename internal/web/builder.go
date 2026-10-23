@@ -495,7 +495,7 @@ type builderData struct {
 
 // builderIcons are the editor's own icons; the block types add theirs.
 var builderIcons = []string{"grip-vertical", "copy", "trash-2", "plus", "chevron-up", "chevron-down", "sliders-horizontal",
-	"columns-2", "panel-top", "panel-bottom", "layout-template", "lock", "circle-alert", "languages"}
+	"columns-2", "panel-top", "panel-bottom", "layout-template", "lock", "circle-alert", "languages", "code", "file-code"}
 
 // builderState is the JSON the editor starts from.
 type builderState struct {

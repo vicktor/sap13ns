@@ -170,3 +170,5 @@
 .sap-code-editor { display: block; }
 .bl-html-dialog { width: min(64rem, calc(100vw - 2rem)); max-width: none; }
 .bl-html-dialog .sap-code-editor { --sap-code-min: 50vh; }
+.bl-empty-section { @apply flex flex-wrap items-center gap-2 border-t border-dashed px-3 py-2.5 text-sm text-muted-foreground; }
+.bl-empty-section p { @apply flex-1 basis-48; }

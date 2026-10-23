@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.14.0 — 2026-10-23
+
+- **Design with AI builds whole pages in HTML.** The model can now answer with a page as full-width sections written in HTML, plus the site's custom CSS, the way a site is built by hand: far easier for it to get right than nested block patches. It also sees the site's latest images and can use them. On its last try, what the site's checks still refuse is left out and the rest is saved to the draft, instead of nothing at all; the answer says what happened. The design MCP server takes the same `html_regions` and `css`.
+- **Write your own HTML from an empty page.** In Appearance → Design → Structure, a region that uses the theme's design offers **Write my own HTML**, and an empty section says how to fill it and has **Write its HTML**, which opens the code editor empty.
+- **Menus are reordered by dragging.** Appearance → Menus: drag an item by its grip, or focus the grip and use the arrow keys; the order is saved at once. The up and down buttons are gone.
+
 ## v0.13.1 — 2026-10-23
 
 - **Paid plans come with their AI switched on.** On a network with its own AI (`SAP13NS_NETWORK_AI_PROVIDER`), a Pro or Business site that never saved its AI page now uses the AI its plan includes from the start: writing help, Design with AI and the site assistant work without configuring anything. A site that saved its own choice keeps it, and a site whose plan stops including the AI sees it switched off, as before.

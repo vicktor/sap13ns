@@ -26,10 +26,10 @@ export const bundles = [
   },
   {
     // The chrome of every admin page (ui/admin/templates/layout.html), after
-    // Basecoat's scripts.
+    // Basecoat's scripts, and the menus page's drag to reorder.
     name: "admin",
     out: "ui/static/admin.min.js",
-    sources: ["selects.js", "admin.js", "autosave.js", "jobs.js", "ai.js", "updates.js"],
+    sources: ["selects.js", "admin.js", "autosave.js", "jobs.js", "ai.js", "updates.js", "menu-order.js"],
   },
 ];
 

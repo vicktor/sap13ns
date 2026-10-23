@@ -36,8 +36,16 @@ const designMCPIntro = `You are designing the theme of a sap13ns site (a CMS) th
   DESIGN), layout_patch (the same over LAYOUT; arrays are replaced whole, so
   send a region's complete "sections"; null removes a key) and block_edits
   ({"block_id", "lang": "" for the main language or a language code,
-  "settings": {...}} merged into a block of LAYOUT). It saves to the draft
-  only if everything passes; otherwise it returns the problems to fix.
+  "settings": {...}} merged into a block of LAYOUT). It also takes
+  html_regions, the easiest way to build a page: [{"region": "front" (or
+  home, header, footer, archive, search, 404), "sections": [{"anchor": "",
+  "html": "<section class=\"x-hero\">…</section>", "translations": [{"lang",
+  "html"}]}]}], each region replaced by full-width HTML sections (no
+  script, style or style="", no event handlers, iframes or forms), and css,
+  the complete custom CSS of the site (it replaces DESIGN.css; use the
+  theme's colours, var(--primary) and the like, so both modes work). It
+  saves to the draft only if everything passes; otherwise it returns the
+  problems to fix.
 - Nothing is published: tell the user to check the preview and publish in
   Appearance → Design.
 
@@ -72,6 +80,18 @@ func (d designTools) list() []map[string]any {
 				"theme":        theme,
 				"design_patch": map[string]any{"type": "object", "description": "JSON merge patch over DESIGN."},
 				"layout_patch": map[string]any{"type": "object", "description": "JSON merge patch over LAYOUT."},
+				"html_regions": map[string]any{"type": "array", "description": "Regions replaced by full-width HTML sections.", "items": map[string]any{
+					"type": "object", "additionalProperties": false, "required": []string{"region", "sections"}, "properties": map[string]any{
+						"region": map[string]any{"type": "string", "enum": []string{"front", "home", "header", "footer", "archive", "search", "404"}},
+						"sections": map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false,
+							"required": []string{"html"}, "properties": map[string]any{
+								"anchor": map[string]any{"type": "string"},
+								"html":   map[string]any{"type": "string"},
+								"translations": map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false,
+									"required": []string{"lang", "html"}, "properties": map[string]any{"lang": map[string]any{"type": "string"}, "html": map[string]any{"type": "string"}}}},
+							}}},
+					}}},
+				"css": map[string]any{"type": "string", "description": "The complete custom CSS of the site; it replaces DESIGN.css."},
 				"block_edits": map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false,
 					"required": []string{"block_id", "settings"}, "properties": map[string]any{
 						"block_id": map[string]any{"type": "string"},
@@ -123,7 +143,7 @@ func (d designTools) call(ctx context.Context, name string, raw json.RawMessage)
 	}
 	switch name {
 	case "get_design_guide":
-		return designMCPIntro + designGuideBody + "\n\n" + s.designAICatalog(th), nil, false, nil
+		return designMCPIntro + designGuideBody + "\n\n" + s.designAICatalog(ctx, th), nil, false, nil
 	case "get_design_state":
 		ms := s.mediaSet(ctx)
 		dz, _, err := s.draftDesign(ctx, th, ms)
@@ -139,8 +159,10 @@ func (d designTools) call(ctx context.Context, name string, raw json.RawMessage)
 			s.cfg.AbsURL("/admin/appearance/themes/"+th.Slug+"/customize") + "\n", nil, false, nil
 	}
 	var a struct {
-		DesignPatch json.RawMessage `json:"design_patch"`
-		LayoutPatch json.RawMessage `json:"layout_patch"`
+		HTMLRegions []designAIHTMLRegion `json:"html_regions"`
+		CSS         string               `json:"css"`
+		DesignPatch json.RawMessage      `json:"design_patch"`
+		LayoutPatch json.RawMessage      `json:"layout_patch"`
 		BlockEdits  []struct {
 			BlockID  string          `json:"block_id"`
 			Lang     string          `json:"lang"`
@@ -150,7 +172,7 @@ func (d designTools) call(ctx context.Context, name string, raw json.RawMessage)
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return "", nil, false, &rpcError{Code: rpcInvalidParams, Message: "Invalid arguments"}
 	}
-	ans := &designAIAnswer{DesignPatch: patchText(a.DesignPatch), LayoutPatch: patchText(a.LayoutPatch)}
+	ans := &designAIAnswer{DesignPatch: patchText(a.DesignPatch), LayoutPatch: patchText(a.LayoutPatch), CSS: a.CSS, HTMLRegions: a.HTMLRegions}
 	for _, e := range a.BlockEdits {
 		ans.BlockEdits = append(ans.BlockEdits, struct {
 			BlockID  string `json:"block_id"`
@@ -167,7 +189,7 @@ func (d designTools) call(ctx context.Context, name string, raw json.RawMessage)
 	if err != nil {
 		return "", nil, false, &rpcError{Code: rpcInternalError, Message: "The draft could not be read"}
 	}
-	res, problems, err := s.applyDesignAI(ctx, d.r, th, ms, dz.JSON(), l.JSON(), ans)
+	res, problems, err := s.applyDesignAI(ctx, d.r, th, ms, dz.JSON(), l.JSON(), ans, false)
 	if err != nil {
 		s.log.Error("design mcp", "theme", th.Slug, "err", err)
 		return "", nil, false, &rpcError{Code: rpcInternalError, Message: "The draft could not be saved"}

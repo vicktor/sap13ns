@@ -712,8 +712,9 @@ function init(root) {
           icon("plus"), presets.length ? msg.msgBuildBasic : msg.msgBuild),
         h("button", { type: "button", class: "btn", "data-variant": presets.length ? "ghost" : "outline", "data-size": "sm", onclick: empty },
           icon("columns-2"), msg.msgStartEmpty),
+        htmlDialog ? h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", onclick: () => openThemeHTML(true) }, icon("file-code"), msg.msgStartBlankHtml) : null,
         // Regions with the credits or the content stay blocks.
-        htmlDialog && !emptyRegion(region).sections.flat().some((sec) => htmlLocked(sec))
+        htmlDialog && !emptyRegion(region).sections.some((sec) => htmlLocked(sec))
           ? h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", onclick: openThemeHTML }, icon("code"), msg.msgStartHtml) : null),
         h("p", { class: "hint", text: msg.msgEmptyNext }));
     } else {
@@ -782,7 +783,11 @@ function init(root) {
           n > 1 ? h("p", { class: "bl-col-label", text: fmt(msg.msgColumn, c + 1) }) : null,
           h("ul", { class: "bl-blocks", "data-drop-blocks": "", "data-s": s, "data-c": c },
             blocks.length ? blocks.map((b, i) => blockRow(b, { s, c, b: i })) : h("li", { class: "bl-empty", text: msg.msgEmpty })),
-          h("button", { type: "button", class: "bl-add", onclick: () => openPicker({ s, c, b: blocks.length }) }, icon("plus"), msg.msgAddBlock)))));
+          h("button", { type: "button", class: "bl-add", onclick: () => openPicker({ s, c, b: blocks.length }) }, icon("plus"), msg.msgAddBlock)))),
+        // An empty section says how to fill it: blocks, or its own HTML.
+        htmlDialog && !sec.columns.flat().length ? h("div", { class: "bl-empty-section" },
+          h("p", { text: msg.msgEmptySection }),
+          h("button", { type: "button", class: "btn", "data-variant": "secondary", "data-size": "sm", onclick: () => openHTML(sec, { s }) }, icon("code"), msg.msgWriteHtml)) : null);
       list.append(li);
     });
     const adder = h("div", { class: "bl-add-section" },
@@ -901,9 +906,10 @@ function init(root) {
       h("p", { class: "hint", text: locked ? msg.msgEditHtmlLocked : msg.msgEditHtmlHint }));
   }
   function openHTML(sec, pos) {
-    const markup = sectionHTML(frameDoc(), sec);
     const sole = sec.columns.flat();
-    if (!markup && !(sole.length === 1 && sole[0].type === "html")) { toast("info", msg.msgEditHtmlNoPreview); return; }
+    const markup = sole.length ? sectionHTML(frameDoc(), sec) : "";
+    // An empty section starts an empty editor.
+    if (!markup && sole.length && !(sole.length === 1 && sole[0].type === "html")) { toast("info", msg.msgEditHtmlNoPreview); return; }
     htmlAt = { id: sec.id, s: pos.s };
     document.getElementById("bl-html-where").textContent = fmt(msg.msgSection, pos.s + 1);
     const ed = codeEditor(htmlBox, "html");
@@ -913,10 +919,12 @@ function init(root) {
   }
   // openThemeHTML starts a region from its theme template's markup: one
   // section holding it as an HTML block.
-  function openThemeHTML() {
-    const markup = themeHTML(frameDoc());
-    if (!markup) { toast("info", msg.msgEditHtmlNoPreview); return; }
-    htmlAt = { fresh: region };
+  // With blank, the region starts with an empty HTML section instead (before
+  // the blocks a page cannot do without).
+  function openThemeHTML(blank) {
+    const markup = blank === true ? "" : themeHTML(frameDoc());
+    if (blank !== true && !markup) { toast("info", msg.msgEditHtmlNoPreview); return; }
+    htmlAt = { fresh: region, blank: blank === true };
     document.getElementById("bl-html-where").textContent = regions.find((r) => r.name === region)?.label || region;
     const ed = codeEditor(htmlBox, "html");
     if (ed) ed.value = markup; else htmlBox.value = markup;
@@ -930,8 +938,9 @@ function init(root) {
         if (htmlAt.fresh !== region || getRegion(layout(), region)) return;
         // The theme's markup brings its own widths and spacing.
         const start = emptyRegion(region, layout());
-        start.sections[0].style = { padding: "none", width: "full" };
-        const next = setRegion(layout(), region, start);
+        let next = setRegion(layout(), region, start);
+        if (start.sections[0].columns.flat().some((b) => b.type === META || b.type === CONTENT)) next = addSection(next, region, 0);
+        getRegion(next, region).sections[0].style = { padding: "none", width: "full" };
         selected = getRegion(next, region).sections[0].id;
         commit(sectionToHTML(next, region, 0, htmlBox.value));
         say(msg.msgEditHtmlDone);

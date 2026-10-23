@@ -183,3 +183,106 @@ func TestDesignAI(t *testing.T) {
 		t.Errorf("published /:\n%s", body)
 	}
 }
+
+// html_regions: the model writes sections as HTML and the site's CSS, as
+// when a site is built by hand; on the last attempt, what the site still
+// refuses is left out and the rest is saved.
+func TestDesignAIHTML(t *testing.T) {
+	e := newPluginEnv(t)
+	ctx := context.Background()
+	set, _ := e.st.LoadSettings(ctx)
+	set.Language, set.Languages, set.FrontPage = "es", []string{"es", "en"}, "theme"
+	if err := e.st.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.ReloadSettings(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rec := e.admin("/admin/appearance/themes/onepage/activate", url.Values{}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("activate: %d", rec.Code)
+	}
+	html := func(reply, css string, sections ...map[string]any) string {
+		b, _ := json.Marshal(map[string]any{"reply": reply, "css": css, "design_patch": "", "layout_patch": "", "block_edits": []any{},
+			"html_regions": []any{map[string]any{"region": "front", "sections": sections}}})
+		return string(b)
+	}
+	sec := func(anchor, es, en string) map[string]any {
+		return map[string]any{"anchor": anchor, "html": es, "translations": []any{map[string]any{"lang": "en", "html": en}}}
+	}
+	bad := designAnswer("x", "", `{"pages": {"front": {"sections": [{"id": "s1", "layout": "1", "columns": [[{"id": "b1", "type": "nope"}]]}]}}}`)
+	fake := &fakeDesignAI{answers: []string{
+		html("Hecho: portada nueva.", ".x-hero { display: grid; color: var(--primary); }",
+			sec("inicio", `<section class="x-hero"><h1>Ariel</h1><script>alert(1)</script><p style="color:red">Limpio</p></section>`, `<section class="x-hero"><h1>Ariel EN</h1></section>`),
+			sec("precio", `<section class="x-price"><h2>Precio</h2></section>`, "")),
+		// Two refusals, then a third answer that still has an unknown block:
+		// it is left out, the HTML section is saved.
+		bad, bad,
+		`{"reply": "Hecho.", "css": "", "design_patch": "", "block_edits": [], "html_regions": [],
+		  "layout_patch": "{\"pages\": {\"front\": {\"sections\": [{\"id\": \"k1\", \"layout\": \"1\", \"columns\": [[{\"id\": \"k1b\", \"type\": \"html\", \"settings\": {\"html\": \"<p>Muestra gratis</p>\"}}, {\"id\": \"k2b\", \"type\": \"nope\"}]]}]}}}"}`,
+	}}
+	e.s.ai.mu.Lock()
+	e.s.ai.settings = &store.AISettings{Enabled: true, Provider: "anthropic", TextModel: "claude-test", MinRole: "author"}
+	e.s.ai.provider = fake
+	e.s.ai.mu.Unlock()
+	if _, err := e.st.CreateMedia(ctx, &store.Media{Path: "2026/10/ariel.jpg", OriginalName: "ariel.jpg", MIME: "image/jpeg", Width: 800, Height: 600, Alt: "Ariel", Variants: map[string]store.MediaVariant{}}); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(text string) *designAIResult {
+		t.Helper()
+		body, _ := json.Marshal(designAIReq{Messages: []ai.Message{{Role: "user", Content: text}}, Lang: "es"})
+		req := httptest.NewRequest("POST", "http://example.test/admin/appearance/themes/onepage/design/ai", strings.NewReader(string(body)))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-CSRF-Token", e.csrf)
+		req.AddCookie(e.cookie)
+		rec := httptest.NewRecorder()
+		e.s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("ask: %d %s", rec.Code, rec.Body)
+		}
+		var j struct{ Job string }
+		json.Unmarshal(rec.Body.Bytes(), &j)
+		for range 200 {
+			e.s.ai.mu.Lock()
+			job := *e.s.ai.jobs[j.Job]
+			e.s.ai.mu.Unlock()
+			if job.Done {
+				res, _ := job.Result.(*designAIResult)
+				if job.Error != "" || res == nil {
+					t.Fatalf("job: %+v", job)
+				}
+				return res
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatal("the job did not finish")
+		return nil
+	}
+	if res := run("un sitio sobre el jabón Ariel"); !res.Layout || !res.Design || res.Dropped != 0 {
+		t.Fatalf("html: %+v", res)
+	}
+	sys := fake.reqs[0].System
+	for _, w := range []string{"html_regions", "MEDIA", "/uploads/2026/10/ariel.jpg"} {
+		if !strings.Contains(sys, w) {
+			t.Errorf("the prompt lacks %q", w)
+		}
+	}
+	body := e.do("GET", "/?customize=draft", nil, "", e.cookie).Body.String()
+	if !strings.Contains(body, `<h1>Ariel</h1>`) || !strings.Contains(body, `id="precio"`) || strings.Contains(body, "alert(1)") || strings.Contains(body, "color:red") {
+		t.Errorf("the draft front page:\n%s", body)
+	}
+	if en := e.do("GET", "/en/?customize=draft", nil, "", e.cookie).Body.String(); !strings.Contains(en, "Ariel EN") {
+		t.Error("the translation is not shown")
+	}
+	if d, _, _ := e.s.draftDesign(ctx, e.s.themes.Active("onepage"), e.s.mediaSet(ctx)); !strings.Contains(d.CSS, "x-hero") {
+		t.Errorf("the CSS: %q", d.CSS)
+	}
+
+	res := run("añade la muestra gratuita")
+	if !res.Layout || res.Dropped == 0 || !strings.Contains(res.Reply, "dejado fuera") {
+		t.Fatalf("lenient: %+v", res)
+	}
+	if body := e.do("GET", "/?customize=draft", nil, "", e.cookie).Body.String(); !strings.Contains(body, "Muestra gratis") {
+		t.Error("the part that passed was not saved")
+	}
+}
