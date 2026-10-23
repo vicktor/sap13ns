@@ -278,6 +278,23 @@ func TestDesignAIHTML(t *testing.T) {
 		t.Errorf("the CSS: %q", d.CSS)
 	}
 
+	// Pages: created as drafts, and the reply says so; an answer that saves
+	// nothing says that, whatever the model claims.
+	fake.answers = append([]string{
+		`{"reply": "He creado las páginas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [],
+		  "new_pages": [{"title": "Precio", "slug": "precio", "markdown": "## 7 € / 5 L"}, {"title": "Promoción", "slug": "", "markdown": "**2x1**"}]}`,
+		`{"reply": "He creado cuatro páginas nuevas.", "css": "", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": [], "new_pages": []}`,
+	}, fake.answers...)
+	if res := run("crea las páginas de precio y promoción"); len(res.Pages) != 2 || !strings.Contains(res.Reply, "«Precio», «Promoción»") {
+		t.Fatalf("pages: %+v", res)
+	}
+	if p, err := e.st.PostBySlug(ctx, "page", "es", "promocion"); err != nil || p.Status != store.StatusDraft || p.Content != "**2x1**" {
+		t.Fatalf("the page: %+v %v", p, err)
+	}
+	if res := run("¿y las otras?"); !strings.Contains(res.Reply, "No se ha guardado nada") {
+		t.Fatalf("a claim with nothing saved: %+v", res)
+	}
+
 	res := run("añade la muestra gratuita")
 	if !res.Layout || res.Dropped == 0 || !strings.Contains(res.Reply, "dejado fuera") {
 		t.Fatalf("lenient: %+v", res)

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"sap13ns/internal/ai"
+	"sap13ns/internal/auth"
 	"sap13ns/internal/builder"
 	"sap13ns/internal/customize"
 	"sap13ns/internal/motion"
@@ -41,7 +42,7 @@ const (
 var designAISchema = json.RawMessage(`{
   "type": "object",
   "additionalProperties": false,
-  "required": ["reply", "html_regions", "css", "design_patch", "layout_patch", "block_edits"],
+  "required": ["reply", "html_regions", "css", "new_pages", "design_patch", "layout_patch", "block_edits"],
   "properties": {
     "reply": {"type": "string"},
     "html_regions": {"type": "array", "items": {
@@ -61,6 +62,12 @@ var designAISchema = json.RawMessage(`{
       }}}
     }},
     "css": {"type": "string"},
+    "new_pages": {"type": "array", "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "slug", "markdown"],
+      "properties": {"title": {"type": "string"}, "slug": {"type": "string"}, "markdown": {"type": "string"}}
+    }},
     "design_patch": {"type": "string"},
     "layout_patch": {"type": "string"},
     "block_edits": {"type": "array", "items": {
@@ -76,6 +83,7 @@ type designAIAnswer struct {
 	Reply       string               `json:"reply"`
 	HTMLRegions []designAIHTMLRegion `json:"html_regions"`
 	CSS         string               `json:"css"`
+	NewPages    []designAIPage       `json:"new_pages"`
 	DesignPatch string               `json:"design_patch"`
 	LayoutPatch string               `json:"layout_patch"`
 	BlockEdits  []struct {
@@ -84,6 +92,17 @@ type designAIAnswer struct {
 		Settings string `json:"settings"`
 	} `json:"block_edits"`
 }
+
+// designAIPage is a page of the site the model writes (new_pages): it is
+// created as a draft in the main language.
+type designAIPage struct {
+	Title    string `json:"title"`
+	Slug     string `json:"slug"`
+	Markdown string `json:"markdown"`
+}
+
+// designAIMaxPages caps the pages one answer creates.
+const designAIMaxPages = 10
 
 // designAIHTMLRegion is one region of an html_regions answer.
 type designAIHTMLRegion struct {
@@ -107,14 +126,16 @@ type designAIHTMLSection struct {
 const designGuide = `You are the design assistant of a sap13ns site (a CMS). You change the
 design of the site's theme by answering ONE JSON object:
 
-  {"reply": "...", "html_regions": [...], "css": "...", "design_patch": "...",
-   "layout_patch": "...", "block_edits": [...]}
+  {"reply": "...", "html_regions": [...], "css": "...", "new_pages": [...],
+   "design_patch": "...", "layout_patch": "...", "block_edits": [...]}
 
 Every key is required: send [] or "" for what you do not change.
 
 - reply: what you did or what you need, short, in the language the user writes in.
   Say that the changes are in the draft and show in the preview; the user
   publishes them. If something cannot be done with these tools, say so.
+  Never say you did something your answer does not do: the site adds what
+  it really saved to your reply.
 - html_regions: THE EASIEST WAY TO BUILD A PAGE OR A WHOLE SITE. Each item
   replaces one region with sections you write as HTML:
   {"region": "front", "sections": [{"anchor": "how", "html": "<section
@@ -139,6 +160,14 @@ Every key is required: send [] or "" for what you do not change.
   var(--border), var(--primary), var(--primary-foreground), var(--accent),
   var(--accent-foreground), var(--radius). No @import, no external url().
   Make it responsive (flex/grid, @media (min-width: 48rem) {...}).
+- new_pages: NEW PAGES OF THE SITE (such as "Pricing" or "Offers"), which the
+  design cannot make: [{"title": "...", "slug": "pricing", "markdown":
+  "..."}]. Each one is created as a draft page in the main language, with
+  its text in Markdown (headings, lists, **bold**, links, images as
+  ![alt](url from MEDIA); no HTML). They look like every page of the
+  theme. Do not put them in html_regions: no region is one page. Link
+  them from the front page with "/slug" links; the user publishes the
+  pages in Pages and adds them to the menu in Appearance → Menus.
 - design_patch: "" or a JSON merge patch (RFC 7386) over DESIGN, as a string.
 - layout_patch: "" or a JSON merge patch over LAYOUT, as a string. Arrays are
   replaced whole: to change a region, send its complete "sections" list.
@@ -321,10 +350,21 @@ func designAIMessages(in []ai.Message) []ai.Message {
 
 // designAIResult is the job's result for the design screen.
 type designAIResult struct {
-	Reply   string `json:"reply"`
-	Design  bool   `json:"design"`  // the style and texts changed
-	Layout  bool   `json:"layout"`  // the structure changed
-	Dropped int    `json:"dropped"` // parts left out on the last attempt
+	Reply        string            `json:"reply"`
+	Design       bool              `json:"design"`  // the style and texts changed
+	Layout       bool              `json:"layout"`  // the structure changed
+	Front        bool              `json:"front"`   // the front page's layout changed
+	Pages        []designAICreated `json:"pages"`   // pages created as drafts
+	PagesRefused bool              `json:"-"`       // pages asked for by a user who may not create them
+	Dropped      int               `json:"dropped"` // parts left out on the last attempt
+	theme        string            // the theme it changed
+}
+
+// designAICreated is a page the assistant created.
+type designAICreated struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+	Edit  string `json:"edit_url"`
 }
 
 func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider, th *theme.Theme, msgs []ai.Message, lang string) (*designAIResult, error) {
@@ -361,10 +401,7 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 			return nil, err
 		}
 		if len(problems) == 0 {
-			res.Reply = strings.TrimSpace(ans.Reply)
-			if res.Dropped > 0 {
-				res.Reply += "\n\n" + s.tu(r, "Part of these changes did not pass the site's checks and was left out; the rest is in the draft. Look at the preview, and ask again for what is missing.")
-			}
+			res.Reply = strings.TrimSpace(ans.Reply) + s.designAINotes(r, res)
 			return res, nil
 		}
 		lastErr = fmt.Errorf("%w: %s", errDesignAIRefused, strings.Join(problems, "; "))
@@ -373,6 +410,38 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 				"\nFix them and send the whole answer again."})
 	}
 	return nil, lastErr
+}
+
+// designAINotes says what was really saved, after the model's reply: the
+// model may claim more than its answer did.
+func (s *Server) designAINotes(r *http.Request, res *designAIResult) string {
+	var notes []string
+	if !res.Design && !res.Layout && len(res.Pages) == 0 {
+		notes = append(notes, s.tu(r, "Nothing was saved: this answer changed neither the design nor the pages. Ask again, saying what to change."))
+	}
+	if len(res.Pages) > 0 {
+		var list []string
+		for _, p := range res.Pages {
+			list = append(list, "«"+p.Title+"»")
+		}
+		notes = append(notes, s.tu(r, "Pages created as drafts: %s. Review and publish them in Pages, and add them to the menu in Appearance → Menus.", strings.Join(list, ", ")))
+	}
+	if res.PagesRefused {
+		notes = append(notes, s.tu(r, "The pages were not created: your role cannot create pages."))
+	}
+	if (res.Design || res.Layout) && s.themes.Active(s.settings().ActiveTheme).Slug != res.theme {
+		notes = append(notes, s.tu(r, "This theme is not the site's active theme: visitors will see these changes once you activate it in Appearance → Themes."))
+	}
+	if res.Front && s.settings().FrontPage != "theme" {
+		notes = append(notes, s.tu(r, "The new front page is in the draft, but the site's front page does not use the theme's design: choose it in Settings → Reading to see it."))
+	}
+	if res.Dropped > 0 {
+		notes = append(notes, s.tu(r, "Part of these changes did not pass the site's checks and was left out; the rest is in the draft. Look at the preview, and ask again for what is missing."))
+	}
+	if len(notes) == 0 {
+		return ""
+	}
+	return "\n\n" + strings.Join(notes, "\n\n")
 }
 
 var (
@@ -387,7 +456,7 @@ var (
 // res.Dropped; only an answer that cannot be read at all saves nothing.
 func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.Theme, ms *mediaSet, designJSON, layoutJSON []byte, ans *designAIAnswer, lenient bool) (*designAIResult, []string, error) {
 	var problems, dropped []string
-	res := &designAIResult{}
+	res := &designAIResult{theme: th.Slug}
 	var newDesign *customize.Design
 	design, designChanged := designJSON, false
 	if p := strings.TrimSpace(ans.DesignPatch); p != "" && p != "{}" && p != "null" {
@@ -490,7 +559,59 @@ func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.T
 	if res.Design || res.Layout {
 		s.audit(r, uid(r), "theme.design_ai", th.Slug, map[string]string{"design": fmt.Sprint(res.Design), "layout": fmt.Sprint(res.Layout)})
 	}
+	res.Front = res.Layout && frontJSON(newLayout.JSON()) != frontJSON(layoutJSON)
+	if err := s.designAIPages(ctx, r, ans.NewPages, res); err != nil {
+		return nil, nil, err
+	}
 	return res, nil, nil
+}
+
+// frontJSON is the front page region of layouts, as JSON.
+func frontJSON(layout []byte) string {
+	var l struct {
+		Pages map[string]json.RawMessage `json:"pages"`
+	}
+	_ = json.Unmarshal(layout, &l)
+	return string(l.Pages["front"])
+}
+
+// designAIPages creates the pages of new_pages as drafts, for a user who
+// may manage pages.
+func (s *Server) designAIPages(ctx context.Context, r *http.Request, pages []designAIPage, res *designAIResult) error {
+	u := currentUser(r)
+	if len(pages) == 0 || u == nil {
+		return nil
+	}
+	if !auth.Can(u.Role, auth.CapManagePages) {
+		res.PagesRefused = true
+		return nil
+	}
+	for i, p := range pages {
+		if i == designAIMaxPages {
+			res.Dropped += len(pages) - i
+			break
+		}
+		title := strings.TrimSpace(p.Title)
+		if title == "" || tooLong(title, 300) || len(p.Markdown) > 200_000 {
+			res.Dropped++
+			continue
+		}
+		slug, err := s.uniqueSlug(ctx, "page", s.mainLang(), p.Slug, title, 0)
+		if err != nil {
+			return err
+		}
+		id, err := s.store.CreatePost(ctx, store.PostInput{Type: "page", Status: store.StatusDraft, Title: title, Slug: slug,
+			Lang: s.mainLang(), Content: strings.TrimSpace(p.Markdown), AuthorID: u.ID, CommentStatus: "closed"})
+		if err != nil {
+			return err
+		}
+		s.audit(r, u.ID, "page.created", fmt.Sprintf("#%d %s", id, title), map[string]string{"status": store.StatusDraft, "by": "design_ai"})
+		res.Pages = append(res.Pages, designAICreated{ID: id, Title: title, Edit: fmt.Sprintf("/admin/posts/%d", id)})
+	}
+	if len(res.Pages) > 0 {
+		s.contentChanged()
+	}
+	return nil
 }
 
 // designAILangs are the site's languages, the main one first.

@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.15.0 — 2026-10-23
+
+- **Design with AI creates pages.** Ask for “a pricing page and an offers page” and it creates them as draft pages in Pages, with their text in Markdown and the site's images; you review and publish them, and add them to the menu.
+- **Its replies say what was really saved.** After the model's own words, the site lists the pages it created, says when nothing was saved at all (a model can claim changes it did not make), and warns when the new front page will not show because the site's front page does not use the theme's design (Settings → Reading), or when the theme is not the active one.
+
 ## v0.14.1 — 2026-10-23
 
 - **Menu items save themselves.** In Appearance → Menus, a change to an item's label or link is saved as soon as you leave the field, as a new item and a new order already were. The save button is gone.
