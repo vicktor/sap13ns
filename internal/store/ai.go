@@ -32,6 +32,8 @@ type AISettings struct {
 	ImageProvider string `json:"image_provider,omitempty"`
 	ImageKeyEnc   []byte `json:"image_key_enc,omitempty"`
 	ImageBaseURL  string `json:"image_base_url,omitempty"`
+	// Saved: the site saved its settings once (false for the defaults).
+	Saved bool `json:"-"`
 }
 
 // AISourceNetwork is AISettings.Source for the network's provider.
@@ -46,10 +48,12 @@ func DefaultAISettings() AISettings {
 
 func (s *Store) AISettings(ctx context.Context) (AISettings, error) {
 	st := DefaultAISettings()
-	if err := s.GetJSON(ctx, aiSettingsKey, &st); err != nil && !errors.Is(err, ErrNotFound) {
-		return st, err
+	err := s.GetJSON(ctx, aiSettingsKey, &st)
+	if errors.Is(err, ErrNotFound) {
+		return st, nil
 	}
-	return st, nil
+	st.Saved = err == nil
+	return st, err
 }
 
 func (s *Store) SaveAISettings(ctx context.Context, st AISettings) error {

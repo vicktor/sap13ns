@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.13.1 — 2026-10-23
+
+- **Paid plans come with their AI switched on.** On a network with its own AI (`SAP13NS_NETWORK_AI_PROVIDER`), a Pro or Business site that never saved its AI page now uses the AI its plan includes from the start: writing help, Design with AI and the site assistant work without configuring anything. A site that saved its own choice keeps it, and a site whose plan stops including the AI sees it switched off, as before.
+
 ## v0.13.0 — 2026-10-22
 
 - **Edit a theme's code**, as in WordPress's theme file editor. Appearance → Themes → **Edit code** lists the theme's templates, stylesheets, translations and `theme.json`, and opens them in the code editor (now with JSON highlighting).

@@ -108,3 +108,40 @@ func TestAIPlan(t *testing.T) {
 		t.Errorf("own provider: %d %s", rec.Code, rec.Body)
 	}
 }
+
+// A site that never saved its AI settings uses the AI its plan includes,
+// and only while the plan includes it; once saved, its choice stays.
+func TestAIPlanDefault(t *testing.T) {
+	e := newPluginEnv(t)
+	ctx := context.Background()
+	setPlan := func(p AIPlan) {
+		e.s.limits = planLimits{plan: p}
+		e.s.resetAI()
+	}
+	pro := AIPlan{Plan: "Pro", Paid: true, Text: &ai.Config{Provider: "anthropic", APIKey: "k", TextModel: "claude-net"}, RequestsPerDay: 5}
+
+	setPlan(AIPlan{Plan: "Personal"})
+	if st, _ := e.s.aiSettings(ctx); st.Enabled {
+		t.Fatalf("the free plan: %+v", st)
+	}
+	setPlan(pro)
+	if st, _ := e.s.aiSettings(ctx); !st.Enabled || st.Source != store.AISourceNetwork {
+		t.Fatalf("Pro by default: %+v", st)
+	}
+	if page := e.do("GET", "/admin/settings/ai", nil, "", e.cookie).Body.String(); !strings.Contains(page, `value="network" checked`) {
+		t.Error("the AI page does not show the plan's AI chosen")
+	}
+	// Without its own provider: the plan's AI comes with no settings.
+	setPlan(AIPlan{Plan: "Pro", Paid: true})
+	if st, _ := e.s.aiSettings(ctx); st.Enabled {
+		t.Fatalf("a network without AI: %+v", st)
+	}
+
+	setPlan(pro)
+	if code := e.admin("/admin/settings/ai", url.Values{"provider": {"anthropic"}, "min_role": {"author"}, "source": {"network"}}).Code; code != http.StatusSeeOther {
+		t.Fatalf("switch off: %d", code)
+	}
+	if st, _ := e.s.aiSettings(ctx); st.Enabled {
+		t.Fatalf("switched off, then on again: %+v", st)
+	}
+}

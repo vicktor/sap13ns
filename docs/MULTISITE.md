@@ -246,7 +246,7 @@ A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then 
 
 A site uses AI in one of two ways, chosen in its **AI** page:
 - **Its own provider and key**, on any plan. Every AI feature works (writing help, images, translations, Design with AI, the site assistant), and only the site's own monthly limits per person apply. The site pays the provider.
-- **The AI included in its plan**, on a paid plan of a network with `SAP13NS_NETWORK_AI_PROVIDER` set. Nothing to configure. The network's key is never shown to the site. The plan's allowances are per site and day, in the site's time zone: `ai_requests_per_day` and `ai_images_per_day` of `network.plans` (Pro 200 requests and 3 images, Business 1,000 requests and 15 images). The free plan has none.
+- **The AI included in its plan**, on a paid plan of a network with `SAP13NS_NETWORK_AI_PROVIDER` set. Nothing to configure: a site that never saved its **AI** page uses it, switched on, from the moment its plan includes it. The network's key is never shown to the site. The plan's allowances are per site and day, in the site's time zone: `ai_requests_per_day` and `ai_images_per_day` of `network.plans` (Pro 200 requests and 3 images, Business 1,000 requests and 15 images). The free plan has none.
 
 A site that moves to a plan without the network's AI sees its AI switched off until it chooses its own provider; its settings stay. The network's AI makes no embeddings for the site assistant's semantic search: that needs an embeddings provider of the site's own, or full-text search. The pricing table lists what each plan includes.
 

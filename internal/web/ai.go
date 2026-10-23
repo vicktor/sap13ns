@@ -69,21 +69,28 @@ func (s *Server) aiSettings(ctx context.Context) (store.AISettings, error) {
 	return st, nil
 }
 
-// aiSettingsSaved are the AI settings as saved.
+// aiSettingsSaved are the AI settings as saved. A site that never saved
+// them uses the network's AI while its plan includes it.
 func (s *Server) aiSettingsSaved(ctx context.Context) (store.AISettings, error) {
 	s.ai.mu.Lock()
 	cached := s.ai.settings
 	s.ai.mu.Unlock()
-	if cached != nil {
-		return *cached, nil
+	if cached == nil {
+		st, err := s.store.AISettings(ctx)
+		if err != nil {
+			return st, err
+		}
+		s.ai.mu.Lock()
+		s.ai.settings = &st
+		s.ai.mu.Unlock()
+		cached = &st
 	}
-	st, err := s.store.AISettings(ctx)
-	if err != nil {
-		return st, err
+	st := *cached
+	if !st.Saved {
+		if plan, err := s.aiPlan(ctx); err == nil && plan.Included() {
+			st.Source, st.Enabled = store.AISourceNetwork, true
+		}
 	}
-	s.ai.mu.Lock()
-	s.ai.settings = &st
-	s.ai.mu.Unlock()
 	return st, nil
 }
 
