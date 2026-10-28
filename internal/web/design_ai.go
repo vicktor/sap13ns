@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"sap13ns/internal/ai"
 	"sap13ns/internal/auth"
@@ -404,6 +405,18 @@ func (s *Server) runDesignAI(ctx context.Context, r *http.Request, p ai.Provider
 			continue
 		}
 		res, problems, err := s.applyDesignAI(ctx, r, th, ms, designJSON, layoutJSON, &ans, attempt == designAIAttempts-1)
+		if errors.Is(err, errDesignAIChanged) {
+			// Someone saved the draft while the model worked: the answer
+			// is applied once more, on top of what they saved.
+			if d, _, err = s.draftDesign(ctx, th, ms); err != nil {
+				return nil, err
+			}
+			if l, _, err = s.draftLayout(ctx, th, ms); err != nil {
+				return nil, err
+			}
+			designJSON, layoutJSON = d.JSON(), l.JSON()
+			res, problems, err = s.applyDesignAI(ctx, r, th, ms, designJSON, layoutJSON, &ans, attempt == designAIAttempts-1)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -464,6 +477,7 @@ func (s *Server) designAINotes(r *http.Request, res *designAIResult) string {
 
 var (
 	errDesignAITooLong = errors.New("design assistant: the answer was cut off")
+	errDesignAIChanged = errors.New("design assistant: the draft changed meanwhile")
 	errDesignAIRefused = errors.New("design assistant: changes refused")
 )
 
@@ -562,14 +576,37 @@ func (s *Server) applyDesignAI(ctx context.Context, r *http.Request, th *theme.T
 	if len(dropped) > 0 {
 		s.log.Info("design assistant: left out what the site refused", "theme", th.Slug, "problems", strings.Join(dropped, "; "))
 	}
-	if newDesign != nil && string(newDesign.JSON()) != string(designJSON) {
-		if err := s.store.SaveCustomDraft(ctx, th.Slug, store.CustomDesign, newDesign.JSON(), uid(r)); err != nil {
+	saveDesign := newDesign != nil && string(newDesign.JSON()) != string(designJSON)
+	saveLayout := newLayout != nil && string(newLayout.JSON()) != string(layoutJSON)
+	// The answer was built on designJSON and layoutJSON; a draft an editor
+	// saved since (the model may take minutes) is not overwritten.
+	var designAt, layoutAt *time.Time
+	if saveDesign || saveLayout {
+		cd, drow, err := s.draftDesign(ctx, th, ms)
+		if err != nil {
+			return nil, nil, err
+		}
+		cl, lrow, err := s.draftLayout(ctx, th, ms)
+		if err != nil {
+			return nil, nil, err
+		}
+		if string(cd.JSON()) != string(designJSON) || string(cl.JSON()) != string(layoutJSON) {
+			return nil, nil, errDesignAIChanged
+		}
+		designAt, layoutAt = drow.DraftAt, lrow.DraftAt
+	}
+	if saveDesign {
+		if err := s.store.SaveCustomDraftIf(ctx, th.Slug, store.CustomDesign, newDesign.JSON(), uid(r), designAt); errors.Is(err, store.ErrConflict) {
+			return nil, nil, errDesignAIChanged
+		} else if err != nil {
 			return nil, nil, err
 		}
 		res.Design = true
 	}
-	if newLayout != nil && string(newLayout.JSON()) != string(layoutJSON) {
-		if err := s.store.SaveCustomDraft(ctx, th.Slug, store.CustomLayout, newLayout.JSON(), uid(r)); err != nil {
+	if saveLayout {
+		if err := s.store.SaveCustomDraftIf(ctx, th.Slug, store.CustomLayout, newLayout.JSON(), uid(r), layoutAt); errors.Is(err, store.ErrConflict) {
+			return nil, nil, errDesignAIChanged
+		} else if err != nil {
 			return nil, nil, err
 		}
 		res.Layout = true
@@ -627,14 +664,11 @@ func (s *Server) designAIPages(ctx context.Context, r *http.Request, pages []des
 		res.Pages = append(res.Pages, designAICreated{ID: id, Title: title, Edit: fmt.Sprintf("/admin/posts/%d", id), Path: "/" + slug})
 	}
 	if len(res.Pages) > 0 {
-		ids, err := s.store.DesignAIPages(ctx, res.theme)
-		if err != nil {
-			return err
-		}
+		var ids []int64
 		for _, p := range res.Pages {
 			ids = append(ids, p.ID)
 		}
-		if err := s.store.SetDesignAIPages(ctx, res.theme, ids); err != nil {
+		if err := s.store.AddDesignAIPages(ctx, res.theme, ids); err != nil {
 			return err
 		}
 		s.contentChanged()

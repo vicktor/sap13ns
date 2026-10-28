@@ -25,8 +25,6 @@ import (
 
 const ogDefaultAccent = "#3F068B" // sap13ns violet
 
-var ogLayouts = []string{"classic", "bold", "minimal"}
-
 // ogRender serialises rendering: a card costs ~20 ms of CPU, and a burst of
 // crawler requests for new posts must not pile up.
 var ogRender sync.Mutex

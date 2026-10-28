@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -479,6 +480,13 @@ func (s *Server) goJob(fn func()) {
 	s.jobs.Add(1)
 	go func() {
 		defer s.jobs.Add(-1)
+		// A panic in one job must not take the process (on a network,
+		// every site) down with it.
+		defer func() {
+			if v := recover(); v != nil {
+				s.log.Error("background job panicked", "panic", v, "stack", string(debug.Stack()))
+			}
+		}()
 		fn()
 	}()
 }

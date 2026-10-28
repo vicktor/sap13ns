@@ -183,6 +183,7 @@
           <div class="field"><label for="token-days">{{T "Expires"}}</label>
             {{template "select" (selectbox "id" "token-days" "name" "days" "value" "90" "options" (list (list "30" (T "In 30 days")) (list "90" (T "In 90 days")) (list "365" (T "In a year")) (list "0" (T "Never"))))}}</div>
           <button class="btn" type="submit">{{icon "plus"}}{{T "Create token"}}</button>
+          {{if not $d.Passkeys.Recent}}<div class="field sm:col-span-3"><label for="token-pw">{{T "Current password"}}</label><input class="input" id="token-pw" name="current_password" type="password" autocomplete="current-password" required maxlength="256"></div>{{end}}
         </form>
         <p class="hint">{{T "The design tools are at %s. See docs/DESIGN-AGENTS.md for other MCP clients." $d.MCPURL}}</p>
       </section>

@@ -136,13 +136,19 @@ func lockSite(ctx context.Context, tx pgx.Tx, siteID int64) error {
 	return nil
 }
 
+// siteDeleted reports whether a site is deleted (but not purged yet).
+func (n *Network) siteDeleted(ctx context.Context, id int64) bool {
+	s, err := n.Site(ctx, id)
+	return err == nil && s.Status == StatusDeleted
+}
+
 // AddDomain adds a custom domain to a tenant site, within its plan's
 // limit (ErrLimit). It is not routed until verified (CheckDomain). A host
 // of the network is ErrInvalid; one another site uses, or that this site
 // has already, is ErrConflict. A host another site added but has not
-// verified is ErrClaimed, unless the TXT record of this site's token is
-// already in place: the host then moves to this site, unverified
-// (Domain.TakenFrom).
+// verified (or that a deleted site had) is ErrClaimed, unless the TXT
+// record of this site's token is already in place: the host then moves to
+// this site, unverified (Domain.TakenFrom).
 func (n *Network) AddDomain(ctx context.Context, siteID int64, host string) (*Domain, error) {
 	host, err := n.CustomHost(host)
 	if err != nil {
@@ -150,7 +156,7 @@ func (n *Network) AddDomain(ctx context.Context, siteID int64, host string) (*Do
 	}
 	token := n.domainToken(siteID, host)
 	proven := false
-	if d, err := n.Domain(ctx, host); err == nil && d.SiteID != siteID && d.VerifiedAt == nil {
+	if d, err := n.Domain(ctx, host); err == nil && d.SiteID != siteID && (d.VerifiedAt == nil || n.siteDeleted(ctx, d.SiteID)) {
 		cctx, cancel := context.WithTimeout(ctx, dnsTimeout)
 		proven, err = n.hasTXT(cctx, host, token)
 		cancel()
@@ -171,17 +177,21 @@ func (n *Network) AddDomain(ctx context.Context, siteID int64, host string) (*Do
 		}
 		var owner int64
 		var verified *time.Time
-		err := tx.QueryRow(ctx, `SELECT site_id, verified_at FROM domains WHERE host = $1 FOR UPDATE`, host).Scan(&owner, &verified)
+		var ownerDeleted bool
+		err := tx.QueryRow(ctx, `SELECT d.site_id, d.verified_at, s.status = 'deleted' FROM domains d JOIN sites s ON s.id = d.site_id
+			WHERE d.host = $1 FOR UPDATE OF d`, host).Scan(&owner, &verified, &ownerDeleted)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 		case err != nil:
 			return err
-		case owner == siteID || verified != nil:
+		// A deleted site's domain, verified or not, moves like a claim:
+		// with the DNS proof, to whoever controls the domain now.
+		case owner == siteID || verified != nil && !ownerDeleted:
 			return fmt.Errorf("%w: domains_pkey", store.ErrConflict)
 		case !proven:
 			return ErrClaimed
 		default:
-			if _, err := tx.Exec(ctx, `DELETE FROM domains WHERE host = $1 AND site_id = $2 AND verified_at IS NULL`, host, owner); err != nil {
+			if _, err := tx.Exec(ctx, `DELETE FROM domains WHERE host = $1 AND site_id = $2 AND (verified_at IS NULL OR $3)`, host, owner, ownerDeleted); err != nil {
 				return err
 			}
 			from = owner

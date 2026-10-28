@@ -201,9 +201,6 @@ func (s *Server) adminMenus(w http.ResponseWriter, r *http.Request) {
 		Lang: scope, Langs: extra})
 }
 
-// validMenuURL accepts site-relative paths, fragments and http(s) links.
-func validMenuURL(u string) bool { return sitecheck.MenuURL(u) }
-
 func (s *Server) adminMenuAdd(w http.ResponseWriter, r *http.Request) {
 	th := s.themes.Active(s.settings().ActiveTheme)
 	loc, scope := r.FormValue("location"), s.menuScope(r)

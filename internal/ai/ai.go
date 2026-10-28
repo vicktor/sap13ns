@@ -142,6 +142,11 @@ type Config struct {
 	// AllowInsecureLocal permits plain http:// to a loopback host, for Ollama
 	// or llama.cpp running on the same machine.
 	AllowInsecureLocal bool
+	// PublicOnly makes API calls dial public addresses only (netguard) and
+	// refuses AllowInsecureLocal: an endpoint chosen by someone the server
+	// does not trust, such as a site's administrator on a network, must not
+	// reach the host or its private network.
+	PublicOnly bool
 	// NoThinking asks OpenAI-compatible servers to switch the model's
 	// reasoning off (chat_template_kwargs enable_thinking=false, honoured
 	// by llama.cpp, vLLM and SGLang). api.openai.com is never sent it.
@@ -303,6 +308,9 @@ func New(cfg Config, client *http.Client) (Provider, error) {
 		if m != "" && (!modelRe.MatchString(m) || cfg.Provider == ProviderGemini && !geminiModelRe.MatchString(m)) {
 			return nil, fmt.Errorf("invalid model name %q", m)
 		}
+	}
+	if cfg.PublicOnly {
+		cfg.AllowInsecureLocal = false
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultTextTimeout

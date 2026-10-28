@@ -190,7 +190,11 @@ func (h portalHooks) DeleteSite(ctx context.Context, siteID int64) error {
 }
 
 func (h portalHooks) SetMember(ctx context.Context, siteID, accountID int64, role string, by int64) error {
-	return webErr(h.r.net.SetMember(ctx, siteID, accountID, role, by))
+	err := h.r.net.SetMember(ctx, siteID, accountID, role, by)
+	if errors.Is(err, ErrSupportDenied) {
+		return errors.Join(web.ErrSupportDenied, err)
+	}
+	return webErr(err)
 }
 
 func (h portalHooks) RemoveMember(ctx context.Context, siteID, accountID int64) error {

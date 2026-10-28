@@ -300,7 +300,10 @@ type UserProfile struct {
 // the copy of the old address's Gravatar at once (the caller deletes its
 // files) and has the new one looked up.
 func (s *Store) UpdateUserProfile(ctx context.Context, id int64, p UserProfile) error {
-	_, err := s.DB.Exec(ctx, `UPDATE users SET email = $2, display_name = $3, bio = $4, website = $5, updated_at = now(),
+	// A new address voids the reset links sent to the old one.
+	_, err := s.DB.Exec(ctx, `WITH d AS (DELETE FROM password_resets WHERE user_id = $1
+			AND (SELECT email FROM users WHERE id = $1) IS DISTINCT FROM $2)
+		UPDATE users SET email = $2, display_name = $3, bio = $4, website = $5, updated_at = now(),
 		`+gravatarOnEmail+` WHERE id = $1`,
 		id, p.Email, p.DisplayName, p.Bio, p.Website)
 	return mapErr(err)
@@ -325,14 +328,21 @@ func (s *Store) UpdateUserRoleStatus(ctx context.Context, id int64, role, status
 }
 
 func (s *Store) SetPassword(ctx context.Context, id int64, hash string) error {
-	_, err := s.DB.Exec(ctx, `UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, updated_at = now() WHERE id = $1`, id, hash)
+	// A new password also voids the reset links still outstanding.
+	_, err := s.DB.Exec(ctx, `WITH d AS (DELETE FROM password_resets WHERE user_id = $1)
+		UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, updated_at = now() WHERE id = $1`, id, hash)
 	return err
 }
 
 func (s *Store) RecordLoginFailure(ctx context.Context, id int64, lockAfter int, lockFor time.Duration) error {
-	_, err := s.DB.Exec(ctx, `UPDATE users SET failed_logins = failed_logins + 1,
-		locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + make_interval(secs => $3) ELSE locked_until END
-		WHERE id = $1`, id, lockAfter, lockFor.Seconds())
+	// Failures older than lockFor are forgotten: the count starts again.
+	_, err := s.DB.Exec(ctx, `WITH c AS (
+			SELECT CASE WHEN last_failed_login_at IS NULL OR last_failed_login_at < now() - make_interval(secs => $3)
+				THEN 1 ELSE failed_logins + 1 END AS n
+			FROM users WHERE id = $1)
+		UPDATE users SET failed_logins = c.n, last_failed_login_at = now(),
+			locked_until = CASE WHEN c.n >= $2 THEN now() + make_interval(secs => $3) ELSE locked_until END
+		FROM c WHERE id = $1`, id, lockAfter, lockFor.Seconds())
 	return err
 }
 

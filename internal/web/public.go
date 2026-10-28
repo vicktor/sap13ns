@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/cache"
@@ -653,10 +654,8 @@ func (s *Server) handleDateArchive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	if len(q) > 200 {
-		q = q[:200]
-	}
+	// Invalid UTF-8, or a cut inside a character, would fail in PostgreSQL.
+	q := truncateStr(strings.TrimSpace(strings.ToValidUTF8(r.URL.Query().Get("q"), "")), 200)
 	th, pd, err := s.basePage(r, "search")
 	if err != nil {
 		s.serverError(w, r, err)
@@ -753,7 +752,11 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 	// returning: this e-mail address had a comment approved before.
 	returning := false
 	if !moderator && in.AuthorEmail != "" {
-		returning, _ = s.store.HasApprovedComment(ctx, in.AuthorEmail)
+		var id int64
+		if u != nil {
+			id = u.ID
+		}
+		returning, _ = s.store.HasApprovedComment(ctx, in.AuthorEmail, id)
 	}
 	switch {
 	case moderator:
@@ -808,11 +811,17 @@ func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 
 func validHTTPURL(raw string) bool { return sitecheck.HTTPURL(raw) }
 
+// truncateStr cuts s to at most n bytes without splitting a character, and
+// drops invalid UTF-8 (PostgreSQL refuses it).
 func truncateStr(s string, n int) string {
-	if len(s) > n {
-		return s[:n]
+	s = strings.ToValidUTF8(s, "")
+	if len(s) <= n {
+		return s
 	}
-	return s
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // --------------------------------------------------------------- widgets --

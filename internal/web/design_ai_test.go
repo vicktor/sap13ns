@@ -21,6 +21,7 @@ type fakeDesignAI struct {
 	mu      sync.Mutex
 	answers []string
 	reqs    []ai.TextRequest
+	during  func() // runs while the model "thinks", once
 }
 
 func (f *fakeDesignAI) Name() string { return "fake" }
@@ -31,6 +32,10 @@ func (f *fakeDesignAI) Text(_ context.Context, req ai.TextRequest) (*ai.TextResp
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reqs = append(f.reqs, req)
+	if f.during != nil {
+		f.during()
+		f.during = nil
+	}
 	a := f.answers[0]
 	f.answers = f.answers[1:]
 	return &ai.TextResponse{Text: a, StopReason: ai.StopEnd}, nil
@@ -328,6 +333,47 @@ func TestDesignAIHTML(t *testing.T) {
 	}
 	if body := e.do("GET", "/?customize=draft", nil, "", e.cookie).Body.String(); !strings.Contains(body, "Muestra gratis") {
 		t.Error("the part that passed was not saved")
+	}
+
+	// An editor saves the structure while the model works: the answer is
+	// applied on top of what they saved, which stays.
+	th, _ := e.s.themes.Get("onepage")
+	fake.answers = append(fake.answers, `{"reply": "CSS.", "css": ".ai-made { color: var(--primary); }", "design_patch": "", "layout_patch": "", "block_edits": [], "html_regions": []}`)
+	fake.during = func() {
+		l, _, err := e.s.draftLayout(ctx, th, e.s.mediaSet(ctx))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		edited, err := mergePatchJSON(l.JSON(), []byte(`{"pages": {"front": {"sections": [{"id": "ed1", "layout": "1", "columns": [[{"id": "ed1b", "type": "html", "settings": {"html": "<p>Del editor</p>"}}]]}]}}}`))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if err := e.st.SaveCustomDraft(ctx, "onepage", store.CustomLayout, edited, 0); err != nil {
+			t.Error(err)
+		}
+	}
+	if res := run("añade un estilo"); !res.Design {
+		t.Fatalf("on top of the editor's draft: %+v", res)
+	}
+	body = e.do("GET", "/?customize=draft", nil, "", e.cookie).Body.String()
+	if !strings.Contains(body, "Del editor") {
+		t.Error("the editor's change was overwritten")
+	}
+	if d, _, _ := e.s.draftDesign(ctx, th, e.s.mediaSet(ctx)); !strings.Contains(d.CSS, "ai-made") {
+		t.Errorf("the assistant's change was not saved: %q", d.CSS)
+	}
+
+	// Discarding the draft forgets the assistant's pages too.
+	if err := e.st.AddDesignAIPages(ctx, "onepage", []int64{1}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := e.admin("/admin/appearance/themes/onepage/customize/discard", url.Values{}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("discard: %d", rec.Code)
+	}
+	if ids, _ := e.st.DesignAIPages(ctx, "onepage"); len(ids) != 0 {
+		t.Errorf("pages still pending after a discard: %v", ids)
 	}
 }
 

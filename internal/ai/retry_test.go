@@ -75,3 +75,25 @@ func TestRetry(t *testing.T) {
 		})
 	}
 }
+
+// PublicOnly refuses local endpoints, even when local ones are allowed.
+func TestPublicOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"choices":[{"message":{"content":"hola"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{Provider: ProviderOpenAI, BaseURL: srv.URL, AllowInsecureLocal: true, PublicOnly: true, TextModel: "m"}, nil)
+	if err == nil {
+		_, err = p.Text(context.Background(), TextRequest{Messages: []Message{{Role: RoleUser, Content: "hi"}}})
+	}
+	if err == nil {
+		t.Fatal("a loopback endpoint was reached with PublicOnly")
+	}
+	p, err = New(Config{Provider: ProviderOpenAI, BaseURL: srv.URL, AllowInsecureLocal: true, TextModel: "m"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Text(context.Background(), TextRequest{Messages: []Message{{Role: RoleUser, Content: "hi"}}}); err != nil {
+		t.Fatalf("without PublicOnly: %v", err)
+	}
+}

@@ -71,8 +71,10 @@ func (s *Server) newAIProvider(ctx context.Context, st store.AISettings) (ai.Pro
 	if err != nil {
 		return nil, fmt.Errorf("decrypt AI key: %w", err)
 	}
+	// On a network the site's own endpoint is a tenant's choice: public
+	// addresses only.
 	cfg := ai.Config{Provider: st.Provider, APIKey: key, BaseURL: st.BaseURL, TextModel: st.TextModel,
-		ImageModel: st.ImageModel, AllowInsecureLocal: st.AllowLocal, NoThinking: st.NoThinking}
+		ImageModel: st.ImageModel, AllowInsecureLocal: st.AllowLocal, NoThinking: st.NoThinking, PublicOnly: s.limits != nil}
 	if st.AllowLocal {
 		cfg.Timeout = 5 * time.Minute // local models on a laptop are slow
 	}
@@ -87,7 +89,7 @@ func (s *Server) newAIProvider(ctx context.Context, st store.AISettings) (ai.Pro
 	if err != nil {
 		return nil, fmt.Errorf("decrypt AI image key: %w", err)
 	}
-	img, err := ai.New(ai.Config{Provider: st.ImageProvider, APIKey: ikey, BaseURL: st.ImageBaseURL, ImageModel: st.ImageModel}, nil)
+	img, err := ai.New(ai.Config{Provider: st.ImageProvider, APIKey: ikey, BaseURL: st.ImageBaseURL, ImageModel: st.ImageModel, PublicOnly: s.limits != nil}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("images: %w", err)
 	}

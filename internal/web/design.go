@@ -167,6 +167,11 @@ func (s *Server) discardDesignAll(r *http.Request, th *theme.Theme) error {
 	if err := s.store.DiscardCustomDraft(ctx, th.Slug, store.CustomLayout); err != nil {
 		return err
 	}
+	// The assistant's pages stay drafts in Pages; they are no longer
+	// offered for publishing with the design.
+	if err := s.store.SetDesignAIPages(ctx, th.Slug, nil); err != nil {
+		return err
+	}
 	s.audit(r, uid(r), "theme.design_discarded", th.Slug, nil)
 	return nil
 }

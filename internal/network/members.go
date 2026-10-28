@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -64,12 +65,24 @@ func (n *Network) SetMember(ctx context.Context, siteID, accountID int64, role s
 		if accountID == owner && role != auth.RoleAdmin {
 			return fmt.Errorf("%w: the owner of a site is always an admin", ErrState)
 		}
+		// A network admin who could add themselves would open any site
+		// without the owner's consent: support access is the way in.
+		if invitedBy != 0 && accountID == invitedBy && invitedBy != owner {
+			return ErrSupportDenied
+		}
 		_, err := tx.Exec(ctx, `INSERT INTO site_members (site_id, account_id, role, invited_by) VALUES ($1, $2, $3, nullif($4::bigint, 0))
 			ON CONFLICT (site_id, account_id) DO UPDATE SET role = EXCLUDED.role`, siteID, accountID, role, invitedBy)
 		return err
 	})
 	if err != nil {
 		return err
+	}
+	// The owner sees in the site's own log whom the network added.
+	if s, err := n.Site(ctx, siteID); err == nil && invitedBy != 0 && invitedBy != s.OwnerID {
+		by, _ := n.AccountName(ctx, &invitedBy)
+		who, _ := n.AccountName(ctx, &accountID)
+		n.siteAudit(ctx, s, "network.member_set", who, netip.Addr{}, map[string]string{"role": role, "by": by,
+			"network_account": fmt.Sprint(accountID)})
 	}
 	return n.syncSite(ctx, siteID, accountID)
 }

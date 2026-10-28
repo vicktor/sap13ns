@@ -106,12 +106,32 @@ func (h siteHooks) StorageQuota(ctx context.Context) (int64, error) {
 	return p.StorageBytes, nil
 }
 
-func (h siteHooks) PluginPolicy(ctx context.Context) (web.PluginPolicy, error) {
+// plan is the site's plan as it applies now: a paid plan whose
+// subscription holds the site (unpaid, cancelled, grace over) keeps its
+// storage, so nothing breaks, but loses what the network pays for or
+// trusts paying customers with: its AI and uploads of code.
+func (h siteHooks) plan(ctx context.Context) (*Plan, error) {
 	s, err := h.r.net.Site(ctx, h.id)
 	if err != nil {
-		return web.PluginPolicy{}, err
+		return nil, err
 	}
 	p, err := h.r.net.Plan(ctx, s.Plan)
+	if err != nil || !p.Paid {
+		return p, err
+	}
+	sub, err := h.r.net.SiteSubscription(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	if h.r.net.Held(true, sub, h.r.o.Now()) {
+		p.Paid, p.PluginUploads, p.ThemeUploads = false, false, false
+		p.AIRequestsPerDay, p.AIImagesPerDay = 0, 0
+	}
+	return p, nil
+}
+
+func (h siteHooks) PluginPolicy(ctx context.Context) (web.PluginPolicy, error) {
+	p, err := h.plan(ctx)
 	if err != nil {
 		return web.PluginPolicy{}, err
 	}
@@ -123,11 +143,7 @@ func (h siteHooks) PluginPolicy(ctx context.Context) (web.PluginPolicy, error) {
 }
 
 func (h siteHooks) ThemePolicy(ctx context.Context) (web.ThemePolicy, error) {
-	s, err := h.r.net.Site(ctx, h.id)
-	if err != nil {
-		return web.ThemePolicy{}, err
-	}
-	p, err := h.r.net.Plan(ctx, s.Plan)
+	p, err := h.plan(ctx)
 	if err != nil {
 		return web.ThemePolicy{}, err
 	}
@@ -135,11 +151,7 @@ func (h siteHooks) ThemePolicy(ctx context.Context) (web.ThemePolicy, error) {
 }
 
 func (h siteHooks) AIPlan(ctx context.Context) (web.AIPlan, error) {
-	s, err := h.r.net.Site(ctx, h.id)
-	if err != nil {
-		return web.AIPlan{}, err
-	}
-	p, err := h.r.net.Plan(ctx, s.Plan)
+	p, err := h.plan(ctx)
 	if err != nil {
 		return web.AIPlan{}, err
 	}

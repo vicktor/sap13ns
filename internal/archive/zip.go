@@ -60,8 +60,7 @@ type Zip struct {
 	entries []entry
 	// Prefix is the top-level folder the package sits in, with its
 	// trailing slash, or "" for a package at the root of the archive.
-	Prefix  string
-	checked bool
+	Prefix string
 }
 
 type entry struct {

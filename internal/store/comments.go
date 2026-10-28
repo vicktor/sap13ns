@@ -167,11 +167,20 @@ func (s *Store) CountCommentsByStatus(ctx context.Context) (map[string]int, erro
 	return out, rows.Err()
 }
 
-// HasApprovedComment reports whether an e-mail already has an approved comment,
-// used by the "approve returning commenters" moderation mode.
-func (s *Store) HasApprovedComment(ctx context.Context, email string) (bool, error) {
+// HasApprovedComment reports whether a commenter already has an approved
+// comment, used by the "approve returning commenters" moderation mode. A
+// signed-in user (userID > 0) is known by their account. A visitor is
+// known by the e-mail they type, so only visitors' comments count, and
+// never for the address of an account: anyone can type a staff address.
+func (s *Store) HasApprovedComment(ctx context.Context, email string, userID int64) (bool, error) {
 	var ok bool
-	err := s.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM comments WHERE lower(author_email) = lower($1) AND status = 'approved')`, email).Scan(&ok)
+	var err error
+	if userID > 0 {
+		err = s.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM comments WHERE user_id = $1 AND status = 'approved')`, userID).Scan(&ok)
+		return ok, err
+	}
+	err = s.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM comments WHERE user_id IS NULL AND lower(author_email) = lower($1) AND status = 'approved')
+		AND NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower($1))`, email).Scan(&ok)
 	return ok, err
 }
 

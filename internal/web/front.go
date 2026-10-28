@@ -13,6 +13,8 @@ package web
 // activating a theme and saving the settings all call contentChanged.
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -50,7 +52,9 @@ func (s *Server) showsFront(r *http.Request, th *theme.Theme) bool {
 
 // frontOffer reports whether the design screen offers to make th's front
 // page the site's on publishing: th is active, the site's front page is
-// not the theme's, the draft builds one, and the user may change that.
+// not the theme's, the draft builds a new or changed one, and the user may
+// change that. A front layout that is already published is not offered
+// again: the owner may have chosen another front page since.
 func (s *Server) frontOffer(r *http.Request, th *theme.Theme) bool {
 	st := s.settings()
 	if st.FrontPage == FrontTheme || th.Slug != s.themes.Active(st.ActiveTheme).Slug {
@@ -60,8 +64,17 @@ func (s *Server) frontOffer(r *http.Request, th *theme.Theme) bool {
 		return false
 	}
 	ctx := r.Context()
-	l, _, err := s.draftLayout(ctx, th, s.mediaSet(ctx))
-	return err == nil && l.Region("front") != nil
+	l, row, err := s.draftLayout(ctx, th, s.mediaSet(ctx))
+	if err != nil || row == nil || row.Draft == nil || l.Region("front") == nil {
+		return false
+	}
+	pub := s.publishedDesign(ctx, th).layout.Region("front")
+	if pub == nil {
+		return true
+	}
+	a, _ := json.Marshal(l.Region("front"))
+	b, _ := json.Marshal(pub)
+	return !bytes.Equal(a, b)
 }
 
 // hasFrontLayout reports whether th's layouts build the front page: the

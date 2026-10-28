@@ -28,7 +28,24 @@
   lists.forEach((list) => {
     const ids = () => [...list.children].filter((li) => li.dataset.id).map((li) => li.dataset.id);
     let saved = ids().join();
+    // One save at a time: a move made while one is on its way is sent
+    // after it, so the server always ends with the order on screen.
+    let inflight = null;
+    let again = false;
     const save = async () => {
+      if (inflight) {
+        again = true;
+        return;
+      }
+      inflight = send();
+      await inflight;
+      inflight = null;
+      if (again) {
+        again = false;
+        save();
+      }
+    };
+    const send = async () => {
       const order = ids();
       if (order.join() === saved) return;
       const body = new URLSearchParams();

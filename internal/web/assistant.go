@@ -51,6 +51,7 @@ const (
 func (s *Server) assistant() *assistant.Engine {
 	s.bot.once.Do(func() {
 		s.bot.engine = assistant.New(s.store, s.keys, s.log)
+		s.bot.engine.PublicOnly = s.limits != nil
 		s.bot.mcpIP = auth.NewLimiter(mcpPerMinute, time.Minute)
 	})
 	return s.bot.engine
@@ -234,6 +235,9 @@ func (s *Server) admitQuestion(r *http.Request, as store.AssistantSettings, ques
 	lang := s.reqLang(r)
 	if analytics.IsBot(r.UserAgent()) {
 		return &assistantError{http.StatusForbidden, s.i18n.T(lang, "Automated clients cannot use the assistant.")}
+	}
+	if !utf8.ValidString(question) {
+		return &assistantError{http.StatusBadRequest, s.i18n.T(lang, "Invalid request.")}
 	}
 	if as.PerIPHour > 0 && !s.ipLimiter(as.PerIPHour).Allow(ipKey(clientIP(r))) {
 		return &assistantError{http.StatusTooManyRequests, s.i18n.T(lang, "Too many questions. Please wait a while and try again.")}
@@ -599,6 +603,10 @@ func (s *Server) adminAssistantSettingsSave(w http.ResponseWriter, r *http.Reque
 	st.MCPEnabled = r.FormValue("mcp_enabled") == "1"
 
 	fail := func(msg string) { s.renderAssistantSettings(w, r, http.StatusUnprocessableEntity, st, msg, "", "") }
+	if st.EmbedAllowLocal && s.limits != nil {
+		fail(s.tu(r, "A hosted site cannot use an AI server on the local machine or network: give a public https address."))
+		return
+	}
 	// The rules are shared with restores (sitecheck).
 	if bad := sitecheck.Assistant(st); len(bad) > 0 {
 		switch bad[0] {

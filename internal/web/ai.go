@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -205,6 +206,8 @@ func (s *Server) aiErrorMessage(r *http.Request, err error) string {
 		return s.tu(r, "The answer was cut short. Try with a shorter text.")
 	case errors.Is(err, errDesignAITooLong):
 		return s.tu(r, "The model's answer was too long and was cut off. Ask for a smaller change at a time, or choose a model with longer answers.")
+	case errors.Is(err, errDesignAIChanged):
+		return s.tu(r, "The draft changed while the assistant was working, so nothing was saved. Ask again.")
 	case errors.Is(err, errDesignAIRefused):
 		return s.tu(r, "After three tries the model's changes still did not pass the site's checks, so nothing was saved. Ask again more precisely, or choose a more capable model.")
 	case errors.Is(err, ai.ErrBadResponse):
@@ -349,7 +352,15 @@ func (s *Server) startAIJob(r *http.Request, u *store.User, kind string, run fun
 	s.goJob(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
-		res, err := run(ctx)
+		res, err := func() (res any, err error) {
+			defer func() {
+				if v := recover(); v != nil {
+					s.log.Error("ai job panicked", "kind", kind, "panic", v, "stack", string(debug.Stack()))
+					err = errors.New("ai job: internal error")
+				}
+			}()
+			return run(ctx)
+		}()
 		s.ai.mu.Lock()
 		j.Done, j.Result, j.finished = true, res, time.Now()
 		if err != nil {
@@ -620,6 +631,10 @@ func (s *Server) adminAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.ImageProvider = r.FormValue("image_provider")
 	st.ImageBaseURL = strings.TrimRight(trimmed(r, "image_base_url"), "/")
 	fail := func(msg string) { s.renderAISettings(w, r, http.StatusUnprocessableEntity, st, msg, "") }
+	if st.AllowLocal && s.limits != nil {
+		fail(s.tu(r, "A hosted site cannot use an AI server on the local machine or network: give a public https address."))
+		return
+	}
 	if st.Source == store.AISourceNetwork {
 		if plan, err := s.aiPlan(r.Context()); err != nil {
 			s.serverError(w, r, err)

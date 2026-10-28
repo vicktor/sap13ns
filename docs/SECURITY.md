@@ -22,7 +22,8 @@ On a network of sites, a site's administrators are trusted on their own site onl
 - **Passwords:**
   - hashed with Argon2id (time 2, memory 32 MiB) with a per-password random salt;
   - at least 10 characters, and the most common passwords are refused;
-  - a password change or reset closes the user's other sessions.
+  - a password change or reset closes the user's other sessions and revokes their access tokens;
+  - a password or e-mail change voids pending reset links, and the reset page answers at once whether or not the address has an account (the e-mail is sent in the background).
 - **Second factor:**
   - required for staff by default: TOTP, or a passkey (WebAuthn with user verification);
   - enrolling the first second factor closes the user's other sessions;
@@ -37,7 +38,7 @@ On a network of sites, a site's administrators are trusted on their own site onl
   | Comments, per IP | 6 per 10 minutes |
   | Registration and password reset | 5 per hour |
 
-  Limits per IP count an IPv6 /64 as one address. Repeated failures lock the account for a while. Every outcome is written to the audit log.
+  Limits per IP count an IPv6 /64 as one address. Repeated failures lock the account for a while; failures older than the lock are forgotten, so the count does not build up for ever. The password checks behind an e-mail change and turning off the second factor count against the same per-account limit as sign-in. Every outcome is written to the audit log.
 - **Sessions:**
   - random tokens stored only as hashes;
   - `HttpOnly` cookies, `Secure` over https, `SameSite=Lax`;
@@ -51,10 +52,11 @@ On a network of sites, a site's administrators are trusted on their own site onl
   - **Recovery.** `sap13ns settings login-path [-site S]` prints the address on the server, `-reset` puts back `/login` and `-set /x` applies the checks of the settings page. A running server picks up the change within a minute. A restore keeps a backup's address only when it is free on the restored site, and says so in its report.
 - **Access tokens for AI agents** (Profile → Access tokens, `/admin/mcp`):
   - only for users with the appearance capability who have set up any required second factor, and never in a network admin's operator or emergency session; the same is checked again at every request, so a role change or a newly required second factor shuts the token out;
+  - creating one needs a recent sign-in or the password; they are revoked with the user's sessions (password change or reset, **Log out other devices**, an administrator signing the user out);
   - `sap13ns_` plus 32 random bytes, shown once and stored only as a SHA-256; at most 10 per user, with an expiry (30, 90 or 365 days, or none) and the last use recorded;
   - sent as `Authorization: Bearer`; `/admin/mcp` never accepts the session cookie, so a browser cannot be made to call it; 20 failed tokens per IP in 10 minutes block that IP, and a user's agents get 120 calls a minute;
   - a token reaches only the design tools: reading the guide and the draft, and changing the draft through the same validation as the editors. It cannot publish, and every saved change is in the audit log under the user (`theme.design_ai`).
-- **Capabilities:** every admin route checks a capability of the user's role (administrator, editor, author, contributor, subscriber), and object-level checks keep authors to their own content.
+- **Capabilities:** every admin route checks a capability of the user's role (administrator, editor, author, contributor, subscriber), and object-level checks keep authors to their own content. A contributor cannot unpublish, delete for good or unlink a translation of content they may not edit, and bulk actions apply the same checks as single ones.
 
 ### Requests
 - **Cross-site requests:**
@@ -80,6 +82,7 @@ On a network of sites, a site's administrators are trusted on their own site onl
   - files are stored under random names and served with `Content-Security-Policy: sandbox` and `nosniff`;
   - anything other than images, audio, video and PDF is served as a download.
 - **Users' photos** (the profile, or a user's page with the users capability) are JPEG, PNG, WebP or GIF images of up to 5 MB and 20 megapixels, sniffed from their bytes. They are decoded and drawn again as square 256, 128 and 64 px JPEG files (PNG when they have transparency), so no metadata survives: no EXIF, GPS or comments. They are stored as `avatars/u<id>-<random>-<size>.<ext>`, and replacing or removing one deletes the old files. Decoding is bounded to two images at a time, and uploads share the media upload rate limit.
+- **Returning commenters.** "Approve a commenter with an approved comment" matches a signed-in user by account, and an anonymous commenter only by the address of earlier anonymous comments, never one that belongs to an account, so nobody is auto-approved by typing someone else's address.
 - Archive extraction (backups, the importer, plugin packages, theme uploads) refuses absolute paths, `..`, links and special files, and enforces size limits.
 
 ### Appearance (customiser and page builder)
@@ -131,7 +134,7 @@ Plugin HTTP calls, imported media, AI image downloads and WebSub pings go throug
 - the cache (`$SAP13NS_DATA_DIR/cache/video-thumbs`) holds at most 1000 videos and 64 MB, oldest out first. Entries are refreshed after 30 days and failures retried after an hour. At most two fetches run at once and 32 wait; the rest are dropped until the next view;
 - rendering never waits for a fetch, so a slow provider cannot slow a page down. "Player without a preview" never contacts the providers, and "Off" leaves video links as links.
 
-The AI API endpoint is chosen by an administrator and is not guarded. Plain `http://` is accepted only to this machine, with **Allow plain http:// to this machine** (for LM Studio and similar). With that option, image downloads may reach loopback too.
+The AI API endpoint is chosen by an administrator and is not guarded on a single site. On a network it is: a site's AI and embedding endpoints connect through the guard, without proxies, and **Allow plain http:// to this machine** is refused, so a tenant cannot point the server at the network's own private addresses. Plain `http://` is accepted only to this machine, with **Allow plain http:// to this machine** (for LM Studio and similar). With that option, image downloads may reach loopback too.
 
 Update checks and release downloads are restricted to GitHub hosts over https with certificate validation. They honour the environment's proxy settings, and they do not use the guard.
 
@@ -220,17 +223,19 @@ A network (`SAP13NS_MULTISITE=true`, see [MULTISITE.md](MULTISITE.md)) runs many
 - **The site switcher** of the admin lists only the sites the account is a member of, with their titles, read by the network. On a site, the account is the one linked to the user of a session that came through the portal; nothing in the request names it. Its entries are links to each site's `/sso/start`, so every switch is a new sign-on with the checks above, never a session or token carried from one site to another.
 - **Operators.** A network administrator who is not a member of a site opens it only in two cases, as a separate operator user. Every sign-in is written to the audit logs of both the portal and the site.
   - **Support access** is the consent of the site's owner or one of its administrators, for 24 hours, 7 days or until revoked, granted on the portal (`/admin/sites/<id>/support`). Without it the portal issues no code, and the redemption checks the grant again under the same row locks as the membership. Every request of an operator session checks the grant, cached for at most 30 seconds and never past its end; a revocation also deletes the operators' sessions at once. No grant opens on a suspended site.
+  - **Memberships.** A network administrator cannot make themselves a member of a site they do not own, from the site's Network page or the portal: support access is the way in. Any membership the network adds or changes is written to the site's own audit log.
   - **Emergency access**, without that consent, is only for a legal order or a serious security incident. The network administrator gives the reason and a justification of up to 500 characters, and passes a fresh second factor: a portal sign-in less than 10 minutes old, or an authenticator code, never a password. It lasts 4 hours at most and opens the site to them alone. Its sessions have their own authentication method (`sso-emergency`) and end with it. The owner is e-mailed at once with the reason, the justification, who and until when. On a suspended site, the router serves the site to that session only; everything else still gets the 503 page. The site is then opened inert: none of the tenant's plugins loads (no hook, filter, shortcode, form, plugin asset or fetch runs, and none can be installed or switched on) and none of its background jobs runs. That instance is unloaded when the emergency ends or expires and when the site is resumed, and a site suspended while loaded is unloaded at once, so no normal instance stays loaded for a suspended site.
 - **Plugins.**
   - On a paid plan, an uploaded plugin is held until a network administrator approves that exact build: its module, its assets and the permissions it pins. A build that asks for more is reviewed again.
   - Personal sites can only install the operator's catalogue and the official plugins the operator does not hide. Both come from the operator; an official plugin is still checked and scanned like any upload before it is installed.
   - Either way, the site's administrator still approves the permissions before enabling the plugin.
 - **Themes.** Only plans with theme uploads can upload themes; on the others the form is hidden and the upload is refused with a 403. An uploaded theme goes into the site's own directory, so no other site can list, preview or load it. No operator reviews it: the checks of [Uploaded themes](#uploaded-themes) apply.
+- **Held sites.** A paid site held for billing loses its paid features until it is paid (plugin and theme uploads, the network's AI) but keeps its storage, so nothing is deleted.
 - **Plan limits.** Storage is reserved atomically before an upload is written, so concurrent uploads cannot go over the quota. Theme files count too, and deleting a theme gives its bytes back. Exports and backups are not counted, so they are bounded instead. Exports: one waiting per site, and none larger than the plan's storage ([MULTISITE.md](MULTISITE.md#exporting-one-site)). Backups: none larger than the plan's storage, twice it in all per site, at most 3 safety backups, and spaced-out restores ([MULTISITE.md](MULTISITE.md#backups)).
 - **Custom domains.**
   - **Proving control.** A host is routed only after a DNS check finds its TXT record with a token derived for that site and host, and finds that the host points to the network. Unverified hosts get a 404.
   - **Untrusted answers.** DNS answers are untrusted: names are normalised, only the exact value counts, and nothing from an answer is stored.
-  - **Claims.** A tenant can never claim another site's verified host, the portal's host, or a host under `SAP13NS_SITES_DOMAIN`. A host that another site added but never verified moves only to a site that proves control of it.
+  - **Claims.** A tenant can never claim another site's verified host, the portal's host, or a host under `SAP13NS_SITES_DOMAIN`. A host that another site added but never verified, or that belonged to a deleted site, moves only to a site that proves control of it.
   - **Lapses.** Verified domains are checked daily. One that keeps failing stops being served. Resolver errors are never counted.
 - **HSTS** carries `includeSubDomains` only on the network's own hosts: the portal, and a site's default host while it is the primary one. A custom domain never gets it, whether it is the primary host or an alias, because forcing HTTPS on a customer's other subdomains is not the network's call.
 - **Passkeys** of a site keep its default host as RP ID, never the network's base domain, so a passkey for one site is useless on another. A custom primary domain is listed as a related origin by the RP ID host.

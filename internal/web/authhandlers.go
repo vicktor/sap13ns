@@ -16,8 +16,6 @@ import (
 
 var usernameRe = sitecheck.Username
 
-var hexColorRe = sitecheck.HexColor
-
 type authForm struct {
 	Error             string
 	Notice            string
@@ -426,9 +424,14 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 		body := s.i18n.T(lang, "Someone asked to reset the password of your account %s at %s.", u.Username, s.settings().SiteTitle) + "\n\n" +
 			s.i18n.T(lang, "Open this link to choose a new password (valid for one hour):") + "\n" + link + "\n\n" +
 			s.i18n.T(lang, "If it was not you, ignore this message: your password has not changed.")
-		if err := s.mailer.Send(u.Email, s.i18n.T(lang, "Password reset")+" · "+s.settings().SiteTitle, body); err != nil {
-			s.log.Error("send reset e-mail", "err", err)
-		}
+		// Sent in the background: the answer must not take longer for an
+		// address that has an account.
+		to, subject := u.Email, s.i18n.T(lang, "Password reset")+" · "+s.settings().SiteTitle
+		s.goJob(func() {
+			if err := s.mailer.Send(to, subject, body); err != nil {
+				s.log.Error("send reset e-mail", "err", err)
+			}
+		})
 		s.audit(r, u.ID, "password.reset_requested", u.Username, nil)
 	}
 	s.renderAuth(w, r, http.StatusOK, "forgot", s.tu(r, "Reset your password"), form)
@@ -489,6 +492,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.SetPassword(r.Context(), userID, hash)
 	s.store.DeleteUserSessions(r.Context(), userID, nil)
+	s.store.DeleteUserTokens(r.Context(), userID)
 	s.audit(r, userID, "password.reset", u.Username, nil)
 	s.redirect(w, r, s.auth().Login, "success", s.tu(r, "Your password has been changed. You can log in now."))
 }

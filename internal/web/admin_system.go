@@ -211,8 +211,6 @@ func (s *Server) settingsError(r *http.Request, field string, st store.Settings)
 	return s.tu(r, "Invalid request.")
 }
 
-func validZone(z string) bool { return sitecheck.ValidZone(z) }
-
 func (s *Server) publicPage(r *http.Request, id int64) bool {
 	if id <= 0 {
 		return false

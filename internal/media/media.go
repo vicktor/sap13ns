@@ -252,6 +252,10 @@ func Sniff(head []byte) string {
 	return mime
 }
 
+// rasterSlots bounds the images decoded and resized at once (uploads,
+// imports, AI images), as avatarSlots does for avatars.
+var rasterSlots = make(chan struct{}, 2)
+
 func (p *Processor) processRaster(f *os.File, mime, dir, rel, base, ext string, res *Result) error {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return err
@@ -260,6 +264,10 @@ func (p *Processor) processRaster(f *os.File, mime, dir, rel, base, ext string, 
 	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width*cfg.Height > maxPixels {
 		return ErrBadImage
 	}
+	// A 50-megapixel image decodes to up to 400 MB: a few at once, not a
+	// burst, so that parallel uploads cannot exhaust the memory.
+	rasterSlots <- struct{}{}
+	defer func() { <-rasterSlots }()
 	orientation := 1
 	if mime == "image/jpeg" {
 		if _, err := f.Seek(0, io.SeekStart); err != nil {

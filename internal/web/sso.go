@@ -495,10 +495,12 @@ func (s *Server) ssoUser(ctx context.Context, g *SSOGrant) (*store.User, error) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.store.SyncNetworkUser(ctx, u.ID, p); errors.Is(err, store.ErrConflict) {
+	err = s.store.SyncNetworkUser(ctx, u.ID, p)
+	if errors.Is(err, store.ErrConflict) {
 		p.Email = u.Email // another user took the new address: keep the old one
 		err = s.store.SyncNetworkUser(ctx, u.ID, p)
-	} else if err != nil {
+	}
+	if err != nil {
 		return nil, err
 	}
 	nu, err := s.store.UserByID(ctx, u.ID)
@@ -618,10 +620,12 @@ func (s *Server) finishSSOLink(w http.ResponseWriter, r *http.Request, st *ssoSt
 		return
 	}
 	p := s.ssoProfile(g)
-	if err := s.store.SyncNetworkUser(ctx, u.ID, p); errors.Is(err, store.ErrConflict) {
+	err = s.store.SyncNetworkUser(ctx, u.ID, p)
+	if errors.Is(err, store.ErrConflict) {
 		p.Email = u.Email
 		err = s.store.SyncNetworkUser(ctx, u.ID, p)
-	} else if err != nil {
+	}
+	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}

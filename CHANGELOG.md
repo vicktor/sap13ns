@@ -5,6 +5,32 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.17.0 — 2026-10-28
+
+A security and reliability audit of the whole project, with every finding fixed.
+
+- **Security**
+  - **Network administrators cannot add themselves to a site.** They could make themselves members of a site they do not own and open it without the owner's consent; support access is now the only way in, and memberships the network adds are written to the site's audit log.
+  - **A network's AI cannot reach private addresses.** A site's AI and embedding endpoints now connect through the SSRF guard, and **Allow plain http:// to this machine** is refused on a network.
+  - **A held site loses its paid features** (plugin and theme uploads, the network's AI) until it is paid, and keeps its storage.
+  - **Access tokens:** creating one needs a recent sign-in or the password, and tokens are revoked with the user's sessions (password change or reset, Log out other devices, an administrator signing the user out).
+  - **Passwords:** the password checks behind an e-mail change and turning off the second factor are rate-limited like sign-in; a password or e-mail change voids pending reset links; the reset page no longer reveals through its timing whether an address has an account; and failed sign-ins older than the lockout no longer add up for ever.
+  - **Contributors** can no longer unpublish, delete for good or unlink a translation of content they may not edit, and bulk actions follow the same rules as single ones.
+  - **Returning commenters** are matched by account, or for anonymous comments by an address that belongs to no account, so nobody is auto-approved by typing someone else's address.
+  - **A deleted site's custom domain** can be claimed by a site that proves control of it in DNS.
+  - **Image decoding** runs at most two at a time, so many large uploads at once cannot exhaust memory.
+  - **Markdown copies** (`.md`, `llms-full.txt` and the MCP `get_post`) leave out HTML comments, which pages never show.
+  - **Searches through `/mcp`** count their embeddings towards the assistant's usage, and use full-text search only once the assistant's budget is spent.
+  - `golang.org/x/net` updated to v0.62.0 (GO-2026-6866, GO-2026-6860).
+- **Fixes**
+  - **Design with AI keeps your edits.** A change saved in the editor while the assistant works is no longer overwritten: the assistant's answer is applied on top of it, or not saved, with a message, if the draft changed under it.
+  - **Discard** in Design also forgets the pages the assistant created, and the screen reloads when the assistant only created pages.
+  - **The front page offer** on publish appears only when the draft really has a different front page.
+  - **Menus and widgets** no longer lose an order when you drag twice quickly.
+  - **Search and the site assistant** no longer fail on text that is not valid UTF-8, and long search terms are cut without splitting a character.
+  - A panic in a background job or a network sweep is logged instead of stopping the server, and single sign-on reports a failed account sync instead of ignoring it.
+  - Unused code removed.
+
 ## v0.16.0 — 2026-10-23
 
 - **The AI checks its own work.** Every AI answer now goes through checks in code before you see it, and a failed check earns one corrected answer: the model is shown what is wrong and asked to fix it, and the better of the two answers is kept.

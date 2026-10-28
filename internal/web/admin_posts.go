@@ -474,6 +474,10 @@ func (s *Server) adminPostUnlink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if u := currentUser(r); !canModify(u, p) && !auth.Can(u.Role, auth.CapEditOthersPosts) {
+		s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
+		return
+	}
 	if err := s.store.UnlinkTranslation(r.Context(), p.ID); err != nil {
 		s.serverError(w, r, err)
 		return
@@ -696,6 +700,12 @@ func (s *Server) adminPostStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case store.StatusDraft:
+		// Restoring from the trash: not a way to unpublish a post the
+		// user could no longer change.
+		if p.Status != store.StatusTrash {
+			s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
+			return
+		}
 	default:
 		s.adminError(w, r, http.StatusBadRequest, s.tu(r, "Invalid request."))
 		return
@@ -751,6 +761,9 @@ func (s *Server) adminPostBulk(w http.ResponseWriter, r *http.Request) {
 			}
 			err2 = s.store.SetPostStatus(r.Context(), id, store.StatusTrash)
 		case "restore":
+			if p.Status != store.StatusTrash {
+				continue
+			}
 			err2 = s.store.SetPostStatus(r.Context(), id, store.StatusDraft)
 		case "publish":
 			if !canPublish(u, typ) || p.Status == store.StatusTrash {
@@ -767,7 +780,8 @@ func (s *Server) adminPostBulk(w http.ResponseWriter, r *http.Request) {
 				s.afterPostSave(r, id, p.Status, store.StatusPublished)
 			}
 		case "delete":
-			if p.Status != store.StatusTrash {
+			// As adminPostDelete: contributors cannot delete for good.
+			if p.Status != store.StatusTrash || !(auth.Can(u.Role, auth.CapEditOthersPosts) || auth.Can(u.Role, auth.CapPublishOwnPosts)) {
 				continue
 			}
 			err2 = s.store.DeletePost(r.Context(), id)

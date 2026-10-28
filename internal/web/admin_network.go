@@ -514,7 +514,14 @@ func (s *Server) adminNetMemberSet(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	if acct.ID == uid(r) && d.Site.OwnerID != uid(r) {
+		s.redirect(w, r, back, "error", s.tu(r, "You cannot make yourself a member of someone else's site: ask its owner for support access."))
+		return
+	}
 	switch err := s.portal.SetMember(r.Context(), d.Site.ID, acct.ID, role, uid(r)); {
+	case errors.Is(err, ErrSupportDenied):
+		s.redirect(w, r, back, "error", s.tu(r, "You cannot make yourself a member of someone else's site: ask its owner for support access."))
+		return
 	case errors.Is(err, ErrNetworkState):
 		s.redirect(w, r, back, "error", s.tu(r, "The owner of a site is always an administrator."))
 		return

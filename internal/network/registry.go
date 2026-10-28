@@ -38,6 +38,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"runtime/debug"
 	"runtime/metrics"
 	"slices"
 	"strconv"
@@ -267,10 +268,21 @@ func (r *Registry) every(first, d time.Duration, fn func(context.Context)) {
 		case <-r.ctx.Done():
 			return
 		case <-t.C:
-			fn(r.ctx)
+			r.safely(fn)
 			t.Reset(d)
 		}
 	}
+}
+
+// safely runs fn, logging a panic instead of letting it end the process
+// and with it every site.
+func (r *Registry) safely(fn func(context.Context)) {
+	defer func() {
+		if v := recover(); v != nil {
+			r.log.Error("network loop panicked", "panic", v, "stack", string(debug.Stack()))
+		}
+	}()
+	fn(r.ctx)
 }
 
 // Close stops the loops and closes every loaded site.

@@ -309,6 +309,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.store.DeleteUserSessions(ctx, u.ID, s.ownSessionHash(r, u.ID))
+		s.store.DeleteUserTokens(ctx, u.ID)
 		s.audit(r, uid(r), "user.password_set", u.Username, nil)
 	}
 	s.audit(r, uid(r), "user.updated", u.Username, nil)
@@ -326,6 +327,10 @@ func (s *Server) adminUserAction(w http.ResponseWriter, r *http.Request) {
 	self := u.ID == uid(r)
 	switch r.PathValue("action") {
 	case "logout":
+		if err := s.store.DeleteUserTokens(ctx, u.ID); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
 		if err := s.store.DeleteUserSessions(ctx, u.ID, s.ownSessionHash(r, u.ID)); err != nil {
 			s.serverError(w, r, err)
 			return
@@ -437,8 +442,6 @@ func (s *Server) profileError(r *http.Request, email, name, bio, website string)
 	return ""
 }
 
-func validEmail(email string) bool { return sitecheck.Email(email) }
-
 func (s *Server) checkNewPassword(r *http.Request, u *store.User, pw, confirm string) string {
 	if pw != confirm {
 		return s.tu(r, "The passwords do not match.")
@@ -520,7 +523,12 @@ func (s *Server) adminProfileUpdate(w http.ResponseWriter, r *http.Request) {
 		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", msg)
 		return
 	}
-	// Changing the e-mail address (used for password resets) needs the password.
+	// Changing the e-mail address (used for password resets) needs the
+	// password, checked under the same limit as sign-in.
+	if edited.Email != u.Email && !s.loginUser.Allow("pw:"+u.Username) {
+		s.renderProfile(w, r, http.StatusTooManyRequests, &edited, "profile", s.tu(r, "Too many attempts. Wait a few minutes and try again."))
+		return
+	}
 	if edited.Email != u.Email && !auth.VerifyPassword(u.PasswordHash, r.FormValue("current_password")) {
 		s.renderProfile(w, r, http.StatusUnprocessableEntity, &edited, "profile", s.tu(r, "Enter your current password to change your e-mail address."))
 		return
@@ -572,6 +580,7 @@ func (s *Server) adminPasswordChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.store.DeleteUserSessions(r.Context(), u.ID, s.ownSessionHash(r, u.ID))
+	s.store.DeleteUserTokens(r.Context(), u.ID)
 	s.loginUser.Reset("pw:" + u.Username)
 	s.audit(r, u.ID, "profile.password_changed", u.Username, nil)
 	s.redirect(w, r, "/admin/profile#security", "success", s.tu(r, "Password changed. Other sessions were closed."))
@@ -579,6 +588,10 @@ func (s *Server) adminPasswordChange(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminRevokeSessions(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	if err := s.store.DeleteUserTokens(r.Context(), u.ID); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	if err := s.store.DeleteUserSessions(r.Context(), u.ID, s.ownSessionHash(r, u.ID)); err != nil {
 		s.serverError(w, r, err)
 		return
@@ -698,6 +711,10 @@ func (s *Server) admin2FAEnable(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) admin2FADisable(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	if !s.loginUser.Allow("pw:" + u.Username) {
+		s.render2FA(w, r, http.StatusTooManyRequests, twofaData{Error: s.tu(r, "Too many attempts. Wait a few minutes and try again.")})
+		return
+	}
 	if !auth.VerifyPassword(u.PasswordHash, r.FormValue("current_password")) {
 		s.render2FA(w, r, http.StatusUnprocessableEntity, twofaData{Error: s.tu(r, "The current password is not correct.")})
 		return

@@ -38,6 +38,12 @@ func (s *Server) adminTokenCreate(w http.ResponseWriter, r *http.Request) {
 		s.adminError(w, r, http.StatusForbidden, s.tu(r, "You do not have permission to access this page."))
 		return
 	}
+	// A token outlives the session: a stolen session must not be able to
+	// plant one, so the password is asked for unless the login is recent.
+	if _, msg := s.passkeyReauth(r, u, r.FormValue("current_password")); msg != "" {
+		s.redirect(w, r, "/admin/profile#tokens", "error", msg)
+		return
+	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" || utf8.RuneCountInString(name) > 80 {
 		s.redirect(w, r, "/admin/profile#tokens", "error", s.tu(r, "Give the token a name of up to 80 characters, such as the agent that will use it."))

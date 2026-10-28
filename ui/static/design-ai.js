@@ -117,7 +117,8 @@ if (box) {
       history.push({ role: "assistant", content: out.reply || "" });
       save(history);
       render();
-      if (out.design || out.layout) {
+      // New pages and a new front page change the Publish form too.
+      if (out.design || out.layout || out.front || out.pages?.length) {
         status.textContent = msg.msgReloading;
         location.reload();
         return;

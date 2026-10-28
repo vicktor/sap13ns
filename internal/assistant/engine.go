@@ -38,11 +38,14 @@ const (
 // Engine indexes the site's content and searches it. One Engine serves a
 // site (one database); it is safe for concurrent use.
 type Engine struct {
-	st    *store.Store
-	keys  *auth.Keys
-	log   *slog.Logger
-	nudge chan struct{}
-	now   func() time.Time
+	// PublicOnly is set on a network: the embeddings endpoint, chosen by
+	// the site's administrator, may only be a public address.
+	PublicOnly bool
+	st         *store.Store
+	keys       *auth.Keys
+	log        *slog.Logger
+	nudge      chan struct{}
+	now        func() time.Time
 	// newEmbedder builds the embeddings adapter (replaced in tests).
 	newEmbedder func(ai.Config) (ai.Embedder, error)
 
@@ -219,6 +222,9 @@ func (e *Engine) resolve(ctx context.Context, maxAge time.Duration) (*backend, e
 	}
 	b = &backend{checked: e.now()}
 	cfg, why, err := EmbedderConfig(as, aiSt, e.keys)
+	if cfg != nil {
+		cfg.PublicOnly = e.PublicOnly
+	}
 	if err != nil {
 		b.problem = err.Error()
 	} else if cfg == nil {
@@ -522,6 +528,9 @@ type SearchOptions struct {
 	Lang    string // the visitor's language, preferred
 	Limit   int    // chunks to return (default 6)
 	PerPost int    // chunks of one post (default 2)
+	// TextOnly skips the query's embedding (a paid call): full-text
+	// search only, for a caller whose budget is spent.
+	TextOnly bool
 }
 
 // SearchResult carries the hits and what the search cost.
@@ -556,7 +565,7 @@ func (e *Engine) Search(ctx context.Context, query string, opt SearchOptions) (S
 			return res, err
 		}
 	}
-	if b.vec != nil {
+	if b.vec != nil && !opt.TextOnly {
 		cctx, cancel := context.WithTimeout(ctx, queryEmbedTimeout)
 		emb, err := b.embedder.Embed(cctx, ai.EmbedRequest{Inputs: []string{query}, Query: true})
 		cancel()

@@ -59,6 +59,10 @@ func newTransport(cfg Config, client *http.Client) *transport {
 	if client == nil {
 		tr := http.DefaultTransport.(*http.Transport).Clone()
 		tr.MaxResponseHeaderBytes = 64 << 10
+		if cfg.PublicOnly {
+			tr.Proxy = nil
+			tr.DialContext = netguard.Dialer(nil, nil, 10*time.Second)
+		}
 		client = &http.Client{Transport: tr}
 		dl := tr.Clone()
 		dl.Proxy = nil

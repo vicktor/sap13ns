@@ -59,6 +59,25 @@ func (s *Store) SaveCustomDraft(ctx context.Context, theme, kind string, data []
 	return mapErr(err)
 }
 
+// SaveCustomDraftIf is SaveCustomDraft when the draft is still the one
+// saved at at (nil: no draft saved yet); otherwise it saves nothing and
+// returns ErrConflict. A slow writer, such as the design assistant, uses it
+// not to overwrite what an editor saved meanwhile.
+func (s *Store) SaveCustomDraftIf(ctx context.Context, theme, kind string, data []byte, userID int64, at *time.Time) error {
+	tag, err := s.DB.Exec(ctx, `INSERT INTO theme_custom (theme, kind, draft, draft_at, updated_by)
+		VALUES ($1, $2, $3, now(), nullif($4, 0))
+		ON CONFLICT (theme, kind) DO UPDATE SET draft = excluded.draft, draft_at = now(), updated_by = excluded.updated_by
+		WHERE theme_custom.draft_at IS NOT DISTINCT FROM $5`,
+		theme, kind, json.RawMessage(data), userID, at)
+	if err != nil {
+		return mapErr(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
 // SaveCustomDraftTx is SaveCustomDraft inside a transaction (such as the fn
 // of PublishCustom, to keep part of a draft unpublished).
 func SaveCustomDraftTx(ctx context.Context, tx pgx.Tx, theme, kind string, data []byte, userID int64) error {

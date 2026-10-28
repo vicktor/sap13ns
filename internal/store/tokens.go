@@ -65,6 +65,13 @@ func (s *Store) DeleteUserToken(ctx context.Context, userID, id int64) error {
 
 // UserTokenByHash returns an unexpired token, noting its use (at most once
 // a minute).
+// DeleteUserTokens revokes every token of a user: a password reset or
+// change, or "log out everywhere", must close agents' access too.
+func (s *Store) DeleteUserTokens(ctx context.Context, userID int64) error {
+	_, err := s.DB.Exec(ctx, `DELETE FROM user_tokens WHERE user_id = $1`, userID)
+	return err
+}
+
 func (s *Store) UserTokenByHash(ctx context.Context, hash []byte) (*UserToken, error) {
 	rows, err := s.DB.Query(ctx, `UPDATE user_tokens SET last_used_at = CASE
 			WHEN last_used_at IS NULL OR last_used_at < now() - interval '1 minute' THEN now() ELSE last_used_at END

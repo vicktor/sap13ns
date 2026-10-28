@@ -433,9 +433,23 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 type siteMCP struct{ s *Server }
 
 func (m siteMCP) Search(ctx context.Context, query, lang string, limit int) ([]mcpHit, error) {
-	res, err := m.s.assistant().Search(ctx, query, assistant.SearchOptions{Lang: lang, Limit: limit})
+	// The query's embedding is a paid call: it is counted with the
+	// assistant's, and skipped once the assistant's budget is spent.
+	now := time.Now()
+	textOnly := true
+	if as, err := m.s.store.AssistantSettings(ctx); err == nil {
+		if day, month, err := m.s.store.AssistantUsageTotals(ctx, now); err == nil {
+			textOnly = as.DailyRequests > 0 && day.Requests >= as.DailyRequests || as.MonthlyRequests > 0 && month.Requests >= as.MonthlyRequests
+		}
+	}
+	res, err := m.s.assistant().Search(ctx, query, assistant.SearchOptions{Lang: lang, Limit: limit, TextOnly: textOnly})
 	if err != nil {
 		return nil, err
+	}
+	if res.Embeddings > 0 {
+		if err := m.s.store.AddAssistantUsage(ctx, now, 0, 0, 0, res.Embeddings); err != nil {
+			m.s.log.Error("assistant usage", "err", err)
+		}
 	}
 	src := assistant.Sources(res.Hits, func(h assistant.Hit) string { return m.s.cfg.AbsURL(m.s.langPath(h.Lang, postPath(h.Type, h.Slug))) })
 	out := make([]mcpHit, len(src))
@@ -475,7 +489,7 @@ func (m siteMCP) Get(ctx context.Context, address string) (*mcpDoc, error) {
 		return nil, err
 	}
 	doc := &mcpDoc{Title: post.Title, URL: m.s.cfg.AbsURL(m.s.postURL(post)), Lang: post.Lang, Type: post.Type,
-		Updated: post.UpdatedAt.In(m.s.loc()).Format(time.RFC3339), Excerpt: post.Excerpt, Markdown: post.Content}
+		Updated: post.UpdatedAt.In(m.s.loc()).Format(time.RFC3339), Excerpt: post.Excerpt, Markdown: stripHTMLComments(post.Content)}
 	if post.PublishedAt != nil {
 		doc.Published = post.PublishedAt.In(m.s.loc()).Format(time.RFC3339)
 	}

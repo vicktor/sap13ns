@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -132,8 +133,44 @@ func (s *Server) writeMarkdown(b *bytes.Buffer, p *store.Post, front bool) {
 		}
 		b.WriteString("\n")
 	}
-	b.WriteString(strings.TrimSpace(p.Content))
+	b.WriteString(strings.TrimSpace(stripHTMLComments(p.Content)))
 	b.WriteString("\n")
+}
+
+var htmlCommentRe = regexp.MustCompile(`(?s)<!--.*?-->`)
+
+// stripHTMLComments drops <!-- … --> from Markdown served to machines: the
+// rendered page never shows them, so they may hold editors' notes. Fenced
+// code blocks are kept as written.
+func stripHTMLComments(md string) string {
+	if !strings.Contains(md, "<!--") {
+		return md
+	}
+	var out, text strings.Builder
+	fence := ""
+	flush := func() {
+		out.WriteString(htmlCommentRe.ReplaceAllString(text.String(), ""))
+		text.Reset()
+	}
+	for _, line := range strings.SplitAfter(md, "\n") {
+		t := strings.TrimSpace(line)
+		switch {
+		case fence != "":
+			out.WriteString(line)
+			if strings.HasPrefix(t, fence) {
+				fence = ""
+			}
+			continue
+		case strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~"):
+			flush()
+			fence = t[:3]
+			out.WriteString(line)
+			continue
+		}
+		text.WriteString(line)
+	}
+	flush()
+	return out.String()
 }
 
 func (s *Server) publicPosts(r *http.Request, typ string, limit int) ([]store.Post, error) {

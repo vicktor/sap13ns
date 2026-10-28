@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -495,6 +496,19 @@ func (s *Store) SetDesignAIPages(ctx context.Context, theme string, ids []int64)
 		ids = []int64{}
 	}
 	return s.SetJSON(ctx, "design_ai_pages:"+theme, ids)
+}
+
+// AddDesignAIPages appends ids to a theme's DesignAIPages in one statement,
+// so that two jobs at once both keep theirs.
+func (s *Store) AddDesignAIPages(ctx context.Context, theme string, ids []int64) error {
+	raw, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec(ctx, `INSERT INTO settings (key, value) VALUES ($1, $2)
+		ON CONFLICT (key) DO UPDATE SET value = CASE WHEN jsonb_typeof(settings.value) = 'array'
+			THEN settings.value || EXCLUDED.value ELSE EXCLUDED.value END, updated_at = now()`, "design_ai_pages:"+theme, raw)
+	return err
 }
 
 func (s *Store) SetPostStatus(ctx context.Context, id int64, status string) error {
