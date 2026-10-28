@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -137,8 +136,6 @@ func (s *Server) writeMarkdown(b *bytes.Buffer, p *store.Post, front bool) {
 	b.WriteString("\n")
 }
 
-var htmlCommentRe = regexp.MustCompile(`(?s)<!--.*?-->`)
-
 // stripHTMLComments drops <!-- … --> from Markdown served to machines: the
 // rendered page never shows them, so they may hold editors' notes. Fenced
 // code blocks are kept as written.
@@ -146,12 +143,10 @@ func stripHTMLComments(md string) string {
 	if !strings.Contains(md, "<!--") {
 		return md
 	}
-	var out, text strings.Builder
-	fence := ""
-	flush := func() {
-		out.WriteString(htmlCommentRe.ReplaceAllString(text.String(), ""))
-		text.Reset()
-	}
+	// A fence opened inside a comment is part of the comment, and one left
+	// open runs to the end, as the renderer reads them.
+	var out strings.Builder
+	fence, comment := "", false
 	for _, line := range strings.SplitAfter(md, "\n") {
 		t := strings.TrimSpace(line)
 		switch {
@@ -161,15 +156,29 @@ func stripHTMLComments(md string) string {
 				fence = ""
 			}
 			continue
-		case strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~"):
-			flush()
+		case !comment && (strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~")):
 			fence = t[:3]
 			out.WriteString(line)
 			continue
 		}
-		text.WriteString(line)
+		for line != "" {
+			if comment {
+				i := strings.Index(line, "-->")
+				if i < 0 {
+					break
+				}
+				line, comment = line[i+3:], false
+				continue
+			}
+			i := strings.Index(line, "<!--")
+			if i < 0 {
+				out.WriteString(line)
+				break
+			}
+			out.WriteString(line[:i])
+			line, comment = line[i+4:], true
+		}
 	}
-	flush()
 	return out.String()
 }
 

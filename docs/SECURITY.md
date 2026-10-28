@@ -38,7 +38,7 @@ On a network of sites, a site's administrators are trusted on their own site onl
   | Comments, per IP | 6 per 10 minutes |
   | Registration and password reset | 5 per hour |
 
-  Limits per IP count an IPv6 /64 as one address. Repeated failures lock the account for a while; failures older than the lock are forgotten, so the count does not build up for ever. The password checks behind an e-mail change and turning off the second factor count against the same per-account limit as sign-in. Every outcome is written to the audit log.
+  Limits per IP count an IPv6 /64 as one address. Repeated failures lock the account for a while; the count is forgotten after a day without failures, and until then a locked account is locked again by its next failure. The password checks behind an e-mail change and turning off the second factor count against the same per-account limit as sign-in. Every outcome is written to the audit log.
 - **Sessions:**
   - random tokens stored only as hashes;
   - `HttpOnly` cookies, `Secure` over https, `SameSite=Lax`;

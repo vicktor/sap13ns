@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.17.1 — 2026-10-28
+
+- **Lockouts stay strict.** Failed sign-ins are now forgotten only after a day without failures, so an account that was locked is locked again by its next wrong password instead of getting a fresh set of attempts.
+- **Comments with code fences** are removed whole from the Markdown copies: a fence written inside an HTML comment no longer lets the rest of the comment through.
+
 ## v0.17.0 — 2026-10-28
 
 A security and reliability audit of the whole project, with every finding fixed.
