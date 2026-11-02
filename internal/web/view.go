@@ -263,14 +263,17 @@ type SiteStats struct {
 }
 
 type SiteView struct {
-	Title             string
-	Tagline           string
-	URL               string // absolute home URL in the current language
-	Home              string // home path in the current language ("/" or "/en/")
-	Search            string // search path in the current language
-	Blog              string // the posts list in the current language ("/blog", "/en/blog")
-	Lang              string
-	FooterText        string
+	Title      string
+	Tagline    string
+	URL        string // absolute home URL in the current language
+	Home       string // home path in the current language ("/" or "/en/")
+	Search     string // search path in the current language
+	Blog       string // the posts list in the current language ("/blog", "/en/blog")
+	Lang       string
+	FooterText string
+	// HideCredit: the site's paid plan leaves out the "Powered by" credit
+	// (credit.go).
+	HideCredit        bool
 	Year              int
 	Theme             string
 	Options           map[string]string
@@ -464,6 +467,7 @@ func (s *Server) siteView(r *http.Request, th *theme.Theme, d *siteData) *SiteVi
 		Search:       s.langPath(lang, "/search"),
 		Blog:         s.langPath(lang, "/blog"),
 		PreviewTheme: s.previewing(r, th),
+		HideCredit:   s.hideCredit(r),
 		atHome:       here == s.langPath(lang, "/"),
 		theme:        th, server: s,
 	}

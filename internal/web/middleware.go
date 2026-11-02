@@ -30,6 +30,8 @@ type reqCtx struct {
 	// UILang is the admin language the signed-in user chose, set on admin
 	// routes only (requireCap); "" = main language. See uilang.go.
 	UILang string
+	// Credit: whether the public pages show the licence credit (credit.go).
+	Credit int8
 }
 
 type ctxKey struct{}

@@ -81,7 +81,7 @@ make check                                   # vet + Go and JS tests + i18n + ev
 - **Basecoat UI 1.x:** components are classes plus `data-variant` / `data-size`.
   - Button variants: `primary` (the default), `secondary`, `destructive`, `outline`, `ghost`, `link`. `default` is not a variant.
   - Alerts: `<div class="alert" data-variant="…">{{icon …}}<h2>…</h2><section>…</section></div>`.
-- **Attribution:** `shared/footer-meta` renders the "Powered by sap13ns" attribution that the CPAL-1.0 licence (Exhibit B) requires. Every theme and layout must keep it.
+- **Attribution:** `shared/footer-meta` renders the "Powered by sap13ns" attribution that the CPAL-1.0 licence (Exhibit B) requires. Every theme and layout must keep it. Only the licensor's network leaves it out, on paid plans in good standing, with `SAP13NS_PAID_PLANS_HIDE_CREDIT=true` (`internal/web/credit.go`).
 - **Security-sensitive helpers:** use the existing ones instead of rolling new ones:
   - `safeNext` for redirects;
   - the CSRF field (`{{.CSRFField}}`) on every admin form; JSON endpoints require `application/json`;

@@ -144,6 +144,7 @@ These variables are read only when `SAP13NS_MULTISITE=true`. The variables of a 
 | `SAP13NS_STRIPE_*`, `SAP13NS_BILLING_GRACE_DAYS` | | Billing: see [BILLING.md](BILLING.md#6-environment-variables) |
 | `SAP13NS_NETWORK_AI_PROVIDER`, `_API_KEY`, `_BASE_URL`, `_TEXT_MODEL` | off | The AI the paid plans include: `anthropic`, `openai`, `gemini` or `alibaba`, its key, address and text model. See [AI on the plans](#ai-on-the-plans). |
 | `SAP13NS_NETWORK_AI_IMAGE_PROVIDER`, `_IMAGE_API_KEY`, `_IMAGE_BASE_URL`, `_IMAGE_MODEL` | the text provider | Images from another provider (`openai`, `gemini` or `alibaba` for Qwen-Image) |
+| `SAP13NS_PAID_PLANS_HIDE_CREDIT` | `false` | `true` leaves the "Powered by sap13ns" credit out of the sites of a paid plan in good standing; a held site (unpaid, cancelled) shows it again. **Only for the licensor's network, or one it licenses commercially:** under CPAL-1.0 (Exhibit B) every other operator must keep the credit. |
 
 The service refuses to start when a value is invalid: a host name with upper-case letters or a port, a private or loopback address in `SAP13NS_DOMAIN_ADDRESSES`, or `autocert` without a certificate or with a Unix-socket listener.
 

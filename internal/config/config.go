@@ -81,6 +81,11 @@ type Config struct {
 	TLS            string        // "proxy" (nginx or Caddy terminate TLS) or "autocert"
 	Stripe         Stripe        // billing; off when Stripe.SecretKey is empty
 	NetworkAI      NetworkAI     // the AI the paid plans include; off when Provider is empty
+	// PaidHideCredit: the sites of a paid plan in good standing leave out
+	// the "Powered by sap13ns" credit (SAP13NS_PAID_PLANS_HIDE_CREDIT).
+	// Only for the licensor's network, or one it licenses commercially:
+	// under CPAL-1.0 any other operator must keep the credit.
+	PaidHideCredit bool
 
 	// Custom domains point to the network with a CNAME to DomainTarget (by
 	// default the BaseURL host), or with A/AAAA records: the addresses in
@@ -536,7 +541,10 @@ func (c *Config) loadMultisite() error {
 	if c.Stripe, err = loadStripe(); err != nil {
 		return err
 	}
-	c.NetworkAI, err = loadNetworkAI()
+	if c.NetworkAI, err = loadNetworkAI(); err != nil {
+		return err
+	}
+	c.PaidHideCredit, err = envStrictBool("PAID_PLANS_HIDE_CREDIT", false)
 	return err
 }
 

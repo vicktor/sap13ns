@@ -89,6 +89,10 @@ func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 		if r.URL.RawQuery != "" {
 			key += "?" + r.URL.RawQuery
 		}
+		// A site whose plan changes keeps no page of the other kind.
+		if s.hideCredit(r) {
+			key = "\x00nocredit " + key
+		}
 		if cacheable {
 			if e, ok := s.pages.Get(key); ok {
 				s.recordView(r, e.Status, e.ContentType)
