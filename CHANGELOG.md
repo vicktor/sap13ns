@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.18.1 — 2026-11-02
+
+- **Paid plans without the credit.** A network can leave the "Powered by sap13ns" credit out of the sites of its paid plans with `SAP13NS_PAID_PLANS_HIDE_CREDIT=true`. A site whose subscription lapses (unpaid, cancelled, grace over) shows it again, and free plans, single-site installs and the portal always keep it. Off by default: under CPAL-1.0 only the licensor's network, or one it licenses commercially, may turn it on.
+
 ## v0.18.0 — 2026-11-02
 
 Edit the page on the page itself.
