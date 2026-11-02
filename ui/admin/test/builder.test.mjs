@@ -7,7 +7,9 @@ import {
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
   addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
   validClasses, setSectionClass, hasBlock, emptyRegion, sectionToHTML, sectionHTML, themeHTML,
+  markdownOf, regionOfClasses,
 } from "../../static/builder.js";
+import { parseHTML } from "./dom.mjs";
 
 // A seeded random source, so ids are reproducible.
 const seeded = (n = 1) => () => { n = (n * 16807) % 2147483647; return n / 2147483647; };
@@ -391,4 +393,29 @@ test("sectionHTML: an HTML block section gives its stored markup", () => {
 test("themeHTML: nothing without a preview's main part", () => {
   assert.equal(themeHTML(null), "");
   assert.equal(themeHTML({ querySelector: () => null }), "");
+});
+
+test("markdownOf: a Markdown field typed over in the preview, back to Markdown", () => {
+  const md = (html) => markdownOf(parseHTML(html));
+  assert.equal(md("<h2>Who we are</h2>\n<p>We <strong>build</strong> <em>sites</em>, see <a href=\"/about\">about</a>.</p>"),
+    "## Who we are\n\nWe **build** _sites_, see [about](/about).");
+  assert.equal(md("<ul><li>One</li><li>Two <b>bold</b></li></ul><ol><li>First</li></ol>"), "- One\n- Two **bold**\n\n1. First");
+  // What the browser makes of Enter and Shift+Enter.
+  assert.equal(md("<p>One</p><div>Two<br>three</div>"), "One\n\nTwo  \nthree");
+  assert.equal(md("Loose text<p>Then a paragraph</p>"), "Loose text\n\nThen a paragraph");
+  // Typed characters that Markdown would read as markup stay text.
+  assert.equal(md("<p>1. Not a list, # not a heading, a_b and *c*</p>"), "1\\. Not a list, # not a heading, a\\_b and \\*c\\*");
+  assert.equal(md("<p>- dash</p>"), "\\- dash");
+  // Bold around spaces keeps them outside; empty marks and links vanish.
+  assert.equal(md("<p>a<strong> b </strong>c<em></em><a href=\"/x\"> </a></p>"), "a **b** c");
+  assert.equal(md("<blockquote><p>Said</p></blockquote><pre>x = 1\n</pre>"), "> Said\n\n```\nx = 1\n```");
+  assert.equal(md("<p><a href=\"/a b(c)\">x</a></p>"), "[x](/a%20b%28c%29)");
+  assert.equal(md(""), "");
+});
+
+test("regionOfClasses: the region a preview element is in", () => {
+  assert.equal(regionOfClasses(["sap-region", "sap-region-header"]), "header");
+  assert.equal(regionOfClasses(["sap-region", "sap-region-main", "sap-region-front"]), "front");
+  assert.equal(regionOfClasses(["sap-region", "sap-region-main"]), "");
+  assert.equal(regionOfClasses([]), "");
 });

@@ -158,10 +158,13 @@ export function themeHTML(doc) {
   return main ? cleanMarkup(main) : "";
 }
 
-// cleanMarkup is el's inner markup without the preview's text marks.
-function cleanMarkup(el) {
+// cleanMarkup is el's inner markup without the preview's text marks and
+// the visual editor's (its wrappers, an empty image's placeholder).
+export function cleanMarkup(el) {
   const copy = el.cloneNode(true);
-  for (const m of copy.querySelectorAll("span[data-sap-text]")) m.replaceWith(...m.childNodes);
+  for (const m of copy.querySelectorAll("span[data-sap-text], .sap-ed-block, .sap-ed-media")) m.replaceWith(...m.childNodes);
+  for (const m of copy.querySelectorAll(".sap-ed-placeholder, .sap-ed-box, .sap-ed-bar, .sap-ed-add, .sap-ed-banner")) m.remove();
+  for (const e of [copy, ...copy.querySelectorAll("[contenteditable]")]) e.removeAttribute("contenteditable");
   for (const e of [copy, ...copy.querySelectorAll("*")]) {
     for (const a of [...e.attributes]) if (a.name.startsWith("data-sap-")) e.removeAttribute(a.name);
   }
@@ -561,6 +564,88 @@ export class History {
 
 const fmt = (s, ...args) => { let i = 0; return String(s ?? "").replace(/%[sd]/g, () => String(args[i++] ?? "")); };
 
+// ------------------------------------------------------ visual editing --
+
+/** markdownOf turns the HTML of a Markdown field, as typed over in the
+ * preview (root's children), back into Markdown: paragraphs, headings,
+ * lists, quotes, code, bold, italic and links. Other elements keep their
+ * text. */
+export function markdownOf(root) {
+  const TEXT = 3, ELEM = 1;
+  // Only childNodes, nodeName, data and getAttribute: the tests' small DOM.
+  const kidsOf = (n) => [...(n.childNodes || [])];
+  const elems = (n) => kidsOf(n).filter((c) => c.nodeType === ELEM);
+  const textOf = (n) => (n.nodeType === TEXT ? n.data ?? n.nodeValue ?? "" : kidsOf(n).map(textOf).join(""));
+  const wrap = (t, mark) => {
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(t);
+    return m[2] ? `${m[1]}${mark}${m[2]}${mark}${m[3]}` : t;
+  };
+  const inline = (n) => {
+    if (n.nodeType === TEXT) return textOf(n).replace(/\s+/g, " ").replace(/([\\*_`[\]])/g, "\\$1");
+    if (n.nodeType !== ELEM) return "";
+    const kids = () => kidsOf(n).map(inline).join("");
+    switch (n.nodeName) {
+      case "BR": return "\n";
+      case "STRONG": case "B": return wrap(kids(), "**");
+      case "EM": case "I": return wrap(kids(), "_");
+      case "CODE": { const t = textOf(n).replace(/`/g, ""); return t ? "`" + t + "`" : ""; }
+      case "A": {
+        const t = kids();
+        const href = (n.getAttribute("href") || "").replace(/[()\s]/g, (c) => ({ "(": "%28", ")": "%29" })[c] || "%20");
+        return href && t.trim() ? `[${t}](${href})` : t;
+      }
+      default: return kids();
+    }
+  };
+  // A paragraph's lines, without what would make them a heading or a list.
+  const para = (t) => t.split("\n").map((l) => l.replace(/^ +| +$/g, "")).filter(Boolean)
+    .map((l) => l.replace(/^(#{1,6}\s|[-+>]\s)/, "\\$1").replace(/^(\d+)([.)]\s)/, "$1\\$2")).join("  \n");
+  const out = [];
+  let run = [];
+  const flush = () => { const t = para(run.join("")); if (t) out.push(t); run = []; };
+  for (const n of kidsOf(root)) {
+    const tag = n.nodeType === ELEM ? n.nodeName : "";
+    if (/^H[1-6]$/.test(tag)) {
+      flush();
+      const t = inline(n).replace(/\s+/g, " ").trim();
+      if (t) out.push("#".repeat(Number(tag[1])) + " " + t);
+    } else if (tag === "UL" || tag === "OL") {
+      flush();
+      const items = elems(n).filter((li) => li.nodeName === "LI")
+        .map((li, i) => `${tag === "OL" ? `${i + 1}.` : "-"} ${inline(li).replace(/\s+/g, " ").trim()}`)
+        .filter((l) => !/^(-|\d+\.) $/.test(l));
+      if (items.length) out.push(items.join("\n"));
+    } else if (tag === "BLOCKQUOTE") {
+      flush();
+      const t = markdownOf(n);
+      if (t) out.push(t.split("\n").map((l) => (l ? "> " + l : ">")).join("\n"));
+    } else if (tag === "PRE") {
+      flush();
+      const code = textOf(n).replace(/```/g, "").replace(/^\n+|\n+$/g, "");
+      if (code.trim()) out.push("```\n" + code + "\n```");
+    } else if (tag === "HR") {
+      flush();
+      out.push("---");
+    } else if (tag === "P" || tag === "DIV" || tag === "SECTION") {
+      flush();
+      const inner = elems(n).some((c) => /^(P|DIV|UL|OL|H[1-6]|BLOCKQUOTE|PRE)$/.test(c.nodeName));
+      if (inner) { const t = markdownOf(n); if (t) out.push(t); } else { run.push(inline(n)); flush(); }
+    } else {
+      run.push(inline(n));
+    }
+  }
+  flush();
+  return out.join("\n\n");
+}
+
+/** regionOfClasses is the region a preview element of class list cls
+ * belongs to (shared/blocks-*: sap-region-header, sap-region-footer,
+ * sap-region-<page>), or "". */
+export function regionOfClasses(cls) {
+  const names = [...cls].filter((c) => c.startsWith("sap-region-") && c !== "sap-region-main").map((c) => c.slice(11));
+  return names[0] || "";
+}
+
 // --------------------------------------------------------------- browser --
 
 function init(root) {
@@ -645,11 +730,13 @@ function init(root) {
 
   // ------------------------------------------------------------ change --
   // commit records a new state, re-renders and schedules a save.
-  function commit(next, key = "", { keepSettings = false } = {}) {
+  // quietly: the change is already on the preview (typed over it), so the
+  // save does not reload it.
+  function commit(next, key = "", { keepSettings = false, quietly = false } = {}) {
     if (JSON.stringify(next) === JSON.stringify(layout())) return;
     history.push(next, key);
     render({ keepSettings });
-    schedule();
+    schedule(700, quietly);
   }
 
   // ------------------------------------------------------------- render --
@@ -676,7 +763,8 @@ function init(root) {
     const r = getRegion(layout(), region);
     const kids = [];
     const icn = region === "header" ? "panel-top" : region === "footer" ? "panel-bottom" : "layout-template";
-    if (r) kids.push(h("p", { class: "bl-intro-text" }, icon(icn), h("span", { text: msg.msgBlockRegion })));
+    if (r) kids.push(h("p", { class: "bl-intro-text" }, icon(icn), h("span", { text: msg.msgBlockRegion })),
+      h("p", { class: "bl-intro-text bl-intro-edit" }, icon("mouse-pointer-click"), h("span", { text: msg.msgEditHint })));
     if (!r) {
       // The theme's template is fixed: say so, and offer the ways to start
       // building, the first one primary.
@@ -745,7 +833,7 @@ function init(root) {
   // The server's messages are in English; the ones typing can cause are
   // shown in the admin's language.
   const errText = (f, e) => (e.anchor ? (/already the anchor/.test(e.message) ? fmt(msg.msgAnchorTaken, /^"([^"]*)"/.exec(e.message)?.[1] || "") : msg.msgBadAnchor)
-    : f?.type === "url" ? msg.msgBadUrl : f?.type === "email" ? msg.msgBadEmail : f?.type === "class" ? msg.msgBadClass
+    : f?.type === "url" ? msg.msgBadLink : f?.type === "email" ? msg.msgBadEmail : f?.type === "class" ? msg.msgBadClass
     : /^at most \d+ characters$/.test(e.message) ? fmt(msg.msgTooLong, f?.max || "") : e.message);
   // fid is the id of a field's input: a block's, or an item's (item i).
   const fid = (key, lang, item) => `bl-f-${item != null && item >= 0 ? `i${item}-` : ""}${key}${lang ? "-" + lang : ""}`;
@@ -831,12 +919,26 @@ function init(root) {
           })));
   }
 
-  function select(id) {
+  // select shows the settings of a section or block, and marks it on the
+  // preview. fromPreview: it was clicked there, which keeps the focus and
+  // the preview where they are.
+  function select(id, { fromPreview = false } = {}) {
     selected = selected === id ? selected : id;
     renderStructure();
     renderSettings();
-    settings.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    settings.querySelector(FOCUSABLE)?.focus({ preventScroll: true });
+    const smooth = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    if (fromPreview) {
+      // Only the panel scrolls (it has its own scroll on wide screens).
+      const panel = settings.closest(".bl-panel");
+      if (panel && panel.scrollHeight > panel.clientHeight) {
+        const top = settings.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - 8;
+        panel.scrollTo({ top, behavior: smooth });
+      }
+    } else {
+      settings.scrollIntoView({ block: "nearest", behavior: smooth });
+      settings.querySelector(FOCUSABLE)?.focus({ preventScroll: true });
+    }
+    visual.mark(!fromPreview);
   }
 
   // ----------------------------------------------------------- settings --
@@ -1040,7 +1142,7 @@ function init(root) {
     const err = errors.find((e) => sameBlock(e, pos) && (e.item ?? null) === item && e.key === f.key && e.lang === lang);
     const help = [];
     if (f.help && !lang) help.push(f.help);
-    if (f.type === "url" && !lang) help.push(msg.msgUrlHint);
+    if (f.type === "url" && !lang) help.push(msg.msgLinkHint);
     const describedBy = help.length || err ? `${id}-help` : null;
     const common = { id, "aria-describedby": describedBy, "aria-invalid": err ? "true" : null };
     let input;
@@ -1216,12 +1318,15 @@ function init(root) {
 
   // ------------------------------------------------------------- picker --
   let pickAt = null;
+  // at is where the block goes ({s, c, b}); with fresh, it goes into a new
+  // section inserted at index s.
   function openPicker(at) {
     pickAt = at;
     const r = getRegion(layout(), region);
     const list = document.getElementById("bl-types");
     const where = regions.find((x) => x.name === region)?.label || region;
-    document.getElementById("bl-picker-where").textContent = `${where} · ${fmt(msg.msgSection, at.s + 1)}${(PRESETS[r.sections[at.s].layout] || 1) > 1 ? " · " + fmt(msg.msgColumn, at.c + 1) : ""}`;
+    document.getElementById("bl-picker-where").textContent = at.fresh ? `${where} · ${msg.msgNewSection}`
+      : `${where} · ${fmt(msg.msgSection, at.s + 1)}${(PRESETS[r.sections[at.s].layout] || 1) > 1 ? " · " + fmt(msg.msgColumn, at.c + 1) : ""}`;
     list.replaceChildren(...(state.types || []).filter((t) => t.where.some((w) => w === "*" || w === region)).map((t) => {
       const ok = allowed(t, region, r);
       return h("li", {}, h("button", { type: "button", class: "bl-type", disabled: !ok || null, onclick: () => addBlock(t) },
@@ -1239,8 +1344,14 @@ function init(root) {
       const area = areas.includes("sidebar") ? "sidebar" : areas.find((a) => a !== "top") || areas[0];
       if (area && area !== "sidebar") settings0.area = area;
     }
-    const b = newBlock(layout(), t, state.starters || {}, settings0);
-    commit(insertBlock(layout(), region, pickAt, b));
+    let next = layout();
+    let at = pickAt;
+    if (at.fresh) {
+      next = addSection(next, region, at.s, "1");
+      at = { s: at.s, c: 0, b: 0 };
+    }
+    const b = newBlock(next, t, state.starters || {}, settings0);
+    commit(insertBlock(next, region, at, b));
     select(b.id);
   }
 
@@ -1430,8 +1541,393 @@ function init(root) {
     loadPreview();
   });
 
+  // ----------------------------------------------------- visual editing --
+  // The preview is where the page is edited. The server marks a draft
+  // preview's sections (data-sap-sec), blocks (data-sap-blk) and the texts
+  // and images they show (data-sap-f, data-sap-i for an item): a click on a
+  // text types over it, on an image opens the media library, anywhere else
+  // in a block shows its settings. The section under the pointer gets a
+  // toolbar (move, duplicate, delete, add a block) and a button to add a
+  // section after it. A part still drawn by the theme's fixed template
+  // offers to become editable.
+  const visual = (() => {
+    let doc = null;
+    let typing = null;   // the element being typed over
+    let hoverSec = null; // the section under the pointer
+    let ui = null;       // the overlay's elements in doc
+    const mainLang = state.main_lang || "";
+    const mediaOpener = document.getElementById("bl-media-opener");
+    let pickImage = null; // what a chosen image goes to
+    let reveal = false;   // scroll to the selection once the preview reloads
+
+    const regionLabel = (name) => regions.find((x) => x.name === name)?.label || name;
+    const regionOf = (el) => { const r = el.closest(".sap-region"); return r ? regionOfClasses(r.classList) : ""; };
+    // The preview's language, as setValue takes it ("" for the main one).
+    const langOf = () => { const l = doc?.documentElement.lang || ""; return l && l !== mainLang && langs.some((x) => x.code === l) ? l : ""; };
+    const blockOf = (id) => { const p = find(layout(), region, id); return p?.kind === "block" ? { p, b: col(getRegion(layout(), region), p)[p.b] } : null; };
+    const fieldOf = (type, key, item) => (item != null ? types[type]?.items?.fields : types[type]?.fields)?.find((f) => f.key === key) || null;
+    const valueOf = (b, item, key, lang) => {
+      const obj = item == null ? b : b.items?.[item] || {};
+      return (lang ? obj.i18n?.[lang]?.[key] : obj.settings?.[key]) || "";
+    };
+    const iconIn = (name) => doc.importNode(icon(name), true);
+    const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // The overlay: boxes over the hovered and the selected block, the
+    // hovered section's toolbar and "add a section" button.
+    function build() {
+      const mk = (tag, cls, attrs = {}) => { const el = doc.createElement(tag); el.className = cls; for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+      const hover = mk("div", "sap-ed-box sap-ed-hover", { "aria-hidden": "true" });
+      const hoverTag = mk("span", "sap-ed-tag");
+      hover.append(hoverTag);
+      const sel = mk("div", "sap-ed-box sap-ed-selected", { "aria-hidden": "true" });
+      const selTag = mk("span", "sap-ed-tag");
+      sel.append(selTag);
+      const bar = mk("div", "sap-ed-bar", { role: "toolbar" });
+      const label = mk("span", "sap-ed-label");
+      const btn = (act, iconName, title) => { const b = mk("button", "", { type: "button", "data-act": act, title, "aria-label": title }); b.append(iconIn(iconName)); return b; };
+      bar.append(label, btn("up", "chevron-up", msg.msgMoveUp), btn("down", "chevron-down", msg.msgMoveDown),
+        btn("block", "plus", msg.msgAddBlock), btn("settings", "sliders-horizontal", msg.msgEdit),
+        btn("duplicate", "copy", msg.msgDuplicate), btn("delete", "trash-2", msg.msgDelete));
+      const add = mk("button", "sap-ed-add", { type: "button" });
+      add.append(iconIn("plus"), doc.createTextNode(msg.msgAddSectionHere));
+      bar.addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-act]");
+        if (!b || b.disabled || !hoverSec) return;
+        e.preventDefault();
+        const reg = regionOf(hoverSec);
+        if (reg && reg !== region) switchRegion(reg);
+        sectionAction(b.dataset.act, hoverSec.dataset.sapSec);
+      });
+      add.addEventListener("click", (e) => {
+        e.preventDefault();
+        const reg = hoverSec ? regionOf(hoverSec) : "";
+        if (reg && reg !== region) switchRegion(reg);
+        const p = hoverSec && find(layout(), region, hoverSec.dataset.sapSec);
+        if (p) openPicker({ s: p.s + 1, c: 0, b: 0, fresh: true });
+      });
+      doc.body.append(hover, sel, bar, add);
+      return { hover, hoverTag, sel, selTag, bar, label, add };
+    }
+
+    const place = (el, r) => {
+      el.style.top = `${r.top}px`; el.style.left = `${r.left}px`;
+      el.style.width = `${r.width}px`; el.style.height = `${r.height}px`;
+    };
+    const show = (el, on) => { if (on) el.dataset.show = ""; else delete el.dataset.show; };
+    const typeLabel = (el) => types[el.dataset.sapType]?.label || el.dataset.sapType || "";
+
+    // The marked element of the selected section or block.
+    const selectedEl = () => (selected && doc ? doc.querySelector(`[data-sap-blk="${CSS.escape(selected)}"], [data-sap-sec="${CSS.escape(selected)}"]`) : null);
+
+    function redraw() {
+      if (!ui || !doc?.body.contains(ui.bar)) return;
+      const s = selectedEl();
+      if (s && regionOf(s) === region) {
+        const r = s.getBoundingClientRect();
+        place(ui.sel, { top: r.top - 4, left: r.left - 4, width: r.width + 8, height: r.height + 8 });
+        ui.selTag.textContent = s.dataset.sapBlk ? typeLabel(s) : fmt(msg.msgSection, (find(layout(), region, selected)?.s ?? 0) + 1);
+        show(ui.sel, true);
+      } else show(ui.sel, false);
+      const reg = hoverSec ? regionOf(hoverSec) : "";
+      const p = reg && find(layout(), reg, hoverSec.dataset.sapSec);
+      if (p && !typing) {
+        const r = hoverSec.getBoundingClientRect();
+        const vw = doc.documentElement.clientWidth;
+        const secs = getRegion(layout(), reg).sections;
+        const n = secs.length;
+        ui.label.textContent = fmt(msg.msgSection, p.s + 1);
+        ui.bar.querySelector('[data-act="up"]').disabled = p.s === 0;
+        ui.bar.querySelector('[data-act="down"]').disabled = p.s === n - 1;
+        ui.bar.querySelector('[data-act="duplicate"]').disabled = false;
+        ui.bar.querySelector('[data-act="delete"]').disabled = secs[p.s].columns.flat().some((b) => required(b.type, reg));
+        show(ui.bar, true);
+        const bw = ui.bar.offsetWidth;
+        ui.bar.style.top = `${Math.max(4, r.top + 6)}px`;
+        ui.bar.style.left = `${Math.min(vw - bw - 6, Math.max(6, r.right - bw - 6))}px`;
+        ui.add.style.top = `${r.bottom}px`;
+        ui.add.style.left = `${Math.min(vw - 90, Math.max(90, r.left + r.width / 2))}px`;
+        show(ui.add, r.bottom > 0 && r.bottom < doc.documentElement.clientHeight + 14);
+      } else { show(ui.bar, false); show(ui.add, false); }
+    }
+
+    function sectionAction(act, id) {
+      const p = find(layout(), region, id);
+      if (!p) return;
+      const r = getRegion(layout(), region);
+      const sec = r.sections[p.s];
+      switch (act) {
+        // The moved or copied section stays selected, in view.
+        case "up": case "down": {
+          const to = act === "up" ? p.s - 1 : p.s + 1;
+          if (to < 0 || to >= r.sections.length) return;
+          selected = id;
+          reveal = true;
+          commit(moveSection(layout(), region, p.s, to));
+          say(fmt(msg.msgMoved, fmt(msg.msgSection, p.s + 1)));
+          break;
+        }
+        case "duplicate": {
+          const next = duplicateSection(layout(), region, p.s, types);
+          selected = getRegion(next, region).sections[p.s + 1].id;
+          reveal = true;
+          commit(next);
+          break;
+        }
+        case "delete":
+          if (sec.columns.flat().some((b) => required(b.type, region))) { toast("info", msg.msgRequired); return; }
+          if (selected === id || sec.columns.flat().some((b) => b.id === selected)) selected = null;
+          commit(removeSection(layout(), region, p.s));
+          toast("info", msg.msgDeleted);
+          break;
+        case "block": openPicker({ s: p.s, c: 0, b: sec.columns[0].length }); break;
+        case "settings": select(id, { fromPreview: true }); break;
+      }
+    }
+
+    // Typing over a text: plain for text fields, with its paragraphs,
+    // lists and links for Markdown. Every keystroke goes to the draft;
+    // Enter (in a one-line text) or a click elsewhere ends it, Escape
+    // puts back what it said.
+    function typeOver(el, f, id, item, lang, at) {
+      const rich = f.type === "markdown";
+      const before = el.innerHTML;
+      const start = layout();
+      typing = el;
+      redraw();
+      el.contentEditable = rich ? "true" : "plaintext-only";
+      if (!rich && el.contentEditable !== "plaintext-only") el.contentEditable = "true";
+      el.spellcheck = true;
+      el.focus({ preventScroll: true });
+      // The caret where the click was.
+      const sel = doc.getSelection();
+      const range = at && doc.caretRangeFromPoint?.(at.x, at.y);
+      if (sel && range && el.contains(range.startContainer)) { sel.removeAllRanges(); sel.addRange(range); }
+      const read = () => (rich ? markdownOf(el) : el.innerText.replace(/ /g, " ").replace(/\s+/g, " ").trim());
+      const set = (v, quietly = true) => {
+        const at = blockOf(id);
+        if (!at) return;
+        const def = lang ? "" : f.default || "";
+        const next = item == null ? setValue(layout(), region, at.p, f.key, v, lang, def)
+          : setItemValue(layout(), region, at.p, item, f.key, v, lang, def, Boolean(f.one));
+        commit(next, `${id}.${item ?? ""}.${f.key}.${lang}`, { keepSettings: true, quietly });
+        // The panel's field follows.
+        const input = settings.querySelector(`#${CSS.escape(fid(f.key, lang, item))}`);
+        if (input && "value" in input && input.value !== v) input.value = v;
+      };
+      const onInput = () => set(read());
+      const onKey = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          el.innerHTML = before;
+          if (JSON.stringify(start) !== JSON.stringify(layout())) commit(start, "", { keepSettings: true, quietly: true });
+          el.blur();
+        } else if (e.key === "Enter" && !rich) {
+          e.preventDefault();
+          el.blur();
+        } else if (e.key === " " && el.closest("summary, button")) {
+          // A space in a <summary> would open or close the question.
+          e.preventDefault();
+          doc.execCommand("insertText", false, " ");
+        }
+      };
+      const onPaste = (e) => {
+        e.preventDefault();
+        const t = e.clipboardData?.getData("text/plain") || "";
+        doc.execCommand("insertText", false, rich ? t : t.replace(/\s+/g, " "));
+      };
+      el.addEventListener("input", onInput);
+      el.addEventListener("keydown", onKey);
+      el.addEventListener("paste", onPaste);
+      el.addEventListener("blur", () => {
+        el.removeEventListener("input", onInput);
+        el.removeEventListener("keydown", onKey);
+        el.removeEventListener("paste", onPaste);
+        el.removeAttribute("contenteditable");
+        typing = null;
+        renderSettings();
+        redraw();
+        // Markdown is shown as the site renders it, and an emptied text as
+        // what replaces it (the site's title, the theme's text…).
+        if (rich || !el.textContent.trim()) {
+          if (unsaved() || timer || inflight) schedule(150); else reloadFrame();
+        }
+      }, { once: true });
+    }
+
+    function chooseImage(id, item, f) {
+      if (!mediaOpener) return;
+      pickImage = { id, item, f };
+      mediaOpener.click();
+    }
+    mediaOpener?.addEventListener("sap13ns:media-pick", (e) => {
+      const it = e.detail;
+      const to = pickImage;
+      pickImage = null;
+      if (!to || !it?.id) return;
+      if (!state.images.some((m) => String(m.id) === String(it.id))) state.images.push({ id: it.id, thumb: it.thumb || it.url, name: it.name || "" });
+      const at = blockOf(to.id);
+      if (!at) return;
+      const next = to.item == null ? setValue(layout(), region, at.p, to.f.key, String(it.id), "", "")
+        : setItemValue(layout(), region, at.p, to.item, to.f.key, String(it.id), "", "");
+      commit(next);
+      select(to.id, { fromPreview: true });
+    });
+
+    // The banner of a part that is still the theme's fixed template.
+    function banner() {
+      doc.querySelector(".sap-ed-banner")?.remove();
+      if (getRegion(layout(), region)) return;
+      const box = doc.createElement("div");
+      box.className = "sap-ed-banner";
+      box.setAttribute("role", "note");
+      const p = doc.createElement("p");
+      const strong = doc.createElement("strong");
+      strong.textContent = fmt(msg.msgFixedTitle, regionLabel(region));
+      p.append(strong, doc.createTextNode(msg.msgFixedHelp));
+      const go = doc.createElement("button");
+      go.type = "button";
+      go.append(iconIn("pencil"), doc.createTextNode(msg.msgMakeEditable));
+      go.addEventListener("click", makeEditable);
+      box.append(p, go);
+      doc.body.append(box);
+    }
+    // makeEditable turns the region into blocks: the recommended ready-made
+    // page for the front page, else the region's starting layout.
+    function makeEditable() {
+      if (getRegion(layout(), region)) return;
+      const presets = region === "front" ? state.front_presets || [] : [];
+      const preset = presets.find((p) => p.name === recommended) || presets[0];
+      const start = preset ? reid(preset.region, layout())
+        : starter(region, { title404: msg.msgNfTitle, text404: msg.msgNfText, button404: msg.msgNfButton }, layout());
+      selected = null;
+      commit(setRegion(layout(), region, start));
+      toast("success", msg.msgNowEditable);
+    }
+
+    function onClick(e) {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const t = e.target;
+      if (!t.closest || t.closest(".sap-ed-bar, .sap-ed-add, .sap-ed-banner")) return;
+      // Inside the text being typed over: place the caret, never follow it.
+      if (typing && typing.contains(t)) { e.preventDefault(); return; }
+      const blk = t.closest("[data-sap-blk]");
+      const sec = t.closest("[data-sap-sec]");
+      const where = (blk || sec) && regionOf(blk || sec);
+      if (!where) {
+        if (!getRegion(layout(), region) && !t.closest("a[href], button, summary, input, select, textarea, label")) {
+          const b = doc.querySelector(".sap-ed-banner");
+          if (b) { delete b.dataset.nudge; void b.offsetWidth; b.dataset.nudge = ""; }
+        }
+        return;
+      }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (where !== region) switchRegion(where);
+      const fEl = t.closest("[data-sap-f]");
+      if (blk && fEl && blk.contains(fEl)) {
+        const id = blk.dataset.sapBlk;
+        const at = blockOf(id);
+        const item = fEl.dataset.sapI != null ? Number(fEl.dataset.sapI) : null;
+        const f = at && fieldOf(at.b.type, fEl.dataset.sapF, item);
+        if (f) {
+          select(id, { fromPreview: true });
+          if (f.type === "image") { chooseImage(id, item, f); return; }
+          const lang = f.i18n ? langOf() : "";
+          // A text that shows a fallback (the site's title) starts from it.
+          typeOver(fEl, f, id, item, lang, { x: e.clientX, y: e.clientY });
+          return;
+        }
+      }
+      select(blk ? blk.dataset.sapBlk : sec.dataset.sapSec, { fromPreview: true });
+    }
+
+    function onOver(e) {
+      if (!ui) return;
+      const t = e.target;
+      if (!t.closest || t.closest(".sap-ed-bar, .sap-ed-add")) return;
+      const sec = t.closest("[data-sap-sec]");
+      if (sec !== hoverSec) { hoverSec = sec; redraw(); }
+      const blk = t.closest("[data-sap-blk]");
+      if (blk && !typing) {
+        const r = blk.getBoundingClientRect();
+        place(ui.hover, { top: r.top - 4, left: r.left - 4, width: r.width + 8, height: r.height + 8 });
+        ui.hoverTag.textContent = typeLabel(blk);
+        show(ui.hover, blk.dataset.sapBlk !== selected);
+      } else show(ui.hover, false);
+    }
+
+    // switchRegion edits another part of the page, clicked in the preview
+    // (the header while editing the front page): the preview stays.
+    function switchRegion(name) {
+      region = name;
+      try { localStorage.setItem("sap-builder-region", region); } catch (_) {}
+      selected = null;
+      render();
+      banner();
+    }
+
+    function attach(d) {
+      doc = d;
+      typing = null;
+      hoverSec = null;
+      ui = null;
+      if (!doc.body || doc.documentElement.dataset.sapEd) return;
+      doc.documentElement.dataset.sapEd = "";
+      const css = doc.createElement("link");
+      css.rel = "stylesheet";
+      css.href = state.edit_css || "/static/page-edit.css";
+      doc.head.append(css);
+      doc.documentElement.classList.add("sap-ed-on");
+      // What each marked element is, for the stylesheet: images take a
+      // pointer, texts a caret.
+      for (const el of doc.querySelectorAll("[data-sap-f]")) {
+        const blk = el.closest("[data-sap-blk]");
+        const t = blk && types[blk.dataset.sapType];
+        const fs = el.dataset.sapI != null ? t?.items?.fields : t?.fields;
+        const f = fs?.find((x) => x.key === el.dataset.sapF);
+        if (f) el.dataset.sapKind = f.type === "image" ? "image" : "text";
+        else el.removeAttribute("data-sap-f");
+      }
+      ui = build();
+      doc.addEventListener("click", onClick, true);
+      doc.addEventListener("mouseover", onOver);
+      doc.documentElement.addEventListener("mouseleave", () => { hoverSec = null; show(ui.hover, false); redraw(); });
+      const win = doc.defaultView;
+      let raf = 0;
+      const later = () => { if (!raf) raf = win.requestAnimationFrame(() => { raf = 0; redraw(); }); };
+      win.addEventListener("scroll", later, { passive: true });
+      win.addEventListener("resize", later);
+      // Images and fonts still loading move things.
+      win.addEventListener("load", later);
+      banner();
+      redraw();
+      if (reveal) {
+        reveal = false;
+        // After the preview has restored its scroll position.
+        win.setTimeout(() => mark(true), 60);
+      }
+    }
+
+    // mark draws the selection after a change in the panel; scroll brings
+    // it into view.
+    function mark(scroll) {
+      if (!doc || !ui) return;
+      // Not on the page yet (just added): once the preview reloads.
+      if (scroll && !selectedEl()) reveal = true;
+      if (scroll) {
+        const el = selectedEl();
+        const r = el?.getBoundingClientRect();
+        if (r && (r.top < 0 || r.bottom > doc.documentElement.clientHeight)) el.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+      }
+      redraw();
+    }
+
+    return { attach, mark, banner: () => doc && banner() };
+  })();
+
   // ------------------------------------------------------------ preview --
-  let scheme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+  let scheme =document.documentElement.classList.contains("dark") ? "dark" : "light";
   let reloadScroll = null;
   const frameDoc = () => { try { return frame.contentDocument; } catch (_) { return null; } };
   const withScheme = (u) => { const x = new URL(u, location.origin); x.searchParams.set("scheme", scheme); return x.pathname + x.search; };
@@ -1476,6 +1972,7 @@ function init(root) {
     const doc = frameDoc();
     if (!doc) return;
     applyScheme();
+    visual.attach(doc);
     if (reloadScroll != null) { frame.contentWindow.scrollTo({ top: reloadScroll, behavior: "instant" }); reloadScroll = null; }
     doc.addEventListener("click", (e) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -1513,15 +2010,25 @@ function init(root) {
   let again = false;
   const unsaved = () => JSON.stringify(layout()) !== saved;
 
-  function schedule() {
+  // needReload: a change the preview does not show yet is waiting to be
+  // saved (not one typed over the preview itself).
+  let needReload = false;
+  function schedule(delay = 700, quietly = false) {
+    if (!quietly) needReload = true;
     clearTimeout(timer);
-    timer = setTimeout(() => { timer = 0; save(); }, 700);
+    timer = setTimeout(() => { timer = 0; save(); }, delay);
   }
 
   async function save() {
     clearTimeout(timer); timer = 0;
     if (inflight) { again = true; return inflight; }
-    if (!unsaved()) return;
+    if (!unsaved()) {
+      // Undone back to what is saved: the preview still shows the change.
+      if (needReload) { needReload = false; reloadFrame(); }
+      return;
+    }
+    const reload = needReload;
+    needReload = false;
     const sent = JSON.stringify(layout());
     const body = `{"layout":${sent}}`;
     setStatus(msg.msgSaving, "saving");
@@ -1533,6 +2040,7 @@ function init(root) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
+          needReload = needReload || reload;
           errors = (data.errors || []).map((e) => ({ ...parseErrorPath(e.field), message: e.message, field: e.field })).filter((e) => e.region);
           setStatus(fmt(msg.msgFailed, data.errors?.length ? msg.msgInvalid : data.message || res.status), "error");
           renderIntro();
@@ -1548,8 +2056,9 @@ function init(root) {
         if (publishBtn) publishBtn.disabled = false;
         if (discardBtn) discardBtn.disabled = false;
         if (hadErrors) { renderIntro(); renderStructure(); markFieldErrors(); }
-        reloadFrame();
+        if (reload) reloadFrame();
       } catch (_) {
+        needReload = needReload || reload;
         setStatus(msg.msgOffline, "error");
       } finally {
         inflight = null;

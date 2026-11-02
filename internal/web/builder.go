@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"html/template"
 	"io"
 	"net/http"
@@ -66,6 +67,18 @@ type SectionView struct {
 	// sections: it is rendered as the theme made it, without the
 	// builder's own section and columns.
 	Theme *ThemeSectionView
+	// edit: the page is the design preview, where the page builder edits
+	// the page on it (EdSection, BlockView.Ed).
+	edit bool
+}
+
+// EdSection marks the section for the visual editor in the design
+// preview (data-sap-sec); elsewhere it is empty.
+func (s *SectionView) EdSection() template.HTMLAttr {
+	if s == nil || !s.edit {
+		return ""
+	}
+	return template.HTMLAttr(` data-sap-sec="` + html.EscapeString(s.ID) + `"`)
 }
 
 // DOMID is the section's id attribute.
@@ -93,10 +106,26 @@ type BlockView struct {
 	// (theme_sections.go).
 	Section *ThemeSectionView
 	Page    *PageData
+	edit    bool // the design preview (SectionView.edit)
 }
 
 // On reports whether a bool setting is on.
 func (b *BlockView) On(key string) bool { return b.S[key] == "true" }
+
+// Editing reports whether the block is shown in the design preview, where
+// shared/block marks it for the visual editor.
+func (b *BlockView) Editing() bool { return b != nil && b.edit }
+
+// Ed marks the element that shows the block's setting key in the design
+// preview (data-sap-f), so that the page builder can edit it on the page:
+// <h2 class="…"{{.Ed "title"}}> (it brings its leading space). Elsewhere it
+// is empty, and the markup is what it would be without it.
+func (b *BlockView) Ed(key string) template.HTMLAttr {
+	if b == nil || !b.edit {
+		return ""
+	}
+	return template.HTMLAttr(` data-sap-f="` + html.EscapeString(key) + `"`)
+}
 
 // ItemView is one entry of a block, resolved like the block itself.
 type ItemView struct {
@@ -105,10 +134,21 @@ type ItemView struct {
 	Image *ImageView
 	Lines []string // a plan's features, one per line
 	Index int
+	src   int  // its position in the block's items (Index skips the empty ones)
+	edit  bool // the design preview (SectionView.edit)
 }
 
 // On reports whether a bool setting of the item is on.
 func (it *ItemView) On(key string) bool { return it.S[key] == "true" }
+
+// Ed marks the element that shows the item's setting key in the design
+// preview, like BlockView.Ed, with the item's position (data-sap-i).
+func (it *ItemView) Ed(key string) template.HTMLAttr {
+	if it == nil || !it.edit {
+		return ""
+	}
+	return template.HTMLAttr(` data-sap-f="` + html.EscapeString(key) + `" data-sap-i="` + strconv.Itoa(it.src) + `"`)
+}
 
 // itemKeys is the setting without which an item shows nothing and is left
 // out (an empty feature the editor just added).
@@ -267,8 +307,9 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 	lang := pd.Site.Lang
 	rv := &RegionView{Name: name, Page: pd, TopBar: name == "header" && r.TopBar != "off"}
 	global := name == "header" || name == "footer"
+	edit := pd.Site != nil && pd.Site.Custom != nil && pd.Site.Custom.Preview
 	for _, sec := range r.Sections {
-		sv := &SectionView{ID: sec.ID, Anchor: sec.Anchor, Layout: sec.Layout, Class: sectionClass(sec)}
+		sv := &SectionView{ID: sec.ID, Anchor: sec.Anchor, Layout: sec.Layout, Class: sectionClass(sec), edit: edit}
 		if a := sec.Style["animation"]; a != "" && a != motion.None {
 			if sec.Style["sequence"] == "on" {
 				sv.Stagger = a
@@ -285,6 +326,10 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 					rv.HasMeta = true
 				}
 				v := s.blockView(b, lang, pd, media)
+				v.edit = edit
+				for _, it := range v.Items {
+					it.edit = edit
+				}
 				if a := v.S["animation"]; a != "" && a != motion.None && sv.Stagger == "" {
 					v.Animate, rv.Animated = a, true
 				}
@@ -307,6 +352,9 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 			ts := v.Section
 			ts.Anchor, ts.Animate = sv.DOMID(), firstNonEmpty(sv.Animate, v.Animate)
 			ts.AnchorClass = sec.Anchor != ""
+			if edit {
+				ts.EdID = sec.ID
+			}
 			sv.Theme = ts
 		}
 		rv.Sections = append(rv.Sections, sv)
@@ -436,7 +484,7 @@ func (s *Server) itemViews(b *builder.Block, t *builder.Type, lang string, media
 	out := make([]*ItemView, 0, len(b.Items))
 	for i := range b.Items {
 		it := &b.Items[i]
-		v := &ItemView{S: map[string]string{}, Index: len(out)}
+		v := &ItemView{S: map[string]string{}, Index: len(out), src: i}
 		for fi := range t.Items.Fields {
 			f := &t.Items.Fields[fi]
 			v.S[f.Key] = it.Value(f, lang)
@@ -497,7 +545,7 @@ type builderData struct {
 
 // builderIcons are the editor's own icons; the block types add theirs.
 var builderIcons = []string{"grip-vertical", "copy", "trash-2", "plus", "chevron-up", "chevron-down", "sliders-horizontal",
-	"columns-2", "panel-top", "panel-bottom", "layout-template", "lock", "circle-alert", "languages", "code", "file-code"}
+	"columns-2", "panel-top", "panel-bottom", "layout-template", "lock", "circle-alert", "languages", "code", "file-code", "pencil", "image", "mouse-pointer-click"}
 
 // builderState is the JSON the editor starts from.
 type builderState struct {
@@ -532,6 +580,9 @@ type builderState struct {
 	// ThemeFront: the theme has its own front page template (onepage's
 	// sample sections), which the Front page region replaces.
 	ThemeFront bool `json:"theme_front"`
+	// EditCSS is the visual editor's stylesheet, which builder.js loads
+	// into the preview (ui/static/page-edit.css).
+	EditCSS string `json:"edit_css"`
 }
 
 type frontPreset struct {
@@ -585,7 +636,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	st := builderState{CSS: css.Draft, CSSPending: css.Pending(), CSSMax: customize.MaxCSS, ThemeFront: th.Has("front"), Theme: th.Slug, Layout: l, Presets: builder.PresetOrder,
+	st := builderState{CSS: css.Draft, CSSPending: css.Pending(), CSSMax: customize.MaxCSS, ThemeFront: th.Has("front"), EditCSS: s.assetURL("page-edit.css"), Theme: th.Slug, Layout: l, Presets: builder.PresetOrder,
 		Langs: []langOption{}, MainLang: s.mainLang(), Regions: s.builderRegions(ctx, r, th),
 		DesignURL: "/admin/appearance/themes/" + th.Slug + "/customize"}
 	st.Menus, st.Areas = []theme.MenuLocation{}, []theme.WidgetArea{}

@@ -43,10 +43,10 @@
   data-msg-section-settings="{{T "Section settings"}}" data-msg-layout="{{T "Columns"}}"
   data-msg-translations="{{T "Translations"}}" data-msg-translation-hint="{{T "Empty fields use the main text."}}"
   data-msg-no-image="{{T "No image"}}" data-msg-no-images="{{T "Upload images in Media to use them here."}}"
-  data-msg-default="{{T "Default: %s"}}" data-msg-url-hint="{{T "A page of this site such as /about, or a full address such as https://example.com"}}"
+  data-msg-default="{{T "Default: %s"}}" data-msg-link-hint="{{T "A page of this site such as /about, or a full address such as https://example.com"}}"
   data-msg-preset-1="{{T "One column"}}" data-msg-preset-1-1="{{T "Two equal columns"}}" data-msg-preset-2-1="{{T "Wide and narrow"}}"
   data-msg-preset-1-2="{{T "Narrow and wide"}}" data-msg-preset-1-1-1="{{T "Three equal columns"}}"
-  data-msg-bad-url="{{T "Use a page of this site such as /about, a full https:// address, #section or mailto:"}}" data-msg-bad-email="{{T "Enter an e-mail address."}}"
+  data-msg-bad-link="{{T "Use a page of this site such as /about, a full https:// address, #section or mailto:"}}" data-msg-bad-email="{{T "Enter an e-mail address."}}"
   data-msg-too-long="{{T "At most %d characters."}}"
   data-msg-move-up="{{T "Move up"}}" data-msg-move-down="{{T "Move down"}}"
   data-msg-presets-intro="{{T "Or start from a ready-made page:"}}" data-msg-preset-applied="{{T "Added: %s. Undo with Ctrl+Z."}}"
@@ -55,6 +55,10 @@
   data-msg-bad-anchor="{{T "Use lower-case letters, digits and hyphens, starting with a letter (not main, comments or sap-…)."}}"
   data-msg-anchor-taken="{{T "Another section of this page is already #%s."}}"
   data-msg-item-count="{{T "%d items"}}" data-msg-items="{{T "Items (%d of %d)"}}" data-msg-no-items="{{T "No items yet."}}" data-msg-max-items="{{T "At most %d."}}"
+  data-msg-new-section="{{T "New section"}}" data-msg-add-section-here="{{T "Add a section here"}}"
+  data-msg-fixed-title="{{T "“%s” shows the theme's fixed design."}}" data-msg-fixed-help="{{T "Make it editable to change it right here: click a text to type over it, an image to replace it, and move, copy or delete its sections."}}"
+  data-msg-make-editable="{{T "Make it editable"}}" data-msg-now-editable="{{T "Now you can edit it: click any text or image on the page."}}"
+  data-msg-edit-hint="{{T "Edit on the page: click a text to type over it, an image to replace it, or anywhere in a block to see its settings here."}}"
   data-msg-nf-title="{{T "Page not found"}}" data-msg-nf-text="{{T "The address may be mistyped, or the page was moved."}}" data-msg-nf-button="{{T "Back to the homepage"}}">
 
   <div class="bl-panel">
@@ -103,6 +107,10 @@
     </div>
   </section>
 </div>
+
+{{/* The media library, for an image clicked in the preview (builder.js). */}}
+<button type="button" id="bl-media-opener" data-media-picker="image" hidden></button>
+{{template "media-dialog" .}}
 
 <dialog id="bl-picker" class="dialog bl-picker" aria-labelledby="bl-picker-title" aria-describedby="bl-picker-where" data-overlay-close>
   <div>

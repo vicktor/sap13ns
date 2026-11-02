@@ -3263,7 +3263,7 @@ function setupEditor() {
   function applyLink() {
     const pop = pops.link;
     const href = safeURL(field(pop, "[data-pop-url]").value);
-    if (href === null) { const err = field(pop, "[data-pop-error]"); err.textContent = say("BadUrl", "Enter a valid web address."); err.hidden = false; return; }
+    if (href === null) { const err = field(pop, "[data-pop-error]"); err.textContent = say("BadLink", "Enter a valid web address."); err.hidden = false; return; }
     const text = field(pop, "[data-pop-text]").value.trim();
     closePop(false);
     restorePopRange();

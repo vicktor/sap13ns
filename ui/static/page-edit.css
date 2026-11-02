@@ -1,0 +1,58 @@
+/* The page builder's visual editor, inside the design preview
+   (ui/static/builder.js loads it into the preview's document). The server
+   marks what can be edited only in that preview: sections (data-sap-sec),
+   blocks (data-sap-blk) and their texts and images (data-sap-f). The
+   colours are fixed, not the theme's, so that the editor reads the same on
+   every theme and in light and dark mode. */
+
+.sap-ed-on [data-sap-blk] { position: relative; }
+.sap-ed-on [data-sap-f] { cursor: text; border-radius: 3px; transition: outline-color 0.12s, background-color 0.12s; outline: 2px dashed transparent; outline-offset: 3px; }
+.sap-ed-on [data-sap-f]:hover { outline-color: rgb(37 99 235 / 0.85); background-color: rgb(37 99 235 / 0.06); }
+.sap-ed-on [data-sap-f][data-sap-kind="image"] { cursor: pointer; }
+.sap-ed-on [data-sap-f][data-sap-kind="image"]:hover { outline-style: solid; }
+.sap-ed-on [data-sap-f][contenteditable] { outline: 2px solid rgb(37 99 235); background-color: rgb(37 99 235 / 0.06); cursor: text; }
+.sap-ed-on [data-sap-f][contenteditable]:focus { outline: 2px solid rgb(37 99 235); }
+.sap-ed-on a[data-sap-f], .sap-ed-on [data-sap-f] a { cursor: text; }
+
+/* An image block without its image (blocks/image). */
+.sap-ed-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; min-height: 10rem; margin: 0; border: 2px dashed rgb(37 99 235 / 0.5); border-radius: 10px; color: rgb(37 99 235); font: 500 14px/1.4 system-ui, sans-serif; }
+.sap-ed-placeholder svg { width: 28px; height: 28px; }
+
+/* The boxes drawn over the page (fixed: placed from the viewport, so a
+   theme that positions its body does not move them): the hovered block,
+   the selected one. */
+.sap-ed-box { position: fixed; z-index: 2147483000; pointer-events: none; border-radius: 6px; box-sizing: border-box; display: none; }
+.sap-ed-box[data-show] { display: block; }
+.sap-ed-hover { border: 1px dashed rgb(37 99 235 / 0.7); }
+.sap-ed-selected { border: 2px solid rgb(37 99 235); }
+.sap-ed-tag { position: absolute; left: -1px; top: -1.45rem; padding: 0.1rem 0.45rem; border-radius: 4px 4px 0 0; background: rgb(37 99 235); color: #fff; font: 600 11px/1.4 system-ui, sans-serif; white-space: nowrap; letter-spacing: 0.01em; }
+.sap-ed-section-box { border: 2px solid rgb(37 99 235 / 0.35); border-radius: 0; }
+
+/* The toolbar of the section under the pointer. */
+.sap-ed-bar { position: fixed; z-index: 2147483100; display: none; gap: 2px; padding: 3px; border-radius: 8px; background: #111827; box-shadow: 0 4px 16px rgb(0 0 0 / 0.3); font: 500 12px/1 system-ui, sans-serif; }
+.sap-ed-bar[data-show] { display: flex; }
+.sap-ed-bar button, .sap-ed-add { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; cursor: pointer; color: #f9fafb; font: 500 12px/1 system-ui, sans-serif; }
+.sap-ed-bar button { width: 28px; height: 28px; border-radius: 6px; }
+.sap-ed-bar button:hover:not(:disabled), .sap-ed-bar button:focus-visible { background: #374151; }
+.sap-ed-bar button:focus-visible, .sap-ed-add:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.sap-ed-bar button:disabled { opacity: 0.35; cursor: default; }
+.sap-ed-bar button[data-act="delete"]:hover:not(:disabled) { background: #b91c1c; }
+.sap-ed-bar .sap-ed-label { padding: 0 0.5rem 0 0.4rem; color: #d1d5db; display: inline-flex; align-items: center; white-space: nowrap; }
+.sap-ed-bar svg, .sap-ed-add svg, .sap-ed-banner svg { width: 15px; height: 15px; flex: none; }
+
+/* "Add a section here", between two sections. */
+.sap-ed-add { position: fixed; z-index: 2147483100; display: none; height: 28px; padding: 0 0.75rem; border-radius: 999px; background: rgb(37 99 235); box-shadow: 0 4px 14px rgb(37 99 235 / 0.35); transform: translate(-50%, -50%); }
+.sap-ed-add[data-show] { display: inline-flex; }
+.sap-ed-add:hover { background: rgb(29 78 216); }
+
+/* A part that is still the theme's fixed design: how to make it editable. */
+.sap-ed-banner { position: fixed; z-index: 2147483200; left: 50%; top: 4.75rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; max-width: min(40rem, calc(100vw - 2rem)); padding: 0.65rem 0.65rem 0.65rem 1rem; border-radius: 12px; background: #111827; color: #f9fafb; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); font: 400 13px/1.45 system-ui, sans-serif; }
+.sap-ed-banner p { margin: 0; }
+.sap-ed-banner strong { display: block; font-weight: 600; }
+.sap-ed-banner button { all: unset; box-sizing: border-box; flex: none; display: inline-flex; align-items: center; gap: 0.4rem; height: 34px; padding: 0 0.9rem; border-radius: 8px; background: rgb(37 99 235); color: #fff; font: 600 13px/1 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+.sap-ed-banner button:hover { background: rgb(29 78 216); }
+.sap-ed-banner button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.sap-ed-banner[data-nudge] { animation: sap-ed-nudge 0.5s ease; }
+@keyframes sap-ed-nudge { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 8px)); } 75% { transform: translateX(calc(-50% + 8px)); } }
+@media (prefers-reduced-motion: reduce) { .sap-ed-banner[data-nudge] { animation: none; } .sap-ed-on [data-sap-f] { transition: none; } }
+@media (max-width: 560px) { .sap-ed-banner { flex-direction: column; align-items: stretch; text-align: left; } }

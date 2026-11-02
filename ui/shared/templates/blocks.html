@@ -35,7 +35,7 @@
 {{/* shared/blocks-sections: the sections of a region. Data: *RegionView. */}}
 {{define "shared/blocks-sections"}}
 {{range .Sections}}{{if .Theme}}{{template "shared/theme-section" .Theme}}{{else}}{{$stagger := .Stagger}}
-<div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}"{{with .Animate}} data-sap-animate="{{.}}"{{end}}>
+<div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}"{{with .Animate}} data-sap-animate="{{.}}"{{end}}{{.EdSection}}>
   <div class="sap-section-inner sap-cols sap-cols-{{.Layout}}">
     {{range .Columns}}<div class="sap-col"{{with $stagger}} data-sap-stagger="{{.}}"{{end}}>{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
   </div>
@@ -48,7 +48,7 @@
      and its animation. Data: *ThemeSectionView. Themes render their front
      page with {{range .Site.FrontSections $}}{{template "shared/theme-section" .}}{{end}}. */}}
 {{define "shared/theme-section"}}
-<div class="sap-theme-section{{if .AnchorClass}} sap-anchor{{end}}"{{with .Anchor}} id="{{.}}"{{end}}{{with .Animate}} data-sap-animate="{{.}}"{{end}}>{{template "theme/section" .}}</div>
+<div class="sap-theme-section{{if .AnchorClass}} sap-anchor{{end}}"{{with .Anchor}} id="{{.}}"{{end}}{{with .Animate}} data-sap-animate="{{.}}"{{end}}{{with .EdID}} data-sap-sec="{{.}}"{{end}}>{{template "theme/section" .}}</div>
 {{end}}
 
 {{/* theme/section: a theme section's own template, section/<id>. The
@@ -57,7 +57,7 @@
 
 {{/* shared/block: one block, in an element that plays its animation when
      it has one (ui/static/motion.css). Data: *BlockView. */}}
-{{define "shared/block"}}{{if .Animate}}<div class="sap-motion-block" data-sap-animate="{{.Animate}}">{{template "shared/block-body" .}}</div>{{else}}{{template "shared/block-body" .}}{{end}}{{end}}
+{{define "shared/block"}}{{if .Editing}}<div class="sap-ed-block" data-sap-blk="{{.ID}}" data-sap-type="{{.Type}}">{{end}}{{if .Animate}}<div class="sap-motion-block" data-sap-animate="{{.Animate}}">{{template "shared/block-body" .}}</div>{{else}}{{template "shared/block-body" .}}{{end}}{{if .Editing}}</div>{{end}}{{end}}
 
 {{/* shared/block-body: one block, by type. Data: *BlockView (.Page is the PageData). */}}
 {{define "shared/block-body"}}

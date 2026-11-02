@@ -81,6 +81,40 @@ const testLayout = `{"layout": {
   }
 }}`
 
+// The design preview marks what the visual editor edits on the page (its
+// sections, blocks, texts and images, items by their position); what
+// visitors get, once published, has none of it.
+func TestBuilderPreviewMarksForVisualEditing(t *testing.T) {
+	e := newCustomEnv(t)
+	const l = `{"layout": {"pages": {"home": {"sections": [{"id": "s1", "layout": "1", "columns": [[
+  {"id": "hero", "type": "hero", "settings": {"title": "Marked title", "button_label": "Go", "button_url": "/about"}},
+  {"id": "txt", "type": "rich-text", "settings": {"text": "Some **text**"}},
+  {"id": "img", "type": "image"},
+  {"id": "st", "type": "stats", "items": [{"settings": {}}, {"settings": {"value": "42", "label": "Answers"}}]}
+]]}]}}}}`
+	if rec, res := e.layout(l); rec.Code != 200 || !res.OK {
+		t.Fatalf("draft: %d %s", rec.Code, rec.Body)
+	}
+	body := e.get("/?customize=draft", e.admin).Body.String()
+	for _, want := range []string{`data-sap-sec="s1"`, `data-sap-blk="hero" data-sap-type="hero"`, `class="sap-hero-title" data-sap-f="title">Marked title`,
+		`data-sap-f="button_label">Go</a>`, `prose sap-align-left sap-text-normal" data-sap-f="text">`, `class="sap-b sap-b-image sap-ed-placeholder" data-sap-f="image"`,
+		// The empty first figure is left out; the second keeps its position.
+		`class="sap-stat-value" data-sap-f="value" data-sap-i="1">42</dd>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("preview lacks %q", want)
+		}
+	}
+	if rec := e.builderPost("/publish"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", rec.Code)
+	}
+	for _, who := range []*http.Cookie{nil, e.admin} {
+		body := e.get("/", who).Body.String()
+		if !strings.Contains(body, "Marked title") || strings.Contains(body, "data-sap-") || strings.Contains(body, "sap-ed-") {
+			t.Errorf("published page (signed in %v) has the editor's marks or lacks the layout", who != nil)
+		}
+	}
+}
+
 // A draft layout is only rendered in the administrator's preview: visitors
 // keep the theme's templates, and the page cache never holds the draft.
 func TestBuilderDraftNeverReachesVisitors(t *testing.T) {
@@ -107,7 +141,7 @@ func TestBuilderDraftNeverReachesVisitors(t *testing.T) {
 		}
 	}
 	// The style tab shares the draft: it offers to publish it.
-	if cz := e.get("/admin/appearance/themes/"+e.slug+"/customize", e.admin).Body.String(); !strings.Contains(cz, `id="cz-publish">`) || !strings.Contains(cz, "Estructura") {
+	if cz := e.get("/admin/appearance/themes/"+e.slug+"/customize", e.admin).Body.String(); !strings.Contains(cz, `id="cz-publish">`) || !strings.Contains(cz, "Editar la página") {
 		t.Error("the style tab does not offer to publish the structure's draft")
 	}
 	if strings.Contains(body, "<script>alert(1)") || strings.Contains(body, `class="globalnav"`) {

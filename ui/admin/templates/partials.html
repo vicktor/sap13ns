@@ -333,8 +333,8 @@
   </div>
 </div>
 <nav class="mb-4 flex w-fit gap-1 rounded-lg bg-muted p-1" aria-label="{{T "Design"}}">
+  <a class="btn" data-size="sm" data-variant="{{if $cz}}ghost{{else}}secondary{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/builder"{{if not $cz}} aria-current="page"{{end}} data-design-tab>{{icon "mouse-pointer-click"}}{{T "Edit the page"}}</a>
   <a class="btn" data-size="sm" data-variant="{{if $cz}}secondary{{else}}ghost{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/customize"{{if $cz}} aria-current="page"{{end}} data-design-tab>{{icon "paintbrush"}}{{T "Style and texts"}}</a>
-  <a class="btn" data-size="sm" data-variant="{{if $cz}}ghost{{else}}secondary{{end}}" href="/admin/appearance/themes/{{$th.Slug}}/builder"{{if not $cz}} aria-current="page"{{end}} data-design-tab>{{icon "layout-template"}}{{T "Structure"}}</a>
   {{if .AI}}<button type="button" class="btn" data-size="sm" data-variant="ghost" data-design-ai-toggle aria-expanded="false" aria-controls="design-ai">{{icon "wand-sparkles"}}{{T "Design with AI"}}</button>{{end}}
 </nav>
 {{with .AI}}

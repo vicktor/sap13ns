@@ -35,6 +35,8 @@ type ThemeSectionView struct {
 	// animation.
 	AnchorClass bool
 	Animate     string
+	// EdID is the builder section it is, in the design preview (data-sap-sec).
+	EdID string
 
 	def   *theme.Section
 	block *builder.Block // nil on the theme's own front page
