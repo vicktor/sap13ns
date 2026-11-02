@@ -5,6 +5,19 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.18.0 — 2026-11-02
+
+Edit the page on the page itself.
+
+- **Design → Edit the page** is where Design now opens, and its preview is the editor:
+  - **Texts:** click one and type over it: titles, paragraphs, buttons, figures, quotes, plans and questions. Paragraphs keep their bold, lists and links. Enter or a click elsewhere ends it, Escape puts back what it said, and it is saved to the draft as you type.
+  - **Images:** click one to choose another from the media library; an image block without one shows where to click.
+  - **Blocks:** a click anywhere in one shows its settings beside the page, which follow what you type.
+  - **Sections:** the one under the pointer has buttons to move it up or down, add a block, open its settings, duplicate or delete it, and **Add a section here** below it. A moved or copied section stays in view.
+  - **A part still drawn by the theme's fixed template** (the built-in themes' pages) says so on the preview, with **Make it editable** to turn it into sections in one click.
+- Published pages are unchanged: the editor's marks are only in the draft preview.
+- **Fixed:** some help texts of the page builder and the post editor were shown percent-encoded (`Una%20p%c3%a1gina…`).
+
 ## v0.17.1 — 2026-10-28
 
 - **Lockouts stay strict.** Failed sign-ins are now forgotten only after a day without failures, so an account that was locked is locked again by its next wrong password instead of getting a fresh set of attempts.
