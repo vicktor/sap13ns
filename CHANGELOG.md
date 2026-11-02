@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.18.3 — 2026-11-02
+
+- **Fixed:** a site with an uploaded theme answered "theme error" on every page once its plan left out the "Powered by sap13ns" credit, because uploaded themes are checked for the credit when they render. That check now stands aside on such a plan.
+
 ## v0.18.2 — 2026-11-02
 
 - **The credit is set per plan, in the admin.** A super administrator now chooses which paid plans leave out the "Powered by sap13ns" credit, with **Leave it out** / **Show it** in **Network → Plans**, instead of `SAP13NS_PAID_PLANS_HIDE_CREDIT`, which is gone. Every plan keeps the credit until it is changed there, a change shows within a minute, and a site whose subscription lapses shows it again. A network that had set the variable sets its plans there.

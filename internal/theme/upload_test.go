@@ -117,6 +117,9 @@ func TestRenderBounds(t *testing.T) {
 	if out, err := render(ctx, "nocredit"); !errors.Is(err, ErrNoCredit) || out != "" {
 		t.Fatalf("no credit: %q %v", out, err)
 	}
+	if out, err := render(WithoutCredit(ctx), "nocredit"); err != nil || out != "hello" {
+		t.Fatalf("no credit on a plan that leaves it out: %q %v", out, err)
+	}
 	if out, err := render(ctx, "huge"); !errors.Is(err, ErrRenderLimit) || out != "" {
 		t.Fatalf("over the output cap: %d bytes, %v", len(out), err)
 	}

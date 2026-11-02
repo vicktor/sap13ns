@@ -555,8 +555,17 @@ var (
 )
 
 // CreditMarker is the link that shared/footer-meta renders: every page of
-// an uploaded theme must contain it.
+// an uploaded theme must contain it, unless the site leaves it out.
 const CreditMarker = `<a href="https://sap13ns.site">sap13ns</a>`
+
+type noCreditKey struct{}
+
+// WithoutCredit marks ctx for a site whose plan leaves out the credit
+// (internal/web/credit.go): shared/footer-meta renders without it, so its
+// pages are not checked for it.
+func WithoutCredit(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noCreditKey{}, true)
+}
 
 // Render executes a page template ("home", "single", ...) in a language into
 // w. Output is buffered so that a template error never produces a
@@ -627,7 +636,7 @@ func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang strin
 		}
 		return err
 	}
-	if !bytes.Contains(lw.buf.Bytes(), []byte(CreditMarker)) {
+	if hidden, _ := ctx.Value(noCreditKey{}).(bool); !hidden && !bytes.Contains(lw.buf.Bytes(), []byte(CreditMarker)) {
 		return ErrNoCredit
 	}
 	out := lw.buf.Bytes()

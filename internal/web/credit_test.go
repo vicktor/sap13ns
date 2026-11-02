@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -57,5 +59,25 @@ func TestCreditFollowsThePlan(t *testing.T) {
 	e.s.limits = creditLimits{hide: true}
 	if !strings.Contains(home(), credit) {
 		t.Error("the plan's answer was not cached")
+	}
+}
+
+// An uploaded theme is checked for the credit on every page; on a plan
+// that leaves it out, its pages are still served.
+func TestCreditUploadedTheme(t *testing.T) {
+	e := newPluginEnv(t)
+	const credit = `<a href="https://sap13ns.site">sap13ns</a>`
+	if rec := e.uploadTheme("tiny.zip", zipOf(t, "tiny", tinyTheme("tiny-one"), nil)); rec.Code != http.StatusSeeOther {
+		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := e.admin("/admin/appearance/themes/tiny/activate", url.Values{}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("activate: %d", rec.Code)
+	}
+	e.s.limits = creditLimits{planLimits: planLimits{plan: AIPlan{Plan: "P", Paid: true}}, hide: true}
+	for _, path := range []string{"/", "/no-such-page"} {
+		rec := e.do("GET", path, nil, "")
+		if body := rec.Body.String(); rec.Code >= 500 || strings.Contains(body, credit) || !strings.Contains(body, "tiny-one") {
+			t.Errorf("%s: %d, credit shown or not the uploaded theme\n%s", path, rec.Code, body)
+		}
 	}
 }
