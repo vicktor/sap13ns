@@ -176,10 +176,32 @@ type Plan struct {
 	// plans only).
 	AIRequestsPerDay int `db:"ai_requests_per_day"`
 	AIImagesPerDay   int `db:"ai_images_per_day"`
+	// HideCredit: a paid plan's sites leave out the "Powered by sap13ns"
+	// credit while their subscription holds them (SetPlanHideCredit).
+	HideCredit bool `db:"hide_credit"`
 }
 
 const planCols = `slug, name, paid, hand_approved, commercial, sites_per_grant, storage_bytes, custom_domains,
-	plugin_uploads, theme_uploads, position, ai_requests_per_day, ai_images_per_day`
+	plugin_uploads, theme_uploads, position, ai_requests_per_day, ai_images_per_day, hide_credit`
+
+// ErrFreePlanCredit: only a paid plan may leave out the credit.
+var ErrFreePlanCredit = fmt.Errorf("%w: only a paid plan can leave out the credit", ErrState)
+
+// SetPlanHideCredit turns the credit of a paid plan's sites off (hide) or
+// back on. The sites see it within a minute (web.Server caches the plan).
+func (n *Network) SetPlanHideCredit(ctx context.Context, slug string, hide bool) error {
+	tag, err := n.db.Exec(ctx, `UPDATE plans SET hide_credit = $2 WHERE slug = $1 AND (paid OR NOT $2)`, slug, hide)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		if _, err := n.Plan(ctx, slug); err != nil {
+			return err
+		}
+		return ErrFreePlanCredit
+	}
+	return nil
+}
 
 func (n *Network) Plans(ctx context.Context) ([]Plan, error) {
 	rows, err := n.db.Query(ctx, `SELECT `+planCols+` FROM plans ORDER BY position, slug`)

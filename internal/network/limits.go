@@ -166,6 +166,17 @@ func (h siteHooks) AIPlan(ctx context.Context) (web.AIPlan, error) {
 	return out, nil
 }
 
+// HideCredit reports whether the site's pages leave out the "Powered by
+// sap13ns" credit: a paid plan that does, while its subscription holds
+// the site (plan clears Paid when it does not).
+func (h siteHooks) HideCredit(ctx context.Context) (bool, error) {
+	p, err := h.plan(ctx)
+	if err != nil {
+		return false, err
+	}
+	return p.Paid && p.HideCredit, nil
+}
+
 func (h siteHooks) NetworkAdmin(ctx context.Context, accountID int64) (bool, error) {
 	return h.r.net.IsNetworkAdmin(ctx, accountID)
 }

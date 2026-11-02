@@ -77,7 +77,7 @@ func (h portalHooks) Sites(ctx context.Context, q web.NetSiteQuery) ([]web.NetSi
 func (h portalHooks) netPlan(p *Plan) *web.NetPlan {
 	v := &web.NetPlan{Slug: p.Slug, Name: p.Name, Paid: p.Paid, HandApproved: p.HandApproved, Commercial: p.Commercial,
 		SitesPerGrant: p.SitesPerGrant, StorageBytes: p.StorageBytes, CustomDomains: p.CustomDomains,
-		PluginUploads: p.PluginUploads, ThemeUploads: p.ThemeUploads}
+		PluginUploads: p.PluginUploads, ThemeUploads: p.ThemeUploads, HideCredit: p.Paid && p.HideCredit}
 	if h.r.cfg.NetworkAI.Enabled() && p.Paid {
 		v.AIRequestsPerDay, v.AIImagesPerDay = p.AIRequestsPerDay, p.AIImagesPerDay
 	}
@@ -230,6 +230,10 @@ func (h portalHooks) RemoveNetworkAdmin(ctx context.Context, accountID int64) er
 		return errors.Join(web.ErrLastNetworkAdmin, err)
 	}
 	return err
+}
+
+func (h portalHooks) SetPlanHideCredit(ctx context.Context, slug string, hide bool) error {
+	return webErr(h.r.net.SetPlanHideCredit(ctx, slug, hide))
 }
 
 func (h portalHooks) Plans(ctx context.Context) ([]web.NetPlan, error) {

@@ -2,11 +2,12 @@
 {{define "content"}}
 {{$d := .D}}
 <div class="page-header">
-  <div><h1>{{T "Plans"}}</h1><p>{{T "What the sites of each plan may use. Plans are changed in the database."}}</p></div>
+  <div><h1>{{T "Plans"}}</h1><p>{{T "What the sites of each plan may use. Plans are changed in the database."}}</p>
+    <p>{{T "A super administrator may let a paid plan leave out the “Powered by sap13ns” credit: its sites do while their subscription is paid, and show it again when it is not. Under the CPAL-1.0 licence only sap13ns's own network, or one it licenses commercially, may do so."}}</p></div>
 </div>
 <div class="card table-wrap">
   <table class="table">
-    <thead><tr><th>{{T "Plan"}}</th><th>{{T "Price"}}</th><th class="text-right">{{T "Storage"}}</th><th class="max-sm:hidden text-right">{{T "Custom domains"}}</th><th class="max-md:hidden">{{T "Own plugins and themes"}}</th><th class="max-lg:hidden text-right">{{T "Sites per subscription"}}</th><th class="max-lg:hidden">{{T "New sites"}}</th></tr></thead>
+    <thead><tr><th>{{T "Plan"}}</th><th>{{T "Price"}}</th><th class="text-right">{{T "Storage"}}</th><th class="max-sm:hidden text-right">{{T "Custom domains"}}</th><th class="max-md:hidden">{{T "Own plugins and themes"}}</th><th class="max-lg:hidden text-right">{{T "Sites per subscription"}}</th><th class="max-lg:hidden">{{T "New sites"}}</th><th>{{T "“Powered by” credit"}}</th></tr></thead>
     <tbody>
       {{range $d.Plans}}
       <tr>
@@ -17,6 +18,15 @@
         <td class="max-md:hidden">{{if and .PluginUploads .ThemeUploads}}{{T "Plugins and themes"}}{{else if .PluginUploads}}{{T "Plugins"}}{{else if .ThemeUploads}}{{T "Themes"}}{{else}}<span class="muted">{{T "None"}}</span>{{end}}</td>
         <td class="max-lg:hidden text-right tabular">{{.SitesPerGrant}}</td>
         <td class="max-lg:hidden">{{if .HandApproved}}{{T "Approved by hand"}}{{else}}{{T "Open at once"}}{{end}}</td>
+        <td>
+          {{if and $d.Super .Paid}}
+          <form method="post" action="/admin/network/plans/{{.Slug}}/credit">{{$.CSRFField}}
+            <input type="hidden" name="hide" value="{{if .HideCredit}}0{{else}}1{{end}}">
+            <button class="btn" type="submit" data-size="sm" data-variant="outline" aria-label="{{if .HideCredit}}{{T "%s: show the credit again" .Name}}{{else}}{{T "%s: leave out the credit" .Name}}{{end}}"{{if not .HideCredit}} data-confirm="{{T "Leave out the “Powered by sap13ns” credit on the sites of %s while their subscription is paid?" .Name}}"{{end}}>{{if .HideCredit}}{{icon "eye"}}{{T "Show it"}}{{else}}{{icon "eye-off"}}{{T "Leave it out"}}{{end}}</button>
+          </form>
+          {{end}}
+          <div class="row-sub muted">{{if .HideCredit}}{{T "Left out"}}{{else}}{{T "Shown"}}{{end}}</div>
+        </td>
       </tr>
       {{end}}
     </tbody>

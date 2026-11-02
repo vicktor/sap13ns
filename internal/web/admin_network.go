@@ -53,6 +53,10 @@ type PortalAdmin interface {
 	// nor the last super admin (ErrLastSuperAdmin).
 	RemoveNetworkAdmin(ctx context.Context, accountID int64) error
 	Plans(ctx context.Context) ([]NetPlan, error)
+	// SetPlanHideCredit makes a paid plan's sites leave out the "Powered
+	// by sap13ns" credit, or show it again (ErrNetworkState for a free
+	// plan).
+	SetPlanHideCredit(ctx context.Context, slug string, hide bool) error
 	// AccountSites lists the served sites an account is a member of, with
 	// its role on each.
 	AccountSites(ctx context.Context, accountID int64) ([]NetSite, error)
@@ -161,6 +165,8 @@ type NetPlan struct {
 	// The network's AI each day (0 when the network has none).
 	AIRequestsPerDay int
 	AIImagesPerDay   int
+	// HideCredit: a paid plan whose sites leave out the credit (credit.go).
+	HideCredit bool
 }
 
 type NetAdmin struct {
@@ -657,7 +663,38 @@ func (s *Server) adminNetPlans(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.renderAdmin(w, r, "network_plans", s.tu(r, "Plans"), "net-plans", map[string]any{"Plans": plans})
+	super, err := s.portal.IsSuperAdmin(r.Context(), uid(r))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderAdmin(w, r, "network_plans", s.tu(r, "Plans"), "net-plans", map[string]any{"Plans": plans, "Super": super})
+}
+
+// adminNetPlanCredit turns the "Powered by sap13ns" credit of a paid
+// plan's sites off or back on: super admins only.
+func (s *Server) adminNetPlanCredit(w http.ResponseWriter, r *http.Request) {
+	if !s.superAdmin(w, r) {
+		return
+	}
+	slug, hide := r.PathValue("slug"), r.FormValue("hide") == "1"
+	switch err := s.portal.SetPlanHideCredit(r.Context(), slug, hide); {
+	case errors.Is(err, store.ErrNotFound):
+		s.adminError(w, r, http.StatusNotFound, s.tu(r, "Not found."))
+		return
+	case errors.Is(err, ErrNetworkState):
+		s.redirect(w, r, "/admin/network/plans", "error", s.tu(r, "Only a paid plan can leave out the credit."))
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	}
+	s.audit(r, uid(r), "network.plan_credit", slug, map[string]string{"hide": strconv.FormatBool(hide)})
+	msg := s.tu(r, "The sites of this plan show the “Powered by sap13ns” credit again.")
+	if hide {
+		msg = s.tu(r, "The sites of this plan leave out the “Powered by sap13ns” credit within a minute, while their subscription is paid.")
+	}
+	s.redirect(w, r, "/admin/network/plans", "success", msg)
 }
 
 // ------------------------------------------------------------ my sites --

@@ -144,7 +144,6 @@ These variables are read only when `SAP13NS_MULTISITE=true`. The variables of a 
 | `SAP13NS_STRIPE_*`, `SAP13NS_BILLING_GRACE_DAYS` | | Billing: see [BILLING.md](BILLING.md#6-environment-variables) |
 | `SAP13NS_NETWORK_AI_PROVIDER`, `_API_KEY`, `_BASE_URL`, `_TEXT_MODEL` | off | The AI the paid plans include: `anthropic`, `openai`, `gemini` or `alibaba`, its key, address and text model. See [AI on the plans](#ai-on-the-plans). |
 | `SAP13NS_NETWORK_AI_IMAGE_PROVIDER`, `_IMAGE_API_KEY`, `_IMAGE_BASE_URL`, `_IMAGE_MODEL` | the text provider | Images from another provider (`openai`, `gemini` or `alibaba` for Qwen-Image) |
-| `SAP13NS_PAID_PLANS_HIDE_CREDIT` | `false` | `true` leaves the "Powered by sap13ns" credit out of the sites of a paid plan in good standing; a held site (unpaid, cancelled) shows it again. **Only for the licensor's network, or one it licenses commercially:** under CPAL-1.0 (Exhibit B) every other operator must keep the credit. |
 
 The service refuses to start when a value is invalid: a host name with upper-case letters or a port, a private or loopback address in `SAP13NS_DOMAIN_ADDRESSES`, or `autocert` without a certificate or with a Unix-socket listener.
 
@@ -242,6 +241,8 @@ A site whose renewal failed stays online for `SAP13NS_BILLING_GRACE_DAYS`, then 
 - **Storage** counts uploads, their image variants, users' photos and Gravatar copies, plugin packages and uploaded themes, but not exports waiting for their download nor backups, which are bounded on their own ([Exporting one site](#exporting-one-site), [Backups](#where-they-are-and-how-long-they-stay)). Each upload reserves its size with one atomic update before anything is written, so concurrent uploads never go over the limit. An upload that does not fit is refused with 413. The daily measurement replaces the count with the real size of the site's schema and directory.
 - **Custom domains** count verified and unverified ones.
 - **A downgrade** only blocks additions: files, domains, plugins and themes over the new limits stay. A site moved to a plan without theme uploads keeps its uploaded themes, and can delete them, but cannot upload more.
+
+**The "Powered by sap13ns" credit.** Every site shows it. A super administrator may let a paid plan leave it out, with **Leave it out** in its row of **Network → Plans** (`hide_credit` of `network.plans`; **Show it** puts it back). The plan's sites then leave it out while their subscription is paid, within a minute, and a held site shows it again. Free plans, single-site installs and the portal always keep it, and the network audit log records each change. **Only the licensor's network, or one it licenses commercially, may do this:** under CPAL-1.0 (Exhibit B) every other operator must keep the credit.
 
 ### AI on the plans
 

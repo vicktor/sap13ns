@@ -50,6 +50,7 @@ type Server struct {
 	backups   backupJob
 	converted convertedThemes // themes converted from another CMS, awaiting confirmation (admin_theme_import.go)
 	ai        aiState
+	credit    creditCache // whether the plan leaves out the credit (credit.go)
 	cfg       *config.Config
 	log       *slog.Logger
 	store     *store.Store
