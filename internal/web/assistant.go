@@ -23,6 +23,7 @@ import (
 	"sap13ns/internal/auth"
 	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
+	"sap13ns/internal/theme"
 )
 
 // The site assistant: visitors ask questions in a chat widget (or on /ask
@@ -183,10 +184,13 @@ func (v *SiteView) Assistant() *AssistantView {
 	if v.server == nil {
 		return nil
 	}
-	return v.server.assistantView(v.Lang)
+	return v.server.assistantView(v.theme, v.Lang)
 }
 
-func (s *Server) assistantView(lang string) *AssistantView {
+// assistantView is the widget in lang. The default name and greeting come
+// from th's own catalog when it has them (a theme in a language the server
+// has no catalog for, such as Catalan), else from the server's.
+func (s *Server) assistantView(th *theme.Theme, lang string) *AssistantView {
 	as, on := s.assistantOn(context.Background())
 	if !on {
 		return nil
@@ -194,16 +198,27 @@ func (s *Server) assistantView(lang string) *AssistantView {
 	txt := as.In(lang)
 	name := as.Name
 	if name == "" {
-		name = s.i18n.T(lang, "Site assistant")
+		name = s.themeT(th, lang, "Site assistant")
 	}
 	greeting := txt.Greeting
 	if greeting == "" {
-		greeting = s.i18n.T(lang, "Hi! Ask me anything about this site and I will answer from its pages.")
+		greeting = s.themeT(th, lang, "Hi! Ask me anything about this site and I will answer from its pages.")
 	}
 	position, offset := bubblePlace(as)
 	return &AssistantView{Name: name, Greeting: greeting, Suggestions: txt.Suggestions, Lang: lang,
 		Endpoint: "/api/assistant", AskURL: s.langPath(lang, "/ask"),
 		Position: position, Offset: offset, Label: txt.BubbleLabel}
+}
+
+// themeT translates key into lang as the theme's templates do: th's own
+// catalog first, then the server's.
+func (s *Server) themeT(th *theme.Theme, lang, key string) string {
+	if th != nil {
+		if v, ok := th.Text(lang, key); ok {
+			return v
+		}
+	}
+	return s.i18n.T(lang, key)
 }
 
 // ------------------------------------------------------------- answering --
@@ -429,7 +444,7 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	view := s.assistantView(s.reqLang(r))
+	view := s.assistantView(th, s.reqLang(r))
 	if view == nil {
 		s.notFound(w, r)
 		return

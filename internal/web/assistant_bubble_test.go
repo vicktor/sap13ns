@@ -307,3 +307,33 @@ func TestChatStateInAdmin(t *testing.T) {
 		t.Error("the settings menu does not say AI")
 	}
 }
+
+// A theme that ships a catalog for a language the server has none for
+// (Catalan) names and greets in it; another language keeps the server's.
+func TestAssistantTextsFromTheTheme(t *testing.T) {
+	e := newCustomEnv(t)
+	e.setLangs("en", "es", "ca")
+	e.setChat(true, true, nil)
+	files := tinyTheme("tiny")
+	files["i18n/ca.json"] = `{"Site assistant": "Assistent del lloc", "Hi! Ask me anything about this site and I will answer from its pages.": "Hola! Pregunta'm el que vulguis."}`
+	if _, err := install(e.s.themes, zipOf(t, "tiny", files, nil), nil); err != nil {
+		t.Fatal(err)
+	}
+	th, ok := e.s.themes.Get("tiny")
+	if !ok {
+		t.Fatal("tiny not installed")
+	}
+	if v := e.s.assistantView(th, "ca"); v == nil || v.Name != "Assistent del lloc" || v.Greeting != "Hola! Pregunta'm el que vulguis." {
+		t.Errorf("Catalan: %+v", v)
+	}
+	if v := e.s.assistantView(th, "es"); v == nil || v.Name != "Asistente del sitio" {
+		t.Errorf("Spanish: %+v", v)
+	}
+	e.setChat(true, true, func(as *store.AssistantSettings) {
+		as.Name = "Socrates"
+		as.Text = map[string]store.AssistantText{"ca": {Greeting: "Bon dia!"}}
+	})
+	if v := e.s.assistantView(th, "ca"); v == nil || v.Name != "Socrates" || v.Greeting != "Bon dia!" {
+		t.Errorf("the site's own texts: %+v", v)
+	}
+}

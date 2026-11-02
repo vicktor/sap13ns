@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.18.4 — 2026-11-02
+
+- **Fixed:** the site assistant's default name and greeting ("Site assistant", "Hi! Ask me anything…") stayed in English in a language only the theme translates, such as Catalan with Socratex, while the rest of the chat window followed the theme. They now come from the theme's catalog first, like the window's other texts.
+
 ## v0.18.3 — 2026-11-02
 
 - **Fixed:** a site with an uploaded theme answered "theme error" on every page once its plan left out the "Powered by sap13ns" credit, because uploaded themes are checked for the credit when they render. That check now stands aside on such a plan.
