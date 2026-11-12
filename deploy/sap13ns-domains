@@ -100,15 +100,21 @@ valid() {
 # ours: this helper issued the certificate named $1.
 ours() { [ -f "$STATE/certs/$1" ]; }
 
-# The names that are never served here, one pattern per line: NAME, *.NAME
-# (its subdomains) or .NAME (it and its subdomains). They are the names of
+# The names that are never served here, one pattern per line, as nginx
+# writes them: NAME, *.NAME (its subdomains), .NAME (it and its
+# subdomains), NAME.* (any ending) or ~REGEX. They are the server names of
 # the other nginx sites, the names in every certificate this helper did
-# not issue, and PROTECT.
+# not issue, and PROTECT. The server names come from nginx itself
+# (nginx -T: the configuration it would run, includes expanded), without
+# the blocks this helper wrote.
 others() {
+    conf=$(nginx -T 2>/dev/null) || return 1
     {
-        for f in "$NGINX"/sites-enabled/* "$NGINX"/conf.d/*.conf; do
-            [ -f "$f" ] && [ "$f" != "$INCLUDE" ] && cat "$f"
-        done | grep -o 'server_name[[:space:]][^;]*' | sed 's/^server_name//' | tr -s ' \t' '\n' || true
+        printf '%s\n' "$conf" | awk -v own="$CONF_DIR/" '
+            /^# configuration file / { f = $4; sub(/:$/, "", f); skip = (index(f, own) == 1); next }
+            !skip { sub(/#.*/, ""); print }' |
+            tr '\n' ' ' | grep -o 'server_name[[:space:]][^;]*' | sed 's/^server_name//' |
+            tr -d "\"'" | tr -s ' \t' '\n' || true
         for d in "$LIVE"/*/; do
             [ -d "$d" ] || continue
             name=$(basename "$d")
@@ -120,17 +126,37 @@ others() {
             fi
         done
         for name in $PROTECT; do echo ".$name"; done
-    } | tr '[:upper:]' '[:lower:]' | grep -v '^$' | sort -u || true
+    } | awk '$0 != "" { print (substr($0, 1, 1) == "~") ? $0 : tolower($0) }' | sort -u
 }
 
-# is_taken HOST: a pattern of $taken covers it.
+# is_taken HOST: a pattern of $taken covers it (0), none does (1), or a
+# regular expression could not be tried here (2: no grep -P, or it is not
+# valid for it), and then nothing is known.
 is_taken() {
-    printf '%s\n' "$taken" | awk -v h="$1" '
+    if printf '%s\n' "$taken" | awk -v h="$1" '
         function ends(s) { return length(h) > length(s) && substr(h, length(h) - length(s) + 1) == s }
+        function starts(s) { return length(h) > length(s) && substr(h, 1, length(s)) == s }
+        substr($0, 1, 1) == "~" { next }
         $0 == h { f = 1 }
         substr($0, 1, 2) == "*." && ends(substr($0, 2)) { f = 1 }
         substr($0, 1, 1) == "." && (h == substr($0, 2) || ends($0)) { f = 1 }
-        END { exit f ? 0 : 1 }'
+        substr($0, length($0) - 1) == ".*" && starts(substr($0, 1, length($0) - 1)) { f = 1 }
+        END { exit f ? 0 : 1 }'; then
+        return 0
+    fi
+    printf '%s\n' "$taken" | grep '^~' | {
+        while IFS= read -r re; do
+            case "$re" in
+            '~*'*) re=${re#"~*"} opt=-qiP ;;
+            *) re=${re#"~"} opt=-qP ;;
+            esac
+            rc=0
+            printf '%s\n' "$1" | grep "$opt" -e "$re" 2>/dev/null || rc=$?
+            if [ "$rc" = 0 ]; then exit 0; fi
+            if [ "$rc" != 1 ]; then exit 2; fi
+        done
+        exit 1
+    }
 }
 
 # has_cert: a certificate this helper issued for the host is in place.
@@ -261,7 +287,10 @@ put "$INCLUDE"
 proxy_inc >"$CONF_DIR/proxy.inc.new"
 put "$CONF_DIR/proxy.inc"
 
-taken=$(others)
+if ! taken=$(others); then
+    log "nginx -T failed: the names of the other sites are unknown, nothing done"
+    exit 1
+fi
 wanted=
 invalid=0
 while IFS= read -r h || [ -n "$h" ]; do
@@ -270,9 +299,15 @@ while IFS= read -r h || [ -n "$h" ]; do
         invalid=$((invalid + 1))
         continue
     fi
-    if is_taken "$h"; then
+    rc=0
+    is_taken "$h" || rc=$?
+    if [ "$rc" = 0 ]; then
         log "skipping $h: another nginx site or certificate of this server covers it"
         continue
+    fi
+    if [ "$rc" != 1 ]; then
+        log "a regular expression in a server_name of another nginx site cannot be checked here (grep -P): nothing done"
+        exit 1
     fi
     wanted="$wanted $h"
 done <"$list"
