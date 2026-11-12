@@ -5,6 +5,15 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.19.2 — 2026-11-12
+
+- **Security:** the `sap13ns-domains` helper no longer trusts the list of custom domains in any way, in case the web server is compromised. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
+  - It reads the list only if it is a regular file, at most 256 KiB within 10 seconds: a device or a pipe in its place could fill the disk or hold the helper.
+  - It never serves a name covered by another nginx site's wildcard or by a certificate it did not issue, nor the domains in the new `PROTECT` setting and their subdomains. Before, only exact names of other nginx sites were skipped, so another service's host on the same server could be served by sap13ns.
+  - It uses and deletes only the certificates it issued. Before, a listed name that had a certificate from another service was served with it, and that certificate was deleted when the name left the list.
+  - An IP address is no longer taken for a host name.
+  - A removed domain's certificate is deleted a week later instead of at once, and at most 20 certificates are asked for in 24 hours, so a list that keeps changing cannot use up the server's limits at Let's Encrypt.
+
 ## v0.19.1 — 2026-11-12
 
 - **Security:** the `sap13ns-domains` helper, which runs as root, now reads the list of custom domains as the `sap13ns` user, and no longer writes the lines it skips to the log. Before, a compromised web server could replace the list with a link to a file only root may read and get its lines into the journal. A list that cannot be read now changes nothing, and one with more than 1000 lines is refused. Reinstall the helper: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.

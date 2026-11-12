@@ -16,13 +16,23 @@
 #
 # Every block lives in /etc/nginx/sap13ns-domains/, included by one file in
 # sites-enabled, so the rest of nginx (other sites on a shared server) is
-# never touched. No block is a default_server. A name another nginx site
-# already serves is skipped. nginx is reloaded only after `nginx -t`
-# passes; otherwise the previous blocks are put back.
+# never touched. No block is a default_server. nginx is reloaded only after
+# `nginx -t` passes; otherwise the previous blocks are put back.
+#
+# The list comes from the web server's user, so it is not trusted:
+#   - a name another nginx site serves (also through a wildcard), a name a
+#     certificate this helper did not issue covers, and the names under
+#     PROTECT are never served;
+#   - only certificates this helper issued are used, and only those are
+#     deleted, KEEP_DAYS after their domain left the list;
+#   - at most MAX_ISSUE_DAY certificates are asked for in 24 hours.
 #
 # Settings, all optional, in /etc/default/sap13ns-domains:
 #   EMAIL=ops@example.com        Let's Encrypt account e-mail (first run)
 #   STAGING=1                    use Let's Encrypt's staging CA (tests)
+#   PROTECT="example.org other.example"
+#                                domains never served here, with their
+#                                subdomains (other services of the server)
 #   LIST, LIST_USER, WEBROOT, UPSTREAM, NGINX, LIVE: see the defaults below
 #
 # Logs: journalctl -u sap13ns-domains
@@ -39,6 +49,9 @@ MAX_DOMAINS=1000
 EMAIL=
 STAGING=
 RETRY_AFTER=3600          # seconds before a failed certificate is tried again
+MAX_ISSUE_DAY=20          # certificates asked for in 24 hours, at most
+KEEP_DAYS=7               # a removed domain's certificate is deleted after this
+PROTECT=
 STATE=/var/lib/sap13ns-domains
 DEFAULTS=${SAP13NS_DOMAINS_DEFAULTS:-/etc/default/sap13ns-domains}
 # shellcheck disable=SC1090
@@ -48,7 +61,7 @@ INCLUDE=$NGINX/sites-enabled/sap13ns_domains.conf
 
 log() { echo "sap13ns-domains: $*"; }
 
-install -d -m 0755 "$STATE" "$STATE/failed" "$CONF_DIR" "$WEBROOT"
+install -d -m 0755 "$STATE" "$STATE/failed" "$STATE/certs" "$STATE/removed" "$CONF_DIR" "$WEBROOT"
 exec 9>"$STATE/lock"
 flock 9
 
@@ -58,10 +71,14 @@ flock 9
 list=$(mktemp)
 backup=$(mktemp -d)
 trap 'rm -rf "$backup" "$list"' EXIT
+# Only a regular file is read (not a FIFO or a device), at most one byte
+# past the limit, within 10 seconds.
+# shellcheck disable=SC2016 # expanded by the inner sh
+read1='test -f "$1" && exec head -c 262145 -- "$1"'
 if [ "$(id -u)" = 0 ]; then
-    readlist() { runuser -u "$LIST_USER" -- cat "$LIST"; }
+    readlist() { timeout 10 runuser -u "$LIST_USER" -- sh -c "$read1" sh "$LIST"; }
 else
-    readlist() { cat "$LIST"; } # tests
+    readlist() { timeout 10 sh -c "$read1" sh "$LIST"; } # tests
 fi
 # A list that cannot be read is not an empty one: nothing is removed then.
 if ! readlist >"$list" 2>/dev/null; then
@@ -73,20 +90,51 @@ if [ "$(wc -c <"$list")" -gt 262144 ] || [ "$(wc -l <"$list")" -gt "$MAX_DOMAINS
     exit 1
 fi
 
-# A host name as sap13ns routes it: lower-case ASCII labels, at least two.
+# A host name as sap13ns routes it: lower-case ASCII labels, at least two,
+# the last one not a number (so never an IP address).
 valid() {
     [ ${#1} -le 253 ] &&
-        printf '%s\n' "$1" | grep -Eqx '[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+'
+        printf '%s\n' "$1" | grep -Eqx '([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?'
 }
 
-# The names other nginx sites serve: those are never taken over.
+# ours: this helper issued the certificate named $1.
+ours() { [ -f "$STATE/certs/$1" ]; }
+
+# The names that are never served here, one pattern per line: NAME, *.NAME
+# (its subdomains) or .NAME (it and its subdomains). They are the names of
+# the other nginx sites, the names in every certificate this helper did
+# not issue, and PROTECT.
 others() {
-    for f in "$NGINX"/sites-enabled/* "$NGINX"/conf.d/*.conf; do
-        [ -f "$f" ] && [ "$f" != "$INCLUDE" ] && cat "$f"
-    done | grep -o 'server_name[[:space:]][^;]*' | sed 's/^server_name//' | tr -s ' \t' '\n' | grep -v '^$' || true
+    {
+        for f in "$NGINX"/sites-enabled/* "$NGINX"/conf.d/*.conf; do
+            [ -f "$f" ] && [ "$f" != "$INCLUDE" ] && cat "$f"
+        done | grep -o 'server_name[[:space:]][^;]*' | sed 's/^server_name//' | tr -s ' \t' '\n' || true
+        for d in "$LIVE"/*/; do
+            [ -d "$d" ] || continue
+            name=$(basename "$d")
+            if ours "$name"; then continue; fi
+            echo "$name"
+            if [ -f "$d/cert.pem" ]; then
+                openssl x509 -in "$d/cert.pem" -noout -ext subjectAltName 2>/dev/null |
+                    grep -o 'DNS:[^, ]*' | sed 's/^DNS://' || true
+            fi
+        done
+        for name in $PROTECT; do echo ".$name"; done
+    } | tr '[:upper:]' '[:lower:]' | grep -v '^$' | sort -u || true
 }
 
-has_cert() { [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
+# is_taken HOST: a pattern of $taken covers it.
+is_taken() {
+    printf '%s\n' "$taken" | awk -v h="$1" '
+        function ends(s) { return length(h) > length(s) && substr(h, length(h) - length(s) + 1) == s }
+        $0 == h { f = 1 }
+        substr($0, 1, 2) == "*." && ends(substr($0, 2)) { f = 1 }
+        substr($0, 1, 1) == "." && (h == substr($0, 2) || ends($0)) { f = 1 }
+        END { exit f ? 0 : 1 }'
+}
+
+# has_cert: a certificate this helper issued for the host is in place.
+has_cert() { ours "$1" && [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
 
 # The shared part of every 443 block: as the main server block of
 # sap13ns.conf (docs/DEPLOY.md), proxying to the same upstream.
@@ -222,8 +270,8 @@ while IFS= read -r h || [ -n "$h" ]; do
         invalid=$((invalid + 1))
         continue
     fi
-    if printf '%s\n' "$taken" | grep -qxF "$h"; then
-        log "skipping $h: another nginx site already serves it"
+    if is_taken "$h"; then
+        log "skipping $h: another nginx site or certificate of this server covers it"
         continue
     fi
     wanted="$wanted $h"
@@ -238,9 +286,27 @@ for f in "$CONF_DIR"/*.conf; do
     rm -f "$f"
     changed=1
     log "$h removed"
-    if [ -d "$LIVE/$h" ]; then
+    if valid "$h" && [ ! -f "$STATE/removed/$h" ]; then touch "$STATE/removed/$h"; fi
+done
+
+# Their certificates stay KEEP_DAYS, so a domain that comes back does not
+# need another one; then the ones this helper issued are deleted.
+now=$(date +%s)
+for f in "$STATE"/removed/*; do
+    [ -f "$f" ] || continue
+    h=$(basename "$f")
+    case " $wanted " in *" $h "*)
+        rm -f "$f"
+        continue
+        ;;
+    esac
+    if [ $((now - $(stat -c %Y "$f"))) -lt $((KEEP_DAYS * 86400)) ]; then continue; fi
+    if valid "$h" && ours "$h"; then
         certbot delete --non-interactive --cert-name "$h" >/dev/null 2>&1 || log "$h: certbot delete failed"
+        rm -f "$STATE/certs/$h"
+        log "$h: certificate deleted"
     fi
+    rm -f "$f" "$STATE/failed/$h"
 done
 
 # Step 1: the port-80 block of every domain still without a certificate.
@@ -252,10 +318,18 @@ for h in $wanted; do
 done
 apply
 
-# Step 2: the certificates.
-now=$(date +%s)
+# Step 2: the certificates, at most MAX_ISSUE_DAY in 24 hours, so a list
+# that keeps changing cannot use up the CA's limits of this server.
+touch "$STATE/attempts"
+awk -v min=$((now - 86400)) '$1 > min' "$STATE/attempts" >"$STATE/attempts.new"
+mv "$STATE/attempts.new" "$STATE/attempts"
+attempts=$(grep -c . "$STATE/attempts" || true)
 for h in $wanted; do
     if has_cert "$h"; then continue; fi
+    if [ "$attempts" -ge "$MAX_ISSUE_DAY" ]; then
+        log "$MAX_ISSUE_DAY certificates asked for in 24 hours: the others wait"
+        break
+    fi
     mark="$STATE/failed/$h"
     if [ -f "$mark" ] && [ $((now - $(stat -c %Y "$mark"))) -lt "$RETRY_AFTER" ]; then
         log "$h: the last attempt failed less than $RETRY_AFTER s ago; waiting"
@@ -266,8 +340,11 @@ for h in $wanted; do
         --deploy-hook 'systemctl reload nginx'
     if [ -n "$EMAIL" ]; then set -- "$@" -m "$EMAIL"; else set -- "$@" --register-unsafely-without-email; fi
     if [ -n "$STAGING" ]; then set -- "$@" --test-cert; fi
+    attempts=$((attempts + 1))
+    echo "$now" >>"$STATE/attempts"
     if certbot "$@" >"$STATE/certbot.log" 2>&1; then
         rm -f "$mark"
+        touch "$STATE/certs/$h"
         log "$h: certificate issued"
     else
         touch "$mark"
