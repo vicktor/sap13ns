@@ -45,6 +45,11 @@
             </div></div>
         </div>
         <div class="field"><label for="footer_text">{{T "Footer text"}}</label><textarea class="textarea" id="footer_text" name="footer_text" rows="2" maxlength="1000">{{$s.FooterText}}</textarea></div>
+        <div class="field"><label for="site_icon">{{T "Site icon"}}</label>
+          <div class="site-icon-field">{{with $d.IconURL}}<img class="site-icon-preview" src="{{.}}" alt="" width="40" height="40">{{end}}
+            {{$o := list}}{{range $d.Icons}}{{$o = append $o (opt .Code .Name)}}{{end}}
+            {{template "select" (selectbox "id" "site_icon" "name" "site_icon" "value" (printf "%d" $s.SiteIcon) "options" $o)}}</div>
+          <p class="hint">{{T "Shown in browser tabs, bookmarks and on the home screen of phones. Upload it in Media first: a square PNG or WebP of at least 512 × 512 pixels works best, and its transparency is kept."}}</p></div>
       </section>
     </section>
 

@@ -102,7 +102,8 @@ type Server struct {
 
 	plug pluginWebState // plugin assets, forms and CSP sources (plugin_web.go)
 
-	custom customCache // published theme designs (customize.go)
+	custom customCache   // published theme designs (customize.go)
+	icon   siteIconCache // the sizes of the site icon (siteicon.go)
 
 	plans planCache // the portal's pricing table (plans.go)
 

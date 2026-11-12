@@ -313,6 +313,10 @@ func (s *SiteView) Asset(file string) string { return s.theme.StaticURL(file) }
 // Static returns the URL of a core static file (site.min.js, theme-init.js).
 func (s *SiteView) Static(file string) string { return s.server.assetURL(file) }
 
+// Icon is the address of the site icon at size × size pixels (32, 180,
+// 192 or 512), "" when the site uses the sap13ns icon (siteicon.go).
+func (s *SiteView) Icon(size int) string { return siteIconURL(s.server.settings().SiteIcon, size) }
+
 // Menu returns menu links for a location, falling back to published pages
 // for the primary location when no menu was configured.
 func (s *SiteView) Menu(location string) []MenuLink {

@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.19.4 — 2026-11-12
+
+- **A site icon of its own.** Settings → General → *Site icon* picks an image of the media library (PNG, WebP, JPEG or GIF) that replaces the sap13ns icon in browser tabs, bookmarks, the home screen of phones and the web app manifest. sap13ns draws it whole on a transparent square at 32, 180, 192 and 512 px and serves it at `/site-icon/<size>.png`; an icon whose file is gone falls back to the sap13ns one.
+- **Content packs can keep the theme's front page.** `site.json` takes `"front_page": "theme"` (or `"posts"`). Before, loading a pack with `sap13ns content load` always set the front page back to the latest posts.
+- **Fresh installs get the custom-domain helper.** The guided installer (`deploy/setup.sh`) installs and starts `sap13ns-domains` on a network, with `/etc/default/sap13ns-domains`, and installs certbot for it; run again with **Upgrade**, it adds the helper to networks installed before it. Both installers create the ACME challenge directory readable by nginx. docs/DEPLOY.md now describes the network's nginx file and helper as they are, and how to install a changed file under `deploy/` after `sap13ns update`.
+
 ## v0.19.3 — 2026-11-12
 
 - **Custom domains: the Let's Encrypt challenge is always readable.** Where `/var/www/letsencrypt/.well-known` or its `acme-challenge` directory had been left closed to nginx (`drwx------ root`, by an earlier certbot or a strict umask), every certificate failed with `Invalid response … 403`. The `sap13ns-domains` helper now creates both directories and opens them to nginx on each run; if one of them is a symbolic link or a file it does nothing and says so. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`. A server where certificates already come out needs nothing.

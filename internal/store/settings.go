@@ -15,23 +15,26 @@ type Settings struct {
 	// Languages are the extra content languages, each served under /<code>/.
 	Languages []string `json:"languages"`
 	// SiteText translates the title, tagline and footer per extra language.
-	SiteText             map[string]SiteText `json:"site_text"`
-	Timezone             string              `json:"timezone"`
-	PostsPerPage         int                 `json:"posts_per_page"`
-	FrontPage            string              `json:"front_page"` // "posts" | "page" | "theme" (internal/web/front.go)
-	FrontPageID          int64               `json:"front_page_id"`
-	ActiveTheme          string              `json:"active_theme"`
-	FooterText           string              `json:"footer_text"`
-	DiscourageSearch     bool                `json:"discourage_search"`
-	CommentsEnabled      bool                `json:"comments_enabled"`
-	CommentModeration    string              `json:"comment_moderation"` // "all" | "returning" | "none"
-	CommentsCloseDays    int                 `json:"comments_close_days"`
-	CommentsRequireLogin bool                `json:"comments_require_login"`
-	AllowRegistration    bool                `json:"allow_registration"`
-	DefaultRole          string              `json:"default_role"`
-	FeedItems            int                 `json:"feed_items"`
-	FeedFullText         bool                `json:"feed_full_text"`
-	WebSubHub            string              `json:"websub_hub"`
+	SiteText     map[string]SiteText `json:"site_text"`
+	Timezone     string              `json:"timezone"`
+	PostsPerPage int                 `json:"posts_per_page"`
+	FrontPage    string              `json:"front_page"` // "posts" | "page" | "theme" (internal/web/front.go)
+	FrontPageID  int64               `json:"front_page_id"`
+	ActiveTheme  string              `json:"active_theme"`
+	FooterText   string              `json:"footer_text"`
+	// SiteIcon is the media id of the image shown as the favicon, the
+	// touch icon and in the manifest; 0 keeps the sap13ns icon.
+	SiteIcon             int64  `json:"site_icon,omitempty"`
+	DiscourageSearch     bool   `json:"discourage_search"`
+	CommentsEnabled      bool   `json:"comments_enabled"`
+	CommentModeration    string `json:"comment_moderation"` // "all" | "returning" | "none"
+	CommentsCloseDays    int    `json:"comments_close_days"`
+	CommentsRequireLogin bool   `json:"comments_require_login"`
+	AllowRegistration    bool   `json:"allow_registration"`
+	DefaultRole          string `json:"default_role"`
+	FeedItems            int    `json:"feed_items"`
+	FeedFullText         bool   `json:"feed_full_text"`
+	WebSubHub            string `json:"websub_hub"`
 	// TwoFactor is who must use a second factor (TOTP or a passkey):
 	// "staff" (everyone with admin access, the default) or "editors"
 	// (administrators and editors only). It cannot be switched off.

@@ -119,7 +119,7 @@ func postPath(typ, slug string) string {
 // prefix it is an address like any other the site does not serve
 // (withSignIn).
 var prefixOnly = []string{"/admin", "/logout", "/register", "/static/", "/themes/", "/uploads/", "/healthz",
-	"/robots.txt", "/sitemap.xml", "/og/", "/api/", "/mcp", "/manifest.webmanifest", "/plugin-assets/", "/plugin-forms/"}
+	"/robots.txt", "/sitemap.xml", "/og/", "/api/", "/mcp", "/manifest.webmanifest", "/site-icon/", "/plugin-assets/", "/plugin-forms/"}
 
 // withLang detects a /<lang>/ prefix for an extra language, records it and
 // strips it from the path before routing. The home page of the main

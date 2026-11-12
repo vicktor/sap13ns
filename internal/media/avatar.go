@@ -74,34 +74,11 @@ var avatarSlots = make(chan struct{}, 2)
 // or ErrBadImage (a file that does not decode, or more than
 // AvatarMaxPixels).
 func MakeAvatar(ctx context.Context, r io.Reader, maxBytes int64) (*Avatar, error) {
-	if maxBytes <= 0 {
-		maxBytes = AvatarMaxBytes
-	}
-	data, err := io.ReadAll(io.LimitReader(r, maxBytes+1))
+	img, format, data, release, err := decodeSmall(ctx, r, maxBytes)
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(data)) > maxBytes {
-		return nil, ErrTooLarge
-	}
-	format, ok := avatarFormats[Sniff(data)]
-	if !ok {
-		return nil, ErrUnsupported
-	}
-	cfg, got, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || got != format || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > AvatarMaxPixels {
-		return nil, ErrBadImage
-	}
-	select {
-	case avatarSlots <- struct{}{}:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	defer func() { <-avatarSlots }()
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, ErrBadImage
-	}
+	defer release()
 	big := square(img, AvatarSizes[len(AvatarSizes)-1])
 	// The centre square of a rotated photo is the rotated centre square,
 	// so the EXIF orientation is applied to the small image only.
@@ -132,6 +109,43 @@ func MakeAvatar(ctx context.Context, r io.Reader, maxBytes int64) (*Avatar, erro
 		a.Files[size] = buf.Bytes()
 	}
 	return a, nil
+}
+
+// decodeSmall reads an image of at most maxBytes (AvatarMaxBytes when 0)
+// from r and decodes it, holding one of avatarSlots until release is
+// called. The type is sniffed from the bytes: JPEG, PNG, WebP or GIF (its
+// first frame). It returns the decoder's format name and the bytes read.
+func decodeSmall(ctx context.Context, r io.Reader, maxBytes int64) (img image.Image, format string, data []byte, release func(), err error) {
+	if maxBytes <= 0 {
+		maxBytes = AvatarMaxBytes
+	}
+	data, err = io.ReadAll(io.LimitReader(r, maxBytes+1))
+	if err != nil {
+		return nil, "", nil, nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, "", nil, nil, ErrTooLarge
+	}
+	format, ok := avatarFormats[Sniff(data)]
+	if !ok {
+		return nil, "", nil, nil, ErrUnsupported
+	}
+	cfg, got, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || got != format || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > AvatarMaxPixels {
+		return nil, "", nil, nil, ErrBadImage
+	}
+	select {
+	case avatarSlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, "", nil, nil, ctx.Err()
+	}
+	release = func() { <-avatarSlots }
+	img, _, err = image.Decode(bytes.NewReader(data))
+	if err != nil {
+		release()
+		return nil, "", nil, nil, ErrBadImage
+	}
+	return img, format, data, release, nil
 }
 
 // square draws the centre square of img at size × size.

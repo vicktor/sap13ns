@@ -65,7 +65,7 @@ func (s *Server) countBots(next http.Handler) http.Handler {
 // botExempt reports the paths of files a page loads, which would count a
 // crawler once per asset instead of once per page.
 func botExempt(p string) bool {
-	for _, pre := range []string{"/static/", "/themes/", "/uploads/", "/plugin-assets/", "/og/", "/video-thumbs/"} {
+	for _, pre := range []string{"/static/", "/themes/", "/uploads/", "/plugin-assets/", "/og/", "/video-thumbs/", "/site-icon/"} {
 		if strings.HasPrefix(p, pre) {
 			return true
 		}

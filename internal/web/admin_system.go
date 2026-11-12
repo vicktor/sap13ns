@@ -1,10 +1,12 @@
 package web
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,8 @@ type settingsData struct {
 	Zones     []string
 	Roles     []string
 	OGLayouts []LangLink // Code/Name pairs for the social image select
+	Icons     []LangLink // the images that can be the site icon (id, name)
+	IconURL   string     // the chosen site icon at 64 px, "" for none
 	Error     string
 	Portal    bool // the network portal: every account needs a second factor
 	// SignInURL is the saved sign-in address, in full; Recovery the
@@ -62,7 +66,21 @@ func (s *Server) renderSettingsPage(w http.ResponseWriter, r *http.Request, stat
 	if !slices.Contains(zones, st.Timezone) {
 		zones = append([]string{st.Timezone}, zones...)
 	}
+	icons := []LangLink{{Code: "0", Name: s.tu(r, "The sap13ns icon")}}
+	if imgs, _, err := s.store.ListMedia(r.Context(), store.MediaQuery{ImagesOnly: true, Limit: 200}); err == nil {
+		for i := range imgs {
+			if m := &imgs[i]; iconMedia(m) {
+				icons = append(icons, LangLink{Code: strconv.FormatInt(m.ID, 10), Name: cmp.Or(m.Alt, m.OriginalName)})
+			}
+		}
+	}
+	if st.SiteIcon > 0 && !slices.ContainsFunc(icons, func(l LangLink) bool { return l.Code == strconv.FormatInt(st.SiteIcon, 10) }) {
+		if m, err := s.store.MediaByID(r.Context(), st.SiteIcon); err == nil && iconMedia(m) {
+			icons = append(icons, LangLink{Code: strconv.FormatInt(m.ID, 10), Name: cmp.Or(m.Alt, m.OriginalName)})
+		}
+	}
 	s.renderAdminStatus(w, r, status, "settings", s.tu(r, "Settings"), "settings", settingsData{S: st, Pages: pages, Languages: languageOptions(), Extra: s.extraLangsOf(st),
+		Icons: icons, IconURL: siteIconURL(s.settings().SiteIcon, 192),
 		OGLayouts: []LangLink{{Code: "classic", Name: s.tu(r, "Classic")}, {Code: "bold", Name: s.tu(r, "Bold")}, {Code: "minimal", Name: s.tu(r, "Minimal")}, {Code: "off", Name: s.tu(r, "Off")}},
 		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg, Portal: s.portal != nil,
 		SignInURL: s.SignInURL(), Recovery: s.signInRecovery(), Tenant: s.sso != nil, Moved: moved})
@@ -101,6 +119,10 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st := s.settings()
 	on := func(k string) bool { return r.FormValue(k) == "1" }
 	st.SiteTitle, st.Tagline, st.FooterText = trimmed(r, "site_title"), trimmed(r, "tagline"), trimmed(r, "footer_text")
+	st.SiteIcon = 0
+	if id := formInt64Ptr(r, "site_icon"); id != nil && *id > 0 {
+		st.SiteIcon = *id
+	}
 	oldMain := st.Language
 	st.Language, st.Timezone = r.FormValue("language"), r.FormValue("timezone")
 	st.Languages = nil
@@ -154,6 +176,14 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 		SignIn: s.signInCheck(r.Context())}); len(bad) > 0 {
 		s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.settingsError(r, bad[0], st))
 		return
+	}
+	// A new icon must be an image the server can draw; one chosen before
+	// and deleted since falls back to the sap13ns icon (siteicon.go).
+	if st.SiteIcon > 0 && st.SiteIcon != before.SiteIcon {
+		if m, err := s.store.MediaByID(r.Context(), st.SiteIcon); err != nil || !iconMedia(m) {
+			s.renderSettings(w, r, http.StatusUnprocessableEntity, st, s.tu(r, "Choose a PNG, WebP, JPEG or GIF image from the media library for the site icon."))
+			return
+		}
 	}
 	old := s.signInBase()
 	if err := s.saveSettings(r, st); err != nil {

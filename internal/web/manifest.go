@@ -34,6 +34,9 @@ func (s *Server) handleManifest(w http.ResponseWriter, r *http.Request) {
 		{s.assetURL("brand/icon-512.png"), "512x512", "image/png", ""},
 		{s.assetURL("brand/icon-maskable-512.png"), "512x512", "image/png", "maskable"},
 	}}
+	if st.SiteIcon > 0 {
+		m.Icons = []icon{{siteIconURL(st.SiteIcon, 192), "192x192", "image/png", ""}, {siteIconURL(st.SiteIcon, 512), "512x512", "image/png", ""}}
+	}
 	w.Header().Set("Content-Type", "application/manifest+json")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	json.NewEncoder(w).Encode(m)
