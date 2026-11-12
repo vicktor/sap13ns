@@ -84,6 +84,19 @@ log() { echo "sap13ns-domains: $*"; }
 
 install -d -m 0700 "$STATE" "$STATE/failed" "$STATE/removed"
 install -d -m 0755 "$CONF_DIR" "$WEBROOT" "$LE"
+# nginx must be able to read the challenges, also where an earlier certbot
+# or a strict umask left these directories closed (a 403 for Let's Encrypt).
+for d in "$WEBROOT/.well-known" "$WEBROOT/.well-known/acme-challenge"; do
+    if [ -L "$d" ] || { [ -e "$d" ] && [ ! -d "$d" ]; }; then
+        log "$d is not a directory: nothing done"
+        exit 1
+    fi
+    [ -d "$d" ] || mkdir -m 0755 "$d"
+    case $(stat -c %a "$d") in
+    *[57]) ;;
+    *) chmod a+rx "$d" ;;
+    esac
+done
 exec 9>"$STATE/lock"
 if ! flock -w 600 9; then
     log "another run holds the lock: nothing done"

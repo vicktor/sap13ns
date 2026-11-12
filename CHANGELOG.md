@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.19.3 — 2026-11-12
+
+- **Custom domains: the Let's Encrypt challenge is always readable.** Where `/var/www/letsencrypt/.well-known` or its `acme-challenge` directory had been left closed to nginx (`drwx------ root`, by an earlier certbot or a strict umask), every certificate failed with `Invalid response … 403`. The `sap13ns-domains` helper now creates both directories and opens them to nginx on each run; if one of them is a symbolic link or a file it does nothing and says so. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`. A server where certificates already come out needs nothing.
+
 ## v0.19.2 — 2026-11-12
 
 - **Security and reliability of the `sap13ns-domains` helper,** after a review that assumed a compromised web server and looked for outages. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
