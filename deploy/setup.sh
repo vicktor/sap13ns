@@ -243,7 +243,9 @@ EOF
     }
     reload_nginx() { run nginx -t && run systemctl reload nginx; }
     [ -e "$NGINX_SITE" ] && run cp -p "$NGINX_SITE" "$NGINX_SITE.bak.$(date +%Y%m%d%H%M%S)"
-    run install -d "$WEBROOT"
+    # nginx must read the challenges: a 0700 .well-known (left by a strict
+    # umask) makes Let's Encrypt get a 403.
+    run install -d -m 0755 "$WEBROOT" "$WEBROOT/.well-known" "$WEBROOT/.well-known/acme-challenge"
     http_site | write_file "$NGINX_SITE" 0644 root:root
     run ln -sf ../sites-available/sap13ns.conf /etc/nginx/sites-enabled/sap13ns.conf
     run systemctl enable --now nginx
@@ -284,6 +286,35 @@ EOF
     else
         set_env "$ENV_FILE" SAP13NS_BASE_URL "http://$DOMAIN"
     fi
+}
+
+# install_domains installs the root helper that gives each custom domain of
+# a network its certificate and nginx block (docs/DEPLOY.md), with its
+# settings file, and starts watching the list of domains. The helper never
+# serves a name another nginx site or certificate of this server covers.
+install_domains() {
+    local email=${1:-}
+    # The file is sourced by root: only a plain address goes in.
+    case "$email" in *[!A-Za-z0-9._%+@-]*) email="" ;; esac
+    run install -d -m 0755 "$WEBROOT" "$WEBROOT/.well-known" "$WEBROOT/.well-known/acme-challenge"
+    run install -m 0755 "$here/sap13ns-domains" /usr/local/sbin/
+    run install -m 0644 "$here/systemd/sap13ns-domains.service" "$here/systemd/sap13ns-domains.path" \
+        "$here/systemd/sap13ns-domains.timer" /etc/systemd/system/
+    if [ ! -e /etc/default/sap13ns-domains ]; then
+        write_file /etc/default/sap13ns-domains 0644 root:root <<EOF
+# Settings of /usr/local/sbin/sap13ns-domains (docs/DEPLOY.md, Networks of sites).
+# The Let's Encrypt account of the custom domains' certificates.
+EMAIL=$email
+# On a server shared with other services: their domains, which sap13ns never
+# serves, nor their subdomains. Other nginx sites and certificates are
+# already left alone.
+#PROTECT="example.org other.example"
+# Let's Encrypt's staging CA, for a first try (then delete /etc/letsencrypt-sap13ns).
+#STAGING=1
+EOF
+    fi
+    run systemctl daemon-reload
+    run systemctl enable --now sap13ns-domains.path sap13ns-domains.timer
 }
 
 # ================================================================== start ==
@@ -362,6 +393,13 @@ if [ "$UPGRADE" = 1 ]; then
         if [ -e "/etc/systemd/system/$u" ]; then run install -m 0644 "$here/systemd/$u" /etc/systemd/system/; fi
     done
     if [ -e /usr/local/sbin/sap13ns-network-backup ]; then run install -m 0750 "$here/sap13ns-network-backup" /usr/local/sbin/; fi
+    # The custom domains of a network behind nginx: a newer helper, or the
+    # helper on networks installed before it.
+    if [ -e /usr/local/sbin/sap13ns-domains ] || { [ "$(sed -n 's/^SAP13NS_MULTISITE=//p' "$ENV_FILE" | tail -n1)" = true ] &&
+        [ -e /etc/nginx/sites-enabled/sap13ns.conf ] && command -v certbot >/dev/null; }; then
+        install_domains
+        ok "sap13ns-domains"
+    fi
     # Updates from the admin (System → Updates), on installs older than it too.
     run install -m 0644 "$here/systemd/sap13ns-update.service" "$here/systemd/sap13ns-update.path" /etc/systemd/system/
     run systemctl daemon-reload
@@ -446,6 +484,8 @@ fi
 if command -v nginx >/dev/null; then ok "nginx $(nginx -v 2>&1 | grep -o '[0-9][0-9.]*' | head -n1)"; else warn "nginx: $(t "not installed" "no instalado")"; APT+=(nginx); fi
 need_certbot=0
 case "$TLS" in letsencrypt | cloudflare) need_certbot=1 ;; esac
+# A network's custom domains get their certificates from certbot too.
+[ "$MODE" = network ] && need_certbot=1
 if [ "$need_certbot" = 1 ]; then
     if command -v certbot >/dev/null; then ok "certbot"; else warn "certbot: $(t "not installed" "no instalado")"; APT+=(certbot); fi
     if [ "$TLS" = cloudflare ] && ! dpkg -s python3-certbot-dns-cloudflare >/dev/null 2>&1; then
@@ -614,6 +654,7 @@ step "$(t "Start" "Arranque")"
 run systemctl restart sap13ns
 run systemctl start "$BACKUP_TIMER" sap13ns-update.path
 if [ "$GEOIP" = 1 ]; then run systemctl start --no-block sap13ns-geoip.service; run systemctl start sap13ns-geoip.timer; fi
+if [ "$MODE" = network ]; then install_domains "$ADMIN_EMAIL"; ok "sap13ns-domains"; fi
 if [ "$DRY" = 0 ]; then
     for _ in $(seq 1 30); do [ -S /run/sap13ns/sap13ns.sock ] && break; sleep 1; done
     if curl -fsS --unix-socket /run/sap13ns/sap13ns.sock -H "Host: $DOMAIN" http://localhost/healthz >/dev/null 2>&1; then
@@ -630,7 +671,8 @@ next="$(t "Next steps" "Siguientes pasos")
   2. $(t "Keep a copy of SAP13NS_SECRET_KEY ($ENV_FILE) and of $PASS_FILE off this server: without them no backup can be opened." "Guarda una copia de SAP13NS_SECRET_KEY ($ENV_FILE) y de $PASS_FILE fuera de este servidor: sin ellas no se puede abrir ninguna copia.")
   3. $(t "Copy the backups to another machine every night (docs/DEPLOY.md)." "Copia las copias de seguridad a otra máquina cada noche (docs/DEPLOY.md).")"
 [ "$MODE" = network ] && next="$next
-  4. $(t "Portal: Settings → Accounts & security → «Anyone can register» lets people sign up and ask for sites; billing is in docs/BILLING.md." "Portal: Ajustes → Cuentas y seguridad → «Cualquiera puede registrarse» deja que la gente se registre y pida sitios; la facturación está en docs/BILLING.md.")"
+  4. $(t "Portal: Settings → Accounts & security → «Anyone can register» lets people sign up and ask for sites; billing is in docs/BILLING.md." "Portal: Ajustes → Cuentas y seguridad → «Cualquiera puede registrarse» deja que la gente se registre y pida sitios; la facturación está en docs/BILLING.md.")
+  5. $(t "Custom domains get their certificate and nginx block by themselves about a minute after they are verified (sap13ns-domains; logs: sudo journalctl -u sap13ns-domains). Make one primary only once it opens over https. On a server with other services, list their domains in PROTECT in /etc/default/sap13ns-domains, and back up /etc/letsencrypt-sap13ns." "Los dominios propios obtienen solos su certificado y su bloque de nginx un minuto después de verificarse (sap13ns-domains; registro: sudo journalctl -u sap13ns-domains). Haz uno principal solo cuando abra por https. En un servidor con otros servicios, pon sus dominios en PROTECT en /etc/default/sap13ns-domains, e incluye /etc/letsencrypt-sap13ns en las copias de seguridad.")"
 [ -z "$SMTP_HOST" ] && next="$next
   · $(t "E-mail is not set up: add SAP13NS_SMTP_* to $ENV_FILE and restart sap13ns." "El correo no está configurado: añade SAP13NS_SMTP_* a $ENV_FILE y reinicia sap13ns.")"
 [ "$HTTPS" = 0 ] && next="$next

@@ -37,13 +37,13 @@ In a clone without a binary, it offers to download the latest release for the ma
    - a network: a wildcard certificate from Let's Encrypt through Cloudflare's DNS, with an API token;
    - or certificate files you already have, or plain HTTP for now.
 
-   Then it creates the first administrator (or initialises the network with them), starts sap13ns and checks that it answers.
+   Then it creates the first administrator (or initialises the network with them), starts sap13ns and checks that it answers. On a network it also installs and starts the helper that gives each custom domain its certificate and nginx block ([below](#nginx-with-a-wildcard-certificate)), with `/etc/default/sap13ns-domains` holding the administrator's e-mail address.
 4. **The end:** the address, the administrator's password (shown once) and the next steps, which are also saved in `/root/sap13ns-setup.txt` without the password. The log of every command is `/var/log/sap13ns-setup.log`.
 
-It only adds its own files. No nginx block is a `default_server`, the default site stays, and the firewall, hostname and SSH are left alone, so it can run on a server that already hosts other sites. Run it again to upgrade the binary and the units, or to set up HTTPS once the DNS is ready. The configuration and the database are always kept.
+It only adds its own files. No nginx block is a `default_server`, the default site stays, and the firewall, hostname and SSH are left alone, so it can run on a server that already hosts other sites. Run it again to upgrade the binary, the units and the custom-domain helper (a network installed before the helper existed gets it then), or to set up HTTPS once the DNS is ready. The configuration and the database are always kept.
 
 ### The installer without questions
-`deploy/install.sh` installs the same pieces for one site, with no questions and no packages. It is idempotent. It:
+`deploy/install.sh` installs the same pieces for one site, with no questions and no packages. It is idempotent. For a network, use the guided installer, or follow [MULTISITE.md](MULTISITE.md#setting-up-a-network) and [Networks of sites](#networks-of-sites) by hand. It:
 - creates the `sap13ns` system user, the `sap13ns-web` group (only nginx joins it, to reach the socket) and `/var/lib/sap13ns`;
 - installs the binary in `/usr/local/bin`;
 - creates the `sap13ns` database and role (peer authentication over the local socket) and enables `pgvector` when it is available;
@@ -84,6 +84,9 @@ If you prefer to do it by hand, the installer's steps are short and commented in
 | `deploy/nginx/sap13ns-network.conf` (a network) | `/etc/nginx/sites-available/sap13ns.conf` |
 | `deploy/sap13ns-network-backup` and `deploy/systemd/sap13ns-network-backup.*` (a network) | `/usr/local/sbin/`, `/etc/systemd/system/` |
 | `deploy/systemd/sap13ns-geoip.*` | `/etc/systemd/system/` |
+| `deploy/sap13ns-domains` and `deploy/systemd/sap13ns-domains.*` (a network behind nginx) | `/usr/local/sbin/` (root, 0755), `/etc/systemd/system/` |
+
+The ACME challenge directory, `/var/www/letsencrypt/.well-known/acme-challenge`, and its parents must be readable by nginx (0755). If any of them is 0700, which a strict umask can leave, Let's Encrypt gets a 403 and no certificate is issued.
 
 nginx must be able to open the socket, and nothing else: `groupadd --system sap13ns-web && usermod -aG sap13ns-web www-data`. Never add `www-data` to the `sap13ns` group, which can read the env file and the data directory.
 
@@ -152,6 +155,15 @@ Without the setting, or while the file is missing or damaged, visits are counted
 ### Updates
 Administrators see a notice in the admin when a release is out. Take a backup, run `sudo sap13ns update`, then restart. The previous binary stays as `sap13ns.old` for rollback. Details are in [RELEASES.md](RELEASES.md).
 
+`sap13ns update` replaces the binary only. When the [changelog](../CHANGELOG.md) says a file under `deploy/` changed (the custom-domain helper, a systemd unit), run the guided installer of the new release again and choose **Upgrade**, or install that file by hand from the release archive, which has no top-level directory:
+
+```sh
+mkdir /tmp/sap13ns-X.Y.Z && cd /tmp/sap13ns-X.Y.Z
+curl -fsSLO https://github.com/vicktor/sap13ns/releases/download/vX.Y.Z/sap13ns_X.Y.Z_linux_amd64.tar.gz
+tar xzf sap13ns_X.Y.Z_linux_amd64.tar.gz
+sudo install -m 0755 deploy/sap13ns-domains /usr/local/sbin/
+```
+
 ## Networks of sites
 
 A network (`SAP13NS_MULTISITE=true`) serves the portal on the `SAP13NS_BASE_URL` host, and its sites on `<slug>.<SAP13NS_SITES_DOMAIN>` and on their custom domains. [MULTISITE.md](MULTISITE.md) explains the setup, the variables and the commands. Every host reaches the same process, so the proxy needs:
@@ -163,40 +175,30 @@ A network (`SAP13NS_MULTISITE=true`) serves the portal on the `SAP13NS_BASE_URL`
 
 ### nginx with a wildcard certificate
 
-Keep `deploy/nginx/sap13ns.conf` as it is (the upstream, the proxy headers and the `location` blocks). Change its `server` blocks:
+Use [`deploy/nginx/sap13ns-network.conf`](../deploy/nginx/sap13ns-network.conf), which the guided installer writes: the portal and every default host on one wildcard certificate. It answers only `example.com` and `*.example.com` and is not a `default_server`, so other sites on the same nginx keep working.
 
-```nginx
-# Port 80: ACME HTTP-01 challenges for every host (custom domains), and https.
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-
-    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
-    location / { return 301 https://$host$request_uri; }
-}
-
-# The portal and every default host: one wildcard certificate.
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name example.com *.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
-
-    # ...the rest of the 443 block of deploy/nginx/sap13ns.conf...
-}
-```
-
-nginx cannot get certificates on demand, so a root helper does it for each custom domain. It needs no change to the nginx files above:
+nginx cannot get certificates on demand, so a root helper, `sap13ns-domains`, does it for each custom domain. The guided installer sets it up on a network. By hand, from an unpacked release:
 
 ```sh
-install -m 0755 deploy/sap13ns-domains /usr/local/sbin/        # install.sh does these two
-install -m 0644 deploy/systemd/sap13ns-domains.* /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now sap13ns-domains.path sap13ns-domains.timer
+sudo apt install certbot
+sudo install -m 0755 deploy/sap13ns-domains /usr/local/sbin/
+sudo install -m 0644 deploy/systemd/sap13ns-domains.* /etc/systemd/system/
+sudo install -d -m 0755 /var/www/letsencrypt /var/www/letsencrypt/.well-known /var/www/letsencrypt/.well-known/acme-challenge
+sudo tee /etc/default/sap13ns-domains >/dev/null <<'EOF'
+EMAIL=ops@example.com
+# On a server shared with other services: their domains.
+#PROTECT="example.org other.example"
+# Let's Encrypt's staging CA, for a first try.
+#STAGING=1
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now sap13ns-domains.path sap13ns-domains.timer
+```
+
+To try it first without spending Let's Encrypt's limits, set `STAGING=1`, verify a custom domain, and run `sudo systemctl start sap13ns-domains; sudo journalctl -u sap13ns-domains -n 20`. Staging certificates are not trusted by browsers. Once a run ends with `1 of 1 domains served over https`, switch to real certificates in one line, so that no block points at a deleted certificate for long:
+
+```sh
+sudo sed -i '/^STAGING=/d' /etc/default/sap13ns-domains && sudo rm -rf /etc/letsencrypt-sap13ns && sudo systemctl start sap13ns-domains
 ```
 
 How it works:
@@ -206,9 +208,17 @@ How it works:
 - **Where.** Every block lives in `/etc/nginx/sap13ns-domains/`, included by `/etc/nginx/sites-enabled/sap13ns_domains.conf`. No block is a `default_server`.
 - **Other sites on the server** are never touched: a name another nginx site serves (exactly, through a wildcard or a regular expression, as `nginx -T` reports them), one that a certificate in the server's `/etc/letsencrypt` covers, and the server's own name and its domain are skipped. The helper's certificates live in a certbot directory of its own, `/etc/letsencrypt-sap13ns` (include it in the server's backups); it only reads `/etc/letsencrypt` and never runs certbot on it, so the server's certbot, its hooks and its certificates stay as they are. On a shared server, also list the other services' domains in `PROTECT`: neither they nor their subdomains are ever served by sap13ns.
 - **Safety.** Each file is changed alone and kept only if `nginx -t` accepts it, so the configuration on disk always loads; a domain nginx refuses (a very long name needs a larger `server_names_hash_bucket_size`) waits without holding the others. A failed certificate is tried again after an hour, then later each time, and at most 20 certificates are asked for in 24 hours, within Let's Encrypt's limits. What the helper trusts is in [SECURITY.md](SECURITY.md#networks-of-sites).
-- **Settings.** Optional, in `/etc/default/sap13ns-domains`: `EMAIL=` for the Let's Encrypt account, `PROTECT="example.org other.example"`, `PROTECT_HOST=no` to stop protecting the server's own name and its domain, `STAGING=1` for the staging CA. Logs: `journalctl -u sap13ns-domains`.
+- **Settings.** Optional, in `/etc/default/sap13ns-domains`: `EMAIL=` for the Let's Encrypt account, `PROTECT="example.org other.example"`, `PROTECT_HOST=no` to stop protecting the server's own name and its domain, `STAGING=1` for the staging CA. Logs: `sudo journalctl -u sap13ns-domains`.
 
-A custom domain is live over https about a minute after it is verified. Caddy and the built-in ACME client below do the same without a helper.
+A custom domain is live over https about a minute after it is verified. Make it the site's primary domain only once `curl -sI https://www.example.org` answers without a certificate error: until then its visitors would get nginx's default site or a certificate warning.
+
+What not to do:
+- **Don't add custom domains to the nginx files by hand,** nor run `certbot` for them in `/etc/letsencrypt`. The helper skips a name that another nginx site or a certificate there covers, so it would never manage that domain.
+- **Don't make a sap13ns block a `default_server`.** On a shared server it would take over the other sites' unknown names; the helper's blocks answer only their own.
+- **Don't edit the files in `/etc/nginx/sap13ns-domains/`.** The helper rewrites them.
+- **Don't delete `/etc/letsencrypt-sap13ns`** on a server in production, except when you leave staging as above. The helper gets the certificates again, but each domain is down until it has its new one, and many domains at once run into the 20-a-day limit.
+
+Caddy and the built-in ACME client below do the same without a helper.
 
 ### Caddy with on-demand certificates
 
@@ -284,7 +294,7 @@ SAP13NS_ACME_EMAIL=ops@example.com
 
 ### Backups of a network
 
-A network backs up every site by itself each night (`SAP13NS_SITE_BACKUPS`, `SAP13NS_SITE_BACKUP_TIME` and the other variables in [MULTISITE.md](MULTISITE.md#backups)), into `$SAP13NS_BACKUP_DIR/sites/<id>/`. Disable `sap13ns-backup.timer`: `sap13ns backup create` without `-site` refuses to run on a network. Back up the database and the data directory as well, with `pg_dump` and a copy of the directory, as [MULTISITE.md](MULTISITE.md#the-whole-network) shows: site backups do not hold the network's accounts, plans, domains or secrets.
+A network backs up every site by itself each night (`SAP13NS_SITE_BACKUPS`, `SAP13NS_SITE_BACKUP_TIME` and the other variables in [MULTISITE.md](MULTISITE.md#backups)), into `$SAP13NS_BACKUP_DIR/sites/<id>/`. Disable `sap13ns-backup.timer`: `sap13ns backup create` without `-site` refuses to run on a network. Back up the database and the data directory as well, with `pg_dump` and a copy of the directory, as [MULTISITE.md](MULTISITE.md#the-whole-network) shows: site backups do not hold the network's accounts, plans, domains or secrets. With the nginx helper, also keep `/etc/letsencrypt-sap13ns` (the custom domains' certificates and Let's Encrypt account) and `/etc/default/sap13ns-domains`.
 
 Plan the space: a site's backups take at most twice the storage of its plan, and none of it counts toward the plan.
 
@@ -304,3 +314,8 @@ Plan the space: a site's backups take at most twice the storage of its plan, and
 | **Site assistant search is keyword-only** | `pgvector` isn't installed or enabled: install the package, then run `CREATE EXTENSION vector` as a superuser in the `sap13ns` database. |
 | **An export download stops halfway** | A proxy timeout or buffering: keep the `/admin/tools/export` block of the provided nginx configuration, or export from the shell with `sap13ns export`. |
 | **AI requests time out behind nginx** | The provided configuration allows 360 s for `/admin/api/ai/`; keep it if you use slow local models. |
+| **A custom domain shows another site, or nginx's default page** | The helper is not running (`systemctl status sap13ns-domains.path`), the domain is not verified yet, or its certificate is still pending: `sudo journalctl -u sap13ns-domains`. Without `sudo`, `journalctl` shows nothing. |
+| **The helper logs `certbot failed`, with `Invalid response … 403`** | nginx cannot read `/var/www/letsencrypt/.well-known/acme-challenge` (check `ls -ld` on it and its parents; they need 0755). The helper opens them from v0.19.3 on. |
+| **The helper logs `certbot failed`, another reason** | Usually the domain's DNS does not point here yet. A failed domain waits an hour before it is tried again, then longer each time. Once the cause is fixed, skip the wait: `sudo rm /var/lib/sap13ns-domains/failed/DOMAIN && sudo systemctl start sap13ns-domains`. |
+| **A verified domain is not in `/var/lib/sap13ns/custom-domains`** | `SAP13NS_DOMAINS_FILE` is `off` or points elsewhere, or the site is not live. The list holds only routed custom domains, never the portal or `*.SAP13NS_SITES_DOMAIN`. |
+| **"Not pointing" while the DNS is right** | A resolver still has the old answer cached. Wait for the record's TTL, then press **Verify** again. |

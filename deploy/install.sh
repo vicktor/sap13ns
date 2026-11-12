@@ -85,14 +85,16 @@ systemctl enable sap13ns sap13ns-backup.timer
 systemctl enable --now sap13ns-update.path
 # sap13ns-geoip.timer stays off until SAP13NS_GEOIP_DB is set (docs/DEPLOY.md).
 # sap13ns-domains.path and .timer stay off: only a network behind nginx
-# uses them, for its custom domains (docs/DEPLOY.md, Networks of sites).
+# uses them, for its custom domains (docs/DEPLOY.md, Networks of sites;
+# deploy/setup.sh turns them on for a network).
 
 echo "==> nginx"
 site=/etc/nginx/sites-available/sap13ns.conf
 if [ ! -e "$site" ]; then
     sed "s/example\.com/$DOMAIN/g" "$here/nginx/sap13ns.conf" > "$site"
     ln -sf ../sites-available/sap13ns.conf /etc/nginx/sites-enabled/sap13ns.conf
-    install -d /var/www/letsencrypt
+    # nginx must read the challenges (a 0700 directory makes certbot fail with 403).
+    install -d -m 0755 /var/www/letsencrypt /var/www/letsencrypt/.well-known /var/www/letsencrypt/.well-known/acme-challenge
     echo "    wrote $site"
 else
     echo "    $site exists, left unchanged"

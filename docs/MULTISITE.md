@@ -298,7 +298,7 @@ A domain without a subdomain (`example.org`) cannot have a CNAME. It uses A and 
 
 **Domains another site claimed.** A domain that another site added, but never verified, is not lost to its real owner. The page shows the TXT record for *this* site. With that record in place, adding the domain again moves it to this site. A verified domain never moves; once it lapses, it can be claimed the same way.
 
-**The primary domain.** Any verified host can be made the primary one. The site is then served there, its base URL changes, and its other hosts redirect to it. The default host can never be removed, and the primary one cannot be removed while it is primary.
+**The primary domain.** Any verified host can be made the primary one, once it has its certificate: behind nginx, check that it opens over https first ([DEPLOY.md](DEPLOY.md#nginx-with-a-wildcard-certificate)). The site is then served there, its base URL changes, and its other hosts redirect to it. The default host can never be removed, and the primary one cannot be removed while it is primary.
 
 **Daily re-checks.** The daily maintenance checks every verified custom domain again, at most once every 20 hours, so a restart does not add checks:
 - **A domain lapses** after at least 3 failed checks in a row whose first is at least 72 hours old: with daily checks, the fourth failed day. Resolver errors never count, and a passing check clears the failures.
