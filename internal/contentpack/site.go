@@ -24,7 +24,8 @@ type Site struct {
 	ActiveTheme  string                    `json:"active_theme"`
 	Timezone     string                    `json:"timezone"`
 	PostsPerPage int                       `json:"posts_per_page"`
-	SiteText     map[string]store.SiteText `json:"site_text"` // title, tagline and footer per extra language
+	FrontPage    string                    `json:"front_page"` // "posts" (default) or "theme": the active theme's front page
+	SiteText     map[string]store.SiteText `json:"site_text"`  // title, tagline and footer per extra language
 	MenuLinks    []MenuLink                `json:"menu_links"`
 
 	// Warnings found while loading (unknown keys); Import adds them to its report.
@@ -41,7 +42,7 @@ type MenuLink struct {
 }
 
 var siteKeys = map[string]bool{"title": true, "tagline": true, "footer_text": true, "language": true, "languages": true,
-	"active_theme": true, "timezone": true, "posts_per_page": true, "site_text": true, "menu_links": true}
+	"active_theme": true, "timezone": true, "posts_per_page": true, "front_page": true, "site_text": true, "menu_links": true}
 
 // LoadSite reads and validates site.json.
 func LoadSite(path string) (*Site, error) {
@@ -97,6 +98,9 @@ func LoadSite(path string) (*Site, error) {
 	}
 	if site.PostsPerPage < 0 || site.PostsPerPage > 100 {
 		fail("posts_per_page must be between 1 and 100")
+	}
+	if site.FrontPage != "" && site.FrontPage != "posts" && site.FrontPage != "theme" {
+		fail("front_page must be \"posts\" or \"theme\", got %q", site.FrontPage)
 	}
 	for i, m := range site.MenuLinks {
 		where := fmt.Sprintf("menu_links[%d]", i)

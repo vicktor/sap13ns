@@ -310,7 +310,7 @@ func TestLoadSite(t *testing.T) {
 	writeFile(t, p, `{
   "title": "sap13ns", "tagline": "Tag", "footer_text": "Foot",
   "language": "en", "languages": ["es"], "active_theme": "sap13ns",
-  "timezone": "Europe/Madrid", "posts_per_page": 9,
+  "timezone": "Europe/Madrid", "posts_per_page": 9, "front_page": "theme",
   "site_text": {"es": {"site_title": "sap13ns", "tagline": "Lema", "footer_text": "Pie"}},
   "menu_links": [{"menu": "primary", "lang": "en", "label": "Blog", "url": "/blog", "order": 70}],
   "extra": true
@@ -319,7 +319,7 @@ func TestLoadSite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Title != "sap13ns" || s.Language != "en" || !reflect.DeepEqual(s.Languages, []string{"es"}) || s.PostsPerPage != 9 {
+	if s.Title != "sap13ns" || s.Language != "en" || !reflect.DeepEqual(s.Languages, []string{"es"}) || s.PostsPerPage != 9 || s.FrontPage != "theme" {
 		t.Errorf("site = %+v", s)
 	}
 	if s.SiteText["es"].Tagline != "Lema" || s.SiteText["es"].FooterText != "Pie" {
@@ -332,13 +332,13 @@ func TestLoadSite(t *testing.T) {
 		t.Errorf("warnings = %v", s.Warnings)
 	}
 
-	writeFile(t, p, `{"title": "", "language": "English", "languages": ["en"], "timezone": "Mars/Base",
+	writeFile(t, p, `{"title": "", "language": "English", "languages": ["en"], "timezone": "Mars/Base", "front_page": "page",
 	  "menu_links": [{"menu": "Main Menu", "lang": "en", "label": "", "url": ""}]}`)
 	_, err = LoadSite(p)
 	if err == nil {
 		t.Fatal("expected validation errors")
 	}
-	for _, want := range []string{"title is required", "language must be", "timezone", "invalid menu location", "label must be", "url must be"} {
+	for _, want := range []string{"title is required", "language must be", "timezone", "invalid menu location", "label must be", "url must be", "front_page must be"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not contain %q", err, want)
 		}

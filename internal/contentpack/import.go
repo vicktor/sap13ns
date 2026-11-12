@@ -196,6 +196,9 @@ func (im *importer) applySettings(ctx context.Context) (store.Settings, error) {
 		next.PostsPerPage = site.PostsPerPage
 	}
 	next.FrontPage = "posts"
+	if site.FrontPage == "theme" {
+		next.FrontPage = "theme"
+	}
 	if reflect.DeepEqual(normSettings(cur), normSettings(next)) {
 		return cur, nil
 	}
