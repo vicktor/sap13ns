@@ -1,6 +1,7 @@
 # Gives every custom domain of the sap13ns network a certificate and an
 # nginx server block (/usr/local/sbin/sap13ns-domains). It runs as root
-# because it writes nginx's configuration, runs certbot and reloads nginx,
+# because it writes nginx's configuration, runs certbot (on a directory of
+# its own, /etc/letsencrypt-sap13ns) and reloads nginx,
 # none of which the web server may do. Started by sap13ns-domains.path when
 # the list changes and by sap13ns-domains.timer every hour (retries).
 # Logs: `journalctl -u sap13ns-domains`.
@@ -13,7 +14,7 @@ After=network-online.target nginx.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/sap13ns-domains
-TimeoutStartSec=15min
+TimeoutStartSec=40min
 SyslogIdentifier=sap13ns-domains
 PrivateTmp=yes
 ProtectHome=yes

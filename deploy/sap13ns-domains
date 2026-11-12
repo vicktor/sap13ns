@@ -9,8 +9,8 @@
 # domain in the list it:
 #   1. writes a port-80 server block, so Let's Encrypt's HTTP-01 challenge
 #      reaches the webroot, and reloads nginx;
-#   2. gets a certificate with certbot (--webroot), renewed afterwards by
-#      certbot's own timer, which reloads nginx;
+#   2. gets a certificate with certbot (--webroot), which this helper also
+#      renews, twice a day at most;
 #   3. writes the 443 server block that proxies to sap13ns, and reloads.
 # A domain that leaves the list loses its server blocks at once and its
 # certificate KEEP_DAYS later.
@@ -29,10 +29,11 @@
 #     regular expression), a name a certificate this helper did not issue
 #     covers, this machine's own name and its domain, and the names under
 #     PROTECT are never served;
-#   - only certificates this helper issued are used, and only those are
-#     deleted, and never while anything else of nginx uses them. They are
-#     told apart by their renewal file, which certbot writes with this
-#     helper's deploy hook;
+#   - the certificates live in a certbot directory of this helper's own
+#     (/etc/letsencrypt-sap13ns), apart from the server's /etc/letsencrypt,
+#     which it only reads for the names it must leave alone. So it can
+#     only use, renew and delete what it issued itself, whatever hooks or
+#     settings the server's certbot has;
 #   - at most MAX_ISSUE_DAY certificates are asked for in 24 hours, half
 #     of them at most for domains that failed before, and a domain whose
 #     certificate fails waits longer each time.
@@ -45,7 +46,8 @@
 #                                subdomains (other services of the server)
 #   PROTECT_HOST=no              do not protect this machine's own name
 #                                (hostname -f) and its domain
-#   LIST, LIST_USER, WEBROOT, UPSTREAM, NGINX, LIVE: see the defaults below
+#   LIST, LIST_USER, WEBROOT, UPSTREAM, NGINX, LE, OTHER_LIVE: see the
+#                                defaults below
 #
 # Logs: journalctl -u sap13ns-domains
 set -eu
@@ -53,7 +55,8 @@ umask 022
 export LC_ALL=C
 
 NGINX=/etc/nginx
-LIVE=/etc/letsencrypt/live
+LE=/etc/letsencrypt-sap13ns        # this helper's own certbot directory
+OTHER_LIVE=/etc/letsencrypt/live   # the server's other certificates: never touched
 LIST=/var/lib/sap13ns/custom-domains
 WEBROOT=/var/www/letsencrypt
 UPSTREAM=sap13ns          # the upstream of /etc/nginx/sites-available/sap13ns.conf
@@ -73,18 +76,14 @@ DEFAULTS=${SAP13NS_DOMAINS_DEFAULTS:-/etc/default/sap13ns-domains}
 if [ -r "$DEFAULTS" ]; then . "$DEFAULTS"; fi
 CONF_DIR=${CONF_DIR:-$NGINX/sap13ns-domains}
 INCLUDE=$NGINX/sites-enabled/sap13ns_domains.conf
-# certbot keeps the settings of each certificate in renewal/NAME.conf, the
-# deploy hook among them: HOOK ends with a tag that only the certificates
-# this helper asked for carry. It travels with /etc/letsencrypt, and a
-# certificate of the same name that someone else issues later lacks it.
-RENEWAL=$(dirname "$LIVE")/renewal
-TAG=': sap13ns-domains'
-HOOK="systemctl reload nginx && $TAG"
+LIVE=$LE/live
+# After a renewal certbot runs this, and the next do_reload reloads nginx.
+HOOK="touch $STATE/reload"
 
 log() { echo "sap13ns-domains: $*"; }
 
 install -d -m 0700 "$STATE" "$STATE/failed" "$STATE/removed"
-install -d -m 0755 "$CONF_DIR" "$WEBROOT"
+install -d -m 0755 "$CONF_DIR" "$WEBROOT" "$LE"
 exec 9>"$STATE/lock"
 if ! flock -w 600 9; then
     log "another run holds the lock: nothing done"
@@ -128,11 +127,27 @@ valid() {
         printf '%s\n' "$1" | grep -Eqx '([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?'
 }
 
-# ours: this helper issued the certificate named $1.
-ours() { [ -d "$LIVE/$1" ] && grep -qsF -e "$TAG" "$RENEWAL/$1.conf"; }
+# cb SECONDS ARGS: certbot on this helper's own directory, never on the
+# server's /etc/letsencrypt, and never for longer than SECONDS.
+cb() {
+    t=$1
+    shift
+    timeout "$t" certbot --config-dir "$LE" --work-dir "$STATE/work" --logs-dir "$STATE/logs" "$@"
+}
 cert_files() { [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
-# has_cert: a certificate this helper issued for the host is in place.
-has_cert() { ours "$1" && cert_files "$1"; }
+# has_cert: the certificate of the host is in place, whole.
+has_cert() { cert_files "$1" && [ -s "$LE/renewal/$1.conf" ]; }
+# leftover: anything of a certificate of that name is there, whole or not
+# (certbot killed half-way, files deleted by hand).
+leftover() { [ -e "$LIVE/$1" ] || [ -e "$LE/archive/$1" ] || [ -e "$LE/renewal/$1.conf" ]; }
+# drop_cert HOST: its certificate and every piece of it are gone. The name
+# is a checked host name, and the three paths are in this helper's own
+# directory.
+drop_cert() {
+    cb 120 delete --non-interactive --cert-name "$1" >/dev/null 2>&1 || true
+    rm -rf "${LIVE:?}/$1" "${LE:?}/archive/$1" "${LE:?}/renewal/$1.conf"
+    ! leftover "$1"
+}
 
 # The shared part of every 443 block: as the main server block of
 # sap13ns.conf (docs/DEPLOY.md), proxying to the same upstream.
@@ -307,23 +322,22 @@ if ! all=$(nginx -T 2>/dev/null); then
 fi
 foreign=$(printf '%s\n' "$all" | awk -v own="$CONF_DIR/" '
     /^# configuration file / { f = $4; sub(/:$/, "", f); skip = (index(f, own) == 1); next }
-    !skip { sub(/#.*/, ""); print }')
+    !skip { sub(/(^|[ \t])#.*/, ""); print }')
 unset all
 do_reload # also what an earlier run left to reload
 
 # One pattern per line, as nginx writes them: NAME, *.NAME (its
 # subdomains), .NAME (it and its subdomains), NAME.* (any ending) or
 # ~REGEX. They are the server names of the other nginx sites, the names in
-# every certificate this helper did not issue, this machine's name and its
-# domain, and PROTECT.
+# every certificate of the server's own certbot, this machine's name and
+# its domain, and PROTECT.
 others() {
     {
         printf '%s\n' "$foreign" | tr '\n' ' ' | grep -o 'server_name[[:space:]][^;]*' |
             sed 's/^server_name//' | tr -d "\"'" | tr -s ' \t' '\n' || true
-        for d in "$LIVE"/*/; do
+        for d in "$OTHER_LIVE"/*/; do
             [ -d "$d" ] || continue
             name=$(basename "$d")
-            if ours "$name"; then continue; fi
             echo "$name"
             if [ -f "$d/cert.pem" ]; then
                 openssl x509 -in "$d/cert.pem" -noout -ext subjectAltName 2>/dev/null |
@@ -333,12 +347,9 @@ others() {
         for name in $PROTECT; do echo ".$name"; done
         if [ -n "$fq" ]; then
             echo ".$fq"
-            # Its domain too, unless that looks like a public suffix
-            # (co.uk, com.au): every customer's domain would be under it.
-            case "${fq#*.}" in
-            ?.?? | ??.?? | ???.??) ;;
-            *.*) echo ".${fq#*.}" ;;
-            esac
+            # Its domain too. (On a machine named web1.co.uk that is every
+            # .co.uk domain: set PROTECT_HOST=no and PROTECT there.)
+            case "${fq#*.}" in *.*) echo ".${fq#*.}" ;; esac
         fi
     } | awk '$0 != "" { print (substr($0, 1, 1) == "~") ? $0 : tolower($0) }' | sort -u
 }
@@ -433,19 +444,21 @@ done
 # Every certificate of this helper whose domain is gone is noted, with the
 # day it was first seen so: also one whose block was never written, or
 # whose note was lost with the state directory.
-for d in "$LIVE"/*/; do
-    [ -d "$d" ] || continue
-    h=$(basename "$d")
+for d in "$LIVE"/*/ "$LE"/renewal/*.conf; do
+    [ -e "$d" ] || continue
+    h=$(basename "$d" .conf)
     case " $wanted " in *" $h "*) continue ;; esac
-    if valid "$h" && ours "$h" && [ ! -f "$CONF_DIR/$h.conf" ] && [ ! -f "$STATE/removed/$h" ]; then
+    if valid "$h" && [ ! -f "$CONF_DIR/$h.conf" ] && [ ! -f "$STATE/removed/$h" ]; then
         touch "$STATE/removed/$h"
     fi
 done
-# The failures of the domains that are gone are forgotten.
+# The failures of a domain that is gone are forgotten a week later, the
+# longest wait there is: leaving the list and coming back does not reset
+# its wait, nor make it a domain that never failed.
 for f in "$STATE"/failed/*; do
     [ -f "$f" ] || continue
     case " $wanted " in *" $(basename "$f") "*) continue ;; esac
-    rm -f "$f"
+    if [ $(($(date +%s) - $(stat -c %Y "$f"))) -ge 604800 ]; then rm -f "$f"; fi
 done
 
 # --- Step 1: the port-80 block of every domain without a certificate --------
@@ -507,19 +520,17 @@ for f in "$STATE"/removed/*; do
     esac
     if [ $((now - $(stat -c %Y "$f"))) -lt $((KEEP_DAYS * 86400)) ]; then continue; fi
     if [ -f "$CONF_DIR/$h.conf" ]; then continue; fi
-    if valid "$h" && ours "$h"; then
-        rc=0
-        is_taken "$h" || rc=$?
-        if [ "$rc" != 1 ] || printf '%s\n' "$foreign" | grep -qF "$LIVE/$h/"; then
-            log "$h: another nginx site uses its certificate or serves the name now; the certificate is left alone"
-        elif certbot delete --non-interactive --cert-name "$h" >/dev/null 2>&1; then
+    if valid "$h" && leftover "$h"; then
+        if printf '%s\n' "$foreign" | grep -qF "$LIVE/$h/"; then
+            log "$h: another nginx site uses its certificate now; it is left alone"
+        elif drop_cert "$h"; then
             log "$h: certificate deleted"
         else
-            log "$h: certbot delete failed; tried again on the next run"
+            log "$h: its certificate could not be deleted; tried again on the next run"
             continue
         fi
     fi
-    rm -f "$f" "$STATE/failed/$h"
+    rm -f "$f"
 done
 
 # --- Step 2: the certificates ------------------------------------------------
@@ -548,9 +559,18 @@ for h in $fresh $again; do
         if [ "$retries" -ge $((MAX_ISSUE_DAY / 2)) ]; then continue; fi
         retries=$((retries + 1))
     fi
-    if [ -e "$LIVE/$h" ] && ! ours "$h"; then
-        log "$h: a certificate this helper did not issue has that name; skipped"
-        continue
+    # What a killed certbot or a deletion by hand left of an earlier
+    # certificate would make certbot fail, or issue under another name.
+    if leftover "$h"; then
+        # Its block must not name files that are about to go.
+        if grep -q 'ssl_certificate' "$CONF_DIR/$h.conf"; then
+            host_conf "$h" >"$new"
+            if ! place "$CONF_DIR/$h.conf"; then continue; fi
+        fi
+        if ! drop_cert "$h"; then
+            log "$h: what is left of its earlier certificate could not be removed; it waits"
+            continue
+        fi
     fi
     set -- certonly --webroot -w "$WEBROOT" -d "$h" --cert-name "$h" \
         --non-interactive --agree-tos --keep-until-expiring \
@@ -559,7 +579,7 @@ for h in $fresh $again; do
     if [ -n "$STAGING" ]; then set -- "$@" --test-cert; fi
     attempts=$((attempts + 1))
     echo "$now $kind" >>"$STATE/attempts"
-    if certbot "$@" >"$STATE/certbot.log" 2>&1 && has_cert "$h"; then
+    if cb 300 "$@" >"$STATE/certbot.log" 2>&1 && has_cert "$h"; then
         rm -f "$STATE/failed/$h"
         log "$h: certificate issued"
     else
@@ -568,6 +588,21 @@ for h in $fresh $again; do
         tail -n 15 "$STATE/certbot.log" >&2
     fi
 done
+
+# --- Renewals ----------------------------------------------------------------
+# Twice a day at most; certbot renews what has less than 30 days left, and
+# asks for a reload of nginx (HOOK) for each one it renewed.
+renewed=0
+if [ -f "$STATE/renewed" ]; then renewed=$(stat -c %Y "$STATE/renewed"); fi
+if [ $((now - renewed)) -ge 43200 ] || [ "$renewed" -gt "$now" ]; then
+    touch "$STATE/renewed"
+    if ls "$LE"/renewal/*.conf >/dev/null 2>&1; then
+        if ! cb 900 renew --quiet --deploy-hook "$HOOK" >"$STATE/certbot-renew.log" 2>&1; then
+            log "certbot renew reported failures (a domain that left the list cannot renew):"
+            tail -n 15 "$STATE/certbot-renew.log" >&2
+        fi
+    fi
+fi
 
 # --- Step 3: the 443 block of every domain with a certificate ---------------
 for h in $wanted; do
