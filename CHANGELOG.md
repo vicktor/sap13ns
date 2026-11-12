@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.19.1 — 2026-11-12
+
+- **Security:** the `sap13ns-domains` helper, which runs as root, now reads the list of custom domains as the `sap13ns` user, and no longer writes the lines it skips to the log. Before, a compromised web server could replace the list with a link to a file only root may read and get its lines into the journal. A list that cannot be read now changes nothing, and one with more than 1000 lines is refused. Reinstall the helper: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
+
 ## v0.19.0 — 2026-11-12
 
 - **Custom domains get https by themselves behind nginx.** A new root helper, `sap13ns-domains`, gives every verified custom domain a Let's Encrypt certificate and its own nginx server block, about a minute after it is verified, and removes both when the domain goes. sap13ns lists the domains it routes in `/var/lib/sap13ns/custom-domains` (`SAP13NS_DOMAINS_FILE`); a systemd path unit runs the helper when the list changes, and a timer every hour to retry. The helper never touches other nginx sites, and reloads nginx only after `nginx -t` passes. `install.sh` installs it, disabled: enable `sap13ns-domains.path` and `sap13ns-domains.timer` on a network behind nginx (docs/DEPLOY.md).

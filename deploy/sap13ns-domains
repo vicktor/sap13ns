@@ -23,7 +23,7 @@
 # Settings, all optional, in /etc/default/sap13ns-domains:
 #   EMAIL=ops@example.com        Let's Encrypt account e-mail (first run)
 #   STAGING=1                    use Let's Encrypt's staging CA (tests)
-#   LIST, WEBROOT, UPSTREAM, NGINX, LIVE: see the defaults below
+#   LIST, LIST_USER, WEBROOT, UPSTREAM, NGINX, LIVE: see the defaults below
 #
 # Logs: journalctl -u sap13ns-domains
 set -eu
@@ -34,6 +34,8 @@ LIVE=/etc/letsencrypt/live
 LIST=/var/lib/sap13ns/custom-domains
 WEBROOT=/var/www/letsencrypt
 UPSTREAM=sap13ns          # the upstream of /etc/nginx/sites-available/sap13ns.conf
+LIST_USER=sap13ns         # the list is read as this user, never as root
+MAX_DOMAINS=1000
 EMAIL=
 STAGING=
 RETRY_AFTER=3600          # seconds before a failed certificate is tried again
@@ -50,9 +52,25 @@ install -d -m 0755 "$STATE" "$STATE/failed" "$CONF_DIR" "$WEBROOT"
 exec 9>"$STATE/lock"
 flock 9
 
-if [ ! -f "$LIST" ]; then
-    log "no $LIST yet (sap13ns writes it when it starts): nothing to do"
+# The list is written by the web server's user, so it is read as that
+# user: a symlink it planted cannot make root read a file it may not. Its
+# lines are never logged.
+list=$(mktemp)
+backup=$(mktemp -d)
+trap 'rm -rf "$backup" "$list"' EXIT
+if [ "$(id -u)" = 0 ]; then
+    readlist() { runuser -u "$LIST_USER" -- cat "$LIST"; }
+else
+    readlist() { cat "$LIST"; } # tests
+fi
+# A list that cannot be read is not an empty one: nothing is removed then.
+if ! readlist >"$list" 2>/dev/null; then
+    log "cannot read $LIST (sap13ns writes it when it starts): nothing to do"
     exit 0
+fi
+if [ "$(wc -c <"$list")" -gt 262144 ] || [ "$(wc -l <"$list")" -gt "$MAX_DOMAINS" ]; then
+    log "$LIST is larger than expected (more than $MAX_DOMAINS domains or 256 KiB): nothing done"
+    exit 1
 fi
 
 # A host name as sap13ns routes it: lower-case ASCII labels, at least two.
@@ -169,8 +187,6 @@ put() {
     fi
 }
 
-backup=$(mktemp -d)
-trap 'rm -rf "$backup"' EXIT
 cp -a "$CONF_DIR/." "$backup/"
 if [ -f "$INCLUDE" ]; then cp -a "$INCLUDE" "$backup/.include"; fi
 
@@ -199,10 +215,11 @@ put "$CONF_DIR/proxy.inc"
 
 taken=$(others)
 wanted=
+invalid=0
 while IFS= read -r h || [ -n "$h" ]; do
     [ -n "$h" ] || continue
     if ! valid "$h"; then
-        log "skipping $h: not a valid host name"
+        invalid=$((invalid + 1))
         continue
     fi
     if printf '%s\n' "$taken" | grep -qxF "$h"; then
@@ -210,7 +227,8 @@ while IFS= read -r h || [ -n "$h" ]; do
         continue
     fi
     wanted="$wanted $h"
-done <"$LIST"
+done <"$list"
+if [ "$invalid" -gt 0 ]; then log "skipped $invalid lines that are not host names"; fi
 
 # Domains that left the list.
 for f in "$CONF_DIR"/*.conf; do
