@@ -7,12 +7,13 @@ needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
 ## v0.19.2 — 2026-11-12
 
-- **Security:** the `sap13ns-domains` helper no longer trusts the list of custom domains in any way, in case the web server is compromised. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
-  - It reads the list only if it is a regular file, at most 256 KiB within 10 seconds: a device or a pipe in its place could fill the disk or hold the helper.
-  - It never serves a name another nginx site covers with a wildcard or a regular expression, or a certificate it did not issue covers, nor the domains in the new `PROTECT` setting and their subdomains. The other sites' names now come from `nginx -T`, so included files and quoted names count, and when they cannot be known the helper changes nothing. Before, only exact names found in `sites-enabled` and `conf.d` were skipped, so another service's host on the same server could be served by sap13ns.
-  - It uses and deletes only the certificates it issued. Before, a listed name that had a certificate from another service was served with it, and that certificate was deleted when the name left the list.
-  - An IP address is no longer taken for a host name.
-  - A removed domain's certificate is deleted a week later instead of at once, and at most 20 certificates are asked for in 24 hours, so a list that keeps changing cannot use up the server's limits at Let's Encrypt.
+- **Security and reliability of the `sap13ns-domains` helper,** after a review that assumed a compromised web server and looked for outages. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
+  - **nginx always loads.** Each file is now changed alone and kept only if `nginx -t` accepts it. Before, one domain nginx refused (a name of 47 characters or more, with nginx's defaults) stopped every other domain from getting a certificate, and a week after another domain was removed its certificate was deleted while its block came back, which left nginx unable to reload or restart for every site of the server. A run killed half-way is undone by the next one, and a block whose certificate is gone goes back to port 80.
+  - **Other services are never taken over.** The helper never serves a name another nginx site covers exactly, with a wildcard or with a regular expression (the names come from `nginx -T`, so included files and quoted names count), a name a certificate it did not issue covers, the server's own name and its domain, nor the domains in the new `PROTECT` setting. Before, only exact names found in `sites-enabled` and `conf.d` were skipped.
+  - **Only its own certificates.** It uses and deletes only the certificates it issued, marked in `/etc/letsencrypt/sap13ns-domains/`, and never deletes one another nginx site has started to use. Before, a listed name that had a certificate from another service was served with it, and that certificate was deleted when the name left the list.
+  - **The list is read safely:** only a regular file, at most 256 KiB within 10 seconds, and an IP address is no longer taken for a host name.
+  - **Let's Encrypt's limits.** A removed domain's certificate is deleted a week later instead of at once, at most 20 certificates are asked for in 24 hours, a failed one waits longer each time (an hour, up to a day), and domains that never failed go first, so one that cannot get a certificate does not hold the others back.
+  - Runs are at least a minute apart, and the helper's state directory is readable by root only.
 
 ## v0.19.1 — 2026-11-12
 

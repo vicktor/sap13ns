@@ -12,20 +12,27 @@
 #   2. gets a certificate with certbot (--webroot), renewed afterwards by
 #      certbot's own timer, which reloads nginx;
 #   3. writes the 443 server block that proxies to sap13ns, and reloads.
-# A domain that leaves the list loses its server block and its certificate.
+# A domain that leaves the list loses its server blocks at once and its
+# certificate KEEP_DAYS later.
 #
 # Every block lives in /etc/nginx/sap13ns-domains/, included by one file in
 # sites-enabled, so the rest of nginx (other sites on a shared server) is
-# never touched. No block is a default_server. nginx is reloaded only after
-# `nginx -t` passes; otherwise the previous blocks are put back.
+# never touched. No block is a default_server.
+#
+# nginx's configuration on disk is valid after every step: each file is
+# changed alone and kept only if `nginx -t` accepts it, otherwise the file
+# goes back to what it was and only that domain waits. A run that was
+# killed half-way is undone by the next one.
 #
 # The list comes from the web server's user, so it is not trusted:
-#   - a name another nginx site serves (also through a wildcard), a name a
-#     certificate this helper did not issue covers, and the names under
+#   - a name another nginx site serves (exactly, with a wildcard or a
+#     regular expression), a name a certificate this helper did not issue
+#     covers, this machine's own name and its domain, and the names under
 #     PROTECT are never served;
 #   - only certificates this helper issued are used, and only those are
-#     deleted, KEEP_DAYS after their domain left the list;
-#   - at most MAX_ISSUE_DAY certificates are asked for in 24 hours.
+#     deleted, and never while anything else of nginx uses them;
+#   - at most MAX_ISSUE_DAY certificates are asked for in 24 hours, and a
+#     domain whose certificate fails waits longer each time.
 #
 # Settings, all optional, in /etc/default/sap13ns-domains:
 #   EMAIL=ops@example.com        Let's Encrypt account e-mail (first run)
@@ -33,11 +40,14 @@
 #   PROTECT="example.org other.example"
 #                                domains never served here, with their
 #                                subdomains (other services of the server)
+#   PROTECT_HOST=no              do not protect this machine's own name
+#                                (hostname -f) and its domain
 #   LIST, LIST_USER, WEBROOT, UPSTREAM, NGINX, LIVE: see the defaults below
 #
 # Logs: journalctl -u sap13ns-domains
 set -eu
 umask 022
+export LC_ALL=C
 
 NGINX=/etc/nginx
 LIVE=/etc/letsencrypt/live
@@ -48,37 +58,50 @@ LIST_USER=sap13ns         # the list is read as this user, never as root
 MAX_DOMAINS=1000
 EMAIL=
 STAGING=
-RETRY_AFTER=3600          # seconds before a failed certificate is tried again
+RETRY_AFTER=3600          # a failed certificate waits this, doubled each time, up to a day
 MAX_ISSUE_DAY=20          # certificates asked for in 24 hours, at most
 KEEP_DAYS=7               # a removed domain's certificate is deleted after this
+MIN_INTERVAL=60           # seconds between two runs, so nginx is not reloaded all the time
 PROTECT=
+PROTECT_HOST=yes
 STATE=/var/lib/sap13ns-domains
+MARKS=
 DEFAULTS=${SAP13NS_DOMAINS_DEFAULTS:-/etc/default/sap13ns-domains}
 # shellcheck disable=SC1090
 if [ -r "$DEFAULTS" ]; then . "$DEFAULTS"; fi
 CONF_DIR=${CONF_DIR:-$NGINX/sap13ns-domains}
 INCLUDE=$NGINX/sites-enabled/sap13ns_domains.conf
+# The certificates this helper issued are marked beside them, so the marks
+# travel with /etc/letsencrypt when the server is moved or restored.
+MARKS=${MARKS:-$(dirname "$LIVE")/sap13ns-domains}
 
 log() { echo "sap13ns-domains: $*"; }
 
-install -d -m 0755 "$STATE" "$STATE/failed" "$STATE/certs" "$STATE/removed" "$CONF_DIR" "$WEBROOT"
+install -d -m 0700 "$STATE" "$STATE/failed" "$STATE/removed"
+install -d -m 0755 "$CONF_DIR" "$WEBROOT" "$MARKS"
 exec 9>"$STATE/lock"
-flock 9
+if ! flock -w 600 9; then
+    log "another run holds the lock: nothing done"
+    exit 1
+fi
+if [ -f "$STATE/last" ]; then
+    age=$(($(date +%s) - $(stat -c %Y "$STATE/last")))
+    if [ "$age" -ge 0 ] && [ "$age" -lt "$MIN_INTERVAL" ]; then sleep $((MIN_INTERVAL - age)); fi
+fi
 
 # The list is written by the web server's user, so it is read as that
 # user: a symlink it planted cannot make root read a file it may not. Its
 # lines are never logged.
 list=$(mktemp)
-backup=$(mktemp -d)
-trap 'rm -rf "$backup" "$list"' EXIT
+trap 'rm -f "$list"' EXIT
 # Only a regular file is read (not a FIFO or a device), at most one byte
 # past the limit, within 10 seconds.
 # shellcheck disable=SC2016 # expanded by the inner sh
 read1='test -f "$1" && exec head -c 262145 -- "$1"'
 if [ "$(id -u)" = 0 ]; then
-    readlist() { timeout 10 runuser -u "$LIST_USER" -- sh -c "$read1" sh "$LIST"; }
+    readlist() { timeout 10 runuser -u "$LIST_USER" -- sh -c "$read1" sh "$LIST" 9>&- </dev/null; }
 else
-    readlist() { timeout 10 sh -c "$read1" sh "$LIST"; } # tests
+    readlist() { timeout 10 sh -c "$read1" sh "$LIST" 9>&- </dev/null; } # tests
 fi
 # A list that cannot be read is not an empty one: nothing is removed then.
 if ! readlist >"$list" 2>/dev/null; then
@@ -91,76 +114,18 @@ if [ "$(wc -c <"$list")" -gt 262144 ] || [ "$(wc -l <"$list")" -gt "$MAX_DOMAINS
 fi
 
 # A host name as sap13ns routes it: lower-case ASCII labels, at least two,
-# the last one not a number (so never an IP address).
+# the last one not a number (so never an IP address), and short enough to
+# name its files.
 valid() {
-    [ ${#1} -le 253 ] &&
+    [ ${#1} -le 200 ] &&
         printf '%s\n' "$1" | grep -Eqx '([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?'
 }
 
 # ours: this helper issued the certificate named $1.
-ours() { [ -f "$STATE/certs/$1" ]; }
-
-# The names that are never served here, one pattern per line, as nginx
-# writes them: NAME, *.NAME (its subdomains), .NAME (it and its
-# subdomains), NAME.* (any ending) or ~REGEX. They are the server names of
-# the other nginx sites, the names in every certificate this helper did
-# not issue, and PROTECT. The server names come from nginx itself
-# (nginx -T: the configuration it would run, includes expanded), without
-# the blocks this helper wrote.
-others() {
-    conf=$(nginx -T 2>/dev/null) || return 1
-    {
-        printf '%s\n' "$conf" | awk -v own="$CONF_DIR/" '
-            /^# configuration file / { f = $4; sub(/:$/, "", f); skip = (index(f, own) == 1); next }
-            !skip { sub(/#.*/, ""); print }' |
-            tr '\n' ' ' | grep -o 'server_name[[:space:]][^;]*' | sed 's/^server_name//' |
-            tr -d "\"'" | tr -s ' \t' '\n' || true
-        for d in "$LIVE"/*/; do
-            [ -d "$d" ] || continue
-            name=$(basename "$d")
-            if ours "$name"; then continue; fi
-            echo "$name"
-            if [ -f "$d/cert.pem" ]; then
-                openssl x509 -in "$d/cert.pem" -noout -ext subjectAltName 2>/dev/null |
-                    grep -o 'DNS:[^, ]*' | sed 's/^DNS://' || true
-            fi
-        done
-        for name in $PROTECT; do echo ".$name"; done
-    } | awk '$0 != "" { print (substr($0, 1, 1) == "~") ? $0 : tolower($0) }' | sort -u
-}
-
-# is_taken HOST: a pattern of $taken covers it (0), none does (1), or a
-# regular expression could not be tried here (2: no grep -P, or it is not
-# valid for it), and then nothing is known.
-is_taken() {
-    if printf '%s\n' "$taken" | awk -v h="$1" '
-        function ends(s) { return length(h) > length(s) && substr(h, length(h) - length(s) + 1) == s }
-        function starts(s) { return length(h) > length(s) && substr(h, 1, length(s)) == s }
-        substr($0, 1, 1) == "~" { next }
-        $0 == h { f = 1 }
-        substr($0, 1, 2) == "*." && ends(substr($0, 2)) { f = 1 }
-        substr($0, 1, 1) == "." && (h == substr($0, 2) || ends($0)) { f = 1 }
-        substr($0, length($0) - 1) == ".*" && starts(substr($0, 1, length($0) - 1)) { f = 1 }
-        END { exit f ? 0 : 1 }'; then
-        return 0
-    fi
-    printf '%s\n' "$taken" | grep '^~' | {
-        while IFS= read -r re; do
-            case "$re" in
-            '~*'*) re=${re#"~*"} opt=-qiP ;;
-            *) re=${re#"~"} opt=-qP ;;
-            esac
-            rc=0
-            printf '%s\n' "$1" | grep "$opt" -e "$re" 2>/dev/null || rc=$?
-            if [ "$rc" = 0 ]; then exit 0; fi
-            if [ "$rc" != 1 ]; then exit 2; fi
-        done
-        exit 1
-    }
-}
-
+ours() { [ -f "$MARKS/$1" ]; }
+cert_files() { [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
 # has_cert: a certificate this helper issued for the host is in place.
-has_cert() { ours "$1" && [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
+has_cert() { ours "$1" && cert_files "$1"; }
 
 # The shared part of every 443 block: as the main server block of
 # sap13ns.conf (docs/DEPLOY.md), proxying to the same upstream.
@@ -247,50 +212,139 @@ server {
 EOF
 }
 
-# put FILE: replaces FILE with FILE.new when they differ, and notes the
-# change. (Not fed by a pipe: a pipeline would run it in a subshell, and
-# the change would not be noted.)
-changed=0
-put() {
-    tmp="$1.new"
-    if [ -f "$1" ] && cmp -s "$tmp" "$1"; then
-        rm -f "$tmp"
-    else
-        mv "$tmp" "$1"
-        changed=1
+# --- Changing nginx's files -------------------------------------------------
+# place FILE: FILE becomes $new (or is deleted, with "del") if nginx accepts
+# the result; otherwise FILE goes back to what it was, and place fails.
+# $STATE/pending says what to undo if the run is killed in between.
+new=$STATE/new old=$STATE/old
+reload=0
+nginx_ok() { nginx -t -q 2>"$STATE/nginx-test.log"; }
+undo() {
+    [ -f "$STATE/pending" ] || return 0
+    { IFS= read -r had && IFS= read -r file; } <"$STATE/pending" || file=
+    if [ -n "$file" ]; then
+        if [ "$had" = 1 ] && [ -f "$old" ]; then cp -p "$old" "$file"; else rm -f "$file"; fi
     fi
+    rm -f "$STATE/pending" "$old"
 }
-
-cp -a "$CONF_DIR/." "$backup/"
-if [ -f "$INCLUDE" ]; then cp -a "$INCLUDE" "$backup/.include"; fi
-
-# apply: nginx -t, then reload; on failure, the previous blocks come back.
-apply() {
-    [ "$changed" = 1 ] || return 0
-    if nginx -t -q 2>"$STATE/nginx-test.log"; then
-        systemctl reload nginx
-        changed=0
-        cp -a "$CONF_DIR/." "$backup/"
+place() {
+    if [ "${2:-}" != del ] && [ -f "$1" ] && cmp -s "$new" "$1"; then
+        rm -f "$new"
         return 0
     fi
-    log "nginx -t failed; putting the previous configuration back:"
-    cat "$STATE/nginx-test.log" >&2
-    find "$CONF_DIR" -mindepth 1 -delete
-    cp -a "$backup/." "$CONF_DIR/"
-    rm -f "$CONF_DIR/.include"
-    if [ -f "$backup/.include" ]; then cp -a "$backup/.include" "$INCLUDE"; else rm -f "$INCLUDE"; fi
-    exit 1
+    had=0
+    rm -f "$old"
+    if [ -f "$1" ]; then
+        cp -p "$1" "$old"
+        had=1
+    fi
+    printf '%s\n%s\n' "$had" "$1" >"$STATE/pending"
+    if [ "${2:-}" = del ]; then rm -f "$1"; else mv "$new" "$1"; fi
+    if nginx_ok; then
+        rm -f "$STATE/pending" "$old"
+        reload=1
+        return 0
+    fi
+    undo
+    return 1
+}
+do_reload() {
+    if [ "$reload" = 1 ]; then
+        systemctl reload nginx
+        reload=0
+    fi
 }
 
-printf '# Written by sap13ns-domains: the custom domains of the sap13ns network.\ninclude %s/*.conf;\n' "$CONF_DIR" >"$INCLUDE.new"
-put "$INCLUDE"
-proxy_inc >"$CONF_DIR/proxy.inc.new"
-put "$CONF_DIR/proxy.inc"
+# A run that was killed between a change and its test: undo that change.
+undo
+rm -f "$new"
 
-if ! taken=$(others); then
+# A 443 block whose certificate is gone (deleted by hand, a restore without
+# it) would keep nginx from loading: it goes back to port 80.
+for f in "$CONF_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    h=$(basename "$f" .conf)
+    if valid "$h" && grep -q 'ssl_certificate' "$f" && ! cert_files "$h"; then
+        host_conf "$h" >"$f"
+        reload=1
+        log "$h: its certificate is gone, back to port 80"
+    fi
+done
+
+# --- The names that are never served here -----------------------------------
+# foreign is what nginx would run (nginx -T: includes expanded), without
+# the blocks this helper wrote and without comments.
+if ! all=$(nginx -T 2>/dev/null); then
     log "nginx -T failed: the names of the other sites are unknown, nothing done"
     exit 1
 fi
+foreign=$(printf '%s\n' "$all" | awk -v own="$CONF_DIR/" '
+    /^# configuration file / { f = $4; sub(/:$/, "", f); skip = (index(f, own) == 1); next }
+    !skip { sub(/#.*/, ""); print }')
+unset all
+do_reload
+
+# One pattern per line, as nginx writes them: NAME, *.NAME (its
+# subdomains), .NAME (it and its subdomains), NAME.* (any ending) or
+# ~REGEX. They are the server names of the other nginx sites, the names in
+# every certificate this helper did not issue, this machine's name and its
+# domain, and PROTECT.
+others() {
+    {
+        printf '%s\n' "$foreign" | tr '\n' ' ' | grep -o 'server_name[[:space:]][^;]*' |
+            sed 's/^server_name//' | tr -d "\"'" | tr -s ' \t' '\n' || true
+        for d in "$LIVE"/*/; do
+            [ -d "$d" ] || continue
+            name=$(basename "$d")
+            if ours "$name"; then continue; fi
+            echo "$name"
+            if [ -f "$d/cert.pem" ]; then
+                openssl x509 -in "$d/cert.pem" -noout -ext subjectAltName 2>/dev/null |
+                    grep -o 'DNS:[^, ]*' | sed 's/^DNS://' || true
+            fi
+        done
+        for name in $PROTECT; do echo ".$name"; done
+        if [ "$PROTECT_HOST" != no ]; then
+            fq=$(hostname -f 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
+            if valid "$fq"; then
+                echo ".$fq"
+                case "${fq#*.}" in *.*) echo ".${fq#*.}" ;; esac
+            fi
+        fi
+    } | awk '$0 != "" { print (substr($0, 1, 1) == "~") ? $0 : tolower($0) }' | sort -u
+}
+
+# is_taken HOST: a pattern of $taken covers it (0), none does (1), or a
+# regular expression could not be tried here (2: no grep -P, or it is not
+# valid for it), and then nothing is known.
+is_taken() {
+    if printf '%s\n' "$taken" | awk -v h="$1" '
+        function ends(s) { return length(h) > length(s) && substr(h, length(h) - length(s) + 1) == s }
+        function starts(s) { return length(h) > length(s) && substr(h, 1, length(s)) == s }
+        substr($0, 1, 1) == "~" { next }
+        $0 == h { f = 1 }
+        substr($0, 1, 2) == "*." && ends(substr($0, 2)) { f = 1 }
+        substr($0, 1, 1) == "." && (h == substr($0, 2) || ends($0)) { f = 1 }
+        substr($0, length($0) - 1) == ".*" && starts(substr($0, 1, length($0) - 1)) { f = 1 }
+        END { exit f ? 0 : 1 }'; then
+        return 0
+    fi
+    printf '%s\n' "$taken" | grep '^~' | {
+        while IFS= read -r re; do
+            case "$re" in
+            '~*'*) re=${re#"~*"} opt=-qiP ;;
+            *) re=${re#"~"} opt=-qP ;;
+            esac
+            rc=0
+            printf '%s\n' "$1" | grep "$opt" -e "$re" 2>/dev/null || rc=$?
+            if [ "$rc" = 0 ]; then exit 0; fi
+            if [ "$rc" != 1 ]; then exit 2; fi
+        done
+        exit 1
+    }
+}
+
+taken=$(others)
 wanted=
 invalid=0
 while IFS= read -r h || [ -n "$h" ]; do
@@ -313,20 +367,70 @@ while IFS= read -r h || [ -n "$h" ]; do
 done <"$list"
 if [ "$invalid" -gt 0 ]; then log "skipped $invalid lines that are not host names"; fi
 
-# Domains that left the list.
+# --- The include and the shared part ---------------------------------------
+proxy_inc >"$new"
+if ! place "$CONF_DIR/proxy.inc"; then
+    log "nginx refuses the shared proxy settings; nothing done:"
+    cat "$STATE/nginx-test.log" >&2
+    exit 1
+fi
+printf '# Written by sap13ns-domains: the custom domains of the sap13ns network.\ninclude %s/*.conf;\n' "$CONF_DIR" >"$new"
+if ! place "$INCLUDE"; then
+    log "nginx refuses $INCLUDE; nothing done:"
+    cat "$STATE/nginx-test.log" >&2
+    exit 1
+fi
+
+# --- Domains that left the list ---------------------------------------------
 for f in "$CONF_DIR"/*.conf; do
     [ -f "$f" ] || continue
     h=$(basename "$f" .conf)
     case " $wanted " in *" $h "*) continue ;; esac
-    rm -f "$f"
-    changed=1
+    if ! place "$f" del; then
+        log "$h: nginx refuses the configuration without it; it stays for now"
+        continue
+    fi
     log "$h removed"
     if valid "$h" && [ ! -f "$STATE/removed/$h" ]; then touch "$STATE/removed/$h"; fi
 done
 
-# Their certificates stay KEEP_DAYS, so a domain that comes back does not
-# need another one; then the ones this helper issued are deleted.
+# --- Step 1: the port-80 block of every domain without a certificate --------
 now=$(date +%s)
+# fail HOST: its attempt failed; the wait doubles each time, up to a day.
+fail() {
+    n=0
+    if [ -f "$STATE/failed/$1" ]; then n=$(head -c 4 "$STATE/failed/$1" | tr -cd 0-9); fi
+    echo $((${n:-0} + 1)) >"$STATE/failed/$1"
+}
+# waiting HOST: its last failure is too recent to try again.
+waiting() {
+    [ -f "$STATE/failed/$1" ] || return 1
+    n=$(head -c 4 "$STATE/failed/$1" | tr -cd 0-9)
+    n=${n:-1}
+    if [ "$n" -gt 6 ]; then n=6; fi
+    wait=$RETRY_AFTER
+    while [ "$n" -gt 1 ]; do
+        wait=$((wait * 2))
+        n=$((n - 1))
+    done
+    if [ "$wait" -gt 86400 ]; then wait=86400; fi
+    [ $((now - $(stat -c %Y "$STATE/failed/$1"))) -lt "$wait" ]
+}
+for h in $wanted; do
+    if has_cert "$h" || [ -f "$CONF_DIR/$h.conf" ]; then continue; fi
+    if waiting "$h"; then continue; fi
+    host_conf "$h" >"$new"
+    if ! place "$CONF_DIR/$h.conf"; then
+        fail "$h"
+        log "$h: nginx refuses its server block (a very long name needs a larger server_names_hash_bucket_size); it waits"
+    fi
+done
+do_reload
+
+# --- The certificates of the domains that left ------------------------------
+# They stay KEEP_DAYS, so a domain that comes back does not need another
+# one. Then the ones this helper issued are deleted, unless something else
+# of nginx has started to use them or to serve the name.
 for f in "$STATE"/removed/*; do
     [ -f "$f" ] || continue
     h=$(basename "$f")
@@ -336,38 +440,49 @@ for f in "$STATE"/removed/*; do
         ;;
     esac
     if [ $((now - $(stat -c %Y "$f"))) -lt $((KEEP_DAYS * 86400)) ]; then continue; fi
+    if [ -f "$CONF_DIR/$h.conf" ]; then continue; fi
     if valid "$h" && ours "$h"; then
-        certbot delete --non-interactive --cert-name "$h" >/dev/null 2>&1 || log "$h: certbot delete failed"
-        rm -f "$STATE/certs/$h"
-        log "$h: certificate deleted"
+        rc=0
+        is_taken "$h" || rc=$?
+        if [ "$rc" != 1 ] || printf '%s\n' "$foreign" | grep -qF "$LIVE/$h/"; then
+            rm -f "$MARKS/$h"
+            log "$h: its certificate is used elsewhere now, it is no longer this helper's"
+        elif certbot delete --non-interactive --cert-name "$h" >/dev/null 2>&1; then
+            rm -f "$MARKS/$h"
+            log "$h: certificate deleted"
+        else
+            log "$h: certbot delete failed; tried again on the next run"
+            continue
+        fi
     fi
     rm -f "$f" "$STATE/failed/$h"
 done
 
-# Step 1: the port-80 block of every domain still without a certificate.
-for h in $wanted; do
-    if ! has_cert "$h"; then
-        host_conf "$h" >"$CONF_DIR/$h.conf.new"
-        put "$CONF_DIR/$h.conf"
-    fi
-done
-apply
-
-# Step 2: the certificates, at most MAX_ISSUE_DAY in 24 hours, so a list
-# that keeps changing cannot use up the CA's limits of this server.
+# --- Step 2: the certificates ------------------------------------------------
+# At most MAX_ISSUE_DAY in 24 hours, so a list that keeps changing cannot
+# use up the CA's limits of this server; the domains that never failed go
+# first, so one that keeps failing does not hold the others back.
 touch "$STATE/attempts"
 awk -v min=$((now - 86400)) '$1 > min' "$STATE/attempts" >"$STATE/attempts.new"
 mv "$STATE/attempts.new" "$STATE/attempts"
 attempts=$(grep -c . "$STATE/attempts" || true)
+fresh="" again=""
 for h in $wanted; do
-    if has_cert "$h"; then continue; fi
+    if has_cert "$h" || [ ! -f "$CONF_DIR/$h.conf" ]; then continue; fi
+    if [ -f "$STATE/failed/$h" ]; then
+        if waiting "$h"; then continue; fi
+        again="$again $h"
+    else
+        fresh="$fresh $h"
+    fi
+done
+for h in $fresh $again; do
     if [ "$attempts" -ge "$MAX_ISSUE_DAY" ]; then
         log "$MAX_ISSUE_DAY certificates asked for in 24 hours: the others wait"
         break
     fi
-    mark="$STATE/failed/$h"
-    if [ -f "$mark" ] && [ $((now - $(stat -c %Y "$mark"))) -lt "$RETRY_AFTER" ]; then
-        log "$h: the last attempt failed less than $RETRY_AFTER s ago; waiting"
+    if cert_files "$h"; then
+        log "$h: a certificate this helper did not issue has that name; skipped"
         continue
     fi
     set -- certonly --webroot -w "$WEBROOT" -d "$h" --cert-name "$h" \
@@ -377,29 +492,32 @@ for h in $wanted; do
     if [ -n "$STAGING" ]; then set -- "$@" --test-cert; fi
     attempts=$((attempts + 1))
     echo "$now" >>"$STATE/attempts"
-    if certbot "$@" >"$STATE/certbot.log" 2>&1; then
-        rm -f "$mark"
-        touch "$STATE/certs/$h"
+    if certbot "$@" >"$STATE/certbot.log" 2>&1 && cert_files "$h"; then
+        touch "$MARKS/$h"
+        rm -f "$STATE/failed/$h"
         log "$h: certificate issued"
     else
-        touch "$mark"
-        log "$h: certbot failed (retried within the hour):"
+        fail "$h"
+        log "$h: certbot failed (it is tried again, later each time):"
         tail -n 15 "$STATE/certbot.log" >&2
     fi
 done
 
-# Step 3: the 443 block of every domain with a certificate.
+# --- Step 3: the 443 block of every domain with a certificate ---------------
 for h in $wanted; do
-    if has_cert "$h"; then
-        host_conf "$h" tls >"$CONF_DIR/$h.conf.new"
-        put "$CONF_DIR/$h.conf"
+    if ! has_cert "$h"; then continue; fi
+    host_conf "$h" tls >"$new"
+    if ! place "$CONF_DIR/$h.conf"; then
+        log "$h: nginx refuses its https block:"
+        cat "$STATE/nginx-test.log" >&2
     fi
 done
-apply
+do_reload
 
 n=0 total=0
 for h in $wanted; do
     total=$((total + 1))
-    if has_cert "$h"; then n=$((n + 1)); fi
+    if has_cert "$h" && grep -q 'ssl_certificate' "$CONF_DIR/$h.conf" 2>/dev/null; then n=$((n + 1)); fi
 done
+touch "$STATE/last"
 log "$n of $total domains served over https"
