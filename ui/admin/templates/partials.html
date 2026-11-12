@@ -234,27 +234,27 @@
 
 {{/* The domains card and its forms: (dict "V" web.domainsView "CSRF" .CSRFField). */}}
 {{define "site-domains"}}{{$v := .V}}{{$csrf := .CSRF}}
-<section class="card table-wrap" id="domains">
+<section class="card" id="domains">
   <header><h2>{{T "Domains"}}</h2><p>{{T "Custom domains: %d of %d allowed by the plan." $v.Custom $v.Limit}}</p></header>
-  <table class="table">
-    <thead><tr><th>{{T "Host"}}</th><th>{{T "Status"}}</th><th class="max-md:hidden">{{T "Last check"}}</th><th><span class="sr-only">{{T "Actions"}}</span></th></tr></thead>
-    <tbody>
+  <section>
+    <ul class="domain-list">
       {{range $v.Domains}}
-      <tr>
-        <td><span class="mono break-all">{{.Host}}</span>{{if .Primary}} <span class="badge" data-variant="secondary">{{T "Primary"}}</span>{{end}}<div class="row-sub muted">{{if .Custom}}{{T "Custom domain"}}{{else}}{{T "Default"}}{{end}}</div></td>
-        <td>{{template "domain-status" .}}</td>
-        <td class="max-md:hidden muted nowrap">{{if .Custom}}{{with .CheckedAt}}{{ago .}}{{else}}—{{end}}{{else}}—{{end}}</td>
-        <td class="text-right"><div class="cell-actions">
-          {{if $v.Editable}}
-          {{if .Custom}}<form method="post" action="{{$v.Base}}/check" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{if .VerifiedAt}}{{T "Check"}}{{else}}{{T "Verify"}}{{end}}</button></form>{{end}}
-          {{if and .VerifiedAt (not .Primary)}}<form method="post" action="{{$v.Base}}/primary" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Serve the site on %s? Its other domains redirect there." .Host}}">{{icon "star"}}{{T "Make primary"}}</button></form>{{end}}
-          {{if and .Custom (not .Primary)}}<form method="post" action="{{$v.Base}}/remove" class="inline-flex">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Remove %s" .Host}}" data-confirm="{{T "Remove %s from this site?" .Host}}">{{icon "trash-2"}}</button></form>{{end}}
-          {{end}}
-        </div></td>
-      </tr>
+      <li>
+        <div class="domain-info">
+          <div class="domain-host"><span class="mono break-all">{{.Host}}</span>{{if .Primary}}<span class="badge" data-variant="secondary">{{T "Primary"}}</span>{{end}}{{template "domain-status" .}}</div>
+          <div class="row-sub muted">{{if .Custom}}{{T "Custom domain"}}{{with .CheckedAt}} · {{T "Last check"}}: {{ago .}}{{end}}{{else}}{{T "Default"}}{{end}}</div>
+        </div>
+        {{if $v.Editable}}
+        <div class="domain-actions">
+          {{if .Custom}}<form method="post" action="{{$v.Base}}/check">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit">{{icon "refresh-cw"}}{{if .VerifiedAt}}{{T "Check"}}{{else}}{{T "Verify"}}{{end}}</button></form>{{end}}
+          {{if and .VerifiedAt (not .Primary)}}<form method="post" action="{{$v.Base}}/primary">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="outline" data-size="sm" type="submit" data-confirm="{{T "Serve the site on %s? Its other domains redirect there." .Host}}">{{icon "star"}}{{T "Make primary"}}</button></form>{{end}}
+          {{if and .Custom (not .Primary)}}<form method="post" action="{{$v.Base}}/remove">{{$csrf}}<input type="hidden" name="host" value="{{.Host}}"><button class="btn" data-variant="ghost" data-size="icon-sm" type="submit" aria-label="{{T "Remove %s" .Host}}" data-confirm="{{T "Remove %s from this site?" .Host}}">{{icon "trash-2"}}</button></form>{{end}}
+        </div>
+        {{end}}
+      </li>
       {{end}}
-    </tbody>
-  </table>
+    </ul>
+  </section>
 </section>
 {{range $i, $d := $v.Domains}}{{if $d.Pending}}
 <section class="card">

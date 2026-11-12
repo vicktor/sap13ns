@@ -190,12 +190,24 @@ server {
 }
 ```
 
-nginx cannot get certificates on demand. A custom domain needs its own certificate and its own `server` block, once the site has verified the domain:
-1. Get the certificate: `certbot certonly --webroot -w /var/www/letsencrypt -d www.example.org`.
-2. Copy the 443 block, with `server_name www.example.org;` and the new certificate.
-3. Reload nginx.
+nginx cannot get certificates on demand, so a root helper does it for each custom domain. It needs no change to the nginx files above:
 
-For more than a few custom domains, use Caddy or the built-in ACME client.
+```sh
+install -m 0755 deploy/sap13ns-domains /usr/local/sbin/        # install.sh does these two
+install -m 0644 deploy/systemd/sap13ns-domains.* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now sap13ns-domains.path sap13ns-domains.timer
+```
+
+How it works:
+- **The list.** sap13ns writes the custom domains it routes (verified, of a live site) to `/var/lib/sap13ns/custom-domains`, one per line, whenever they change (`SAP13NS_DOMAINS_FILE`).
+- **The helper.** `sap13ns-domains.path` runs `/usr/local/sbin/sap13ns-domains` when the file changes, and `sap13ns-domains.timer` runs it every hour. For each domain in the list it writes a port-80 block (for the HTTP-01 challenge in `/var/www/letsencrypt`), gets a certificate with `certbot --webroot`, then writes the 443 block that proxies to the `sap13ns` upstream, and reloads nginx. certbot's own timer renews the certificates and reloads nginx.
+- **Removal.** A domain that leaves the list (removed, lapsed, its site deleted) loses its blocks and its certificate.
+- **Where.** Every block lives in `/etc/nginx/sap13ns-domains/`, included by `/etc/nginx/sites-enabled/sap13ns_domains.conf`. No block is a `default_server`, and a name another nginx site already serves is skipped, so other sites on a shared server are never touched.
+- **Safety.** nginx is reloaded only after `nginx -t` passes; otherwise the previous blocks are put back. A failed certificate is tried again after an hour, within Let's Encrypt's limits.
+- **Settings.** Optional, in `/etc/default/sap13ns-domains`: `EMAIL=` for the Let's Encrypt account, `STAGING=1` for the staging CA. Logs: `journalctl -u sap13ns-domains`.
+
+A custom domain is live over https about a minute after it is verified. Caddy and the built-in ACME client below do the same without a helper.
 
 ### Caddy with on-demand certificates
 

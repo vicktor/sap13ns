@@ -1,0 +1,275 @@
+#!/bin/sh
+# /usr/local/sbin/sap13ns-domains (root, 0755): HTTPS for the custom domains
+# of a network served behind nginx, with nothing to edit by hand.
+#
+# sap13ns writes the custom domains it routes (verified, of a live site) to
+# /var/lib/sap13ns/custom-domains, one per line, whenever they change
+# (SAP13NS_DOMAINS_FILE). sap13ns-domains.path runs this script when that
+# file changes, and sap13ns-domains.timer every hour, to retry. For each
+# domain in the list it:
+#   1. writes a port-80 server block, so Let's Encrypt's HTTP-01 challenge
+#      reaches the webroot, and reloads nginx;
+#   2. gets a certificate with certbot (--webroot), renewed afterwards by
+#      certbot's own timer, which reloads nginx;
+#   3. writes the 443 server block that proxies to sap13ns, and reloads.
+# A domain that leaves the list loses its server block and its certificate.
+#
+# Every block lives in /etc/nginx/sap13ns-domains/, included by one file in
+# sites-enabled, so the rest of nginx (other sites on a shared server) is
+# never touched. No block is a default_server. A name another nginx site
+# already serves is skipped. nginx is reloaded only after `nginx -t`
+# passes; otherwise the previous blocks are put back.
+#
+# Settings, all optional, in /etc/default/sap13ns-domains:
+#   EMAIL=ops@example.com        Let's Encrypt account e-mail (first run)
+#   STAGING=1                    use Let's Encrypt's staging CA (tests)
+#   LIST, WEBROOT, UPSTREAM, NGINX, LIVE: see the defaults below
+#
+# Logs: journalctl -u sap13ns-domains
+set -eu
+umask 022
+
+NGINX=/etc/nginx
+LIVE=/etc/letsencrypt/live
+LIST=/var/lib/sap13ns/custom-domains
+WEBROOT=/var/www/letsencrypt
+UPSTREAM=sap13ns          # the upstream of /etc/nginx/sites-available/sap13ns.conf
+EMAIL=
+STAGING=
+RETRY_AFTER=3600          # seconds before a failed certificate is tried again
+STATE=/var/lib/sap13ns-domains
+DEFAULTS=${SAP13NS_DOMAINS_DEFAULTS:-/etc/default/sap13ns-domains}
+# shellcheck disable=SC1090
+if [ -r "$DEFAULTS" ]; then . "$DEFAULTS"; fi
+CONF_DIR=${CONF_DIR:-$NGINX/sap13ns-domains}
+INCLUDE=$NGINX/sites-enabled/sap13ns_domains.conf
+
+log() { echo "sap13ns-domains: $*"; }
+
+install -d -m 0755 "$STATE" "$STATE/failed" "$CONF_DIR" "$WEBROOT"
+exec 9>"$STATE/lock"
+flock 9
+
+if [ ! -f "$LIST" ]; then
+    log "no $LIST yet (sap13ns writes it when it starts): nothing to do"
+    exit 0
+fi
+
+# A host name as sap13ns routes it: lower-case ASCII labels, at least two.
+valid() {
+    [ ${#1} -le 253 ] &&
+        printf '%s\n' "$1" | grep -Eqx '[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+'
+}
+
+# The names other nginx sites serve: those are never taken over.
+others() {
+    for f in "$NGINX"/sites-enabled/* "$NGINX"/conf.d/*.conf; do
+        [ -f "$f" ] && [ "$f" != "$INCLUDE" ] && cat "$f"
+    done | grep -o 'server_name[[:space:]][^;]*' | sed 's/^server_name//' | tr -s ' \t' '\n' | grep -v '^$' || true
+}
+
+has_cert() { [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
+
+# The shared part of every 443 block: as the main server block of
+# sap13ns.conf (docs/DEPLOY.md), proxying to the same upstream.
+proxy_inc() {
+    cat <<EOF
+# Written by sap13ns-domains: do not edit, it is rewritten on every run.
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+ssl_session_cache shared:sap13ns_SSL:10m;
+ssl_session_timeout 1d;
+server_tokens off;
+client_max_body_size 20m;
+
+gzip on;
+gzip_proxied any;
+gzip_vary on;
+gzip_types text/css text/javascript application/javascript application/json application/xml
+           application/rss+xml application/atom+xml application/feed+json
+           image/svg+xml text/plain text/markdown;
+
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_set_header Host \$host;
+proxy_set_header X-Forwarded-For \$remote_addr;
+proxy_set_header X-Forwarded-Proto \$scheme;
+proxy_set_header X-Real-IP \$remote_addr;
+
+location / {
+    proxy_pass http://$UPSTREAM;
+}
+location /admin/api/ai/ {
+    proxy_pass http://$UPSTREAM;
+    proxy_read_timeout 360s;
+}
+location /api/assistant {
+    proxy_pass http://$UPSTREAM;
+    proxy_read_timeout 360s;
+}
+location = /admin/tools/import {
+    proxy_pass http://$UPSTREAM;
+    client_max_body_size 260m;
+    proxy_request_buffering off;
+    proxy_read_timeout 600s;
+}
+location = /admin/plugins/upload {
+    proxy_pass http://$UPSTREAM;
+    client_max_body_size 48m;
+}
+location ^~ /admin/tools/export {
+    proxy_pass http://$UPSTREAM;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+}
+EOF
+}
+
+# The server blocks of one host; with "tls", the 443 block too.
+host_conf() {
+    cat <<EOF
+# $1: written by sap13ns-domains, do not edit.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $1;
+
+    location /.well-known/acme-challenge/ { root $WEBROOT; }
+    location / { return 301 https://\$host\$request_uri; }
+}
+EOF
+    [ "${2:-}" = tls ] || return 0
+    cat <<EOF
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name $1;
+
+    ssl_certificate     $LIVE/$1/fullchain.pem;
+    ssl_certificate_key $LIVE/$1/privkey.pem;
+
+    include $CONF_DIR/proxy.inc;
+}
+EOF
+}
+
+# put FILE: replaces FILE with FILE.new when they differ, and notes the
+# change. (Not fed by a pipe: a pipeline would run it in a subshell, and
+# the change would not be noted.)
+changed=0
+put() {
+    tmp="$1.new"
+    if [ -f "$1" ] && cmp -s "$tmp" "$1"; then
+        rm -f "$tmp"
+    else
+        mv "$tmp" "$1"
+        changed=1
+    fi
+}
+
+backup=$(mktemp -d)
+trap 'rm -rf "$backup"' EXIT
+cp -a "$CONF_DIR/." "$backup/"
+if [ -f "$INCLUDE" ]; then cp -a "$INCLUDE" "$backup/.include"; fi
+
+# apply: nginx -t, then reload; on failure, the previous blocks come back.
+apply() {
+    [ "$changed" = 1 ] || return 0
+    if nginx -t -q 2>"$STATE/nginx-test.log"; then
+        systemctl reload nginx
+        changed=0
+        cp -a "$CONF_DIR/." "$backup/"
+        return 0
+    fi
+    log "nginx -t failed; putting the previous configuration back:"
+    cat "$STATE/nginx-test.log" >&2
+    find "$CONF_DIR" -mindepth 1 -delete
+    cp -a "$backup/." "$CONF_DIR/"
+    rm -f "$CONF_DIR/.include"
+    if [ -f "$backup/.include" ]; then cp -a "$backup/.include" "$INCLUDE"; else rm -f "$INCLUDE"; fi
+    exit 1
+}
+
+printf '# Written by sap13ns-domains: the custom domains of the sap13ns network.\ninclude %s/*.conf;\n' "$CONF_DIR" >"$INCLUDE.new"
+put "$INCLUDE"
+proxy_inc >"$CONF_DIR/proxy.inc.new"
+put "$CONF_DIR/proxy.inc"
+
+taken=$(others)
+wanted=
+while IFS= read -r h || [ -n "$h" ]; do
+    [ -n "$h" ] || continue
+    if ! valid "$h"; then
+        log "skipping $h: not a valid host name"
+        continue
+    fi
+    if printf '%s\n' "$taken" | grep -qxF "$h"; then
+        log "skipping $h: another nginx site already serves it"
+        continue
+    fi
+    wanted="$wanted $h"
+done <"$LIST"
+
+# Domains that left the list.
+for f in "$CONF_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    h=$(basename "$f" .conf)
+    case " $wanted " in *" $h "*) continue ;; esac
+    rm -f "$f"
+    changed=1
+    log "$h removed"
+    if [ -d "$LIVE/$h" ]; then
+        certbot delete --non-interactive --cert-name "$h" >/dev/null 2>&1 || log "$h: certbot delete failed"
+    fi
+done
+
+# Step 1: the port-80 block of every domain still without a certificate.
+for h in $wanted; do
+    if ! has_cert "$h"; then
+        host_conf "$h" >"$CONF_DIR/$h.conf.new"
+        put "$CONF_DIR/$h.conf"
+    fi
+done
+apply
+
+# Step 2: the certificates.
+now=$(date +%s)
+for h in $wanted; do
+    if has_cert "$h"; then continue; fi
+    mark="$STATE/failed/$h"
+    if [ -f "$mark" ] && [ $((now - $(stat -c %Y "$mark"))) -lt "$RETRY_AFTER" ]; then
+        log "$h: the last attempt failed less than $RETRY_AFTER s ago; waiting"
+        continue
+    fi
+    set -- certonly --webroot -w "$WEBROOT" -d "$h" --cert-name "$h" \
+        --non-interactive --agree-tos --keep-until-expiring \
+        --deploy-hook 'systemctl reload nginx'
+    if [ -n "$EMAIL" ]; then set -- "$@" -m "$EMAIL"; else set -- "$@" --register-unsafely-without-email; fi
+    if [ -n "$STAGING" ]; then set -- "$@" --test-cert; fi
+    if certbot "$@" >"$STATE/certbot.log" 2>&1; then
+        rm -f "$mark"
+        log "$h: certificate issued"
+    else
+        touch "$mark"
+        log "$h: certbot failed (retried within the hour):"
+        tail -n 15 "$STATE/certbot.log" >&2
+    fi
+done
+
+# Step 3: the 443 block of every domain with a certificate.
+for h in $wanted; do
+    if has_cert "$h"; then
+        host_conf "$h" tls >"$CONF_DIR/$h.conf.new"
+        put "$CONF_DIR/$h.conf"
+    fi
+done
+apply
+
+n=0 total=0
+for h in $wanted; do
+    total=$((total + 1))
+    if has_cert "$h"; then n=$((n + 1)); fi
+done
+log "$n of $total domains served over https"

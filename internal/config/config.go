@@ -87,6 +87,11 @@ type Config struct {
 	// DomainAddresses, or those DomainTarget resolves to when it is empty.
 	DomainTarget    string
 	DomainAddresses []netip.Addr
+	// DomainsFile ("" = off) lists the custom domains the network routes,
+	// one per line, rewritten when they change. With SAP13NS_TLS=proxy a
+	// root helper watches it to get each one a certificate and an nginx
+	// server block (deploy/sap13ns-domains).
+	DomainsFile string
 
 	// SAP13NS_TLS=autocert: the process terminates TLS on Listen. TLSCert
 	// and TLSKey hold the static (wildcard) certificate of the portal host
@@ -506,6 +511,13 @@ func (c *Config) loadMultisite() error {
 	c.MemoryLimitMB, err = strconv.Atoi(env("MEMORY_LIMIT_MB", "0"))
 	if err != nil || c.MemoryLimitMB < 0 || c.MemoryLimitMB > 0 && c.MemoryLimitMB < 64 {
 		return errors.New("SAP13NS_MEMORY_LIMIT_MB must be 0 (no limit) or at least 64")
+	}
+	c.DomainsFile = env("DOMAINS_FILE", filepath.Join(c.DataDir, "custom-domains"))
+	switch {
+	case c.DomainsFile == "off":
+		c.DomainsFile = ""
+	case !filepath.IsAbs(c.DomainsFile):
+		return fmt.Errorf("SAP13NS_DOMAINS_FILE must be an absolute path, or off, got %q", c.DomainsFile)
 	}
 	c.DomainTarget = strings.ToLower(env("DOMAIN_TARGET", c.BaseURL.Hostname()))
 	if !ValidHost(c.DomainTarget) {

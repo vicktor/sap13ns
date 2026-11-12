@@ -122,10 +122,13 @@ type Registry struct {
 	limit  *plugin.InstanceLimit
 	loads  chan struct{}
 
-	table     atomic.Pointer[hostTable]
-	refreshes atomic.Int64 // host table reloads, for tests
-	opened    atomic.Int64 // sites opened, for tests
-	unloaded  atomic.Int64 // and closed
+	table atomic.Pointer[hostTable]
+	// domainsWritten is what the domains file last got (domainsfile.go).
+	domainsMu      sync.Mutex
+	domainsWritten *[]byte
+	refreshes      atomic.Int64 // host table reloads, for tests
+	opened         atomic.Int64 // sites opened, for tests
+	unloaded       atomic.Int64 // and closed
 
 	access      accessCache                     // operator sessions' checks (portal_support.go)
 	langs       siteLangs                       // of the sites whose status pages are served (router.go)
@@ -617,6 +620,7 @@ func (r *Registry) Refresh(ctx context.Context) error {
 	r.table.Store(t)
 	r.refreshes.Add(1)
 	r.reconcile(t)
+	r.writeDomainsFile(t)
 	return nil
 }
 

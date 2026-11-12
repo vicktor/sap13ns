@@ -75,13 +75,17 @@ echo "==> systemd"
 install -m 0644 "$here/systemd/sap13ns.service" "$here/systemd/sap13ns-backup.service" \
     "$here/systemd/sap13ns-backup.timer" "$here/systemd/sap13ns-geoip.service" \
     "$here/systemd/sap13ns-geoip.timer" "$here/systemd/sap13ns-update.service" \
-    "$here/systemd/sap13ns-update.path" /etc/systemd/system/
+    "$here/systemd/sap13ns-update.path" "$here/systemd/sap13ns-domains.service" \
+    "$here/systemd/sap13ns-domains.path" "$here/systemd/sap13ns-domains.timer" /etc/systemd/system/
+install -m 0755 "$here/sap13ns-domains" /usr/local/sbin/sap13ns-domains
 systemctl daemon-reload
 systemctl enable sap13ns sap13ns-backup.timer
 # "Update now" in the admin: the root service installs the latest signed
 # release when the web server asks (docs/RELEASES.md).
 systemctl enable --now sap13ns-update.path
 # sap13ns-geoip.timer stays off until SAP13NS_GEOIP_DB is set (docs/DEPLOY.md).
+# sap13ns-domains.path and .timer stay off: only a network behind nginx
+# uses them, for its custom domains (docs/DEPLOY.md, Networks of sites).
 
 echo "==> nginx"
 site=/etc/nginx/sites-available/sap13ns.conf

@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.19.0 — 2026-11-12
+
+- **Custom domains get https by themselves behind nginx.** A new root helper, `sap13ns-domains`, gives every verified custom domain a Let's Encrypt certificate and its own nginx server block, about a minute after it is verified, and removes both when the domain goes. sap13ns lists the domains it routes in `/var/lib/sap13ns/custom-domains` (`SAP13NS_DOMAINS_FILE`); a systemd path unit runs the helper when the list changes, and a timer every hour to retry. The helper never touches other nginx sites, and reloads nginx only after `nginx -t` passes. `install.sh` installs it, disabled: enable `sap13ns-domains.path` and `sap13ns-domains.timer` on a network behind nginx (docs/DEPLOY.md).
+- **Fixed:** in a narrow Domains card, the buttons of a domain were cut off at the card's edge. Each domain now shows its host, badges and last check, with the buttons beside them, or under them when there is no room.
+
 ## v0.18.4 — 2026-11-02
 
 - **Fixed:** the site assistant's default name and greeting ("Site assistant", "Hi! Ask me anything…") stayed in English in a language only the theme translates, such as Catalan with Socratex, while the rest of the chat window followed the theme. They now come from the theme's catalog first, like the window's other texts.

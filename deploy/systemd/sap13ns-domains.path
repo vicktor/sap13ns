@@ -1,0 +1,19 @@
+# Runs sap13ns-domains.service when sap13ns rewrites its list of custom
+# domains (SAP13NS_DOMAINS_FILE): a domain was verified, removed or lapsed.
+#
+#   install -m 0755 sap13ns-domains /usr/local/sbin/
+#   install -m 0644 sap13ns-domains.path sap13ns-domains.service sap13ns-domains.timer /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now sap13ns-domains.path sap13ns-domains.timer
+#
+# Only for nginx (SAP13NS_TLS=proxy). Caddy and SAP13NS_TLS=autocert get the
+# certificates of custom domains by themselves.
+
+[Unit]
+Description=Watch the custom domains of the sap13ns network
+
+[Path]
+PathChanged=/var/lib/sap13ns/custom-domains
+Unit=sap13ns-domains.service
+
+[Install]
+WantedBy=paths.target

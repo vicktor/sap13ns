@@ -1,0 +1,12 @@
+# Runs sap13ns-domains.service every hour: it retries the certificates that
+# failed, and catches a change the path unit missed.
+[Unit]
+Description=Hourly check of the custom domains of the sap13ns network
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

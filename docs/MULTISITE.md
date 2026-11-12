@@ -136,6 +136,7 @@ These variables are read only when `SAP13NS_MULTISITE=true`. The variables of a 
 | `SAP13NS_THEMES_DIR` | `$DATA_DIR/themes` | The network's themes, offered to every site |
 | `SAP13NS_DOMAIN_TARGET` | the `BASE_URL` host | What custom domains point to with a CNAME |
 | `SAP13NS_DOMAIN_ADDRESSES` | the addresses of `DOMAIN_TARGET` | Comma-separated public IP addresses that custom domains may point to with A/AAAA records |
+| `SAP13NS_DOMAINS_FILE` | `$SAP13NS_DATA_DIR/custom-domains` | The custom domains the network routes, one per line, rewritten when they change, for the nginx helper `sap13ns-domains` ([DEPLOY.md](DEPLOY.md#nginx-with-a-wildcard-certificate)); `off` for none |
 | `SAP13NS_TLS` | `proxy` | `proxy`: nginx or Caddy terminate TLS. `autocert`: sap13ns does, with the built-in ACME client. |
 | `SAP13NS_TLS_CERT`, `SAP13NS_TLS_KEY` | | With `autocert`: the wildcard certificate and key of the portal host and `*.<SITES_DOMAIN>` |
 | `SAP13NS_ACME_EMAIL` | | With `autocert`: the contact address of the ACME account (optional) |
@@ -316,7 +317,7 @@ The portal and the default hosts are covered by **one wildcard certificate** (`e
 
 | Setup | Default hosts | Custom domains |
 |---|---|---|
-| nginx (`SAP13NS_TLS=proxy`) | wildcard certificate | one certificate and `server` block per domain, by hand |
+| nginx (`SAP13NS_TLS=proxy`) | wildcard certificate | one certificate and `server` block per domain, by the `sap13ns-domains` helper |
 | Caddy (`SAP13NS_TLS=proxy`) | wildcard certificate | on demand, automatically |
 | Built-in (`SAP13NS_TLS=autocert`) | wildcard certificate from files | on demand, automatically |
 

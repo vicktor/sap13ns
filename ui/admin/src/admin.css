@@ -344,6 +344,13 @@
 .row-title { @apply font-medium text-foreground hover:text-primary; }
 .row-sub { @apply mt-0.5 flex flex-wrap items-center gap-2 text-xs; }
 .row-actions { @apply mt-2 flex flex-wrap gap-1.5; }
+/* The domains of a site: the host, its badges and its last check, with
+   the actions beside them, or under them when the card is narrow. */
+.domain-list { @apply flex flex-col divide-y; }
+.domain-list > li { @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0; }
+.domain-info { @apply min-w-0 flex-1 basis-56; }
+.domain-host { @apply flex flex-wrap items-center gap-2 text-sm; }
+.domain-actions { @apply flex flex-wrap items-center gap-1.5; }
 .user-cell { @apply flex items-center gap-3 text-foreground; }
 .user-cell > span:last-child { @apply flex flex-col leading-tight; }
 .user-cell small { @apply text-xs; }
