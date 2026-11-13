@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.24.1 — 2026-11-13
+
+- **The offline copies hold public files only.** The service worker of v0.24.0 kept any file of the site it fetched, whatever its cache headers said, so the browser of someone editing a design could keep that draft's stylesheet. It now keeps a file only when the server marks it public, as it already did for pages, and leaves draft stylesheets alone.
+
 ## v0.24.0 — 2026-11-13
 
 - **Sites can be read without a connection.** Settings → Site has **Keep the pages a visitor opened readable without a connection**, off by default. The visitor's browser then keeps the public pages it opened, with their styles, scripts, fonts and images, and shows them only when the site cannot be reached; a page it never opened says so, in the theme's design. Pages always come from the site first, so nobody sees an old version while online, and the admin, the API and signed-in pages are never kept. With the web app manifest every site already has, a site added to a phone's home screen now opens offline too. Switching it off removes the copies from the browsers that have them. Themes need no change.

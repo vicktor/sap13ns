@@ -5,8 +5,10 @@
 // browser opened. The rules that keep it safe:
 //   - pages come from the network first; a copy answers only when the
 //     network fails, so nobody reads an old page while online;
-//   - only public responses are kept (Cache-Control: public): a page
-//     rendered for someone signed in never is one;
+//   - only public responses are kept (Cache-Control: public), pages and
+//     files alike: a page rendered for someone signed in never is one,
+//     and neither is the stylesheet of a design draft, which is not
+//     handled at all;
 //   - the admin, the API, sign-in and previews are never touched;
 //   - only this site's own addresses: anything else goes to the network
 //     as if there were no worker.
@@ -65,14 +67,14 @@ async function page(req) {
 
 // A file whose address says its version never changes: the copy first.
 async function file(req, url) {
-  const fixed = url.searchParams.has("v") || /^\/themes\/[^/]+\/custom\//.test(url.pathname) || url.pathname.startsWith("/uploads/");
+  const fixed = url.searchParams.has("v") || /^\/themes\/[^/]+\/custom\//.test(url.pathname);
   if (fixed) {
     const copy = await caches.match(req.url, { ignoreVary: true });
     if (copy) return copy;
   }
   try {
     const res = await fetch(req);
-    if (res.ok && res.type === "basic") await keep(ASSETS, req.url, res.clone()).catch(() => {});
+    if (isPublic(res)) await keep(ASSETS, req.url, res.clone()).catch(() => {});
     return res;
   } catch (err) {
     const copy = await caches.match(req.url, { ignoreVary: true });
@@ -92,5 +94,7 @@ self.addEventListener("fetch", (e) => {
     if (!HANDS_OFF.test(url.pathname)) e.respondWith(page(req));
     return;
   }
+  // A design draft's stylesheet is its author's alone.
+  if (/^\/themes\/[^/]+\/custom\/draft-/.test(url.pathname)) return;
   if (FILES.test(url.pathname) && !req.headers.has("Range")) e.respondWith(file(req, url));
 });

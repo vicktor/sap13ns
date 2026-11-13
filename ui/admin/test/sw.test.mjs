@@ -104,3 +104,16 @@ test("worker: off, it handles nothing", async () => {
   assert.equal(Object.keys(w.stores).length, 0);
   assert.equal(await w.get("/blog/one"), undefined);
 });
+
+test("worker: a file is kept only when it is public, and a draft's stylesheet is not handled", async () => {
+  const w = worker();
+  assert.equal(await w.get("/themes/x/custom/draft-abc.css", { mode: "no-cors" }), undefined);
+  w.net.pages[ORIGIN + "/uploads/2026/private.pdf"] = w.res("pdf", { cc: "private, no-store", type: "application/pdf" });
+  w.net.pages[ORIGIN + "/static/x.css?v=1"] = w.res("css", { cc: "", type: "text/css" });
+  await w.get("/uploads/2026/private.pdf", { mode: "no-cors" });
+  await w.get("/static/x.css?v=1", { mode: "no-cors" });
+  assert.equal(w.stores["sap-assets-1"]?.size || 0, 0, "nothing the server did not mark public");
+  await w.get("/uploads/2026/photo.jpg", { mode: "no-cors" });
+  await w.get("/uploads/2026/photo.jpg", { mode: "no-cors" });
+  assert.equal(w.net.asked.filter((u) => u.endsWith("photo.jpg")).length, 2, "an upload is asked from the network first");
+});
