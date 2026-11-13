@@ -145,7 +145,7 @@ export function sectionHTML(doc, sec) {
   if (sole.length === 1 && sole[0].type === "html") return sole[0].settings?.html || "";
   const el = doc?.getElementById(sec.anchor || `sap-${sec.id}`);
   if (!el) return "";
-  const inner = el.classList.contains("sap-theme-section") ? el : el.querySelector(":scope > .sap-section-inner");
+  const inner = el.classList.contains("sap-theme-section") ? el : el.querySelector(":scope > :is(.sap-section-inner, .sap-section-edge)");
   if (!inner) return "";
   const body = cleanMarkup(inner);
   return (PRESETS[sec.layout] || 1) > 1 && inner !== el ? `<div class="sap-cols sap-cols-${sec.layout}">\n${body}\n</div>` : body;
@@ -166,9 +166,136 @@ export function cleanMarkup(el) {
   for (const m of copy.querySelectorAll(".sap-ed-placeholder, .sap-ed-box, .sap-ed-bar, .sap-ed-add, .sap-ed-banner")) m.remove();
   for (const e of [copy, ...copy.querySelectorAll("[contenteditable]")]) e.removeAttribute("contenteditable");
   for (const e of [copy, ...copy.querySelectorAll("*")]) {
-    for (const a of [...e.attributes]) if (a.name.startsWith("data-sap-")) e.removeAttribute(a.name);
+    for (const a of [...e.attributes]) if (a.name.startsWith("data-sap-") && !MOTION_ATTRS.has(a.name)) e.removeAttribute(a.name);
+    // What the motion player adds as the page is looked at.
+    if (e.classList?.contains("sap-in")) { e.classList.remove("sap-in"); if (!e.classList.length) e.removeAttribute("class"); }
+    if (e.style?.getPropertyValue("--sap-delay")) { e.style.removeProperty("--sap-delay"); if (!e.getAttribute("style")) e.removeAttribute("style"); }
   }
   return tidyMarkup(copy.innerHTML);
+}
+
+// The motion library's attributes (motion.js), which an HTML block keeps.
+const MOTION_ATTRS = new Set(["data-sap-animate", "data-sap-stagger", "data-sap-delay"]);
+
+/** partRoots are the parts a theme's page is made of, for turning it into
+ * blocks: the element children of main, one section each, without what
+ * holds no content (scripts, styles, templates). A single wrapper without
+ * a class or an id of its own is looked into. */
+export function partRoots(main) {
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT", "LINK", "META"]);
+  const kids = (n) => [...(n?.childNodes || [])].filter((k) => k.nodeType === 1 && !SKIP.has(k.nodeName.toUpperCase()));
+  let parts = kids(main);
+  for (let depth = 0; depth < 3 && parts.length === 1; depth++) {
+    const box = parts[0];
+    if (box.nodeName.toUpperCase() !== "DIV" || box.getAttribute("class") || box.getAttribute("id") || kids(box).length < 2) break;
+    parts = kids(box);
+  }
+  return parts;
+}
+
+/** themeParts turns the theme's own page in the document doc into the
+ * sections of a layout: [{anchor, html}], one per part of main, at most
+ * max (the rest joins the last one). A part's id becomes its section's
+ * anchor when it can be one, so that #links still reach it. */
+export function themeParts(doc, max = 40) {
+  const main = doc?.querySelector("main");
+  if (!main) return [];
+  const taken = new Set();
+  const parts = [];
+  for (const root of partRoots(main)) {
+    const copy = root.cloneNode(true);
+    let anchor = "";
+    const id = copy.getAttribute("id") || "";
+    if (validAnchor(id) && !taken.has(id)) { anchor = id; taken.add(id); copy.removeAttribute("id"); }
+    const box = doc.createElement("div");
+    box.append(copy);
+    const html = cleanMarkup(box);
+    if (!html) continue;
+    if (parts.length >= max) parts[parts.length - 1].html += "\n" + html;
+    else parts.push({ anchor, html });
+  }
+  return parts;
+}
+
+/** partsRegion is the region made of a theme's page: one full-width
+ * section per part, each one HTML block with its translations
+ * (translations: {lang: [html, ...]}, in the order of parts). */
+export function partsRegion(l, parts, translations = {}, rand) {
+  const taken = new Set();
+  return {
+    sections: parts.map((part, i) => {
+      const block = { id: newID(l, "html", taken, rand), type: "html", settings: { html: part.html, prose: "false" } };
+      for (const [lang, list] of Object.entries(translations)) {
+        if (list[i] && list[i] !== part.html) (block.i18n ||= {})[lang] = { html: list[i] };
+      }
+      return { id: newID(l, "s", taken, rand), layout: "1", ...(part.anchor ? { anchor: part.anchor } : {}), style: { padding: "none", width: "edge" }, columns: [[block]] };
+    }),
+  };
+}
+
+// Elements that are part of a running text.
+const INLINE = new Set(["A", "SPAN", "STRONG", "EM", "B", "I", "U", "S", "SMALL", "MARK", "CODE", "KBD", "SUB", "SUP", "ABBR", "CITE", "Q", "TIME", "BR", "WBR", "IMG", "SVG"]);
+const isInline = (n) => INLINE.has(n.nodeName.toUpperCase());
+const ownText = (n) => [...n.childNodes].some((k) => k.nodeType === 3 && k.data.trim());
+
+/** textHost is the element whose text a click on t, inside the HTML block
+ * root, types over: t itself, or the block of running text it is part of
+ * (the heading of a highlighted word). null when there is no text of its
+ * own there: an image, a box of other boxes. */
+export function textHost(t, root) {
+  let el = t;
+  while (el && el !== root && (el.nodeType !== 1 || /^(svg|path|g|circle|rect|line|polyline|polygon|ellipse|img|br)$/i.test(el.nodeName))) el = el.parentNode;
+  if (!el || el === root) return null;
+  while (isInline(el) && el.parentNode && el.parentNode !== root && ownText(el.parentNode)) el = el.parentNode;
+  const kids = [...el.childNodes];
+  if (kids.some((k) => k.nodeType === 1 && !isInline(k))) return null;
+  const text = (n) => (n.nodeType === 3 ? n.data : [...(n.childNodes || [])].map(text).join(""));
+  return text(el).trim() ? el : null;
+}
+
+/** pathTo is where el is under root: the index of each element among its
+ * parent's element children. follow walks it back, in another tree, and
+ * gives null when that tree is not the same shape. */
+export function pathTo(root, el) {
+  const path = [];
+  for (let n = el; n !== root; n = n.parentNode) {
+    if (!n?.parentNode) return null;
+    path.unshift([...n.parentNode.childNodes].filter((k) => k.nodeType === 1).indexOf(n));
+  }
+  return path;
+}
+export function follow(root, path, like) {
+  let n = root;
+  const names = [];
+  for (let e = like; e && names.length < path.length; e = e.parentNode) names.unshift(e.nodeName.toUpperCase());
+  for (let i = 0; i < path.length; i++) {
+    n = [...n.childNodes].filter((k) => k.nodeType === 1)[path[i]];
+    if (!n || (like && n.nodeName.toUpperCase() !== names[i])) return null;
+  }
+  return n;
+}
+
+/** syncText gives dst, an element of the stored markup, the text typed
+ * over src, the same element in the preview: src's text nodes, and dst's
+ * own elements (a highlighted word, a link, an icon) wherever src still
+ * has theirs, so that only words change and never the markup. */
+export function syncText(src, dst, doc) {
+  const own = [...dst.childNodes].filter((n) => n.nodeType === 1);
+  const text = (n) => (n.nodeType === 3 ? n.data : [...(n.childNodes || [])].map(text).join(""));
+  let k = 0;
+  const out = [];
+  for (const n of src.childNodes) {
+    if (n.nodeType === 3) { if (n.data) out.push(doc.createTextNode(n.data)); continue; }
+    if (n.nodeType !== 1) continue;
+    let j = k;
+    while (j < own.length && own[j].nodeName.toUpperCase() !== n.nodeName.toUpperCase()) j++;
+    if (j < own.length) {
+      k = j + 1;
+      if (!/^svg$/i.test(n.nodeName)) syncText(n, own[j], doc);
+      out.push(own[j]);
+    } else if (text(n)) out.push(doc.createTextNode(text(n)));
+  }
+  dst.replaceChildren(...out);
 }
 
 // tidyMarkup drops the blank lines and the indentation templates leave.
@@ -758,6 +885,114 @@ function init(root) {
     root.refresh?.();
   }
 
+  // primaryStart is how the region's theme page becomes editable, the
+  // first thing offered: the theme's own sections where it declares them
+  // (nothing is lost), else the page turned into blocks where the theme
+  // has a page of its own to turn (the front page, not found), else the
+  // region's starting layout, whose blocks draw what the site works out
+  // (the posts, a post's content).
+  function primaryStart() {
+    const own = region === "front" ? (state.front_presets || []).find((p) => p.name === "theme") : null;
+    if (own) {
+      return { kind: "theme", label: own.label, help: own.help, run: () => {
+        selected = null;
+        commit(setRegion(layout(), region, reid(own.region, layout())));
+        say(fmt(msg.msgPresetApplied, own.label));
+      } };
+    }
+    if ((region === "front" && state.theme_front) || region === "404") {
+      return { kind: "convert", label: msg.msgConvert, help: msg.msgConvertHelp, run: () => confirmThen(msg.msgConvertConfirm, convertTheme) };
+    }
+    return { kind: "build", label: msg.msgBuild, help: "", run: () => {
+      const start = starter(region, { title404: msg.msgNfTitle, text404: msg.msgNfText, button404: msg.msgNfButton }, layout());
+      selected = null;
+      commit(setRegion(layout(), region, start));
+    } };
+  }
+
+  // convertTheme turns the theme's page of the region into blocks: one
+  // section per part of the page, in every language of the site. The page
+  // is read again for each language (the preview may show another one, or
+  // what was typed over it).
+  let converting = false;
+  async function convertTheme() {
+    const name = region;
+    const info = regions.find((x) => x.name === name);
+    if (converting || !info?.preview || getRegion(layout(), name)) return;
+    converting = true;
+    setStatus(msg.msgConverting, "saving");
+    const read = async (url) => {
+      const res = await fetch(url, { credentials: "same-origin", headers: { Accept: "text/html" } });
+      // The not-found page answers 404, and is what is asked for.
+      if (!res.ok && !(name === "404" && res.status === 404)) throw new Error(String(res.status));
+      return new DOMParser().parseFromString(await res.text(), "text/html");
+    };
+    try {
+      const first = await read(info.preview);
+      const docs = { [first.documentElement.lang || state.main_lang]: first };
+      const missing = [];
+      for (const code of [state.main_lang, ...langs.map((x) => x.code)]) {
+        if (docs[code]) continue;
+        // The same page in that language, with what the preview asks for.
+        const href = first.querySelector(`link[rel="alternate"][hreflang="${CSS.escape(code)}"]`)?.getAttribute("href");
+        let u = null;
+        try { u = href ? new URL(href, location.origin) : null; } catch (_) {}
+        if (u && u.origin === location.origin) {
+          for (const [k, v] of new URL(info.preview, location.origin).searchParams) u.searchParams.set(k, v);
+          try { docs[code] = await read(u.pathname + u.search); } catch (_) {}
+        }
+        if (!docs[code]) missing.push(code);
+      }
+      const parts = themeParts(docs[state.main_lang]);
+      if (!parts.length) throw new Error("empty");
+      const max = types.html?.fields?.find((f) => f.key === "html")?.max || 50000;
+      const translations = {};
+      for (const l of langs) {
+        const other = docs[l.code] ? themeParts(docs[l.code]) : [];
+        if (other.length === parts.length) translations[l.code] = other.map((p) => p.html);
+        else if (!missing.includes(l.code)) missing.push(l.code);
+      }
+      if ([parts.map((p) => p.html), ...Object.values(translations)].flat().some((html) => html.length > max)) {
+        setStatus("", "");
+        toast("error", fmt(msg.msgConvertTooBig, max));
+        return;
+      }
+      if (name !== region || getRegion(layout(), name)) return;
+      selected = null;
+      commit(setRegion(layout(), name, partsRegion(layout(), parts, translations)));
+      const lost = missing.filter((c) => c !== state.main_lang).map((c) => langs.find((x) => x.code === c)?.name || c);
+      const done = fmt(msg.msgConverted, parts.length) + (lost.length ? " " + fmt(msg.msgConvertedNoLang, lost.join(", ")) : "");
+      toast(lost.length ? "warning" : "success", done);
+      say(done);
+    } catch (_) {
+      setStatus("", "");
+      toast("error", msg.msgConvertFailed);
+    } finally {
+      converting = false;
+    }
+  }
+
+  // confirmThen asks message in the admin's dialog, then runs yes.
+  function confirmThen(message, yes) {
+    const dlg = document.getElementById("confirm-dialog");
+    if (!dlg) { if (window.confirm(message)) yes(); return; }
+    dlg.querySelector("#confirm-dialog-description").textContent = message;
+    const accept = dlg.querySelector("[data-confirm-accept]");
+    const handler = () => { dlg.close(); yes(); };
+    accept.addEventListener("click", handler, { once: true });
+    dlg.addEventListener("close", () => accept.removeEventListener("click", handler), { once: true });
+    dlg.showModal();
+    accept.focus();
+  }
+
+  // replacing runs start, which builds the region out of blocks. On the
+  // front page of a theme that has its own, it asks first: what it starts
+  // takes that page's place once published.
+  function replacing(start) {
+    if (region !== "front" || !state.theme_front) return start();
+    confirmThen(msg.msgReplaceFront, start);
+  }
+
   function renderIntro() {
     renderRegionSelect();
     const r = getRegion(layout(), region);
@@ -766,22 +1001,34 @@ function init(root) {
     if (r) kids.push(h("p", { class: "bl-intro-text" }, icon(icn), h("span", { text: msg.msgBlockRegion })),
       h("p", { class: "bl-intro-text bl-intro-edit" }, icon("mouse-pointer-click"), h("span", { text: msg.msgEditHint })));
     if (!r) {
-      // The theme's template is fixed: say so, and offer the ways to start
-      // building, the first one primary.
-      const presets = region === "front" ? state.front_presets || [] : [];
+      // The theme's template is fixed: say so, and offer to edit its file
+      // or to turn the page into blocks (primaryStart). Starting a new
+      // page instead comes after, out of the way where there is a page of
+      // the theme's to lose.
+      const info = regions.find((x) => x.name === region);
+      const presets = (region === "front" ? state.front_presets || [] : []).filter((p) => p.name !== "theme");
+      const first = primaryStart();
+      const card = (tag, attrs, iconName, title, help, badge) => h(tag, { class: "bl-front-preset bl-start", ...attrs },
+        h("strong", {}, icon(iconName), h("span", { text: title }), badge ? h("span", { class: "badge", "data-variant": "secondary", text: badge }) : null),
+        h("span", { text: help }));
       kids.push(h("h2", { class: "bl-empty-title" }, icon(icn), h("span", { text: msg.msgThemeRegion })),
-        h("p", { class: "bl-empty-text", text: region === "front" && state.theme_front ? msg.msgThemeFrontHelp : msg.msgThemeRegionHelp }));
+        h("p", { class: "bl-empty-text", text: first.kind === "build" ? msg.msgThemeRegionHelp : msg.msgThemeChoice }));
+      const options = [];
+      if (first.kind !== "build") options.push(h("li", {}, card("button", { type: "button", "data-start": first.kind, onclick: first.run }, "layout-template", first.label, first.help, msg.msgRecommended)));
+      if (info?.code) options.push(h("li", {}, card("a", { href: info.code, "data-start": "code" }, "file-code", msg.msgEditThemeFile, msg.msgEditThemeFileHelp)));
+      if (options.length) kids.push(h("ul", { class: "bl-front-presets" }, options));
+      const others = [];
       if (presets.length) {
         const order = [...presets].sort((a, b) => (b.name === recommended) - (a.name === recommended));
-        kids.push(h("p", { class: "bl-intro-or", text: msg.msgPresetsIntro }),
+        others.push(h("p", { class: "bl-intro-or", text: msg.msgPresetsIntro }),
           h("ul", { class: "bl-front-presets" }, order.map((p) => h("li", {}, h("button", {
-            type: "button", class: "bl-front-preset", "data-preset": p.name, "data-recommended": p.name === recommended ? "" : null, onclick: () => {
+            type: "button", class: "bl-front-preset", "data-preset": p.name, "data-recommended": first.kind === "build" && p.name === recommended ? "" : null, onclick: () => replacing(() => {
               const start = reid(p.region, layout());
               selected = null;
               commit(setRegion(layout(), region, start));
               say(fmt(msg.msgPresetApplied, p.label));
-            },
-          }, h("strong", {}, p.label, p.name === recommended ? h("span", { class: "badge", "data-variant": "secondary", text: msg.msgRecommended }) : null),
+            }),
+          }, h("strong", {}, p.label, first.kind === "build" && p.name === recommended ? h("span", { class: "badge", "data-variant": "secondary", text: msg.msgRecommended }) : null),
           h("span", { text: p.help }))))));
       }
       const build = () => {
@@ -795,16 +1042,19 @@ function init(root) {
         commit(setRegion(layout(), region, start));
         say(msg.msgStartedEmpty);
       };
-      kids.push(h("div", { class: "bl-empty-actions" },
-        h("button", { type: "button", class: "btn", "data-size": "sm", "data-variant": presets.length ? "outline" : null, onclick: build },
+      others.push(h("div", { class: "bl-empty-actions" },
+        h("button", { type: "button", class: "btn", "data-size": "sm", "data-variant": presets.length || first.kind !== "build" ? "outline" : null, onclick: () => replacing(build) },
           icon("plus"), presets.length ? msg.msgBuildBasic : msg.msgBuild),
-        h("button", { type: "button", class: "btn", "data-variant": presets.length ? "ghost" : "outline", "data-size": "sm", onclick: empty },
+        h("button", { type: "button", class: "btn", "data-variant": presets.length ? "ghost" : "outline", "data-size": "sm", onclick: () => replacing(empty) },
           icon("columns-2"), msg.msgStartEmpty),
         htmlDialog ? h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", onclick: () => openThemeHTML(true) }, icon("file-code"), msg.msgStartBlankHtml) : null,
-        // Regions with the credits or the content stay blocks.
-        htmlDialog && !emptyRegion(region).sections.some((sec) => htmlLocked(sec))
+        // Regions with the credits or the content stay blocks; a page that
+        // converts into sections needs no single block of its markup.
+        htmlDialog && first.kind !== "convert" && !emptyRegion(region).sections.some((sec) => htmlLocked(sec))
           ? h("button", { type: "button", class: "btn", "data-variant": "outline", "data-size": "sm", onclick: openThemeHTML }, icon("code"), msg.msgStartHtml) : null),
         h("p", { class: "hint", text: msg.msgEmptyNext }));
+      if (first.kind === "build") kids.push(...others);
+      else kids.push(h("details", { class: "bl-other-starts" }, h("summary", { text: msg.msgOtherStarts }), h("div", { class: "bl-other-starts-body" }, others)));
     } else {
       if (r.sections.some((s) => s.anchor)) {
         kids.push(h("p", { class: "hint bl-intro-hint" }, msg.msgAnchorsHint, " ",
@@ -1689,7 +1939,9 @@ function init(root) {
     // lists and links for Markdown. Every keystroke goes to the draft;
     // Enter (in a one-line text) or a click elsewhere ends it, Escape
     // puts back what it said.
-    function typeOver(el, f, id, item, lang, at) {
+    // markup: for a text inside an HTML block, {dst, doc}: the same
+    // element in the block's stored markup, which takes what is typed.
+    function typeOver(el, f, id, item, lang, at, markup = null) {
       const rich = f.type === "markdown";
       const before = el.innerHTML;
       const start = layout();
@@ -1703,7 +1955,7 @@ function init(root) {
       const sel = doc.getSelection();
       const range = at && doc.caretRangeFromPoint?.(at.x, at.y);
       if (sel && range && el.contains(range.startContainer)) { sel.removeAllRanges(); sel.addRange(range); }
-      const read = () => (rich ? markdownOf(el) : el.innerText.replace(/ /g, " ").replace(/\s+/g, " ").trim());
+      const read = () => (markup ? (syncText(el, markup.dst, markup.doc), markup.doc.body.innerHTML) : rich ? markdownOf(el) : el.innerText.replace(/ /g, " ").replace(/\s+/g, " ").trim());
       const set = (v, quietly = true) => {
         const at = blockOf(id);
         if (!at) return;
@@ -1792,17 +2044,14 @@ function init(root) {
       box.append(p, go);
       doc.body.append(box);
     }
-    // makeEditable turns the region into blocks: the recommended ready-made
-    // page for the front page, else the region's starting layout.
+    // makeEditable turns the region into blocks, the way the panel offers
+    // first (primaryStart): never a ready-made page in place of the
+    // theme's own.
     function makeEditable() {
       if (getRegion(layout(), region)) return;
-      const presets = region === "front" ? state.front_presets || [] : [];
-      const preset = presets.find((p) => p.name === recommended) || presets[0];
-      const start = preset ? reid(preset.region, layout())
-        : starter(region, { title404: msg.msgNfTitle, text404: msg.msgNfText, button404: msg.msgNfButton }, layout());
-      selected = null;
-      commit(setRegion(layout(), region, start));
-      toast("success", msg.msgNowEditable);
+      const first = primaryStart();
+      first.run();
+      if (first.kind !== "convert") toast("success", msg.msgNowEditable);
     }
 
     function onClick(e) {
@@ -1838,6 +2087,27 @@ function init(root) {
           typeOver(fEl, f, id, item, lang, { x: e.clientX, y: e.clientY });
           return;
         }
+      }
+      // A text inside an HTML block: typed over where it is, and written
+      // into the block's markup at the same place.
+      const at = blk && blockOf(blk.dataset.sapBlk);
+      const root = at?.b.type === "html" ? blk.querySelector(".sap-b-html") : null;
+      const host = root && root.contains(t) ? textHost(t, root) : null;
+      if (host) {
+        const id = blk.dataset.sapBlk;
+        const f = fieldOf("html", "html", null);
+        const lang = langOf();
+        const path = pathTo(root, host);
+        const stored = new DOMParser().parseFromString(`<body>${valueOf(at.b, null, "html", lang) || valueOf(at.b, null, "html", "")}`, "text/html");
+        const dst = path && follow(stored.body, path, host);
+        const squash = (v) => v.replace(/\s+/g, " ").trim();
+        select(id, { fromPreview: true });
+        if (f && dst && squash(dst.textContent) === squash(host.textContent)) {
+          typeOver(host, f, id, null, lang, { x: e.clientX, y: e.clientY }, { dst, doc: stored });
+          return;
+        }
+        toast("info", msg.msgHtmlTextElsewhere);
+        return;
       }
       select(blk ? blk.dataset.sapBlk : sec.dataset.sapSec, { fromPreview: true });
     }
@@ -2052,6 +2322,13 @@ function init(root) {
         const hadErrors = errors.length > 0;
         errors = [];
         saved = sent;
+        // What the server keeps (an HTML block's markup, sanitised) is
+        // what the preview shows: the editor goes on from it, unless it
+        // changed meanwhile.
+        if (data.layout && JSON.stringify(layout()) === sent) {
+          const kept = JSON.stringify(data.layout);
+          if (kept !== sent) { history.stack[history.at] = data.layout; saved = kept; }
+        }
         setStatus(fmt(msg.msgSaved, data.saved_at || ""), "");
         if (publishBtn) publishBtn.disabled = false;
         if (discardBtn) discardBtn.disabled = false;

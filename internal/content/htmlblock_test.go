@@ -136,3 +136,26 @@ func TestReservedDataAttr(t *testing.T) {
 		}
 	}
 }
+
+// The motion library's attributes pass with the values it takes, so that a
+// theme's page turned into blocks keeps its animations; every other
+// data-sap-* attribute is still the site's own.
+func TestHTMLBlockMotion(t *testing.T) {
+	for in, want := range map[string]string{
+		`<h2 data-sap-animate="fade-up" data-sap-delay="150">A</h2>`:  `<h2 data-sap-animate="fade-up" data-sap-delay="150">A</h2>`,
+		`<ul data-sap-stagger="pop"><li>A</li></ul>`:                  `<ul data-sap-stagger="pop"><li>A</li></ul>`,
+		`<p data-sap-animate="x y">A</p>`:                             `<p>A</p>`,
+		`<p data-sap-animate="FADE">A</p>`:                            `<p>A</p>`,
+		`<p data-sap-delay="-1">A</p>`:                                `<p>A</p>`,
+		`<p data-sap-delay="99999">A</p>`:                             `<p>A</p>`,
+		`<p data-sap-edit="k" data-sap-sec="s1" data-sap-f="t">A</p>`: `<p>A</p>`,
+		`<p data-sap-animate="fade" data-sap-text="x">A</p>`:          `<p data-sap-animate="fade">A</p>`,
+	} {
+		if got := SanitizeHTMLBlock(in); got != want {
+			t.Errorf("%s\n got %s\nwant %s", in, got, want)
+		}
+	}
+	if !HasMotion(SanitizeHTMLBlock(`<p data-sap-animate="fade">A</p>`)) || HasMotion(SanitizeHTMLBlock(`<p>data-sap-animate</p>`)) {
+		t.Error("HasMotion")
+	}
+}

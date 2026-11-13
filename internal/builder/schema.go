@@ -82,7 +82,7 @@ var PresetOrder = []string{"1", "1-1", "2-1", "1-2", "1-1-1"}
 var SectionStyles = map[string][]string{
 	"background": {"none", "muted", "card", "primary", "accent", "inverse"},
 	"padding":    {"medium", "none", "small", "large"},
-	"width":      {"content", "narrow", "wide", "full"},
+	"width":      {"content", "narrow", "wide", "full", "edge"},
 	"align":      {"start", "center"},
 }
 

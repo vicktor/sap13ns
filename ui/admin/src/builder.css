@@ -129,6 +129,11 @@
 .bl-front-presets { @apply grid w-full gap-2; }
 .bl-front-preset { @apply flex w-full flex-col items-start gap-0.5 rounded-lg border bg-background p-3 text-left hover:border-primary hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring; }
 .bl-front-preset > span { @apply text-xs text-muted-foreground; }
+.bl-start > strong > svg { @apply size-4 shrink-0 text-muted-foreground; }
+a.bl-start { @apply no-underline; }
+.bl-other-starts { @apply w-full; }
+.bl-other-starts > summary { @apply cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground; }
+.bl-other-starts-body { @apply mt-2.5 flex flex-col items-start gap-2.5; }
 .bl-intro-hint a { @apply font-medium text-foreground underline underline-offset-2; }
 
 /* Section anchor: "#" then the name. */

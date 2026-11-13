@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,11 @@ type SectionView struct {
 	// sections: it is rendered as the theme made it, without the
 	// builder's own section and columns.
 	Theme *ThemeSectionView
+	// Edge is the width "edge": the columns take the whole width of the
+	// page, without the gutter every other width keeps. The section then
+	// has no sap-section-inner, so a theme built before this width
+	// existed shows it right too.
+	Edge bool
 	// edit: the page is the design preview, where the page builder edits
 	// the page on it (EdSection, BlockView.Ed).
 	edit bool
@@ -309,7 +315,7 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 	global := name == "header" || name == "footer"
 	edit := pd.Site != nil && pd.Site.Custom != nil && pd.Site.Custom.Preview
 	for _, sec := range r.Sections {
-		sv := &SectionView{ID: sec.ID, Anchor: sec.Anchor, Layout: sec.Layout, Class: sectionClass(sec), edit: edit}
+		sv := &SectionView{ID: sec.ID, Anchor: sec.Anchor, Layout: sec.Layout, Class: sectionClass(sec), Edge: sec.Style["width"] == "edge", edit: edit}
 		if a := sec.Style["animation"]; a != "" && a != motion.None {
 			if sec.Style["sequence"] == "on" {
 				sv.Stagger = a
@@ -332,6 +338,9 @@ func (s *Server) regionView(r *builder.Region, name string, pd *PageData, media 
 				}
 				if a := v.S["animation"]; a != "" && a != motion.None && sv.Stagger == "" {
 					v.Animate, rv.Animated = a, true
+				}
+				if b.Type == "html" && content.HasMotion(string(v.HTML)) {
+					rv.Animated = true
 				}
 				if global {
 					// The header and footer show on every page; their
@@ -385,13 +394,20 @@ func rendersH1(rv *RegionView) bool {
 				switch {
 				case b.Type == "hero" && (rv.Name == "front" || rv.Name == "home" || rv.Name == "404"),
 					b.Type == "post-list" && rv.Name != "home" && rv.Name != "front",
-					b.Type == "single-content" && b.On("title"):
+					b.Type == "single-content" && b.On("title"),
+					b.Type == "html" && hasH1(string(b.HTML)):
 					return true
 				}
 			}
 		}
 	}
 	return false
+}
+
+// hasH1 reports whether the markup of an HTML block, as sanitised, has
+// the page's heading (a theme's page turned into blocks keeps its own).
+func hasH1(clean string) bool {
+	return strings.Contains(clean, "<h1>") || strings.Contains(clean, "<h1 ")
 }
 
 func sectionClass(sec builder.Section) string {
@@ -602,6 +618,9 @@ type regionInfo struct {
 	Name    string `json:"name"`
 	Label   string `json:"label"`
 	Preview string `json:"preview"` // a page that shows the region
+	// Code is where the theme's template of the region is edited as code
+	// (Appearance → Themes → Edit code), "" when the theme has none.
+	Code string `json:"code,omitempty"`
 }
 
 type langOption struct {
@@ -690,7 +709,7 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 		"animation": s.tu(r, "Animation"), "sequence": s.tu(r, "Animate")}
 	valueLabels := map[string]string{"none": s.tu(r, "None"), "muted": s.tu(r, "Muted"), "card": s.tu(r, "Card"), "primary": s.tu(r, "Primary colour"),
 		"accent": s.tu(r, "Accent colour"), "inverse": s.tu(r, "Inverted"), "small": s.tu(r, "Small"), "medium": s.tu(r, "Medium"), "large": s.tu(r, "Large"),
-		"content": s.tu(r, "Content width"), "narrow": s.tu(r, "Narrow"), "wide": s.tu(r, "Wide"), "full": s.tu(r, "Full width"), "start": s.tu(r, "Left"), "center": s.tu(r, "Centre")}
+		"content": s.tu(r, "Content width"), "narrow": s.tu(r, "Narrow"), "wide": s.tu(r, "Wide"), "full": s.tu(r, "Full width"), "edge": s.tu(r, "Edge to edge"), "start": s.tu(r, "Left"), "center": s.tu(r, "Centre")}
 	valueLabels["off"], valueLabels["on"] = s.tu(r, "The whole section"), s.tu(r, "Its blocks, one after another")
 	for _, a := range motion.Animations {
 		valueLabels[a.Name] = s.tu(r, a.Label)
@@ -839,6 +858,17 @@ func (s *Server) builderRegions(ctx context.Context, r *http.Request, th *theme.
 		regionInfo{Name: "404", Label: s.tu(r, "Page not found"), Preview: with("/this-page-does-not-exist")},
 		regionInfo{Name: "footer", Label: s.tu(r, "Footer (all pages)"), Preview: home},
 	)
+	// The theme's own template of each part, for "Edit the theme's file".
+	files := th.EditableFiles()
+	for i := range out {
+		file := "templates/" + out[i].Name + ".html"
+		if out[i].Name == "header" || out[i].Name == "footer" {
+			file = "templates/layout.html"
+		}
+		if slices.Contains(files, file) {
+			out[i].Code = "/admin/appearance/themes/" + th.Slug + "/code?file=" + url.QueryEscape(file)
+		}
+	}
 	return out
 }
 

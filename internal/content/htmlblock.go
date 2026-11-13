@@ -18,7 +18,8 @@ import (
 //     details and summary, as in the Markdown pipeline;
 //   - class and id attributes, a fixed set of aria-* attributes and role,
 //     and data-* attributes other than the ones this site's own scripts
-//     and templates act on (reservedData);
+//     and templates act on (reservedData), but for the motion library's
+//     (motionData), which only pick one of its animations;
 //   - inline SVG drawings such as the icons a section shows: shapes and
 //     their geometry and stroke only, without links (href), styles,
 //     animation, foreignObject or <use>;
@@ -56,6 +57,33 @@ var reservedData = []string{
 	"data-copy-", "data-sticky", "data-editor", "data-endpoint", "data-lang", "data-confirm",
 	"data-dialog", "data-overlay", "data-popover", "data-builder", "data-plugin", "data-sap",
 	"data-csrf", "data-state", "data-side", "data-align", "data-tooltip", "data-keep-mobile-sidebar-open",
+}
+
+// motionData are the motion library's attributes (ui/static/motion.js),
+// which an HTML block may use: a page of a theme turned into blocks keeps
+// its animations. Their values are an animation's name or a delay in
+// milliseconds, and nothing else passes (motionAttr).
+var (
+	motionName  = regexp.MustCompile(`^[a-z]{1,20}(?:-[a-z]{1,20}){0,2}$`)
+	motionDelay = regexp.MustCompile(`^[0-9]{1,4}$`)
+)
+
+// motionAttr reports whether a is one of the motion library's attributes
+// with a value it takes.
+func motionAttr(a xhtml.Attribute) bool {
+	switch a.Key {
+	case "data-sap-animate", "data-sap-stagger":
+		return motionName.MatchString(a.Val)
+	case "data-sap-delay":
+		return motionDelay.MatchString(a.Val)
+	}
+	return false
+}
+
+// HasMotion reports whether the markup of an HTML block, as sanitised,
+// animates something: the page then loads the motion library.
+func HasMotion(clean string) bool {
+	return strings.Contains(clean, "data-sap-animate=") || strings.Contains(clean, "data-sap-stagger=")
 }
 
 // HTMLBlockPolicy is the sanitiser of hand-written HTML blocks.
@@ -149,7 +177,7 @@ func filterHTMLBlockAttrs(s string) string {
 		attrs := tok.Attr[:0]
 		blank, rel := false, -1
 		for _, a := range tok.Attr {
-			if strings.HasPrefix(a.Key, "data-") && reservedDataAttr(a.Key) {
+			if strings.HasPrefix(a.Key, "data-") && reservedDataAttr(a.Key) && !motionAttr(a) {
 				continue
 			}
 			if a.Key == "target" && a.Val == "_blank" {

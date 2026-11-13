@@ -7,7 +7,7 @@ import {
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
   addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
   validClasses, setSectionClass, hasBlock, emptyRegion, sectionToHTML, sectionHTML, themeHTML,
-  markdownOf, regionOfClasses,
+  markdownOf, regionOfClasses, partRoots, partsRegion, textHost, pathTo, follow, syncText,
 } from "../../static/builder.js";
 import { parseHTML } from "./dom.mjs";
 
@@ -418,4 +418,75 @@ test("regionOfClasses: the region a preview element is in", () => {
   assert.equal(regionOfClasses(["sap-region", "sap-region-main", "sap-region-front"]), "front");
   assert.equal(regionOfClasses(["sap-region", "sap-region-main"]), "");
   assert.equal(regionOfClasses([]), "");
+});
+
+// The first element of a parsed fragment that matches a tag name.
+const firstOf = (root, name) => {
+  for (const k of root.childNodes) {
+    if (k.nodeType !== 1) continue;
+    if (k.nodeName === name) return k;
+    const deep = firstOf(k, name);
+    if (deep) return deep;
+  }
+  return null;
+};
+const textOf = (n) => (n.nodeType === 3 ? n.data : n.childNodes.map(textOf).join(""));
+
+test("a theme's page: its parts", () => {
+  const main = parseHTML(`<main><script>x</script><section id="hero">A</section> <section>B</section><style>y</style></main>`).childNodes[0];
+  assert.deepEqual(partRoots(main).map((n) => n.nodeName), ["SECTION", "SECTION"], "what holds no content is left out");
+  const boxed = parseHTML(`<main><div><section>A</section><section>B</section><section>C</section></div></main>`).childNodes[0];
+  assert.equal(partRoots(boxed).length, 3, "a wrapper without a name is looked into");
+  const named = parseHTML(`<main><div class="landing"><section>A</section><section>B</section></div></main>`).childNodes[0];
+  assert.equal(partRoots(named).length, 1, "a wrapper with a class may be what styles them");
+});
+
+test("a theme's page: the region it becomes", () => {
+  const parts = [{ anchor: "hero", html: "<section>Hola</section>" }, { anchor: "", html: "<section>Igual</section>" }];
+  const r = partsRegion(base(), parts, { en: ["<section>Hello</section>", "<section>Igual</section>"], fr: [] }, seeded());
+  assert.equal(r.sections.length, 2);
+  assert.equal(new Set(r.sections.flatMap((s) => [s.id, s.columns[0][0].id])).size, 4, "every id is new");
+  assert.deepEqual(r.sections.map((s) => s.anchor), ["hero", undefined]);
+  assert.deepEqual(r.sections[0].style, { padding: "none", width: "edge" }, "from edge to edge, as the theme drew it");
+  const [a, b] = r.sections.map((s) => s.columns[0][0]);
+  assert.deepEqual(a.settings, { html: "<section>Hola</section>", prose: "false" });
+  assert.deepEqual(a.i18n, { en: { html: "<section>Hello</section>" } });
+  assert.equal(b.i18n, undefined, "a part that reads the same has no translation");
+});
+
+test("html blocks: the text a click types over", () => {
+  const root = parseHTML(`<div><section><h1>Every call <span class="ink">answered</span></h1><p>Lead</p><div class="box"><p>In</p><img src="a.png"></div><a class="button">Demo <svg><path d="M0"></path></svg></a></section></div>`).childNodes[0];
+  const h1 = firstOf(root, "H1"), span = firstOf(root, "SPAN"), box = firstOf(root, "DIV"), a = firstOf(root, "A");
+  assert.equal(textHost(span, root), h1, "a highlighted word is typed over in its heading");
+  assert.equal(textHost(h1.childNodes[0], root), h1, "a text node gives its element");
+  assert.equal(textHost(firstOf(root, "PATH"), root), a, "an icon gives the button it is in");
+  assert.equal(textHost(box, root), null, "a box of other boxes has no text of its own");
+  assert.equal(textHost(firstOf(root, "IMG"), root), null);
+  assert.equal(textHost(root, root), null);
+
+  // The same place in the stored markup, which may be another language.
+  const stored = parseHTML(`<div><section><h1>Cada llamada <span class="ink">atendida</span></h1><p>Entrada</p></section></div>`).childNodes[0];
+  const path = pathTo(root, span);
+  assert.deepEqual(path, [0, 0, 0]);
+  assert.equal(textOf(follow(stored, path, span)), "atendida");
+  assert.equal(follow(stored, pathTo(root, a), a), null, "not there in a markup of another shape");
+  const other = parseHTML(`<div><section><h2>Otra</h2></section></div>`).childNodes[0];
+  assert.equal(follow(other, pathTo(root, h1), h1), null, "nor where another element is");
+  assert.equal(pathTo(root, parseHTML("<p>x</p>").childNodes[0].childNodes[0]) && null, null);
+});
+
+test("html blocks: typed text goes into the stored markup, which keeps its elements", () => {
+  const doc = { createTextNode: (data) => ({ nodeType: 3, nodeName: "#text", childNodes: [], data }) };
+  const mutable = (n) => { n.replaceChildren = (...kids) => { n.childNodes = kids; for (const k of kids) k.parentNode = n; }; n.childNodes.forEach(mutable); return n; };
+  const stored = mutable(firstOf(parseHTML(`<h1>Every call <span class="ink" data-sap-animate="fade">answered</span> <svg><path d="M0"></path></svg></h1>`), "H1"));
+  // What the preview shows after typing: the browser dropped nothing, and
+  // a <b> the person pasted is not the block's own.
+  const typed = firstOf(parseHTML(`<h1>Each call <span class="ink sap-in">picked up</span> <b>now</b> <svg><path d="M9"></path></svg></h1>`), "H1");
+  syncText(typed, stored, doc);
+  assert.equal(textOf(stored), "Each call picked up now ");
+  const span = firstOf(stored, "SPAN");
+  assert.equal(span.getAttribute("class"), "ink", "the stored element, with its own attributes");
+  assert.equal(span.getAttribute("data-sap-animate"), "fade");
+  assert.equal(firstOf(stored, "B"), null, "markup that was typed in stays text");
+  assert.equal(firstOf(stored, "PATH").getAttribute("d"), "M0", "an icon is kept as it was stored");
 });

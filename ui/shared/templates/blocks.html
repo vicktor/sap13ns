@@ -36,7 +36,7 @@
 {{define "shared/blocks-sections"}}
 {{range .Sections}}{{if .Theme}}{{template "shared/theme-section" .Theme}}{{else}}{{$stagger := .Stagger}}
 <div class="{{.Class}}{{if .Anchor}} sap-anchor{{end}}" id="{{.DOMID}}"{{with .Animate}} data-sap-animate="{{.}}"{{end}}{{.EdSection}}>
-  <div class="sap-section-inner sap-cols sap-cols-{{.Layout}}">
+  <div class="{{if .Edge}}sap-section-edge{{else}}sap-section-inner{{end}} sap-cols sap-cols-{{.Layout}}">
     {{range .Columns}}<div class="sap-col"{{with $stagger}} data-sap-stagger="{{.}}"{{end}}>{{range .}}{{template "shared/block" .}}{{end}}</div>{{end}}
   </div>
 </div>

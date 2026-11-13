@@ -5,6 +5,14 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.22.0 — 2026-11-13
+
+- **A theme's own page can be turned into blocks.** A front page (or 404 page) that the theme draws with a fixed template now offers two clear options in Edit the page: **Turn this page into blocks**, which makes each part of the page a section you can move, remove and add to, looking as it did and in every language of the site, and **Edit the theme's file**, which opens the template in the code editor. Starting a new page instead is still there, folded below. Forms and scripts are left out of the converted page, what changed by itself stops changing, and Undo or **Use the theme's design** goes back.
+- **Replacing a theme's front page asks first.** Choosing a ready-made page, or «Make it editable» on the preview, no longer swaps a theme's own front page for a sample one without a confirmation.
+- **A text in an HTML block is edited where it is.** Click it in the preview and type: only the words change, in the language shown, and the markup keeps its links, icons and highlighted words.
+- **HTML blocks keep animations.** The motion library's attributes (`data-sap-animate`, `data-sap-stagger`, `data-sap-delay`) are no longer removed from an HTML block, and its `<h1>` counts as the page's heading.
+- **Sections can go from edge to edge.** A new width without the page's gutter, for sections that bring their own background.
+
 ## v0.21.0 — 2026-11-13
 
 - **A menu item can be dragged to another menu.** In Appearance → Menus, an item dragged by its grip onto another menu of the same language, an empty one included, moves there and is saved at once. With the keyboard, the arrow keys carry it past the end of its menu into the one before or after.

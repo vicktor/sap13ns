@@ -346,3 +346,15 @@ func TestBuilderExportImportRestore(t *testing.T) {
 		t.Error("an unsafe layout was imported")
 	}
 }
+
+// An HTML block with the page's heading needs no hidden one added.
+func TestHasH1(t *testing.T) {
+	for in, want := range map[string]bool{
+		`<section><h1 id="t">A</h1></section>`: true, `<h1>A</h1>`: true,
+		`<h2>A</h2><p>&lt;h1&gt;</p>`: false, `<h10>A</h10>`: false, ``: false,
+	} {
+		if hasH1(in) != want {
+			t.Errorf("hasH1(%q) = %v", in, !want)
+		}
+	}
+}
