@@ -184,6 +184,7 @@ type Theme struct {
 
 	fsys   fs.FS
 	static map[string]string             // static file -> short content hash
+	stamp  string                        // content hash of every file (Stamp)
 	pages  map[string]*template.Template // pristine sets, never executed
 
 	funcs     template.FuncMap // the server's functions, for uploaded themes' slots
@@ -396,8 +397,25 @@ func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin, uploaded bool) (*T
 		t.static[strings.TrimPrefix(p, "static/")] = hex.EncodeToString(sum[:6])
 		return nil
 	})
+	all := sha256.New()
+	_ = fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if b, err := fs.ReadFile(fsys, p); err == nil {
+			fmt.Fprintf(all, "%s\x00%d\x00", p, len(b))
+			all.Write(b)
+		}
+		return nil
+	})
+	t.stamp = hex.EncodeToString(all.Sum(nil)[:8])
 	return t, nil
 }
+
+// Stamp is a short hash of every file of the theme (manifest, templates,
+// static files), in the order the file system walks them: it changes when
+// the theme does, and only then.
+func (t *Theme) Stamp() string { return t.stamp }
 
 func (m *Manager) parse(t *Theme) error {
 	base := template.New("theme").Funcs(m.funcs)

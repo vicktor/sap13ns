@@ -162,6 +162,9 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.OGCards, st.OGAccent = r.FormValue("og_cards"), strings.TrimSpace(r.FormValue("og_accent"))
 	st.AIAccess, st.AnalyticsOff = r.FormValue("ai_access"), !on("analytics")
 	st.VideoEmbeds = r.FormValue("video_embeds")
+	if st.Refresh = r.FormValue("refresh"); st.Refresh == "off" {
+		st.Refresh = ""
+	}
 	st.SessionDays, st.IdleHours = formInt(r, "session_days", 14), formInt(r, "idle_hours", 48)
 	// Commenters' Gravatars need the users' setting, which sends anything
 	// to Gravatar at all (sitecheck).
@@ -237,6 +240,8 @@ func (s *Server) settingsError(r *http.Request, field string, st store.Settings)
 		return s.tu(r, "%s is taken: the site uses it for one of its own addresses, a page or a redirect. Choose another sign-in address.", st.LoginPath)
 	case "video_embeds":
 		return s.tu(r, "Choose how video links are shown.")
+	case "refresh":
+		return s.tu(r, "Choose what an open page does when the site changes.")
 	}
 	return s.tu(r, "Invalid request.")
 }

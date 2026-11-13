@@ -152,6 +152,13 @@
           <label class="check"><input type="radio" class="input" name="ai_access" value="block"{{if eq $s.AIAccess "block"}} checked{{end}}> {{T "Closed: block every AI agent and turn off llms.txt"}}</label>
           <p class="hint">{{T "Rules are published in robots.txt; well-behaved crawlers follow them."}} <a href="/robots.txt" target="_blank" rel="noopener">robots.txt</a> · <a href="/llms.txt" target="_blank" rel="noopener">llms.txt</a></p>
         </fieldset>
+        <fieldset class="fieldset">
+          <legend>{{T "When the site changes while a page is open"}}</legend>
+          <label class="check"><input type="radio" class="input" name="refresh" value="off"{{if not $s.Refresh}} checked{{end}}> {{T "Nothing: the page shows the changes the next time it loads"}}</label>
+          <label class="check"><input type="radio" class="input" name="refresh" value="ask"{{if eq $s.Refresh "ask"}} checked{{end}}> {{T "Tell the visitor that the site has been updated, with a button to update"}}</label>
+          <label class="check"><input type="radio" class="input" name="refresh" value="reload"{{if eq $s.Refresh "reload"}} checked{{end}}> {{T "Update the page by itself, unless the visitor is typing"}}</label>
+          <p class="hint">{{T "A change is a new or edited theme, a published design or a new version of the site's scripts and styles; new posts do not count. An open page asks when the visitor comes back to it, at most every five minutes."}}</p>
+        </fieldset>
         <label class="check"><input type="checkbox" class="input" role="switch" name="analytics" value="1"{{if not $s.AnalyticsOff}} checked{{end}}> {{T "Count visits (no cookies, no personal data)"}}</label>
       </section>
     </section>

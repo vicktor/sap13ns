@@ -65,7 +65,10 @@ type Server struct {
 
 	ui     fs.FS
 	static map[string]string // static file -> content hash
-	admin  *adminTemplates
+	// The hash of the core's static files and shared templates (refresh.go).
+	coreStampOnce sync.Once
+	coreStampV    string
+	admin         *adminTemplates
 
 	pages   *cache.Cache // rendered public responses
 	content *cache.Cache // rendered post bodies

@@ -19,10 +19,11 @@ export const bundles = [
     // before the plugins' scripts run), the one-page menu (only with
     // data-sap-onepage on the bundle's script tag), the video players, the
     // site assistant, the pricing table's monthly/yearly switch and the
-    // motion library's player.
+    // motion library's player, and the notice of a site that changed while
+    // the page was open (only with data-sap-version on the script tag).
     name: "site",
     out: "ui/static/site.min.js",
-    sources: ["site.js", "consent.js", "onepage.js", "video.js", "assistant.js", "plans.js", "motion.js"],
+    sources: ["site.js", "consent.js", "onepage.js", "video.js", "assistant.js", "plans.js", "motion.js", "refresh.js"],
   },
   {
     // The chrome of every admin page (ui/admin/templates/layout.html), after

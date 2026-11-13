@@ -12,6 +12,8 @@ package web
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,6 +73,7 @@ type customEntry struct {
 	css    string
 	url    string // "" when the design renders no CSS
 	hash   string
+	stamp  string // hash of the published design and layouts (siteVersion)
 	logo   *ImageView
 	// The media the design and layouts use, looked up once per cache
 	// generation (nil values: no such file). Read-only once cached.
@@ -282,6 +285,9 @@ func (s *Server) loadPublished(ctx context.Context, th *theme.Theme, gen uint64)
 		return e, fmt.Errorf("layout: %w", err)
 	}
 	e.layout = l
+	lj, _ := json.Marshal(l)
+	sum := sha256.Sum256(append(append([]byte(row.Published), 0), lj...))
+	e.stamp = hex.EncodeToString(sum[:8])
 	e.css = e.design.Stylesheet(ms.fontURL)
 	if e.css != "" {
 		e.hash = customize.Hash(e.css)

@@ -53,6 +53,11 @@ type Settings struct {
 	// server fetches, "plain" the same player without them (the server
 	// never contacts the providers) or "off" (the link stays a link).
 	VideoEmbeds string `json:"video_embeds"`
+	// Refresh is what a page that is open does when the site changes
+	// under it (a new theme, a published design, new scripts or styles):
+	// "" nothing, "ask" tells the visitor and offers to update, "reload"
+	// updates by itself (internal/web/refresh.go).
+	Refresh     string `json:"refresh"`
 	SessionDays int    `json:"session_days"`
 	IdleHours   int    `json:"idle_hours"`
 	// GravatarUsers shows the Gravatar of users without a photo of their

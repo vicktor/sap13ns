@@ -1,0 +1,64 @@
+/* The notice of a site that changed while the page was open (static/refresh.js,
+   Settings → Site). Linked on every public page while that setting is on.
+
+   Not in a layer, so that a theme's layered resets do not undo it; a theme
+   restyles it with the custom properties below, set on .sap-refresh, or
+   with more specific rules. The defaults come from the Basecoat tokens
+   every built-in theme defines, in light and dark, with system colours for
+   themes that define none. */
+.sap-refresh {
+  --sap-refresh-bg: var(--popover, var(--card, var(--background, Canvas)));
+  --sap-refresh-fg: var(--popover-foreground, var(--card-foreground, var(--foreground, CanvasText)));
+  --sap-refresh-border: var(--border, color-mix(in srgb, var(--sap-refresh-fg) 18%, transparent));
+  --sap-refresh-accent: var(--primary, LinkText);
+  --sap-refresh-accent-fg: var(--primary-foreground, Canvas);
+  position: fixed;
+  /* At the top: the cookie banner, the assistant's button and the admin
+     bar share the bottom of the page. Above them all but the admin bar. */
+  z-index: 86;
+  inset-block-start: max(0.75rem, env(safe-area-inset-top));
+  inset-inline: 0;
+  margin-inline: auto;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border: 1px solid var(--sap-refresh-border);
+  border-radius: 999px;
+  background: var(--sap-refresh-bg);
+  color: var(--sap-refresh-fg);
+  box-shadow: 0 12px 32px -10px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.08);
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+.sap-refresh p { margin: 0; }
+.sap-refresh button {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  border-radius: 999px;
+}
+.sap-refresh-update {
+  padding: 0.4rem 0.9rem;
+  background: var(--sap-refresh-accent);
+  color: var(--sap-refresh-accent-fg);
+  font-weight: 600;
+}
+.sap-refresh-close {
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  color: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+.sap-refresh-close:hover { opacity: 1; }
+.sap-refresh button:focus-visible { outline: 2px solid var(--ring, var(--sap-refresh-accent)); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .sap-refresh { animation: sap-refresh-in 0.25s ease-out; }
+  @keyframes sap-refresh-in { from { opacity: 0; transform: translateY(-0.5rem); } }
+}
+@media print { .sap-refresh { display: none; } }
