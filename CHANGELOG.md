@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.22.2 — 2026-11-13
+
+- **A `data-popup` window opens in the middle of the screen.** It used to open wherever the browser placed it, usually a corner.
+
 ## v0.22.1 — 2026-11-13
 
 - **A link can open in a small window.** A link with `data-popup` (in an HTML block or a theme) opens in a window of its own, 460×740 or the size it gives (`data-popup="520x800"`): for a call or a booking page that must stay open while the visitor keeps reading. No script from another site is needed, and it stays a plain link when the window cannot open.
