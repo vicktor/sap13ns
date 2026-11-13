@@ -39,6 +39,21 @@
       if (btn.contains(e.target)) continue;
       if (!nav?.contains(e.target) || e.target.closest("a[href]")) setNav(btn, false);
     }
+    // A link with data-popup opens in a small window of its own (a call, a
+    // booking page): "460x740" by default, or the size it gives. The link
+    // stays a plain link when the window cannot open, with a modifier key
+    // or in the design preview.
+    const pop = e.target.closest("a[data-popup][href]");
+    if (pop && !e.defaultPrevented && e.button === 0 && !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) && /^https?:$/.test(pop.protocol)) {
+      const m = /^(\d{3,4})x(\d{3,4})$/.exec(pop.dataset.popup || "");
+      const w = Math.min(m ? +m[1] : 460, screen.availWidth || 460), h = Math.min(m ? +m[2] : 740, screen.availHeight || 740);
+      const win = window.open(pop.href, "_blank", `popup=yes,width=${w},height=${h},resizable=yes,scrollbars=yes`);
+      if (win) {
+        e.preventDefault();
+        try { win.opener = null; } catch (_) { /* another origin already */ }
+      }
+      return;
+    }
     const el = e.target.closest("[data-theme-toggle],[data-nav-toggle],[data-reply-to],[data-reply-cancel],[data-copy-url]");
     if (!el) return;
 

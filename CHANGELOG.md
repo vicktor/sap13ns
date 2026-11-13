@@ -5,6 +5,12 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.22.1 — 2026-11-13
+
+- **A link can open in a small window.** A link with `data-popup` (in an HTML block or a theme) opens in a window of its own, 460×740 or the size it gives (`data-popup="520x800"`): for a call or a booking page that must stay open while the visitor keeps reading. No script from another site is needed, and it stays a plain link when the window cannot open.
+- **`{lang}` in an HTML block is the page's language.** `href="https://example.com/book?lang={lang}"` gives `es`, `en`… on each language's page, with one markup.
+- **Edit as HTML follows the preview's language.** The markup of an HTML section used to open, and be saved, in the main language whatever the preview showed. It now opens the translation of the language shown (the dialog names it) and saves it as that translation, leaving the main language as it was.
+
 ## v0.22.0 — 2026-11-13
 
 - **A theme's own page can be turned into blocks.** A front page (or 404 page) that the theme draws with a fixed template now offers two clear options in Edit the page: **Turn this page into blocks**, which makes each part of the page a section you can move, remove and add to, looking as it did and in every language of the site, and **Edit the theme's file**, which opens the template in the code editor. Starting a new page instead is still there, folded below. Forms and scripts are left out of the converted page, what changed by itself stops changing, and Undo or **Use the theme's design** goes back.

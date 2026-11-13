@@ -159,3 +159,18 @@ func TestHTMLBlockMotion(t *testing.T) {
 		t.Error("HasMotion")
 	}
 }
+
+func TestHTMLBlockLang(t *testing.T) {
+	raw := `<a data-popup="460x740" href="https://example.com/call/1?lang={lang}#c=%23fff">Call ({lang})</a><script>x</script>`
+	got := string(RenderHTMLBlockIn(raw, "en"))
+	want := `<a data-popup="460x740" href="https://example.com/call/1?lang=en#c=%23fff">Call (en)</a>`
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+	// Not a language code: the markup stays as it is, and is still sanitised.
+	for _, lang := range []string{"", `"><script>`, "en us"} {
+		if got := string(RenderHTMLBlockIn(raw, lang)); !strings.Contains(got, "{lang}") || strings.Contains(got, "script") {
+			t.Errorf("lang %q: %s", lang, got)
+		}
+	}
+}

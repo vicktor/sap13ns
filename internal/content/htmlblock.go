@@ -146,6 +146,21 @@ func SanitizeHTMLBlock(raw string) string {
 // RenderHTMLBlock is SanitizeHTMLBlock for a template.
 func RenderHTMLBlock(raw string) template.HTML { return template.HTML(SanitizeHTMLBlock(raw)) }
 
+var htmlBlockLang = regexp.MustCompile(`^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$`)
+
+// RenderHTMLBlockIn is RenderHTMLBlock for a page in the language lang:
+// {lang} in the sanitised markup, in a link or in a text, becomes the
+// language's code, so one markup serves every language
+// (href="https://example.com/book?lang={lang}"). A code that is not one
+// leaves the markup as it is.
+func RenderHTMLBlockIn(raw, lang string) template.HTML {
+	clean := SanitizeHTMLBlock(raw)
+	if htmlBlockLang.MatchString(lang) {
+		clean = strings.ReplaceAll(clean, "{lang}", lang)
+	}
+	return template.HTML(clean)
+}
+
 func reservedDataAttr(name string) bool {
 	if !htmlBlockData.MatchString(name) {
 		return true

@@ -461,7 +461,7 @@ func (s *Server) blockView(b *builder.Block, lang string, pd *PageData, media fu
 	case "rich-text":
 		v.HTML = content.RenderPlain(v.S["text"])
 	case "html":
-		v.HTML = content.RenderHTMLBlock(v.S["html"])
+		v.HTML = content.RenderHTMLBlockIn(v.S["html"], lang)
 	case "hero", "image":
 		v.Image = image("image")
 		if v.Image != nil && v.S["alt"] != "" {

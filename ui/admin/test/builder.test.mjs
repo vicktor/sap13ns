@@ -490,3 +490,20 @@ test("html blocks: typed text goes into the stored markup, which keeps its eleme
   assert.equal(firstOf(stored, "B"), null, "markup that was typed in stays text");
   assert.equal(firstOf(stored, "PATH").getAttribute("d"), "M0", "an icon is kept as it was stored");
 });
+
+test("html sections: each language has its own markup", () => {
+  const l = { version: 1, pages: { front: { sections: [{ id: "s1", layout: "1", columns: [[{ id: "h1", type: "html", settings: { html: "<p>Hola</p>", prose: "false" } }]] }] } } };
+  const sec = (x) => x.pages.front.sections[0];
+  assert.equal(sectionHTML(null, sec(l), "en"), "<p>Hola</p>", "without a translation, the main one");
+  const en = sectionToHTML(l, "front", 0, "<p>Hello</p>", undefined, "en");
+  assert.equal(sec(en).columns[0][0].settings.html, "<p>Hola</p>", "the main language is not touched");
+  assert.deepEqual(sec(en).columns[0][0].i18n, { en: { html: "<p>Hello</p>" } });
+  assert.equal(sectionHTML(null, sec(en), "en"), "<p>Hello</p>");
+  assert.equal(sectionHTML(null, sec(en)), "<p>Hola</p>");
+  assert.equal(sec(l).columns[0][0].i18n, undefined, "the input is not changed");
+  const same = sectionToHTML(en, "front", 0, "<p>Hola</p>", undefined, "en");
+  assert.equal(sec(same).columns[0][0].i18n, undefined, "the same markup is no translation");
+  const es = sectionToHTML(en, "front", 0, "<p>Buenas</p>");
+  assert.equal(sec(es).columns[0][0].settings.html, "<p>Buenas</p>");
+  assert.deepEqual(sec(es).columns[0][0].i18n, { en: { html: "<p>Hello</p>" } });
+});

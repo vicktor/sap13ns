@@ -121,12 +121,20 @@ export function duplicateSection(l, name, s, types, rand) {
 /** sectionToHTML turns section s into one HTML block with markup html,
  * keeping its id, anchor, appearance and class: a section that is one HTML
  * block already keeps that block (and its translations). */
-export function sectionToHTML(l, name, s, markup, rand) {
+export function sectionToHTML(l, name, s, markup, rand, lang = "") {
   return edit(l, name, (r) => {
     const sec = r.sections[s];
     const sole = sec.columns.flat();
     if (sole.length === 1 && sole[0].type === "html") {
-      sole[0].settings = { ...(sole[0].settings || {}), html: markup };
+      // In another language the markup is that language's translation;
+      // emptied, or the same as the main one, there is none.
+      if (lang) {
+        const i18n = { ...(sole[0].i18n || {}) };
+        const own = { ...(i18n[lang] || {}) };
+        if (markup.trim() && markup !== (sole[0].settings?.html || "")) own.html = markup; else delete own.html;
+        if (Object.keys(own).length) i18n[lang] = own; else delete i18n[lang];
+        if (Object.keys(i18n).length) sole[0].i18n = i18n; else delete sole[0].i18n;
+      } else sole[0].settings = { ...(sole[0].settings || {}), html: markup };
       sec.layout = "1";
       sec.columns = [[sole[0]]];
       return;
@@ -139,10 +147,12 @@ export function sectionToHTML(l, name, s, markup, rand) {
 /** sectionHTML is the markup a section shows in the preview document doc,
  * as an HTML block can hold it: the columns of a block section in their
  * grid, a theme's section as it rendered, without the preview's text marks
- * (data-sap-text spans). "" when the preview does not show the section. */
-export function sectionHTML(doc, sec) {
+ * (data-sap-text spans). "" when the preview does not show the section.
+ * A section that is one HTML block gives its stored markup, in the
+ * language lang when it has that translation. */
+export function sectionHTML(doc, sec, lang = "") {
   const sole = (sec.columns || []).flat();
-  if (sole.length === 1 && sole[0].type === "html") return sole[0].settings?.html || "";
+  if (sole.length === 1 && sole[0].type === "html") return (lang && sole[0].i18n?.[lang]?.html) || sole[0].settings?.html || "";
   const el = doc?.getElementById(sec.anchor || `sap-${sec.id}`);
   if (!el) return "";
   const inner = el.classList.contains("sap-theme-section") ? el : el.querySelector(":scope > :is(.sap-section-inner, .sap-section-edge)");
@@ -1259,11 +1269,14 @@ function init(root) {
   }
   function openHTML(sec, pos) {
     const sole = sec.columns.flat();
-    const markup = sole.length ? sectionHTML(frameDoc(), sec) : "";
+    // An HTML block is edited in the language the preview shows.
+    const shown = frameDoc()?.documentElement.lang || "";
+    const lang = sole.length === 1 && sole[0].type === "html" ? langs.find((x) => x.code === shown) : null;
+    const markup = sole.length ? sectionHTML(frameDoc(), sec, lang?.code) : "";
     // An empty section starts an empty editor.
     if (!markup && sole.length && !(sole.length === 1 && sole[0].type === "html")) { toast("info", msg.msgEditHtmlNoPreview); return; }
-    htmlAt = { id: sec.id, s: pos.s };
-    document.getElementById("bl-html-where").textContent = fmt(msg.msgSection, pos.s + 1);
+    htmlAt = { id: sec.id, s: pos.s, lang: lang?.code || "" };
+    document.getElementById("bl-html-where").textContent = fmt(msg.msgSection, pos.s + 1) + (lang ? ` · ${lang.name}` : "");
     const ed = codeEditor(htmlBox, "html");
     if (ed) ed.value = markup; else htmlBox.value = markup;
     htmlDialog.showModal();
@@ -1292,7 +1305,7 @@ function init(root) {
         const start = emptyRegion(region, layout());
         let next = setRegion(layout(), region, start);
         if (start.sections[0].columns.flat().some((b) => b.type === META || b.type === CONTENT)) next = addSection(next, region, 0);
-        getRegion(next, region).sections[0].style = { padding: "none", width: "full" };
+        getRegion(next, region).sections[0].style = { padding: "none", width: "edge" };
         selected = getRegion(next, region).sections[0].id;
         commit(sectionToHTML(next, region, 0, htmlBox.value));
         say(msg.msgEditHtmlDone);
@@ -1302,7 +1315,7 @@ function init(root) {
       htmlDialog.close();
       if (!at) return;
       selected = htmlAt.id;
-      commit(sectionToHTML(layout(), region, at.s, htmlBox.value));
+      commit(sectionToHTML(layout(), region, at.s, htmlBox.value, undefined, htmlAt.lang));
       say(msg.msgEditHtmlDone);
     });
   }
