@@ -162,6 +162,7 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.OGCards, st.OGAccent = r.FormValue("og_cards"), strings.TrimSpace(r.FormValue("og_accent"))
 	st.AIAccess, st.AnalyticsOff = r.FormValue("ai_access"), !on("analytics")
 	st.VideoEmbeds = r.FormValue("video_embeds")
+	st.Offline = on("offline")
 	if st.Refresh = r.FormValue("refresh"); st.Refresh == "off" {
 		st.Refresh = ""
 	}

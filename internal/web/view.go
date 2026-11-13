@@ -313,6 +313,10 @@ func (s *SiteView) Asset(file string) string { return s.theme.StaticURL(file) }
 // Static returns the URL of a core static file (site.min.js, theme-init.js).
 func (s *SiteView) Static(file string) string { return s.server.assetURL(file) }
 
+// Worker reports whether public pages register the site's service worker
+// (worker.go).
+func (s *SiteView) Worker() bool { return s.server.workerOn() }
+
 // Refresh is set while open pages follow the site's changes (Settings →
 // Site, refresh.go); nil in a design or theme preview.
 func (s *SiteView) Refresh() *RefreshView {

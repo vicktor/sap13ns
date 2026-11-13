@@ -42,6 +42,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /robots.txt", s.handleRobots)
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /api/site-version", s.handleSiteVersion)
+	mux.HandleFunc("GET /sw.js", s.handleWorker)
+	mux.HandleFunc("GET /api/offline", s.cached(s.handleOffline))
 	mux.HandleFunc("GET /site-icon/{file}", s.handleSiteIcon)
 	mux.HandleFunc("GET /og/{file}", s.handleOGImage)
 	mux.HandleFunc("GET /video-thumbs/{file}", s.handleVideoThumb)

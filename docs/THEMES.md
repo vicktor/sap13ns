@@ -534,6 +534,10 @@ With Settings → Site → **When the site changes while a page is open** set, a
 
 The notice is `div.sap-refresh` (a text, `button.sap-refresh-update`, `button.sap-refresh-close`), at the top of the page, styled by `static/refresh.css`, which is linked only while the setting is on. Like the cookie consent, it takes the theme's Basecoat tokens in light and dark, and a theme restyles it with `--sap-refresh-bg`, `--sap-refresh-fg`, `--sap-refresh-border`, `--sap-refresh-accent` and `--sap-refresh-accent-fg`, or with more specific rules. A theme needs nothing to support it. A design or theme preview never shows it.
 
+## Reading without a connection
+
+With Settings → Site → **Keep the pages a visitor opened readable without a connection**, public pages register the site's service worker (`/sw.js`, from `ui/static/sw.js`). It keeps the public pages a browser opened (the last 40) and the files they use (styles, scripts, fonts, images of the site: the last 150), and uses a copy only when the site cannot be reached; a page nobody opened shows **You are offline**, the theme's `page` template with that text (`/api/offline`). A theme needs nothing to support it. With the web app manifest every site already serves, a site installed on a phone's home screen then opens without a connection too.
+
 ## Cookie consent
 
 When the site's cookie consent is on (Settings → Privacy and cookies), `shared/footer-meta` adds a "Cookies" link to the footer line and renders the banner and the cookie settings dialog, and `shared/head` links `consent.css` before `theme.css`; `consent.js`, in the site bundle (see [Scripts](#scripts)), runs because the dialog is on the page. A theme needs no markup of its own: every theme that renders `shared/footer-meta` (all of them must) gets it, uploaded and imported ones included. The script moves the banner and the dialog out of the footer to the top and the end of `<body>`, so no stacking context or overflow of the theme's footer reaches them.

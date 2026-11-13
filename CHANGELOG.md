@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.24.0 — 2026-11-13
+
+- **Sites can be read without a connection.** Settings → Site has **Keep the pages a visitor opened readable without a connection**, off by default. The visitor's browser then keeps the public pages it opened, with their styles, scripts, fonts and images, and shows them only when the site cannot be reached; a page it never opened says so, in the theme's design. Pages always come from the site first, so nobody sees an old version while online, and the admin, the API and signed-in pages are never kept. With the web app manifest every site already has, a site added to a phone's home screen now opens offline too. Switching it off removes the copies from the browsers that have them. Themes need no change.
+
 ## v0.23.0 — 2026-11-13
 
 - **An open page can learn that the site was updated.** Settings → Site has **When the site changes while a page is open**: nothing (as until now), tell the visitor with an **Update** button, or update the page by itself unless the visitor is typing. A change is a new or edited theme, a published design or a new version of the site's scripts and styles; new posts do not count. The page asks the site when the visitor comes back to it, at most every five minutes, with one small request and no service worker, so nothing is ever served from an old cache. Themes need no change; they can restyle the notice (`.sap-refresh`, docs/THEMES.md).

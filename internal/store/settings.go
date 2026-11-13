@@ -57,9 +57,13 @@ type Settings struct {
 	// under it (a new theme, a published design, new scripts or styles):
 	// "" nothing, "ask" tells the visitor and offers to update, "reload"
 	// updates by itself (internal/web/refresh.go).
-	Refresh     string `json:"refresh"`
-	SessionDays int    `json:"session_days"`
-	IdleHours   int    `json:"idle_hours"`
+	Refresh string `json:"refresh"`
+	// Offline installs the site's service worker (internal/web/worker.go):
+	// the pages a visitor opened, and the styles and scripts they need,
+	// stay readable without a connection.
+	Offline     bool `json:"offline"`
+	SessionDays int  `json:"session_days"`
+	IdleHours   int  `json:"idle_hours"`
 	// GravatarUsers shows the Gravatar of users without a photo of their
 	// own (on by default). The server looks it up with the SHA-256 of the
 	// e-mail address and serves a copy; off, nothing is sent to Gravatar

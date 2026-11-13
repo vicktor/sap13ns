@@ -107,7 +107,7 @@ func (s *Server) allowVideoFrames(w http.ResponseWriter) {
 	h := w.Header()
 	base := h.Get("Content-Security-Policy")
 	if base == "" {
-		base = s.pluginCSP(s.basePolicy())
+		base = s.workerCSP(s.pluginCSP(s.basePolicy()))
 	}
 	h.Set("Content-Security-Policy", mergeCSP(base, map[string][]string{"frame-src": content.PlayerOrigins}))
 }

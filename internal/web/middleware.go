@@ -230,7 +230,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			}
 			h.Set("Content-Security-Policy", p)
 		} else {
-			h.Set("Content-Security-Policy", s.pluginCSP(policy)) // plus frame and image sources of enabled plugins
+			h.Set("Content-Security-Policy", s.workerCSP(s.pluginCSP(policy))) // plus frame and image sources of enabled plugins, and the site's service worker
 		}
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
