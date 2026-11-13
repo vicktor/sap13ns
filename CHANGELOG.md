@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.20.0 — 2026-11-13
+
+- **A site can send e-mail through its own server.** Settings → E-mail takes an SMTP server, port (587, 465, 2525 or 25, always encrypted), username, password and sender, with a button that saves and sends a test e-mail to you. Password resets and the messages of plugin forms then leave from the site's own address; without it, or while it is off, the site keeps using the server's (on a network, the network's), and what the network sends about a site (billing, domains, suspension) always does. The password is kept encrypted and is dropped when the server or the username changes; the server is reached through the SSRF guard, so it must have a public address; and these settings are not part of site backups.
+
 ## v0.19.4 — 2026-11-12
 
 - **A site icon of its own.** Settings → General → *Site icon* picks an image of the media library (PNG, WebP, JPEG or GIF) that replaces the sap13ns icon in browser tabs, bookmarks, the home screen of phones and the web app manifest. sap13ns draws it whole on a transparent square at 32, 180, 192 and 512 px and serves it at `/site-icon/<size>.png`; an icon whose file is gone falls back to the sap13ns one.

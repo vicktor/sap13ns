@@ -121,7 +121,7 @@ To try a network on a development machine, `make dev-network` (in a checkout) do
 
 ## Configuration
 
-These variables are read only when `SAP13NS_MULTISITE=true`. The variables of a single site (README) apply to the whole network: one database, one data directory, one SMTP server.
+These variables are read only when `SAP13NS_MULTISITE=true`. The variables of a single site (README) apply to the whole network: one database, one data directory, one SMTP server. A site can send its own e-mail (password resets, plugin forms) through an SMTP server of its own, from its own address, in **Settings → E-mail**; what the network sends about a site (billing, domains, suspension) always uses the network's server.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -400,7 +400,7 @@ A site backup holds one site, never the network: the portal's accounts, the plan
 | `README.txt` | How to move to WordPress, or to restore |
 | `sap13ns/manifest.json` | Format, site, date, and the size and SHA-256 of every other member. It is written last. |
 
-A backup never holds password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the MCP token or the site secret. It holds personal data, as the site does: the e-mail addresses of users and commenters, and the IP addresses of commenters. Analytics, the audit log, revisions and autosaves are left out.
+A backup never holds password hashes, two-factor secrets or recovery codes, passkeys, sessions, plugin secrets, AI or embedding keys, the site's SMTP settings (Settings → E-mail), the MCP token or the site secret. It holds personal data, as the site does: the e-mail addresses of users and commenters, and the IP addresses of commenters. Analytics, the audit log, revisions and autosaves are left out.
 
 With `SAP13NS_BACKUP_PASSPHRASE_FILE` (or `SAP13NS_BACKUP_PASSPHRASE`), archives are encrypted with the format of the database backups and named `.zip.enc`. The admin downloads them decrypted, and `sap13ns backup decrypt` decrypts one on the command line.
 

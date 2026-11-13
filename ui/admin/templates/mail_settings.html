@@ -1,0 +1,46 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$m := $d.M}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
+    <h1>{{T "E-mail"}}</h1>
+    <p>{{T "How this site sends e-mail: password resets and the messages of plugin forms."}}</p>
+  </div>
+</div>
+{{template "form-error" $d.Error}}
+{{with $d.Success}}<div class="alert" data-variant="success" role="status">{{icon "circle-check"}}<h2>{{.}}</h2></div>{{end}}
+
+<form method="post" action="/admin/settings/mail" class="stack" data-unsaved>
+  {{.CSRFField}}
+  <section class="card" id="server">
+    <header><h2>{{T "SMTP server"}} {{if $m.Enabled}}<span class="badge" data-variant="success">{{icon "circle-check"}}{{T "Own server"}}</span>{{else}}<span class="badge" data-variant="secondary">{{if $d.OnNetwork}}{{T "The network's"}}{{else}}{{T "The server's"}}{{end}}</span>{{end}}</h2>
+      <p>{{if $d.Network}}{{if $d.OnNetwork}}{{T "Without a server of its own, the site sends through the network's server, %s, from the network's address." $d.Network}}{{else}}{{T "Without a server of its own, the site sends through the server set in the configuration, %s." $d.Network}}{{end}}
+        {{else}}{{T "The server has no SMTP server configured: without one of its own, the site cannot send e-mail."}}{{end}}
+        {{T "With your own, e-mail leaves from your domain: set up its SPF and DKIM records with your e-mail provider so that it does not end up as spam."}}</p></header>
+    <section class="form">
+      <label class="check"><input type="checkbox" class="input" role="switch" name="enabled" value="1"{{if $m.Enabled}} checked{{end}}> {{T "Send through this server"}}</label>
+      <div class="grid-2">
+        <div class="field"><label for="host">{{T "Server"}}</label><input class="input mono" id="host" name="host" value="{{$m.Host}}" maxlength="253" placeholder="smtp.example.com" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="port">{{T "Port"}}</label>
+          {{$o := list}}{{range $d.Ports}}{{$o = append $o (opt (print .) (print .))}}{{end}}
+          {{template "select" (selectbox "id" "port" "name" "port" "value" (print $m.Port) "options" $o)}}
+          <p class="hint">{{T "587 with STARTTLS, or 465 with TLS. The connection is always encrypted."}}</p></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label for="username">{{T "Username"}}</label><input class="input" id="username" name="username" value="{{$m.Username}}" maxlength="254" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="password">{{T "Password"}}</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="new-password" maxlength="500" placeholder="{{if $d.HasPass}}{{T "Saved (leave empty to keep it)"}}{{end}}">
+          <p class="hint">{{T "Kept encrypted. Changing the server or the username removes it."}}</p>
+          {{if $d.HasPass}}<label class="check"><input type="checkbox" class="input" name="remove_password" value="1"> {{T "Remove the saved password"}}</label>{{end}}</div>
+      </div>
+      <div class="field"><label for="from">{{T "Sender"}}</label><input class="input" id="from" name="from" value="{{$m.From}}" maxlength="254" placeholder="{{T "Name <hello@example.com>"}}">
+        <p class="hint">{{T "The address the messages come from. Your SMTP server must allow it."}}</p></div>
+    </section>
+  </section>
+  <div class="sticky-actions">
+    <button class="btn" data-variant="outline" type="submit" name="test" value="1">{{icon "send"}}{{T "Save and send a test"}}</button>
+    <button class="btn" type="submit">{{icon "save"}}{{T "Save"}}</button>
+  </div>
+</form>
+{{end}}

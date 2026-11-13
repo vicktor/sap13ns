@@ -142,6 +142,7 @@ func Open(ctx context.Context, p Params) (*App, error) {
 		return nil, err
 	}
 	a.srv, a.host, lk.s = srv, host, srv
+	host.SetMailer(srv.SiteMailer()) // mail_send follows the site's Settings → E-mail
 	if !p.Inert {
 		if err := host.Load(ctx); err != nil {
 			p.Log.Error("load plugins", "err", err)

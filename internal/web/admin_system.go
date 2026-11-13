@@ -370,7 +370,7 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 			{Label: s.tu(r, "Secure cookies"), Value: fmt.Sprint(s.cfg.CookieSecure), OK: flag(s.cfg.CookieSecure)},
 			{Label: "HSTS", Value: fmt.Sprint(s.cfg.HSTS), OK: flag(s.cfg.HSTS || !https)},
 			{Label: s.tu(r, "Two-factor authentication"), Value: s.twoFactorDescription(r), OK: flag(!(s.cfg.Dev && s.cfg.DevSkip2FA))},
-			{Label: s.tu(r, "E-mail delivery"), Value: s.mailDescription(r), OK: flag(s.mailer.Enabled())},
+			{Label: s.tu(r, "E-mail delivery"), Value: s.mailDescription(r), OK: flag(s.mail.Enabled())},
 			{Label: s.tu(r, "Trusted proxies"), Value: fmt.Sprint(s.cfg.TrustedProxies)},
 		}},
 		{s.tu(r, "Database"), []sysRow{
@@ -414,8 +414,11 @@ func (s *Server) twoFactorDescription(r *http.Request) string {
 }
 
 func (s *Server) mailDescription(r *http.Request) string {
-	if !s.mailer.Enabled() {
+	if !s.mail.Enabled() {
 		return s.tu(r, "Not configured")
 	}
-	return fmt.Sprintf("%s:%d", s.cfg.SMTP.Host, s.cfg.SMTP.Port)
+	if s.mail.Own() {
+		return s.tu(r, "%s (the site's own server)", s.mail.Server())
+	}
+	return s.mail.Server()
 }

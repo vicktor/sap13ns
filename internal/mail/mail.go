@@ -4,6 +4,7 @@
 package mail
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -22,13 +23,31 @@ type Mailer struct {
 	cfg       config.SMTP
 	log       *slog.Logger
 	logBodies bool // development only: bodies may contain reset links
+	dial      Dial // nil: a plain TCP connection
 }
+
+// Dial connects to the SMTP server, such as a netguard dialer that keeps a
+// server chosen by a site's administrator off internal networks.
+type Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 
 func New(cfg config.SMTP, log *slog.Logger, logBodies bool) *Mailer {
 	return &Mailer{cfg: cfg, log: log, logBodies: logBodies}
 }
 
+// NewDial is New for a server reached through dial.
+func NewDial(cfg config.SMTP, log *slog.Logger, dial Dial) *Mailer {
+	return &Mailer{cfg: cfg, log: log, dial: dial}
+}
+
 func (m *Mailer) Enabled() bool { return m.cfg.Enabled() }
+
+// Server is the SMTP server's host:port, "" when there is none.
+func (m *Mailer) Server() string {
+	if !m.cfg.Enabled() {
+		return ""
+	}
+	return net.JoinHostPort(m.cfg.Host, strconv.Itoa(m.cfg.Port))
+}
 
 // headerSafe rejects CR/LF to prevent header injection.
 func headerSafe(s string) bool { return !strings.ContainsAny(s, "\r\n") }
@@ -74,7 +93,15 @@ func (m *Mailer) SendMessage(to, replyTo, subject, body string) error {
 	), "\r\n")
 
 	addr := net.JoinHostPort(m.cfg.Host, strconv.Itoa(m.cfg.Port))
-	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	var conn net.Conn
+	var err error
+	if m.dial != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		conn, err = m.dial(ctx, "tcp", addr)
+		cancel()
+	} else {
+		conn, err = net.DialTimeout("tcp", addr, 10*time.Second)
+	}
 	if err != nil {
 		return err
 	}

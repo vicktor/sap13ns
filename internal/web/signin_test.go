@@ -38,6 +38,7 @@ func signInEnv(t *testing.T) (*customEnv, *bytes.Buffer) {
 	e := newCustomEnv(t)
 	var box bytes.Buffer
 	e.s.mailer = mail.New(config.SMTP{}, slog.New(slog.NewTextHandler(&box, nil)), true)
+	e.s.mail = &siteMailer{base: e.s.mailer}
 	return e, &box
 }
 

@@ -35,7 +35,7 @@ func (s *Server) renderAuth(w http.ResponseWriter, r *http.Request, status int, 
 		f.Values = map[string]string{}
 	}
 	f.AllowRegistration = s.settings().AllowRegistration
-	f.CanReset = s.mailer.Enabled() || s.cfg.Dev
+	f.CanReset = s.mail.Enabled() || s.cfg.Dev
 	f.Passkeys = passkeysAvailable
 	f.SSO = s.sso != nil
 	w.Header().Set("X-Robots-Tag", "noindex")
@@ -428,7 +428,7 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 		// address that has an account.
 		to, subject := u.Email, s.i18n.T(lang, "Password reset")+" · "+s.settings().SiteTitle
 		s.goJob(func() {
-			if err := s.mailer.Send(to, subject, body); err != nil {
+			if err := s.mail.Send(to, subject, body); err != nil {
 				s.log.Error("send reset e-mail", "err", err)
 			}
 		})

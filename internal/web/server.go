@@ -60,7 +60,8 @@ type Server struct {
 	plugins   *plugin.Host
 	official  *plugin.Official // the official plugins in the binary (plugins_official.go); nil = none
 	media     *media.Processor
-	mailer    *mail.Mailer
+	mailer    *mail.Mailer // the server's (the network's): for what the network sends
+	mail      *siteMailer  // the site's own server, or mailer (sitemail.go)
 
 	ui     fs.FS
 	static map[string]string // static file -> content hash
@@ -182,6 +183,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		plugins:       d.Plugins,
 		official:      d.Official,
 		mailer:        d.Mailer,
+		mail:          &siteMailer{base: d.Mailer},
 		network:       d.Network,
 		hosts:         d.Hosts,
 		media:         &media.Processor{Dir: d.Config.UploadsDir, MaxBytes: d.Config.MaxUploadBytes},
@@ -241,6 +243,9 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	}
 	if err := s.ReloadSettings(ctx); err != nil {
 		return nil, err
+	}
+	if err := s.loadSiteMail(ctx); err != nil {
+		s.log.Warn("site e-mail settings; using the server's", "err", err)
 	}
 	s.stats = s.newStats()
 	s.static = hashFiles(d.UI, "static")
@@ -372,6 +377,7 @@ func (s *Server) contentChanged() {
 // settings; the assistant's index is built again).
 func (s *Server) Restored(ctx context.Context) error {
 	err := s.ReloadSettings(ctx)
+	err = errors.Join(err, s.loadSiteMail(ctx))
 	if s.plugins != nil {
 		err = errors.Join(err, s.plugins.Load(ctx))
 	}

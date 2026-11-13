@@ -122,7 +122,7 @@ Administrators can upload a theme as a `.zip` (**Appearance → Themes**, or `sa
 - **CSS selectors** can make the browser fetch site URLs that depend on what a page holds, such as an attribute's value, as custom CSS already can. The requests stay on the site, which is the uploader's own, and the one secret on its pages, a session's CSRF token, only works with that session's cookie.
 
 ### Outbound requests
-Plugin HTTP calls, imported media, AI image downloads and WebSub pings go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
+Plugin HTTP calls, imported media, AI image downloads, WebSub pings and a site's own SMTP server (Settings → E-mail) go through one SSRF guard (`internal/netguard`). It resolves the host itself, connects only to the public address it checked (which defeats DNS rebinding), and does so again on every redirect. It refuses:
 
 - loopback, private, link-local, CGNAT, multicast, cloud metadata, documentation, benchmarking and reserved addresses;
 - IPv6 ranges that embed or translate to IPv4 (IPv4-mapped and -compatible, NAT64, 6to4, Teredo), as well as site-local and unique-local addresses.
@@ -178,12 +178,12 @@ Update checks and release downloads are restricted to GitHub hosts over https wi
   The full contract is in [PLUGINS.md](PLUGINS.md).
 
 ### Secrets and data
-- The instance secret (`SAP13NS_SECRET_KEY`) signs tokens and encrypts stored secrets, such as AI provider keys, with AES-256-GCM. Secrets are never shown again in the admin.
+- The instance secret (`SAP13NS_SECRET_KEY`) signs tokens and encrypts stored secrets, such as AI provider keys and a site's SMTP password, with AES-256-GCM. Secrets are never shown again in the admin. A site's SMTP password is dropped when its server or username changes, so another administrator cannot send it to a server of their own.
 - **Backups** can be encrypted with AES-256-GCM (STREAM construction, Argon2id key derivation). The passphrase is read from a file or the environment, never from a command-line flag.
 - **Updates** install only releases whose `SHA256SUMS` carries a valid Ed25519 signature from the key compiled into the binary.
 - **Updates from the admin** keep the web server unable to replace its own binary: it runs unprivileged with the system read-only. **Update now** only creates `/var/lib/sap13ns/update-request`. `sap13ns-update.path` then starts a root service that removes the request before anything else, and runs `sap13ns update` with fixed arguments: it installs the latest signed release, whatever the request holds, backs up first and restarts the server. The web server reads the progress from `/var/lib/sap13ns-update`, which only root writes. A compromised web process can at most ask for the latest official release to be installed.
 - **Content exports** (Tools → Export) need the settings capability, and each one is written to the audit log.
-  - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, plugin OAuth tokens, AI keys or the instance and site secrets.
+  - They never contain password hashes, two-factor secrets, passkeys, sessions, plugin secrets, plugin OAuth tokens, AI keys, the site's SMTP settings or the instance and site secrets.
   - E-mail and IP addresses are only included when the administrator asks for them.
   - A `.zip` prepared in the background sits in a directory that is never served. It is downloaded once, by the administrator who asked, through a signed link valid for 24 hours, and then deleted.
   - Background exports cannot fill the disk. A site keeps one waiting, and a new one deletes it. One starts only when its estimate fits the storage of the site's plan (on a network) and the disk keeps twice the estimate free; otherwise it is refused with 413.
