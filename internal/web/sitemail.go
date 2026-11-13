@@ -211,6 +211,11 @@ func (s *Server) adminMailSettingsSave(w http.ResponseWriter, r *http.Request) {
 		s.redirect(w, r, "/admin/settings/mail", "success", s.tu(r, "Settings saved."))
 		return
 	}
+	if !st.Enabled && st.Host != "" {
+		// Testing the network's server here would look like testing this one.
+		s.renderMailSettings(w, r, http.StatusOK, st, s.tu(r, "Saved, but switched off: turn on «Send through this server» to send through %s, then test it.", st.Host), "")
+		return
+	}
 	u := currentUser(r)
 	if u == nil || u.Email == "" {
 		s.renderMailSettings(w, r, http.StatusOK, st, s.tu(r, "Add an e-mail address to your profile to receive the test."), "")
@@ -228,7 +233,7 @@ func (s *Server) adminMailSettingsSave(w http.ResponseWriter, r *http.Request) {
 		s.renderMailSettings(w, r, http.StatusOK, st, s.tu(r, "The test e-mail could not be sent: %s", s.mailError(r, err)), "")
 		return
 	}
-	s.renderMailSettings(w, r, http.StatusOK, st, "", s.tu(r, "Settings saved. A test e-mail went to %s.", u.Email))
+	s.renderMailSettings(w, r, http.StatusOK, st, "", s.tu(r, "Settings saved. A test e-mail went to %s through %s.", u.Email, s.mail.Server()))
 }
 
 // mailError is what the administrator is told of a failed send: the SMTP

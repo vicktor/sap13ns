@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"html"
 	"net/http"
 	"net/url"
 	"strings"
@@ -92,6 +93,12 @@ func TestSiteMail(t *testing.T) {
 	if e.s.mail.Own() {
 		t.Error("switched off, the site still sends through its server")
 	}
+	v.Set("test", "1")
+	off := e.s.i18n.T(e.s.lang(), "Saved, but switched off: turn on «Send through this server» to send through %s, then test it.", "smtp.example.com")
+	if rec := e.postForm("/admin/settings/mail", v); !strings.Contains(rec.Body.String(), html.EscapeString(off)) {
+		t.Errorf("a test with the server switched off does not say so: %d", rec.Code)
+	}
+	v.Del("test")
 
 	// Outside development the server is dialled through netguard.
 	e.s.cfg.Dev = false

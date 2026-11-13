@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.20.1 — 2026-11-13
+
+- **Settings → E-mail says when the site's server is switched off.** «Save and send a test» with a server filled in but «Send through this server» off used to send the test through the network's server and report success, which looked as if the site's own server worked. It now says that the server is off, and a successful test names the server it went through.
+
 ## v0.20.0 — 2026-11-13
 
 - **A site can send e-mail through its own server.** Settings → E-mail takes an SMTP server, port (587, 465, 2525 or 25, always encrypted), username, password and sender, with a button that saves and sends a test e-mail to you. Password resets and the messages of plugin forms then leave from the site's own address; without it, or while it is off, the site keeps using the server's (on a network, the network's), and what the network sends about a site (billing, domains, suspension) always does. The password is kept encrypted and is dropped when the server or the username changes; the server is reached through the SSRF guard, so it must have a public address; and these settings are not part of site backups.
