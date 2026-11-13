@@ -307,6 +307,25 @@ func (s *Server) adminMenuOrder(w http.ResponseWriter, r *http.Request) {
 	s.reorder(w, r, s.store.ReorderMenu, s.tu(r, "The menu changed meanwhile. Reload the page."))
 }
 
+// adminMenuMove moves an item to another menu of the same language after a
+// drag: id, the location it lands in, and ids, every item of that menu in
+// their new order (the moved one among them). It answers 204.
+func (s *Server) adminMenuMove(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.FormValue("id"), 10, 64)
+	loc := r.FormValue("location")
+	th := s.themes.Active(s.settings().ActiveTheme)
+	if err != nil || id <= 0 || (!th.HasMenu(loc) && loc != "primary" && loc != "footer") {
+		http.Error(w, s.tu(r, "Invalid request."), http.StatusBadRequest)
+		return
+	}
+	s.reorder(w, r, func(ctx context.Context, ids []int64) error {
+		if !slices.Contains(ids, id) {
+			return store.ErrOrder
+		}
+		return s.store.MoveMenuItem(ctx, id, loc, ids)
+	}, s.tu(r, "The menu changed meanwhile. Reload the page."))
+}
+
 // reorder saves the order the page's script sends (ids, in order) with
 // save; changed is the answer when the ids are not those of one group.
 func (s *Server) reorder(w http.ResponseWriter, r *http.Request, save func(context.Context, []int64) error, changed string) {

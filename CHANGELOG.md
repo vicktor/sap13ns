@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.21.0 — 2026-11-13
+
+- **A menu item can be dragged to another menu.** In Appearance → Menus, an item dragged by its grip onto another menu of the same language, an empty one included, moves there and is saved at once. With the keyboard, the arrow keys carry it past the end of its menu into the one before or after.
+
 ## v0.20.2 — 2026-11-13
 
 - **Animated pages no longer stay empty in Safari on a first visit.** The motion player only watched the elements whose styles already had an animation, and Safari could run it before `motion.css` was applied: it then watched none, and they stayed on their invisible first frame until the page was loaded again. It now watches every candidate.

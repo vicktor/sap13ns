@@ -80,6 +80,19 @@ func (s *Store) ReorderMenu(ctx context.Context, ids []int64) error {
 	})
 }
 
+// MoveMenuItem moves an item to another menu of its language (location),
+// where ids is that menu's new order: every item it had, plus the moved
+// one, each once. The menu it leaves keeps the order of the others.
+func (s *Store) MoveMenuItem(ctx context.Context, id int64, location string, ids []int64) error {
+	return s.InTx(ctx, func(tx pgx.Tx) error {
+		var lang string
+		if err := tx.QueryRow(ctx, `UPDATE menu_items SET location = $2 WHERE id = $1 RETURNING lang`, id, location).Scan(&lang); err != nil {
+			return mapErr(err)
+		}
+		return reorderRows(ctx, tx, "menu_items", "location = $1 AND lang = $2", []any{location, lang}, ids)
+	})
+}
+
 // reorderRows numbers the rows of one group in the order of ids, which must
 // be every row of the group, each once. table and where are compile-time
 // constants, never user input.

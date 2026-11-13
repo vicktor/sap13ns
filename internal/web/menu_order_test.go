@@ -55,6 +55,45 @@ func TestMenuOrder(t *testing.T) {
 		t.Errorf("a refused order changed the menu: %v", got)
 	}
 
+	// An item goes to another menu with that menu's new order, which must be
+	// all its items and the moved one.
+	move := func(item int64, loc string, ids ...int64) int {
+		v := url.Values{"id": {id(item)}, "location": {loc}}
+		for _, i := range ids {
+			v.Add("ids", id(i))
+		}
+		return e.admin("/admin/appearance/menus/move", v).Code
+	}
+	for name, code := range map[string]int{
+		"without the others": move(p[1].ID, "footer", p[1].ID),
+		"without itself":     move(p[1].ID, "footer", f[0].ID),
+		"no such item":       move(999999, "footer", 999999, f[0].ID),
+	} {
+		if code != http.StatusConflict {
+			t.Errorf("move %s: %d", name, code)
+		}
+	}
+	if code := move(p[1].ID, "nowhere", p[1].ID); code != http.StatusBadRequest {
+		t.Errorf("move to an unknown location: %d", code)
+	}
+	all, _ = e.st.AllMenus(ctx)
+	if len(all["primary"]) != 3 || len(all["footer"]) != 1 {
+		t.Fatalf("a refused move changed the menus: %v", all)
+	}
+	if code := move(p[1].ID, "footer", p[1].ID, f[0].ID); code != http.StatusNoContent {
+		t.Fatalf("move: %d", code)
+	}
+	all, _ = e.st.AllMenus(ctx)
+	if got := all["footer"]; len(got) != 2 || got[0].Label != "B" || got[1].Label != "F" {
+		t.Fatalf("moved: %v", got)
+	}
+	if got := all["primary"]; len(got) != 2 || got[0].Label != "C" || got[1].Label != "A" {
+		t.Fatalf("the menu it left: %v", got)
+	}
+	if code := order(p[2].ID, p[0].ID); code != http.StatusNoContent {
+		t.Fatalf("reorder after a move: %d", code)
+	}
+
 	// An item is saved as it is edited: the page's script asks for JSON.
 	save := func(label, link string) int {
 		v := url.Values{"label": {label}, "url": {link}, "csrf": {e.csrf}}

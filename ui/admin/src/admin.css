@@ -482,6 +482,8 @@
 .menu-items > li.dragging .menu-item-form { @apply border-primary; }
 .menu-items > li.dropping { transition: left .16s ease-out, top .16s ease-out, rotate .16s, scale .16s; rotate: 0deg; scale: 1; }
 .menu-gap { @apply rounded-lg border-2 border-dashed border-primary/50 bg-primary/5; }
+/* While an item is dragged, an empty menu is a place to drop it. */
+.menu-dragging .menu-items[data-menu-move]:not(:has(> li)) { @apply min-h-12 rounded-lg border-2 border-dashed; }
 .menu-dragging, .menu-dragging * { cursor: grabbing !important; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .menu-items > li.dragging { rotate: none; scale: none; } }
 .item-actions { @apply flex flex-wrap items-center gap-1; }

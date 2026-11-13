@@ -218,6 +218,7 @@ func (s *Server) routes() *http.ServeMux {
 	admin("GET /admin/appearance/menus", auth.CapAppearance, s.adminMenus)
 	admin("POST /admin/appearance/menus", auth.CapAppearance, s.adminMenuAdd)
 	admin("POST /admin/appearance/menus/order", auth.CapAppearance, s.adminMenuOrder)
+	admin("POST /admin/appearance/menus/move", auth.CapAppearance, s.adminMenuMove)
 	admin("POST /admin/appearance/menus/{id}", auth.CapAppearance, s.adminMenuUpdate)
 	admin("POST /admin/appearance/menus/{id}/{action}", auth.CapAppearance, s.adminMenuAction)
 	admin("GET /admin/appearance/widgets", auth.CapAppearance, s.adminWidgets)
