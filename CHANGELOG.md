@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.20.2 — 2026-11-13
+
+- **Animated pages no longer stay empty in Safari on a first visit.** The motion player only watched the elements whose styles already had an animation, and Safari could run it before `motion.css` was applied: it then watched none, and they stayed on their invisible first frame until the page was loaded again. It now watches every candidate.
+
 ## v0.20.1 — 2026-11-13
 
 - **Settings → E-mail says when the site's server is switched off.** «Save and send a test» with a server filled in but «Send through this server» off used to send the test through the network's server and report success, which looked as if the site's own server worked. It now says that the server is off, and a successful test names the server it went through.

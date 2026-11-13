@@ -10,11 +10,6 @@
   const SELECTOR = "[data-sap-animate], [data-sap-stagger] > *, [data-sap-edit]";
   let observer = null;
 
-  const animated = (el) => {
-    const name = getComputedStyle(el).animationName;
-    return !!name && name.split(",").some((n) => n.trim().startsWith("sap-"));
-  };
-
   function delays() {
     for (const box of document.querySelectorAll("[data-sap-stagger]")) {
       [...box.children].forEach((el, i) => el.style.setProperty("--sap-delay", (i * STEP).toFixed(2) + "s"));
@@ -28,7 +23,10 @@
   function start() {
     observer?.disconnect();
     if (!html.classList.contains("sap-motion")) return;
-    const els = [...document.querySelectorAll(SELECTOR)].filter(animated);
+    // Every candidate is watched, animated or not: asking the computed style
+    // here would miss them all when this runs before motion.css is applied
+    // (Safari, on a first visit), and they would stay on their first frame.
+    const els = document.querySelectorAll(SELECTOR);
     if (!els.length) return;
     delays();
     observer = new IntersectionObserver((entries) => {

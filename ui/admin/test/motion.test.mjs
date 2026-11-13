@@ -1,8 +1,9 @@
 // Tests for the motion library's player (ui/static/motion.js), run against
-// fake elements and a fake IntersectionObserver: elements with one of the
-// library's animations wait until they come into view, the children of
-// data-sap-stagger get growing delays, and nothing runs without the class
-// sap-motion on <html>.
+// fake elements and a fake IntersectionObserver: the candidates wait until
+// they come into view, the children of data-sap-stagger get growing delays,
+// and nothing runs without the class sap-motion on <html>. The player never
+// asks for a computed style: on a first visit Safari runs it before
+// motion.css is applied, and no element would look animated.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -43,7 +44,7 @@ function page({ motion = true } = {}) {
   };
   const ctx = {
     document: doc, window: {},
-    getComputedStyle: (e) => ({ animationName: e.anim }),
+    getComputedStyle: () => { throw new Error("the styles may not be applied yet"); },
     matchMedia: () => ({ matches: false }),
     IntersectionObserver: class {
       constructor(cb) { callback = cb; }
@@ -58,10 +59,9 @@ function page({ motion = true } = {}) {
   return { title, plain, list, late, observed, show, ctx, html };
 }
 
-test("motion: animated elements play when they come into view", () => {
+test("motion: the candidates play when they come into view", () => {
   const p = page();
-  assert.equal(p.observed.length, 5, "the title, the list's three children and the late one, not the plain element");
-  assert.ok(!p.observed.includes(p.plain));
+  assert.equal(p.observed.length, 6, "every candidate, whatever its styles say when the player starts");
   p.show(p.title);
   assert.ok(p.title.classes.has("sap-in"));
   assert.ok(!p.observed.includes(p.title), "it plays once");
@@ -74,9 +74,9 @@ test("motion: nothing waits without sap-motion, and replay plays again", () => {
   assert.equal(p.observed.length, 0);
   p.ctx.window.sapMotion.replay();
   assert.ok(p.html.classes.has("sap-motion"), "replay turns it on again");
-  assert.equal(p.observed.length, 5);
+  assert.equal(p.observed.length, 6);
   p.show(p.title);
   p.ctx.window.sapMotion.replay();
   assert.ok(!p.title.classes.has("sap-in"), "replay starts from the first frame");
-  assert.equal(p.observed.length, 5);
+  assert.equal(p.observed.length, 6);
 });
