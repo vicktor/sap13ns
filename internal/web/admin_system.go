@@ -30,7 +30,11 @@ type settingsData struct {
 	Roles     []string
 	OGLayouts []LangLink // Code/Name pairs for the social image select
 	Icons     []LangLink // the images that can be the site icon (id, name)
-	IconURL   string     // the chosen site icon at 64 px, "" for none
+	// Notifications of new posts: the browsers subscribed, and whether the
+	// site has a post to tell about.
+	PushCount int
+	HasPosts  bool
+	IconURL   string // the chosen site icon at 64 px, "" for none
 	Error     string
 	Portal    bool // the network portal: every account needs a second factor
 	// SignInURL is the saved sign-in address, in full; Recovery the
@@ -79,8 +83,10 @@ func (s *Server) renderSettingsPage(w http.ResponseWriter, r *http.Request, stat
 			icons = append(icons, LangLink{Code: strconv.FormatInt(m.ID, 10), Name: cmp.Or(m.Alt, m.OriginalName)})
 		}
 	}
+	pushCount, _ := s.store.CountPushSubscriptions(r.Context())
+	hasPosts, _ := s.store.HasPublishedPosts(r.Context())
 	s.renderAdminStatus(w, r, status, "settings", s.tu(r, "Settings"), "settings", settingsData{S: st, Pages: pages, Languages: languageOptions(), Extra: s.extraLangsOf(st),
-		Icons: icons, IconURL: siteIconURL(s.settings().SiteIcon, 192),
+		Icons: icons, IconURL: siteIconURL(s.settings().SiteIcon, 192), PushCount: pushCount, HasPosts: hasPosts,
 		OGLayouts: []LangLink{{Code: "classic", Name: s.tu(r, "Classic")}, {Code: "bold", Name: s.tu(r, "Bold")}, {Code: "minimal", Name: s.tu(r, "Minimal")}, {Code: "off", Name: s.tu(r, "Off")}},
 		Zones:     zones, Roles: []string{auth.RoleSubscriber, auth.RoleContributor, auth.RoleAuthor}, Error: msg, Portal: s.portal != nil,
 		SignInURL: s.SignInURL(), Recovery: s.signInRecovery(), Tenant: s.sso != nil, Moved: moved})
@@ -162,7 +168,7 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	st.OGCards, st.OGAccent = r.FormValue("og_cards"), strings.TrimSpace(r.FormValue("og_accent"))
 	st.AIAccess, st.AnalyticsOff = r.FormValue("ai_access"), !on("analytics")
 	st.VideoEmbeds = r.FormValue("video_embeds")
-	st.Offline = on("offline")
+	st.Offline, st.Push = on("offline"), on("push")
 	if st.Refresh = r.FormValue("refresh"); st.Refresh == "off" {
 		st.Refresh = ""
 	}

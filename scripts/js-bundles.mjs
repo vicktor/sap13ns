@@ -21,10 +21,11 @@ export const bundles = [
     // site assistant, the pricing table's monthly/yearly switch and the
     // motion library's player, and the notice of a site that changed while
     // the page was open (only with data-sap-version on the script tag), and
-    // the registration of the site's service worker (data-sap-sw).
+    // the registration of the site's service worker (data-sap-sw) and the
+    // notifications of new posts (data-sap-push).
     name: "site",
     out: "ui/static/site.min.js",
-    sources: ["site.js", "consent.js", "onepage.js", "video.js", "assistant.js", "plans.js", "motion.js", "refresh.js", "pwa.js"],
+    sources: ["site.js", "consent.js", "onepage.js", "video.js", "assistant.js", "plans.js", "motion.js", "refresh.js", "pwa.js", "push.js"],
   },
   {
     // The chrome of every admin page (ui/admin/templates/layout.html), after

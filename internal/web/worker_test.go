@@ -35,7 +35,7 @@ func TestWorker(t *testing.T) {
 	}
 	e.s.contentChanged()
 	rec = e.get("/sw.js", nil)
-	if body := rec.Body.String(); !strings.HasPrefix(body, "self.SAP = {offline: true};\n") || !strings.Contains(body, `addEventListener("fetch"`) ||
+	if body := rec.Body.String(); !strings.HasPrefix(body, "self.SAP = {offline: true, push: false};\n") || !strings.Contains(body, `addEventListener("fetch"`) ||
 		rec.Header().Get("Cache-Control") != "no-cache" || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/javascript") {
 		t.Errorf("on: /sw.js: %v %.60s", rec.Header(), body)
 	}

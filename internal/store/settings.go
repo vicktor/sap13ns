@@ -61,7 +61,10 @@ type Settings struct {
 	// Offline installs the site's service worker (internal/web/worker.go):
 	// the pages a visitor opened, and the styles and scripts they need,
 	// stay readable without a connection.
-	Offline     bool `json:"offline"`
+	Offline bool `json:"offline"`
+	// Push offers visitors notifications of new posts (internal/web/push.go),
+	// once the site has a published post.
+	Push        bool `json:"push"`
 	SessionDays int  `json:"session_days"`
 	IdleHours   int  `json:"idle_hours"`
 	// GravatarUsers shows the Gravatar of users without a photo of their

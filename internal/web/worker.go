@@ -13,7 +13,8 @@ import (
 // The site's service worker (ui/static/sw.js, served at /sw.js so that its
 // scope is the whole site). It is off unless the site asks for something
 // it does: Settings → Site → "Keep the pages a visitor opened readable
-// without a connection".
+// without a connection", or notifications of new posts (push.go), which
+// the worker shows.
 //
 // The worker never decides what a page shows while the site can be
 // reached: pages are asked from the network first, and a copy is used
@@ -26,7 +27,7 @@ import (
 // unregisters itself, and the pages unregister it too (pwa.js).
 
 // workerOn reports whether public pages register the service worker.
-func (s *Server) workerOn() bool { return s.settings().Offline }
+func (s *Server) workerOn() bool { return s.settings().Offline || s.pushOn() }
 
 // workerCSP lets public pages register the site's own worker.
 func (s *Server) workerCSP(policy string) string {
@@ -58,7 +59,7 @@ func (s *Server) handleWorker(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	fmt.Fprintf(w, "self.SAP = {offline: %t};\n", s.settings().Offline)
+	fmt.Fprintf(w, "self.SAP = {offline: %t, push: %t};\n", s.settings().Offline, s.pushOn())
 	w.Write(src)
 }
 

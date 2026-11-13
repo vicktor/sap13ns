@@ -14,6 +14,12 @@ func (s *Server) handleManifest(w http.ResponseWriter, r *http.Request) {
 	if utf8.RuneCountInString(short) > 12 {
 		short = initials(short)
 	}
+	// A site that notifies opens as an app of its own: iOS delivers
+	// notifications only to a site installed that way.
+	display := "minimal-ui"
+	if s.pushOn() {
+		display = "standalone"
+	}
 	type icon struct {
 		Src     string `json:"src"`
 		Sizes   string `json:"sizes"`
@@ -29,7 +35,7 @@ func (s *Server) handleManifest(w http.ResponseWriter, r *http.Request) {
 		Scope       string `json:"scope"`
 		Display     string `json:"display"`
 		Icons       []icon `json:"icons"`
-	}{st.SiteTitle, short, st.Tagline, st.Language, "/", "/", "minimal-ui", []icon{
+	}{st.SiteTitle, short, st.Tagline, st.Language, "/", "/", display, []icon{
 		{s.assetURL("brand/icon-192.png"), "192x192", "image/png", ""},
 		{s.assetURL("brand/icon-512.png"), "512x512", "image/png", ""},
 		{s.assetURL("brand/icon-maskable-512.png"), "512x512", "image/png", "maskable"},

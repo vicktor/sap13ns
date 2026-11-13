@@ -154,6 +154,8 @@
         </fieldset>
         <label class="check"><input type="checkbox" class="input" role="switch" name="offline" value="1"{{if $s.Offline}} checked{{end}}> {{T "Keep the pages a visitor opened readable without a connection"}}</label>
         <p class="hint">{{T "The visitor's browser keeps a copy of the public pages it opened, with their styles and scripts, and shows it only when the site cannot be reached. Pages always come from the site first, so nobody sees an old version while online. Switching this off removes the copies."}}</p>
+        <label class="check"><input type="checkbox" class="input" role="switch" name="push" value="1"{{if $s.Push}} checked{{end}}> {{T "Offer notifications of new posts"}}</label>
+        <p class="hint">{{T "The foot of every page gets «Notify me of new posts». The browser asks the visitor's permission only after they choose it, and they are told when a post is published, in their language. The site keeps the browser's push address and no name or e-mail."}} {{if $s.Push}}{{if $d.HasPosts}}{{T "Browsers subscribed: %d." $d.PushCount}}{{else}}{{T "It appears once the site has a published post."}}{{end}}{{end}}</p>
         <fieldset class="fieldset">
           <legend>{{T "When the site changes while a page is open"}}</legend>
           <label class="check"><input type="radio" class="input" name="refresh" value="off"{{if not $s.Refresh}} checked{{end}}> {{T "Nothing: the page shows the changes the next time it loads"}}</label>

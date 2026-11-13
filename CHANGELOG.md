@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.25.0 — 2026-11-13
+
+- **Notifications of new posts.** Settings → Site has **Offer notifications of new posts**, off by default. Once the site has a published post, the foot of every page shows «Notify me of new posts»; the browser asks the visitor's permission only after they choose it. When a post is published, at once or on its scheduled date, the subscribed browsers get its title, summary and a link, in their language on a site with several. The site keeps only the browser's push address and keys, no name or e-mail; messages are encrypted for each browser and go only to the push services of Google, Mozilla, Apple and Microsoft. Settings shows how many browsers are subscribed. A theme or an HTML block can add its own button with the class `sap-push-toggle`. On an iPhone, notifications need the site added to the home screen, which now opens as an app of its own. This release adds two tables (migration 0024), applied on start.
+
 ## v0.24.1 — 2026-11-13
 
 - **The offline copies hold public files only.** The service worker of v0.24.0 kept any file of the site it fetched, whatever its cache headers said, so the browser of someone editing a design could keep that draft's stylesheet. It now keeps a file only when the server marks it public, as it already did for pages, and leaves draft stylesheets alone.

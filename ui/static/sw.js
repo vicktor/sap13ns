@@ -1,6 +1,10 @@
 // sap13ns service worker, served at /sw.js after one line that sets self.SAP
 // (internal/web/worker.go). Not part of a bundle: a worker is its own file.
 //
+// It does two things, each only when the site turned it on (self.SAP):
+// reading without a connection, below, and showing the notifications of
+// new posts, at the end.
+//
 // Without a connection, a visitor still reads the public pages this
 // browser opened. The rules that keep it safe:
 //   - pages come from the network first; a copy answers only when the
@@ -97,4 +101,27 @@ self.addEventListener("fetch", (e) => {
   // A design draft's stylesheet is its author's alone.
   if (/^\/themes\/[^/]+\/custom\/draft-/.test(url.pathname)) return;
   if (FILES.test(url.pathname) && !req.headers.has("Range")) e.respondWith(file(req, url));
+});
+
+// Notifications of new posts (internal/web/push.go): what the site sent,
+// shown; a click opens the post, in a window of the site that is open
+// already when there is one. Only addresses of this site are opened.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data.json(); } catch (_) { /* not ours: a plain notice */ }
+  e.waitUntil(self.registration.showNotification(String(d.title || self.location.hostname), {
+    body: String(d.body || ""), icon: d.icon || undefined, badge: d.icon || undefined, tag: d.tag || undefined, lang: d.lang || undefined,
+    data: { url: String(d.url || "/") },
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  let url;
+  try { url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin); } catch (_) { return; }
+  if (url.origin !== self.location.origin) return;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => {
+    for (const c of all) if (c.url === url.href && "focus" in c) return c.focus();
+    return self.clients.openWindow(url.href);
+  }));
 });

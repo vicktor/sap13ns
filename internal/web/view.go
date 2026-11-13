@@ -317,6 +317,15 @@ func (s *SiteView) Static(file string) string { return s.server.assetURL(file) }
 // (worker.go).
 func (s *SiteView) Worker() bool { return s.server.workerOn() }
 
+// Push is set while the site offers notifications of new posts (push.go);
+// nil in a design or theme preview.
+func (s *SiteView) Push() *PushView {
+	if s.PreviewTheme != "" {
+		return nil
+	}
+	return s.server.pushView()
+}
+
 // Refresh is set while open pages follow the site's changes (Settings →
 // Site, refresh.go); nil in a design or theme preview.
 func (s *SiteView) Refresh() *RefreshView {

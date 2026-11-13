@@ -49,6 +49,7 @@ banner and dialog (consent.html). Data: PageData. */}}
   <span aria-hidden="true">·</span> <a href="{{.Site.FeedRSS}}">{{icon "rss"}} RSS</a>
   {{if not .Site.HideCredit}}<span aria-hidden="true">·</span> {{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a>{{end}}
   {{template "shared/consent-link" .}}
+  {{if .Site.Push}}<span data-sap-push-wrap hidden><span aria-hidden="true">·</span> <a href="#sap-push" role="button" data-sap-push-toggle>{{icon "bell"}} <span data-sap-push-label>{{T "Notify me of new posts"}}</span></a></span>{{end}}
   {{if not .Site.Viewer}}{{with .Site.LoginURL}}<span aria-hidden="true">·</span> <a href="{{.}}" rel="nofollow">{{T "Log in"}}</a>{{end}}{{end}}
 </p>
 {{template "shared/consent" .}}

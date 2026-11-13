@@ -107,6 +107,7 @@ type Server struct {
 	plug pluginWebState // plugin assets, forms and CSP sources (plugin_web.go)
 
 	custom customCache   // published theme designs (customize.go)
+	push   pushState     // notifications of new posts (push.go)
 	icon   siteIconCache // the sizes of the site icon (siteicon.go)
 
 	plans planCache // the portal's pricing table (plans.go)
@@ -370,6 +371,7 @@ func (s *Server) contentChanged() {
 	s.content.Invalidate() // bodies can show other posts (shortcodes, filters)
 	s.site.invalidate()
 	s.custom.invalidate()
+	s.push.posts.Store(0)
 	s.front.invalidate()
 	s.assistant().Nudge()
 }

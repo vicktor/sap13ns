@@ -574,6 +574,7 @@ func (s *Server) announce(p *store.Post) {
 	s.plugins.Emit("post.published", s.PostInfo(p))
 	if p.Type == store.TypePost {
 		s.pingWebSub()
+		s.pushPublished(p)
 	}
 }
 
@@ -597,6 +598,7 @@ func (s *Server) announceDue(ctx context.Context) {
 		if p, err := s.store.PostByID(ctx, id); err == nil {
 			s.plugins.Emit("post.published", s.PostInfo(p))
 			ping = ping || p.Type == store.TypePost
+			s.pushPublished(p)
 		}
 	}
 	if ping {
