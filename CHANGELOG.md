@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.26.3 — 2026-11-14
+
+- **My sites: smaller buttons on one line.** Each site's actions read **Administration**, **Domains**, **Support** and **Billing**, smaller, and stay on one line on a wide screen; the full names show on hover.
+
 ## v0.26.2 — 2026-11-14
 
 - **Sessions end after 60 minutes without activity.** They used to last up to 48 hours idle. Settings → Accounts & security now sets the timeout in minutes (10 minutes to 90 days), and every site starts at 60; the 14-day limit on any session stays. An editor left open no longer keeps the session alive: its heartbeat counts as activity only when there are changes to save. On a network, signing in again through the portal takes one click.

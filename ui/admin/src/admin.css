@@ -226,6 +226,7 @@
 .form > :is(.btn, button) { @apply self-start; }
 /* Buttons, links and one-button forms side by side in a table cell. */
 .cell-actions { @apply inline-flex flex-wrap items-center justify-end gap-1.5; }
+.cell-actions[data-nowrap] { @apply lg:flex-nowrap lg:whitespace-nowrap; }
 .card > footer { @apply flex-wrap gap-2; }
 .card > header h2 { @apply flex items-center gap-2; }
 .card > header h2 svg { @apply size-4; }
