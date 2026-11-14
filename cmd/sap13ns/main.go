@@ -11,6 +11,7 @@
 //	sap13ns theme list|install|remove|import  the themes of a site; import converts a WordPress block theme (theme.go)
 //	sap13ns assistant reindex     rebuild the site assistant's search index
 //	sap13ns export -o FILE        export the content as WXR or a .zip (export.go)
+//	sap13ns transfer ...          move a whole site to another install (transfer.go)
 //	sap13ns geoip update          download the analytics' country database (geoip.go)
 //	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
 //	sap13ns site ...              create, list and manage the sites of a network
@@ -42,14 +43,18 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/config"
 	"sap13ns/internal/db"
 	"sap13ns/internal/siteapp"
 	"sap13ns/internal/store"
+	"sap13ns/internal/transfer"
 	"sap13ns/internal/update"
 	"sap13ns/internal/web"
 	"sap13ns/ui"
@@ -84,6 +89,8 @@ func main() {
 		err = backupCmd(args)
 	case "export":
 		err = exportCmd(args)
+	case "transfer":
+		err = transferCmd(args)
 	case "content":
 		err = contentCmd(args)
 	case "assistant":
@@ -104,6 +111,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", cmd)
 		usage()
 		os.Exit(2)
+	}
+	if errors.Is(err, errRestart) {
+		reexec()
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -156,6 +166,10 @@ Commands:
   export -o FILE.xml|FILE.zip [-drafts] [-pii] [-no-media] [-pending-comments]
                                  Export the content as a WordPress file (WXR),
                                  or a .zip with the uploads and Markdown copies
+  transfer export [-o FILE] | inspect ARCHIVE | import [-replace] ARCHIVE
+                                 Move the whole site (rows, secrets, files, SMTP)
+                                 to a new single-site install, in one encrypted
+                                 archive (see docs/MULTISITE.md)
   content load [-author U] <dir>
                                  Import a content pack (site.json and
                                  <lang>/*.md), such as site/content; again
@@ -190,6 +204,9 @@ Networks (SAP13NS_MULTISITE=true):
   backup create|list|prune|restore -site S
                                  The site's own backups (the whole network:
                                  pg_dump and the data directory)
+  transfer export -site S [-network-ai]
+                                 Move a site out of the network, whole, to a
+                                 single-site install of its own
 `)
 }
 
@@ -275,6 +292,9 @@ func serve(args []string) error {
 	if err := db.Migrate(ctx, pool, log); err != nil {
 		return err
 	}
+	if err := useSiteKey(ctx, pool, cfg); err != nil {
+		return err
+	}
 	checker := update.NewChecker(web.Version, nil, log)
 	app, err := siteapp.Open(ctx, siteapp.Params{Config: cfg, Store: store.New(pool), Log: log, UI: uiFS(cfg),
 		Official: officialPlugins(cfg, log), Background: web.BackgroundOptions{Cron: true, Maintenance: true}, Updates: checker})
@@ -282,11 +302,55 @@ func serve(args []string) error {
 		return err
 	}
 	go checker.Run(ctx)
-	return runHTTP(ctx, cfg, log, app, func(sctx context.Context) {
+	// A site imported from the admin (Tools → Move site) asks for a
+	// restart: the server stops as on SIGTERM, then starts again.
+	ctx, restart := context.WithCancel(ctx)
+	defer restart()
+	var restarting atomic.Bool
+	app.Server().SetRestart(func() {
+		restarting.Store(true)
+		restart()
+	})
+	err = runHTTP(ctx, cfg, log, app, func(sctx context.Context) {
 		if err := app.Close(sctx); err != nil {
 			log.Error("analytics final flush", "err", err)
 		}
 	}, nil)
+	if restarting.Load() {
+		return errRestart
+	}
+	return err
+}
+
+// errRestart: serve stopped to start again (main re-executes the binary).
+var errRestart = errors.New("restart")
+
+// reexec starts the binary again in this process, with the same arguments
+// and environment. When it cannot, it exits with a failure, which systemd
+// restarts (Restart=on-failure).
+func reexec() {
+	exe, err := os.Executable()
+	if err == nil {
+		err = syscall.Exec(exe, os.Args, os.Environ())
+	}
+	fmt.Fprintln(os.Stderr, "restart:", err)
+	os.Exit(75)
+}
+
+// useSiteKey makes the key of a site moved here (internal/transfer) the
+// secret key of this single site.
+func useSiteKey(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config) error {
+	if len(cfg.ServerKey) == 0 {
+		return nil
+	}
+	key, err := transfer.SiteKey(ctx, pool, cfg.ServerKey)
+	if err != nil {
+		return err
+	}
+	if key != nil {
+		cfg.SecretKey = key
+	}
+	return nil
 }
 
 // uiFS is the embedded UI, or ui/ from disk in development mode when run

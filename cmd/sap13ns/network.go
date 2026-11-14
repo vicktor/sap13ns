@@ -131,6 +131,10 @@ func openTarget(ctx context.Context, cfg *config.Config, log *slog.Logger, slug 
 			pool.Close()
 			return nil, err
 		}
+		if err := useSiteKey(ctx, pool, cfg); err != nil {
+			pool.Close()
+			return nil, err
+		}
 		return &target{cfg: cfg, store: store.New(pool), close: pool.Close}, nil
 	}
 	if slug == "" {

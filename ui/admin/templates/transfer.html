@@ -1,0 +1,153 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}
+<div class="page-header">
+  <div>
+    <h1>{{T "Move site"}}</h1>
+    <p>{{T "Take this site, whole, to another server with sap13ns, or bring here a site from another one: content, users, settings, plugins, themes, files and mail settings, in one encrypted archive."}}</p>
+  </div>
+</div>
+
+{{with $d.Imported}}
+<div class="alert" data-variant="success" role="status">{{icon "circle-check"}}<h2>{{T "The site was imported."}}</h2>
+  <section>
+    <p>{{if $d.Restarts}}{{T "The server is restarting to finish. In a moment, sign in again with an account of the imported site."}}{{else}}{{T "Restart the server to finish (systemctl restart sap13ns), then sign in with an account of the imported site."}}{{end}}
+      {{if .Kept}}{{T "Your account is %s, with your current password." .Kept}}{{end}}</p>
+    {{if .SMTP}}<p>{{T "The mail server the site used is now its own, in Settings → E-mail."}}</p>{{end}}
+  </section></div>
+{{end}}
+
+{{if $d.Running}}
+<section class="card" data-poll="3000">
+  <header><h2>{{icon "timer"}} {{if eq $d.Running "export"}}{{T "Making the archive"}}{{else if eq $d.Running "check"}}{{T "Checking the archive"}}{{else}}{{T "Importing the site"}}{{end}}</h2>
+    <p>{{T "%s started it %s. This page refreshes by itself." $d.User (ago $d.Started)}}</p></header>
+</section>
+{{else if and $d.Imported $d.Restarts}}<div data-poll="4000"></div>{{end}}
+
+{{with $d.Failed}}<div class="alert" data-variant="destructive" role="alert">{{icon "circle-alert"}}<h2>{{T "It did not finish"}}</h2><section><p>{{.}}</p></section></div>{{end}}
+{{template "form-error" $d.Error}}
+
+{{with $d.Record}}
+<div class="alert" role="status">{{icon "info"}}<h2>{{T "This site was moved here on %s from %s." (dateTime .Imported) .From}}</h2>
+  {{if or .MailLocal .AIFromNetwork .AssistantSkipped}}<section><ul>
+    {{with .MailLocal}}<li>{{T "The site sent mail through %s, a server of the old machine: set up its mail in Settings → E-mail." .}}</li>{{end}}
+    {{if .AIFromNetwork}}<li>{{T "The site's AI came from its network: set up a provider in Settings → AI."}}</li>{{end}}
+    {{if .AssistantSkipped}}<li>{{T "This database has no pgvector, so the assistant's index was left out: rebuild it under Settings → AI → Assistant (Rebuild index)."}}</li>{{end}}
+  </ul></section>{{end}}
+  {{if .NoPassword}}<section><p>{{T "These accounts signed in through the network and have no password here. They choose one with “Forgot your password?” on the sign-in page, or you set one under Users:"}}</p>
+    <ul>{{range .NoPassword}}<li><a href="/admin/users">{{.Username}}</a> · {{.Email}}</li>{{end}}</ul></section>{{end}}
+</div>
+{{end}}
+
+<section class="card">
+  <header><h2>{{icon "truck"}} {{T "Take this site to another server"}}</h2>
+    <p>{{T "The archive holds everything the new server needs to run the site as it is here, with the same accounts and passwords."}}</p></header>
+  <section>
+    {{if $d.Portal}}<p class="muted">{{T "The portal is the network itself: it cannot be moved from here."}}</p>
+    {{else}}
+    <div class="split">
+      <div class="prose prose-sm">
+        <ul>
+          <li>{{T "Posts, pages, revisions, comments, menus, widgets, designs, redirects, settings and statistics."}}</li>
+          <li>{{T "Users with their passwords, two-factor settings and passkeys; plugins with their settings; themes; the media library."}}</li>
+          <li>{{if $d.OwnSMTP}}{{T "The site's own mail server (%s)." $d.OwnSMTP}}{{else if $d.ServerSMTP}}{{T "The mail server the site uses (%s), if you tick it below." $d.ServerSMTP}}{{else if $d.Network}}{{T "Mail: this site sends through the network's server, which does not travel. Set up a mail server in Settings → E-mail, here before moving or on the new server after."}}{{else}}{{T "Mail: the server has no mail server set up."}}{{end}}</li>
+          {{if eq $d.SiteAI "network"}}<li>{{if $d.NetworkAI}}{{T "AI: the site uses the network's. Tick it below to give the site that provider and key."}}{{else}}{{T "AI: the site uses the network's, which does not travel. Set up a provider in Settings → AI on the new server."}}{{end}}</li>{{end}}
+          <li>{{T "The archive is encrypted with your passphrase. Keep both safe: whoever has them has the site, passwords included."}}</li>
+        </ul>
+      </div>
+      <form method="post" action="/admin/tools/transfer/export" class="form">
+        {{.CSRFField}}
+        {{if and $d.ServerSMTP (not $d.OwnSMTP)}}<label class="check"><input type="checkbox" class="input" name="smtp" value="1" checked> {{T "Include the mail server (%s)" $d.ServerSMTP}}</label>{{end}}
+        {{if and $d.NetworkAI (eq $d.SiteAI "network")}}<label class="check"><input type="checkbox" class="input" name="network_ai" value="1"> {{T "Include the network's AI (its provider and key become the site's)"}}</label>{{end}}
+        <div class="field"><label for="tr-pass">{{T "Passphrase for the archive"}}</label>
+          <input class="input" id="tr-pass" name="passphrase" type="password" autocomplete="new-password" minlength="{{$d.MinPass}}" maxlength="1024" required>
+          <p class="hint">{{T "At least %d characters. You will type it on the new server." $d.MinPass}}</p></div>
+        <div class="field"><label for="tr-pass2">{{T "Repeat the passphrase"}}</label>
+          <input class="input" id="tr-pass2" name="passphrase2" type="password" autocomplete="new-password" maxlength="1024" required></div>
+        {{if $d.NeedPassword}}<div class="field"><label for="tr-current">{{T "Your current password"}}</label>
+          <input class="input" id="tr-current" name="current_password" type="password" autocomplete="current-password" required></div>
+        {{else}}<p class="hint">{{T "You sign in without a password here: this needs a sign-in of the last few minutes."}}</p>{{end}}
+        <div><button class="btn" type="submit"{{if $d.Running}} disabled{{end}}>{{icon "package"}}{{T "Make the archive"}}</button></div>
+      </form>
+    </div>
+    {{if $d.Ready}}
+    <div class="relative overflow-x-auto">
+      <table class="table">
+        <thead><tr><th>{{T "Created"}}</th><th class="max-sm:hidden">{{T "Size"}}</th><th class="max-sm:hidden">{{T "Available until"}}</th><th></th></tr></thead>
+        <tbody>{{range $d.Ready}}<tr><td>{{dateTime .Created}}<div class="row-sub muted sm:hidden">{{filesize .Size}}</div></td><td class="tabular max-sm:hidden">{{filesize .Size}}</td><td class="max-sm:hidden">{{dateTime .Expires}}</td>
+          <td class="text-right"><a class="btn" data-size="sm" href="{{.URL}}" rel="nofollow">{{icon "download"}}{{T "Download"}}</a></td></tr>{{end}}</tbody>
+      </table>
+    </div>
+    <p class="hint">{{T "Then, on the new server: install sap13ns, sign in, open Move site and bring the archive there."}}</p>
+    {{end}}
+    {{end}}
+  </section>
+</section>
+
+{{if $d.CanImport}}
+<section class="card">
+  <header><h2>{{icon "upload"}} {{T "Bring a site here"}}</h2>
+    <p>{{T "The site of the archive replaces this one entirely: content, users, settings, plugins, themes and files. A backup of this site is made first, and the server restarts at the end."}}</p></header>
+  <section>
+    {{if $d.Staged}}{{with $d.Staged}}
+    <div class="relative overflow-x-auto">
+      <table class="table">
+        <tbody>
+          <tr><th>{{T "Site"}}</th><td>{{or .Source.Title .Source.Label}}</td></tr>
+          <tr><th>{{T "Address"}}</th><td>{{.Source.URL}}{{with .Source.Domains}} <span class="muted">({{join . ", "}})</span>{{end}}</td></tr>
+          <tr><th>{{T "From"}}</th><td>{{if .Source.Network}}{{T "the network %s" .Source.Network}}{{else}}{{T "a single-site install"}}{{end}}</td></tr>
+          <tr><th>{{T "Made"}}</th><td>{{dateTime .Created}} · sap13ns {{.AppVersion}}</td></tr>
+          <tr><th>{{T "Holds"}}</th><td>{{T "%d tables with %d rows, %d files, %s" (len .Tables) $d.Rows (len .Files) (filesize .TotalBytes)}}</td></tr>
+          {{with .SMTP}}<tr><th>{{T "Mail"}}</th><td>{{.Host}}:{{.Port}} · {{.From}}</td></tr>{{end}}
+        </tbody>
+      </table>
+    </div>{{end}}
+    <form method="post" action="/admin/tools/transfer/import" class="form">
+      {{$.CSRFField}}
+      {{if $d.NeedPassword}}<label class="check"><input type="checkbox" class="input" name="keep" value="1" checked> {{T "Keep my account (%s) as an administrator of the imported site, with my current password" $.User.Username}}</label>{{end}}
+      <div class="field"><label for="tr-confirm">{{T "Type %s to confirm" $d.Label}}</label>
+        <input class="input" id="tr-confirm" name="confirm" type="text" autocomplete="off" spellcheck="false" required></div>
+      {{if $d.NeedPassword}}<div class="field"><label for="tr-current2">{{T "Your current password"}}</label>
+        <input class="input" id="tr-current2" name="current_password" type="password" autocomplete="current-password" required></div>{{end}}
+      <div class="flex flex-wrap gap-2">
+        <button class="btn" data-variant="destructive" type="submit"{{if $d.Running}} disabled{{end}}>{{icon "refresh-cw"}}{{T "Replace this site"}}</button>
+      </div>
+    </form>
+    <form method="post" action="/admin/tools/transfer/discard" class="mt-2">{{$.CSRFField}}<button class="btn" data-variant="ghost" data-size="sm" type="submit">{{icon "trash-2"}}{{T "Discard the archive"}}</button></form>
+
+    {{else if and $d.Upload $d.Upload.Complete}}
+    <p>{{T "Uploaded: %s (%s)." $d.Upload.Name (filesize $d.Upload.Size)}}</p>
+    <form method="post" action="/admin/tools/transfer/check" class="form">
+      {{.CSRFField}}
+      <div class="field"><label for="tr-open">{{T "Passphrase of the archive"}}</label>
+        <input class="input" id="tr-open" name="passphrase" type="password" autocomplete="off" maxlength="1024" required autofocus></div>
+      <div><button class="btn" type="submit"{{if $d.Running}} disabled{{end}}>{{icon "key-round"}}{{T "Open and check"}}</button></div>
+    </form>
+    <form method="post" action="/admin/tools/transfer/discard" class="mt-2">{{.CSRFField}}<button class="btn" data-variant="ghost" data-size="sm" type="submit">{{icon "trash-2"}}{{T "Discard the archive"}}</button></form>
+
+    {{else}}
+    {{with $d.Upload}}<p class="muted">{{T "The upload of %s stopped at %s of %s. Choose the file again to start over." .Name (filesize .Got) (filesize .Size)}}</p>{{end}}
+    <form method="post" action="/admin/tools/transfer/upload" class="form" data-transfer-upload data-chunk="{{$d.Chunk}}"
+      data-msg-uploading="{{T "Uploading…"}}" data-msg-failed="{{T "The upload failed. Try again."}}" data-msg-choose="{{T "Choose the archive first."}}">
+      {{.CSRFField}}
+      <div class="field"><label for="tr-file">{{T "Archive (.transfer.enc)"}}</label>
+        <input class="input" id="tr-file" name="file" type="file" accept=".enc" required>
+        <p class="hint">{{T "Made with Move site, or with sap13ns transfer export, on the other server. Large archives upload in parts; keep this page open."}}</p></div>
+      <div class="upload-status" data-transfer-progress hidden>
+        <div class="progress" role="progressbar" aria-label="{{T "Uploading…"}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
+        <p class="hint" data-transfer-text aria-live="polite"></p>
+      </div>
+      <div class="alert" data-variant="destructive" role="alert" data-transfer-error hidden>{{icon "circle-alert"}}<h2>{{T "Upload failed"}}</h2><section><p></p></section></div>
+      <div><button class="btn" type="submit"{{if $d.Running}} disabled{{end}}>{{icon "upload"}}{{T "Upload"}}</button></div>
+    </form>
+    {{end}}
+  </section>
+</section>
+<script src="{{asset "transfer.js"}}" defer></script>
+{{else if $d.Network}}
+<section class="card">
+  <header><h2>{{icon "upload"}} {{T "Bring a site here"}}</h2></header>
+  <section><p class="muted">{{T "A site moves into a single-site install of sap13ns. In a network, create the site and restore a backup of it instead."}}</p></section>
+</section>
+{{end}}
+{{end}}

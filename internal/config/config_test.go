@@ -108,6 +108,7 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 			SocketGroup:    "sap13ns-web",
 			BaseURL:        mustURL(t, "https://example.com"),
 			SecretKey:      []byte(strings.Repeat("\xab", 32)),
+			ServerKey:      []byte(strings.Repeat("\xab", 32)),
 			DataDir:        dir,
 			UploadsDir:     "/srv/uploads",
 			PluginsDir:     filepath.Join(dir, "plugins"),

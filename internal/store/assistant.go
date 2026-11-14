@@ -267,12 +267,11 @@ func (s *Store) SetAssistantEmbeddingColumn(ctx context.Context, v *AssistantVec
 			`SET LOCAL statement_timeout = '120s'`,
 			`SELECT pg_advisory_xact_lock(` + strconv.Itoa(assistantLockID) + `)`,
 			`ALTER TABLE assistant_chunks DROP COLUMN IF EXISTS embedding`,
-			`ALTER TABLE assistant_chunks ADD COLUMN embedding ` + v.typ() + `(` + strconv.Itoa(v.Dims) + `)`,
-			`CREATE INDEX assistant_chunks_embedding_idx ON assistant_chunks USING hnsw (embedding ` +
-				pgx.Identifier{v.Schema, v.Kind + "_cosine_ops"}.Sanitize() + `)`,
-			`UPDATE assistant_chunks SET model = '' WHERE model <> ''`,
-			`UPDATE assistant_docs SET model = '' WHERE model <> ''`,
 		}
+		stmts = append(stmts, AssistantEmbeddingDDL(v)...)
+		stmts = append(stmts,
+			`UPDATE assistant_chunks SET model = '' WHERE model <> ''`,
+			`UPDATE assistant_docs SET model = '' WHERE model <> ''`)
 		for _, q := range stmts {
 			if _, err := tx.Exec(ctx, q); err != nil {
 				return err
@@ -280,6 +279,18 @@ func (s *Store) SetAssistantEmbeddingColumn(ctx context.Context, v *AssistantVec
 		}
 		return nil
 	})
+}
+
+// AssistantEmbeddingDDL adds the embedding column and its HNSW cosine
+// index to an assistant_chunks that has none. It is also what a site moved
+// to another install (internal/transfer) runs before loading its
+// embeddings. v must be valid (checked by SetAssistantEmbeddingColumn).
+func AssistantEmbeddingDDL(v *AssistantVector) []string {
+	return []string{
+		`ALTER TABLE assistant_chunks ADD COLUMN embedding ` + v.typ() + `(` + strconv.Itoa(v.Dims) + `)`,
+		`CREATE INDEX assistant_chunks_embedding_idx ON assistant_chunks USING hnsw (embedding ` +
+			pgx.Identifier{v.Schema, v.Kind + "_cosine_ops"}.Sanitize() + `)`,
+	}
 }
 
 // ForgetAssistantEmbeddings clears embeddings made by another model than

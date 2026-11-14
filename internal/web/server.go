@@ -48,6 +48,8 @@ type Server struct {
 	imports   importJob
 	exports   exportJob
 	backups   backupJob
+	transfers transferJob
+	restart   func()          // SetRestart
 	converted convertedThemes // themes converted from another CMS, awaiting confirmation (admin_theme_import.go)
 	ai        aiState
 	credit    creditCache // whether the plan leaves out the credit (credit.go)

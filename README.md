@@ -214,6 +214,7 @@ With `SAP13NS_MULTISITE=true`, one process serves a network: a portal and any nu
 - **Single binary** with embedded templates, assets and SQL migrations. Migrations run on start.
 - Listens on TCP or a **Unix socket** (recommended behind nginx). Structured logs in text or JSON.
 - **Backups that WordPress can read:** every site keeps its own backups under **Tools → Backups**: one `.zip` with a WordPress export file, the uploads in WordPress's layout, and what only sap13ns uses (settings, users and roles, menus, widgets, designs, redirects, plugin settings). WordPress imports it as it is ([docs/MOVING-TO-WORDPRESS.md](docs/MOVING-TO-WORDPRESS.md)), and sap13ns restores it in one transaction, after a safety backup, with the checks of the admin pages. A network backs up every site each night.
+- **Moving a whole site:** **Tools → Move site** (or `sap13ns transfer export|import`) carries a site, a network's or a single one, to a new single-site install on another server in one encrypted archive: every table (users with their passwords and second factors, settings, plugin data, analytics), its uploads, plugins and themes, its secret key and its mail server. On the new server the archive is uploaded from the admin, checked, and imported after a backup; the server restarts by itself ([docs/MULTISITE.md](docs/MULTISITE.md#moving-a-site-out-of-the-network)).
 - **Encrypted backups:** `sap13ns backup create|list|verify|restore|prune|decrypt` also dumps the database and uploads into one archive, for disaster recovery. Both kinds can be sealed with AES-256-GCM (STREAM construction, Argon2id key derivation), with daily and weekly (and for the database, monthly) retention and a systemd timer.
 - **Signed self-update:** administrators see a notice in the admin when a release is out. **Update now** under **System → Updates**, or `sap13ns update` on the server, then downloads it, checks the Ed25519-signed `SHA256SUMS`, and swaps the binary atomically, keeping the previous one for rollback. The button only leaves a request for a root service, so the web server never gets to write its own binary (see [docs/RELEASES.md](docs/RELEASES.md)).
 - **Cookie-less analytics:**
@@ -288,6 +289,7 @@ sap13ns settings login-path   Print the sign-in address (-reset: back to /login,
 sap13ns backup create|list|verify|restore|prune|decrypt   The database and uploads
 sap13ns backup create|list|prune|restore -format site      The site's own backups (-wp-base URL)
 sap13ns export -o FILE.xml|FILE.zip   Export the content (-drafts, -pii, -no-media)
+sap13ns transfer export|inspect|import   Move the whole site, secrets and SMTP included, to a new install
 sap13ns update           Install the latest signed release (-check, -yes, -force)
 sap13ns plugin new|pack|check   Start, package and scan a plugin
 sap13ns plugin list|install     List or install the site's plugins (-official: the bundled ones)
@@ -300,6 +302,7 @@ sap13ns network init     Create the network and its portal, and an administrator
 sap13ns site create|list|suspend|resume|delete|purge
 sap13ns site domain add|verify|primary|remove
 sap13ns migrate|user|settings|plugin|theme|assistant|export|backup -site S   Work on one site (-site network: the portal)
+sap13ns transfer export -site S   Move a site out of the network to a single-site install of its own
 ```
 
 ## Development

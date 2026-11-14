@@ -180,7 +180,21 @@ const (
 	ClaimSuffix = ".sending"
 )
 
-var nameRE = regexp.MustCompile(`^u([1-9][0-9]{0,18})-([0-9]{1,12})-([0-9a-f]{32})\.zip$`)
+var nameRE = regexp.MustCompile(`^u([1-9][0-9]{0,18})-([0-9]{1,12})-([0-9a-f]{32})(\.zip|\.transfer\.enc)$`)
+
+// TransferExt ends the name of a transfer archive (Tools → Move site,
+// internal/transfer) waiting in the export directory. It is swept, listed
+// and bounded like an export, but is never one: List marks it, and
+// RemoveReady leaves it.
+const TransferExt = ".transfer.enc"
+
+// NewTransferName is NewName for a transfer archive.
+func NewTransferName(userID int64, t time.Time) string {
+	return strings.TrimSuffix(NewName(userID, t), ".zip") + TransferExt
+}
+
+// IsTransfer reports whether name is a transfer archive's.
+func IsTransfer(name string) bool { return strings.HasSuffix(name, TransferExt) }
 
 // NewName returns the file name of a background export by userID started
 // at t: the user and the time are in the name, so that the export page and
@@ -209,11 +223,12 @@ func ParseName(name string) (userID int64, created time.Time, ok bool) {
 
 // Ready is a finished export waiting in the export directory.
 type Ready struct {
-	Name    string
-	UserID  int64
-	Created time.Time
-	Expires time.Time
-	Size    int64
+	Name     string
+	Transfer bool // a transfer archive (IsTransfer)
+	UserID   int64
+	Created  time.Time
+	Expires  time.Time
+	Size     int64
 }
 
 // List returns the finished exports in dir that have not expired, newest
@@ -237,7 +252,7 @@ func List(dir string, now time.Time) ([]Ready, error) {
 		if err != nil {
 			continue // removed meanwhile
 		}
-		out = append(out, Ready{Name: d.Name(), UserID: uid, Created: created, Expires: created.Add(TTL), Size: info.Size()})
+		out = append(out, Ready{Name: d.Name(), Transfer: IsTransfer(d.Name()), UserID: uid, Created: created, Expires: created.Add(TTL), Size: info.Size()})
 	}
 	return out, nil
 }
@@ -287,7 +302,13 @@ func Sweep(dir string, now time.Time) (int, error) {
 // RemoveReady removes every finished export in dir, whoever asked for it:
 // a site keeps one export waiting for its download. Partial files and
 // claims are left to Sweep. It returns how many files it removed.
-func RemoveReady(dir string) (int, error) {
+func RemoveReady(dir string) (int, error) { return removeReady(dir, false) }
+
+// RemoveTransfers removes every transfer archive waiting in dir: a site
+// keeps one waiting for its download.
+func RemoveTransfers(dir string) (int, error) { return removeReady(dir, true) }
+
+func removeReady(dir string, transfers bool) (int, error) {
 	des, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
@@ -298,7 +319,7 @@ func RemoveReady(dir string) (int, error) {
 	n := 0
 	var errs []error
 	for _, d := range des {
-		if _, _, ok := ParseName(d.Name()); !ok || !d.Type().IsRegular() {
+		if _, _, ok := ParseName(d.Name()); !ok || !d.Type().IsRegular() || IsTransfer(d.Name()) != transfers {
 			continue
 		}
 		if err := os.Remove(filepath.Join(dir, d.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {

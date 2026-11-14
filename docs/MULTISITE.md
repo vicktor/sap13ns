@@ -16,6 +16,7 @@ A single-site install is unchanged. Nothing on this page applies to it, and the 
 - [TLS](#tls)
 - [Command-line reference](#command-line-reference)
 - [Backups](#backups)
+- [Moving a site out of the network](#moving-a-site-out-of-the-network)
 - [Limitations](#limitations)
 
 ## Concepts
@@ -503,9 +504,59 @@ A large `.zip` waits for its download in the site's `exports/` directory. It is 
 
 So a site's exports take at most one finished file and one being written, each no larger than its plan's storage.
 
+## Moving a site out of the network
+
+**Tools → Move site** in a site's admin (or `sap13ns transfer` on the server) moves one site, whole, to a single-site install of its own on another server, as if it had always been one. An export or a backup moves content; a move takes the site itself:
+- **Every row of its schema:** posts, pages, revisions, comments (spam and trash too), terms, menus, widgets, designs, redirects, settings, plugin data and secrets, analytics, the audit log, the assistant's index with its embeddings, and the users with their password hashes, second factors, recovery codes and passkeys.
+- **Its files:** uploads, plugins and themes, and the themes of the network it could use (`SAP13NS_THEMES_DIR`), unless it has its own copy of one.
+- **Its secret key**, so that everything its tables hold encrypted opens on the new server: the SMTP password of Settings → E-mail, AI and embedding keys, plugin secrets and OAuth connections, second factors, the push key.
+- **The mail server** it sent through, when it has none of its own in Settings → E-mail. On a network that server is the network's (`SAP13NS_SMTP_*`), so it travels only when a network administrator makes the archive and ticks it (on the command line, unless `-no-smtp`).
+- **The network's AI**, for a site whose AI came from its plan, only when a network administrator ticks it (`-network-ai`): the provider and keys become the site's own settings.
+
+The archive is a tar.gz, always encrypted (AES-256-GCM, Argon2id, the format of the backups) with a passphrase of at least 12 characters. It holds secrets, so keep it, and its passphrase, private, and delete it once the move is done.
+
+### From the admin
+
+1. **On the network**, in the site's admin, open **Tools → Move site**, choose a passphrase, confirm with your password, and download the archive when it is ready. It waits on the server for 24 hours, for the administrator who made it only, and is not counted in the plan's storage. Suspending the site first keeps anything from changing meanwhile (the tables are read in one snapshot, the files right after).
+2. **On the new server**, install sap13ns as a single site ([DEPLOY.md](DEPLOY.md)), with the same version or a newer one: `SAP13NS_BASE_URL` is the site's domain, the database empty or new (with pgvector, for the assistant's embeddings). Sign in with the administrator the installer creates.
+3. Open **Tools → Move site** there, upload the archive (in parts of 8 MB, so nginx's limit on a request does not matter; keep the page open), give its passphrase, check the summary, and confirm with the site's name and your password. A backup of the install's own site is made first; the server then restarts by itself.
+4. Sign in again: the account you imported with is kept as an administrator, with its password (its address decides: an account of the site with that address, otherwise a new one).
+
+### From the command line
+
+```sh
+# On the network (the passphrase comes from -passphrase-file or SAP13NS_BACKUP_PASSPHRASE_FILE)
+sudo -u sap13ns sap13ns site suspend -env /etc/sap13ns/sap13ns.env -slug socratex -reason "moving to its own server"
+sudo -u sap13ns sap13ns transfer export -env /etc/sap13ns/sap13ns.env -site socratex -o /var/lib/sap13ns/socratex.transfer.enc
+
+# On the new server, stopped
+sudo systemctl stop sap13ns
+sudo -u sap13ns sap13ns transfer inspect -env /etc/sap13ns/sap13ns.env socratex.transfer.enc   # optional: check it
+sudo -u sap13ns sap13ns transfer import -env /etc/sap13ns/sap13ns.env socratex.transfer.enc
+sudo systemctl start sap13ns
+```
+
+The command line refuses a database that already has users or posts unless `-replace` is given; the admin always replaces, after its backup.
+
+### What an import does
+
+1. Checks the whole archive against its manifest before it changes anything.
+2. Recreates the schema at the migrations the site had, loads every table in one transaction (the foreign keys are checked again at the end), and applies the newer migrations of this binary.
+3. Cuts what tied the site to the network: the accounts linked to the portal become local ones, the network administrators' own accounts on the site are disabled, and every session ends.
+4. Keeps the site's secret key, sealed in the database with the install's `SAP13NS_SECRET_KEY`. **Do not change `SAP13NS_SECRET_KEY` afterwards:** the site's key, and everything encrypted with it, would no longer open.
+5. Makes the mail server the archive carries the site's own (Settings → E-mail), unless the site has one already. A server of the old machine (`localhost` or a private address) is left out and reported.
+6. Moves the files into `SAP13NS_UPLOADS_DIR`, `SAP13NS_PLUGINS_DIR` and `SAP13NS_THEMES_DIR`, keeping the old directories renamed `*.before-transfer-<date>`.
+
+**After the import:**
+- **Users who signed in through the portal** have no password on the site. Tools → Move site lists them (the command line prints `sap13ns user reset-password -username U` for each); they can also use "Forgot your password?". Administrators then set up their second factor, which a single site requires.
+- **The domain.** Point its DNS to the new server and set up nginx and TLS for it. When the site moves to another domain than it had, passkeys made for the old one no longer work (users sign in with their password and add one again), and links written with the old address in posts keep pointing there.
+- **The network.** The site stays there, suspended if you suspended it, until you delete it (`sap13ns site delete -slug S -yes`, then `site purge`); its custom domain is freed when it is removed.
+
+A single site moves the same way, to a new server in one step.
+
 ## Limitations
 
-- **No conversion.** A single-site install cannot be turned into a network, or into a site of one, yet. Start a network with a new database.
+- **No conversion into a network.** A single-site install cannot be turned into a network, or into a site of one, yet. Start a network with a new database. The other way, a site of a network to a single-site install, is [a transfer](#moving-a-site-out-of-the-network).
 - **What eviction loses.** Unloading a site keeps everything in the database and on disk, and flushes its pending analytics. Some state lives in memory only, and is lost:
   - the per-IP rate limits of its sign-in, comment, registration and password-reset forms (account lockouts are in the database and survive);
   - the analytics visitor set of the day, so a visitor seen before the unload is counted again after it;

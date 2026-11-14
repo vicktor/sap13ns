@@ -109,7 +109,7 @@ func (s *Server) renderExport(w http.ResponseWriter, r *http.Request, status int
 		s.log.Warn("list exports", "err", err)
 	}
 	for _, e := range ready {
-		if e.UserID == u.ID {
+		if e.UserID == u.ID && !e.Transfer {
 			d.Ready = append(d.Ready, exportLink{URL: s.exportURL(e.Name, e.Created), Created: e.Created, Expires: e.Expires, Size: e.Size})
 		}
 	}
@@ -442,7 +442,7 @@ func (s *Server) adminExportDownload(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	userID, created, ok := export.ParseName(name)
 	u := currentUser(r)
-	if !ok || userID != u.ID {
+	if !ok || userID != u.ID || export.IsTransfer(name) {
 		s.adminError(w, r, http.StatusNotFound, s.tu(r, "This export does not exist."))
 		return
 	}

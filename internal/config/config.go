@@ -38,10 +38,15 @@ type Config struct {
 	SocketGroup string // group given access to the Unix socket (nginx), if not the process group
 	BaseURL     *url.URL
 	SecretKey   []byte
-	DataDir     string
-	UploadsDir  string
-	PluginsDir  string
-	ThemesDir   string
+	// ServerKey is SAP13NS_SECRET_KEY as configured. SecretKey is the same
+	// key, except on a single site moved here from another install
+	// (internal/transfer): SecretKey is then the site's own key, kept in
+	// the database sealed with ServerKey.
+	ServerKey  []byte
+	DataDir    string
+	UploadsDir string
+	PluginsDir string
+	ThemesDir  string
 	// NetworkThemesDir, on a site of a network, is the network's themes
 	// directory (SAP13NS_THEMES_DIR): the operator's catalogue of themes,
 	// offered to every site besides the built-in ones.
@@ -389,7 +394,7 @@ func Load(requireSecret bool) (*Config, error) {
 		if err != nil || len(key) != 32 {
 			return nil, errors.New("SAP13NS_SECRET_KEY must be 64 hex characters (32 bytes); generate one with `sap13ns keygen`")
 		}
-		c.SecretKey = key
+		c.SecretKey, c.ServerKey = key, key
 	} else if requireSecret {
 		return nil, errors.New("SAP13NS_SECRET_KEY is required; generate one with `sap13ns keygen`")
 	}
@@ -721,6 +726,7 @@ func ForSite(base *Config, p SiteParams) (*Config, error) {
 	c.TrustedProxies = slices.Clone(base.TrustedProxies)
 	c.DomainAddresses = slices.Clone(base.DomainAddresses)
 	c.SecretKey = slices.Clone(p.Secret)
+	c.ServerKey = nil // the network's master key stays with the network
 	origin := func(host string) *url.URL {
 		u := &url.URL{Scheme: base.BaseURL.Scheme, Host: host}
 		if port := base.BaseURL.Port(); port != "" {
@@ -766,6 +772,7 @@ func ForNetwork(base *Config, id int64, secret []byte) (*Config, error) {
 	c.TrustedProxies = slices.Clone(base.TrustedProxies)
 	c.DomainAddresses = slices.Clone(base.DomainAddresses)
 	c.SecretKey = slices.Clone(secret)
+	c.ServerKey = nil
 	c.Stripe.WebhookSecrets = slices.Clone(base.Stripe.WebhookSecrets)
 	if base.Stripe.Prices != nil {
 		c.Stripe.Prices = maps.Clone(base.Stripe.Prices)
