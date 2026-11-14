@@ -272,7 +272,8 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 			return
 		}
 		st := s.settings()
-		if time.Since(sess.LastSeenAt) > time.Duration(st.IdleHours)*time.Hour {
+		idle := time.Duration(st.IdleMinutes) * time.Minute
+		if time.Since(sess.LastSeenAt) > idle {
 			s.store.DeleteSession(r.Context(), hash)
 			s.clearSessionCookie(w)
 			next.ServeHTTP(w, r)
@@ -291,7 +292,11 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if time.Since(sess.LastSeenAt) > 5*time.Minute {
+		// Often enough that a short idle timeout never ends an active
+		// session, rarely enough not to write on every request. What a
+		// page sends by itself (X-Background: the editor's heartbeat
+		// without changes) is not activity.
+		if time.Since(sess.LastSeenAt) > min(5*time.Minute, idle/5) && r.Header.Get("X-Background") == "" {
 			s.store.TouchSession(r.Context(), hash)
 		}
 		c.Session = sess

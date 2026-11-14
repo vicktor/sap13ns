@@ -197,7 +197,7 @@
         {{end}}
         <div class="grid-2">
           <div class="field"><label for="session_days">{{T "Session length (days)"}}</label><input class="input" id="session_days" name="session_days" type="number" min="1" max="90" value="{{$s.SessionDays}}"></div>
-          <div class="field"><label for="idle_hours">{{T "Log out after inactivity (hours)"}}</label><input class="input" id="idle_hours" name="idle_hours" type="number" min="1" max="2160" value="{{$s.IdleHours}}"></div>
+          <div class="field"><label for="idle_minutes">{{T "Log out after inactivity (minutes)"}}</label><input class="input" id="idle_minutes" name="idle_minutes" type="number" min="10" max="129600" value="{{$s.IdleMinutes}}"></div>
         </div>
       </section>
     </section>

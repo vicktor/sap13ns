@@ -172,7 +172,7 @@ func (s *Server) adminSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if st.Refresh = r.FormValue("refresh"); st.Refresh == "off" {
 		st.Refresh = ""
 	}
-	st.SessionDays, st.IdleHours = formInt(r, "session_days", 14), formInt(r, "idle_hours", 48)
+	st.SessionDays, st.IdleMinutes = formInt(r, "session_days", 14), formInt(r, "idle_minutes", 60)
 	// Commenters' Gravatars need the users' setting, which sends anything
 	// to Gravatar at all (sitecheck).
 	st.GravatarUsers = on("gravatar_users")
@@ -238,8 +238,8 @@ func (s *Server) settingsError(r *http.Request, field string, st store.Settings)
 		return s.tu(r, "Use a colour like #3f068b.")
 	case "session_days":
 		return s.tu(r, "Session length must be between 1 and 90 days.")
-	case "idle_hours":
-		return s.tu(r, "Idle timeout must be between 1 and 2160 hours.")
+	case "idle_minutes":
+		return s.tu(r, "Idle timeout must be between %d and %d minutes.", sitecheck.MinIdleMinutes, sitecheck.MaxIdleMinutes)
 	case "login_path":
 		if !sitecheck.LoginPath.MatchString(st.LoginPath) {
 			return s.tu(r, "The sign-in address must be one or two words of lowercase letters, numbers and dashes, of 3 to 41 characters each, such as /entrar.")

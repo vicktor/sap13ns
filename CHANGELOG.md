@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.26.2 — 2026-11-14
+
+- **Sessions end after 60 minutes without activity.** They used to last up to 48 hours idle. Settings → Accounts & security now sets the timeout in minutes (10 minutes to 90 days), and every site starts at 60; the 14-day limit on any session stays. An editor left open no longer keeps the session alive: its heartbeat counts as activity only when there are changes to save. On a network, signing in again through the portal takes one click.
+
 ## v0.26.1 — 2026-11-14
 
 - **Move site, for administrators who sign in through the network.** They have no password on the site, so making an archive needs a sign-in of the last few minutes: the page now says so and has a **Sign in again** button that comes back to it, instead of the message of backups. On the portal, the page explains that the portal does not move and links to the network's sites.

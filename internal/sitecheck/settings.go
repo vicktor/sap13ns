@@ -12,6 +12,13 @@ import (
 // MaxLanguages is how many extra content languages a site can have.
 const MaxLanguages = 10
 
+// The bounds of the idle timeout of sessions, in minutes: ten minutes to
+// 90 days.
+const (
+	MinIdleMinutes = 10
+	MaxIdleMinutes = 90 * 24 * 60
+)
+
 // Site is what checking the settings needs to know about the site.
 type Site struct {
 	// PublicPage reports whether id is a published page, which the front
@@ -93,7 +100,7 @@ func settingsFields(c Site) []field[store.Settings] {
 		{"video_embeds", func(s *S) bool { return in(s.VideoEmbeds, "on", "plain", "off") }, func(d, s *S) { d.VideoEmbeds = s.VideoEmbeds }},
 		{"refresh", func(s *S) bool { return in(s.Refresh, "", "ask", "reload") }, func(d, s *S) { d.Refresh = s.Refresh }},
 		{"session_days", func(s *S) bool { return between(s.SessionDays, 1, 90) }, func(d, s *S) { d.SessionDays = s.SessionDays }},
-		{"idle_hours", func(s *S) bool { return between(s.IdleHours, 1, 24*90) }, func(d, s *S) { d.IdleHours = s.IdleHours }},
+		{"idle_minutes", func(s *S) bool { return between(s.IdleMinutes, MinIdleMinutes, MaxIdleMinutes) }, func(d, s *S) { d.IdleMinutes = s.IdleMinutes }},
 		// Commenters' Gravatars need the users' setting, which is the one
 		// that sends anything to Gravatar at all.
 		{"gravatar_commenters", func(s *S) bool { return !s.GravatarCommenters || s.GravatarUsers },

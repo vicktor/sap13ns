@@ -66,7 +66,10 @@ type Settings struct {
 	// once the site has a published post.
 	Push        bool `json:"push"`
 	SessionDays int  `json:"session_days"`
-	IdleHours   int  `json:"idle_hours"`
+	// IdleMinutes ends a session after that long without a request. It
+	// replaced idle_hours (48 by default) in v0.26.2: a site that had
+	// that starts again at the default.
+	IdleMinutes int `json:"idle_minutes"`
 	// GravatarUsers shows the Gravatar of users without a photo of their
 	// own (on by default). The server looks it up with the SHA-256 of the
 	// e-mail address and serves a copy; off, nothing is sent to Gravatar
@@ -172,7 +175,7 @@ func DefaultSettings() Settings {
 		FeedItems:         20,
 		FeedFullText:      true,
 		SessionDays:       14,
-		IdleHours:         48,
+		IdleMinutes:       60,
 		TwoFactor:         "staff",
 		OGCards:           "classic",
 		AIAccess:          "open",

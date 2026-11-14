@@ -46,9 +46,13 @@
       const now = snapshot();
       const body = same(now, last) && !force ? {} : now;
       try {
+        const headers = { "Content-Type": "application/json", "X-CSRF-Token": csrf() };
+        // Without changes it only renews the lock: not activity, so an
+        // editor left open does not keep the session alive.
+        if (body.title === undefined) headers["X-Background"] = "1";
         const res = await fetch(base + "/heartbeat", {
           method: "POST", credentials: "same-origin",
-          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf() },
+          headers,
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(String(res.status));

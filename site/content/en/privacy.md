@@ -31,7 +31,7 @@ The necessary cookies are our own and technical, and they are exempt from consen
 
 | Cookie | What it is for | How long it lasts |
 |---|---|---|
-| `__Host-sap13ns` (session) | Keeps you signed in, only if you sign in. | Until you sign out, and 14 days at most; it ends sooner after 48 hours without activity. |
+| `__Host-sap13ns` (session) | Keeps you signed in, only if you sign in. | Until you sign out, and 14 days at most; it ends sooner after 60 minutes without activity. |
 | `sap13ns_flash` (notice) | Carries a one-line message, such as "Saved", from one page to the next after an action in the admin panel. | 2 minutes at most; deleted once the message is shown. |
 | `__Host-sap13ns-sso` (single sign-on) | Protects a sign-in to a site with your sap13ns account while it goes through our portal. | 10 minutes at most; deleted when the sign-in completes. |
 | `__Host-sap13ns-wa-login`, `__Host-sap13ns-wa-reg` (passkey) | Links the steps of a sign-in with a passkey, or of adding a passkey. | 5 minutes at most; deleted when the step completes. |

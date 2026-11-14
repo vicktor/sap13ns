@@ -473,7 +473,7 @@ func (s *Server) Maintain(ctx context.Context) {
 // Maintain is the periodic cleanup of one site's store, with its settings.
 // A network runs it over every site schema without loading their servers.
 func Maintain(ctx context.Context, st *store.Store, set store.Settings, log *slog.Logger) {
-	idle := time.Duration(set.IdleHours) * time.Hour
+	idle := time.Duration(set.IdleMinutes) * time.Minute
 	if n, err := st.PurgeExpired(ctx, idle); err != nil {
 		log.Error("purge sessions", "err", err)
 	} else if n > 0 {
