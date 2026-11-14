@@ -185,8 +185,23 @@ func TestExportDiskSpace(t *testing.T) {
 		t.Fatal("an export started without the disk space")
 	}
 
-	// The export it would replace frees its space: one byte is enough here.
+	// A transfer archive waiting (Tools → Move site) stays: its space is
+	// not counted as freed.
 	other := e.userID("admin") + 1000
+	moving := filepath.Join(e.s.exportDir(), export.NewTransferName(other, time.Now()))
+	if err := os.WriteFile(moving, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if rec := e.postExport(e.admin, e.csrf, zipExport); rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("with a transfer archive waiting: %d, want 413", rec.Code)
+	}
+	e.waitJobs()
+	if _, err := os.Stat(moving); err != nil {
+		t.Fatal("the refused export removed the transfer archive")
+	}
+	os.Remove(moving)
+
+	// The export it would replace frees its space: one byte is enough here.
 	waiting := filepath.Join(e.s.exportDir(), export.NewName(other, time.Now()))
 	if err := os.WriteFile(waiting, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)

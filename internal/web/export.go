@@ -397,7 +397,9 @@ func (s *Server) exportFits(ctx context.Context, r *http.Request, dir string, op
 		return "", err
 	}
 	for _, e := range waiting {
-		free += e.Size // removed when this export starts
+		if !e.Transfer { // a transfer archive stays (Tools → Move site)
+			free += e.Size // removed when this export starts
+		}
 	}
 	if free < 2*est {
 		s.log.Warn("export refused: not enough free disk space", "dir", dir, "estimate", est, "free", free)
