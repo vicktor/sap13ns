@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.26.1 — 2026-11-14
+
+- **Move site, for administrators who sign in through the network.** They have no password on the site, so making an archive needs a sign-in of the last few minutes: the page now says so and has a **Sign in again** button that comes back to it, instead of the message of backups. On the portal, the page explains that the portal does not move and links to the network's sites.
+- **An export no longer counts a waiting transfer archive as free disk space.** The archive stays when an export starts, so an export could begin on a disk without room for it.
+
 ## v0.26.0 — 2026-11-14
 
 - **Move a site to another server.** Tools → Move site packs the whole site into one encrypted archive: every table (posts, comments, settings, plugin data, statistics, users with their passwords, second factors and passkeys), its uploads, plugins and themes, its secret key and its mail server. On the new server, a fresh single-site install, the same page uploads the archive in parts (any size, with a progress bar), checks it with its passphrase, shows what it holds, and replaces the site after a backup of it; the server then restarts by itself, and the administrator who imported keeps their account. A site of a network leaves it this way: the network's mail server and AI travel only when a network administrator makes the archive, the network administrators' accounts are disabled on the moved site, and the page lists the users who signed in through the network and need a password. The same is on the command line: `sap13ns transfer export|inspect|import`. The site's key is kept sealed with the new server's `SAP13NS_SECRET_KEY`, which must not change afterwards. This release adds a table (migration 0025), applied on start.

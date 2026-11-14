@@ -43,7 +43,8 @@
   <header><h2>{{icon "truck"}} {{T "Take this site to another server"}}</h2>
     <p>{{T "The archive holds everything the new server needs to run the site as it is here, with the same accounts and passwords."}}</p></header>
   <section>
-    {{if $d.Portal}}<p class="muted">{{T "The portal is the network itself: it cannot be moved from here."}}</p>
+    {{if $d.Portal}}<p class="muted">{{T "This is the portal of the network, which does not move. Open Move site in the admin of the site you want to move."}}</p>
+    <p><a class="btn" data-variant="outline" href="/admin/network/sites">{{icon "globe"}}{{T "Sites of the network"}}</a></p>
     {{else}}
     <div class="split">
       <div class="prose prose-sm">
@@ -66,9 +67,12 @@
           <input class="input" id="tr-pass2" name="passphrase2" type="password" autocomplete="new-password" maxlength="1024" required></div>
         {{if $d.NeedPassword}}<div class="field"><label for="tr-current">{{T "Your current password"}}</label>
           <input class="input" id="tr-current" name="current_password" type="password" autocomplete="current-password" required></div>
-        {{else}}<p class="hint">{{T "You sign in without a password here: this needs a sign-in of the last few minutes."}}</p>{{end}}
-        <div><button class="btn" type="submit"{{if $d.Running}} disabled{{end}}>{{icon "package"}}{{T "Make the archive"}}</button></div>
+        {{else if $d.Recent}}<p class="hint">{{T "You signed in a moment ago: no password is needed for the next few minutes."}}</p>
+        {{else}}<p class="hint">{{T "You sign in through the network, without a password here: sign in again first, and make the archive within %d minutes." $d.ReauthMin}}</p>{{end}}
+        <div><button class="btn" type="submit"{{if or $d.Running (and (not $d.NeedPassword) (not $d.Recent))}} disabled{{end}}>{{icon "package"}}{{T "Make the archive"}}</button></div>
       </form>
+      {{if not (or $d.NeedPassword $d.Recent)}}<form method="post" action="/logout" data-transfer-reauth>{{.CSRFField}}<input type="hidden" name="next" value="/admin/tools/transfer">
+        <button class="btn" data-variant="outline" type="submit">{{icon "log-in"}}{{T "Sign in again"}}</button></form>{{end}}
     </div>
     {{if $d.Ready}}
     <div class="relative overflow-x-auto">

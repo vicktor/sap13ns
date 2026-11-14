@@ -94,6 +94,8 @@ type transferData struct {
 	Failed       string
 	Ready        []exportLink
 	NeedPassword bool
+	Recent       bool // signed in a moment ago: enough without a password
+	ReauthMin    int
 	MinPass      int
 	Network      bool // a site of a network
 	Portal       bool
@@ -147,7 +149,7 @@ func (s *Server) adminTransfer(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderTransfer(w http.ResponseWriter, r *http.Request, status int, msg string) {
 	ctx := r.Context()
 	u := currentUser(r)
-	d := transferData{NeedPassword: hasPassword(u), MinPass: backup.MinPassphraseLen, Network: s.cfg.Multisite,
+	d := transferData{NeedPassword: hasPassword(u), Recent: recentLogin(r), ReauthMin: int(passkeyReauthWindow.Minutes()), MinPass: backup.MinPassphraseLen, Network: s.cfg.Multisite,
 		CanImport: s.canImport(), Chunk: transferChunk, Restarts: s.restart != nil, Error: msg}
 	if s.backupHooks != nil {
 		d.Portal = s.backupHooks.BackupIdentity().Portal
@@ -267,6 +269,15 @@ func (s *Server) transferBusy(w http.ResponseWriter, r *http.Request) {
 	s.renderTransfer(w, r, http.StatusConflict, s.tu(r, "Something else is being moved on this site. Try again when it has finished."))
 }
 
+// transferReauth is restoreReauth with the words of this page: without a
+// password (single sign-on), a sign-in of the last few minutes.
+func (s *Server) transferReauth(r *http.Request, u *store.User) string {
+	if !hasPassword(u) && !recentLogin(r) {
+		return s.tu(r, "You sign in through the network: use “Sign in again” below, then continue within %d minutes.", int(passkeyReauthWindow.Minutes()))
+	}
+	return s.restoreReauth(r, u)
+}
+
 // ---------------------------------------------------------------- export --
 
 var passphraseSpaces = regexp.MustCompile(`^\s|\s$`)
@@ -275,7 +286,7 @@ func (s *Server) adminTransferExport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	u := currentUser(r)
 	if s.backupHooks != nil && s.backupHooks.BackupIdentity().Portal {
-		s.renderTransfer(w, r, http.StatusForbidden, s.tu(r, "The portal is the network itself: it cannot be moved from here."))
+		s.renderTransfer(w, r, http.StatusForbidden, s.tu(r, "This is the portal of the network, which does not move. Open Move site in the admin of the site you want to move."))
 		return
 	}
 	pass := r.FormValue("passphrase")
@@ -290,7 +301,7 @@ func (s *Server) adminTransferExport(w http.ResponseWriter, r *http.Request) {
 		s.renderTransfer(w, r, http.StatusUnprocessableEntity, s.tu(r, "The passphrase cannot start or end with a space."))
 		return
 	}
-	if msg := s.restoreReauth(r, u); msg != "" {
+	if msg := s.transferReauth(r, u); msg != "" {
 		s.audit(r, u.ID, "transfer.export_refused", "", nil)
 		s.renderTransfer(w, r, http.StatusUnauthorized, msg)
 		return
@@ -654,7 +665,7 @@ func (s *Server) adminTransferImport(w http.ResponseWriter, r *http.Request) {
 		s.renderTransfer(w, r, http.StatusUnprocessableEntity, s.tu(r, "Type %s to confirm.", m.Source.Label))
 		return
 	}
-	if msg := s.restoreReauth(r, u); msg != "" {
+	if msg := s.transferReauth(r, u); msg != "" {
 		s.audit(r, u.ID, "transfer.import_refused", m.Source.Label, nil)
 		s.renderTransfer(w, r, http.StatusUnauthorized, msg)
 		return

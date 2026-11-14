@@ -257,3 +257,41 @@ func TestTransferMoveSite(t *testing.T) {
 		t.Error("a job started after the import, before the restart")
 	}
 }
+
+// TestTransferWithoutPassword: an administrator who signs in through the
+// network has no password on the site; a sign-in of the last few minutes
+// stands in for it, and the page offers to sign in again.
+func TestTransferWithoutPassword(t *testing.T) {
+	ctx := context.Background()
+	e := backupEnv(t)
+	if err := e.st.SetPassword(ctx, e.userID("admin"), store.SSOPasswordHash); err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"passphrase": {transferPass}, "passphrase2": {transferPass}}
+	if _, err := e.st.DB.Exec(ctx, `UPDATE sessions SET created_at = now() - interval '1 hour'`); err != nil {
+		t.Fatal(err)
+	}
+	page := e.get("/admin/tools/transfer", e.admin).Body.String()
+	if !strings.Contains(page, `data-transfer-reauth`) {
+		t.Error("the page does not offer to sign in again")
+	}
+	rec := e.postTransfer("/export", e.admin, e.csrf, form)
+	want := e.s.t("You sign in through the network: use “Sign in again” below, then continue within %d minutes.", 10)
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), html.EscapeString(want)) {
+		t.Fatalf("an old sign-in without a password: %d", rec.Code)
+	}
+
+	if _, err := e.st.DB.Exec(ctx, `UPDATE sessions SET created_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	if page := e.get("/admin/tools/transfer", e.admin).Body.String(); strings.Contains(page, `data-transfer-reauth`) {
+		t.Error("a fresh sign-in is asked to sign in again")
+	}
+	if rec := e.postTransfer("/export", e.admin, e.csrf, form); rec.Code != http.StatusSeeOther {
+		t.Fatalf("a fresh sign-in without a password: %d", rec.Code)
+	}
+	e.waitJobs()
+	if !transferLink.MatchString(e.get("/admin/tools/transfer", e.admin).Body.String()) {
+		t.Error("no archive after a fresh sign-in")
+	}
+}
