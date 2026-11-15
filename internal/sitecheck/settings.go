@@ -108,6 +108,8 @@ func settingsFields(c Site) []field[store.Settings] {
 		{"login_path", func(s *S) bool { return signInOK(s, c) }, func(d, s *S) { d.LoginPath = s.LoginPath }},
 		// Settings → Privacy (its own page, same row).
 		{"consent", func(s *S) bool { return consentOK(s) }, func(d, s *S) { d.Consent = s.Consent }},
+		// Settings → Maintenance (its own page, same row).
+		{"maintenance", func(s *S) bool { return Maintenance(s.Maintenance) }, func(d, s *S) { d.Maintenance = s.Maintenance }},
 		// Not on the page: set by activating a theme.
 		{"active_theme", func(s *S) bool { return Slug.MatchString(s.ActiveTheme) && (c.Theme == nil || c.Theme(s.ActiveTheme)) },
 			func(d, s *S) { d.ActiveTheme = s.ActiveTheme }},
@@ -165,6 +167,11 @@ func CleanSettings(in, cur store.Settings, c Site) (store.Settings, []string) {
 // http(s) address, of at most 300 bytes.
 func ConsentLink(u string) bool {
 	return u == "" || len(u) <= 300 && !strings.HasPrefix(u, "#") && !strings.Contains(u, `\`) && MenuURL(u)
+}
+
+// Maintenance reports whether the texts of the maintenance page fit.
+func Maintenance(m store.MaintenanceSettings) bool {
+	return !TooLong(m.Title, 120) && !TooLong(m.Text, 2000)
 }
 
 // Consent reports whether the cookie consent settings of s are valid

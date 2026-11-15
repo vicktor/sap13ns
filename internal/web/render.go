@@ -413,6 +413,12 @@ type adminPage struct {
 	// Tenant: a site of a network (not the portal), which has no System
 	// page and no update notice: the server is the operator's.
 	Tenant bool
+
+	// The sign-in pages' layout (auth.html): NoCredit leaves out the
+	// "Powered by sap13ns" credit where the public pages do (credit.go);
+	// Icon, the site icon, replaces the sap13ns one (the maintenance page).
+	NoCredit bool
+	Icon     string
 }
 
 func (p *adminPage) Can(c string) bool {
@@ -427,7 +433,8 @@ func (p *adminPage) Active(section string) bool { return p.Section == section }
 
 func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, section string, d any) *adminPage {
 	p := &adminPage{Title: title, Section: section, User: currentUser(r), Site: s.settings(), Path: r.URL.Path,
-		Version: Version, SiteURL: s.cfg.BaseURL.String(), Auth: s.auth(), D: d, Flashes: s.takeFlashes(w, r)}
+		Version: Version, SiteURL: s.cfg.BaseURL.String(), Auth: s.auth(), D: d, Flashes: s.takeFlashes(w, r),
+		NoCredit: s.hideCredit(r)}
 	if p.Lang = s.uiLang(r); !s.i18n.Has(p.Lang) {
 		p.Lang = "en" // a site language without a catalog: the strings are the English source
 	}
@@ -480,7 +487,11 @@ func (s *Server) renderAdmin(w http.ResponseWriter, r *http.Request, name, title
 }
 
 func (s *Server) renderAdminStatus(w http.ResponseWriter, r *http.Request, status int, name, title, section string, d any) {
-	page := s.newAdminPage(w, r, title, section, d)
+	s.renderAdminPage(w, r, status, name, s.newAdminPage(w, r, title, section, d))
+}
+
+// renderAdminPage renders the template name with page.
+func (s *Server) renderAdminPage(w http.ResponseWriter, r *http.Request, status int, name string, page *adminPage) {
 	lang := s.uiLang(r)
 	if lang == s.lang() {
 		lang = "" // the set that follows the site's language

@@ -7,9 +7,10 @@
 {{with themeDomain}}<meta name="sap13ns-theme-domain" content="{{.}}">
 {{end}}<script src="{{asset "theme-init.js"}}"></script>
 <link rel="stylesheet" href="{{asset "admin.css"}}">
-<link rel="icon" href="{{asset "favicon.svg"}}" type="image/svg+xml">
+{{with .Icon}}<link rel="icon" href="{{.}}" type="image/png">
+{{else}}<link rel="icon" href="{{asset "favicon.svg"}}" type="image/svg+xml">
 <link rel="icon" href="{{asset "brand/favicon-32.png"}}" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="{{asset "brand/apple-touch-icon.png"}}">
+<link rel="apple-touch-icon" href="{{asset "brand/apple-touch-icon.png"}}">{{end}}
 <script src="{{asset "vendor/basecoat/basecoat.min.js"}}" defer></script>
 <script src="{{asset "vendor/basecoat/popover.min.js"}}" defer></script>
 <script src="{{asset "vendor/basecoat/dropdown-menu.min.js"}}" defer></script>
@@ -136,6 +137,7 @@ it (nav-groups.js). Without JavaScript every group stays open. */}}
     <button type="button" class="btn" data-variant="ghost" data-size="icon" data-sidebar-toggle="admin-sidebar" aria-label="{{T "Toggle navigation"}}">{{icon "panel-left"}}</button>
     <div class="topbar-title">{{.Title}}</div>
     <div class="topbar-actions">
+      {{if .Site.Maintenance.On}}<a class="badge" data-variant="warning" href="{{if .Can "settings.manage"}}/admin/settings/maintenance{{else}}/{{end}}" title="{{T "Visitors see the maintenance page"}}">{{icon "construction"}}{{T "Maintenance"}}</a>{{end}}
       {{if .Can "posts.edit_own"}}<a class="btn max-sm:hidden" data-size="sm" href="/admin/posts/new">{{icon "plus"}}{{T "New post"}}</a>{{end}}
       <a class="btn" data-variant="ghost" data-size="icon" href="/" target="_blank" rel="noopener" aria-label="{{T "View site"}}" title="{{T "View site"}}">{{icon "globe"}}</a>
       {{if .UILangs}}{{template "lang-menu" .}}{{end}}

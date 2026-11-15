@@ -88,6 +88,18 @@ type Settings struct {
 	// Consent configures the cookie consent of the public site
 	// (Settings → Privacy, internal/web/consent.go).
 	Consent ConsentSettings `json:"consent"`
+	// Maintenance closes the public site to visitors for a while
+	// (Settings → Maintenance, internal/web/maintenance.go).
+	Maintenance MaintenanceSettings `json:"maintenance"`
+}
+
+// MaintenanceSettings configure maintenance mode: while On, visitors get
+// the maintenance page (503) instead of the site, and the people who
+// write on it browse it as usual. Empty texts use the built-in ones.
+type MaintenanceSettings struct {
+	On    bool   `json:"on"`
+	Title string `json:"title,omitempty"`
+	Text  string `json:"text,omitempty"`
 }
 
 // ConsentSettings configure the cookie consent: the banner, the cookie

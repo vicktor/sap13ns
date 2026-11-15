@@ -1,0 +1,10 @@
+{{template "auth" .}}
+{{define "content"}}
+{{/* The page visitors see while the site is in maintenance mode
+     (internal/web/maintenance.go), on the sign-in pages' layout. */}}
+<div class="empty-state maintenance-page">
+  {{with .Icon}}<img class="maintenance-logo" src="{{.}}" alt="" width="96" height="96">{{else}}<span class="maintenance-icon" aria-hidden="true">{{icon "construction"}}</span>{{end}}
+  <h1>{{.D.Title}}</h1>
+  {{range .D.Text}}<p>{{.}}</p>{{end}}
+</div>
+{{end}}

@@ -5,7 +5,7 @@
 <main id="main" class="auth-shell">
   <div class="auth-top">
     <a href="/" class="brand">
-      <span class="brand-mark" aria-hidden="true">{{initials .Site.SiteTitle}}</span>
+      {{with .Icon}}<img class="brand-icon" src="{{.}}" alt="" width="32" height="32">{{else}}<span class="brand-mark" aria-hidden="true">{{initials .Site.SiteTitle}}</span>{{end}}
       <span class="brand-text"><strong>{{.Site.SiteTitle}}</strong></span>
     </a>
     <div class="auth-top-actions">
@@ -26,7 +26,7 @@
   <section class="card auth-card">
     {{template "content" .}}
   </section>
-  <p class="auth-foot">{{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a></p>
+  {{if not .NoCredit}}<p class="auth-foot">{{T "Powered by"}} <a href="https://sap13ns.site">sap13ns</a></p>{{end}}
 </main>
 {{template "toaster" .}}
 </body>

@@ -1,0 +1,40 @@
+{{template "admin" .}}
+{{define "content"}}
+{{$d := .D}}{{$m := $d.M}}
+<div class="page-header">
+  <div>
+    <p class="eyebrow"><a href="/admin/settings">{{icon "arrow-left" "size-3.5"}} {{T "Settings"}}</a></p>
+    <h1>{{T "Maintenance mode"}}</h1>
+    <p>{{T "Close the site to visitors while you work on it. They see the maintenance page, and search engines are told to come back later; you and everyone who writes on the site keep browsing it as usual once signed in."}}</p>
+  </div>
+  <a class="btn" data-variant="outline" href="/admin/settings/maintenance/preview" target="_blank" rel="noopener">{{icon "eye"}}{{T "Preview the page"}}</a>
+</div>
+{{template "form-error" $d.Error}}
+
+<div class="stack">
+<form method="post" action="/admin/settings/maintenance">
+  {{.CSRFField}}
+  <section class="card" id="state">
+    <header><h2>{{T "Maintenance mode"}} {{if $m.On}}<span class="badge" data-variant="warning">{{icon "construction"}}{{T "On"}}</span>{{else}}<span class="badge" data-variant="secondary">{{T "Off"}}</span>{{end}}</h2>
+      <p>{{if $m.On}}{{T "The site is closed: visitors see the maintenance page."}}{{else}}{{T "The site is open to everyone."}}{{end}}</p></header>
+    <footer>
+      {{if $m.On}}<button class="btn" type="submit" name="action" value="off">{{icon "circle-check"}}{{T "Open the site again"}}</button>
+      {{else}}<button class="btn" data-variant="destructive" type="submit" name="action" value="on">{{icon "construction"}}{{T "Turn on maintenance mode"}}</button>{{end}}
+    </footer>
+  </section>
+</form>
+
+<form method="post" action="/admin/settings/maintenance" data-unsaved>
+  {{.CSRFField}}
+  <section class="card" id="texts">
+    <header><h2>{{T "Maintenance page"}}</h2><p>{{T "Empty fields use the built-in text, in the language of the page."}}</p></header>
+    <section class="form">
+      <div class="field"><label for="title">{{T "Title"}}</label><input class="input" id="title" name="title" value="{{$m.Title}}" maxlength="120" placeholder="{{$d.DefaultTitle}}"></div>
+      <div class="field"><label for="text">{{T "Text"}}</label><textarea class="textarea" id="text" name="text" rows="4" maxlength="2000" placeholder="{{$d.DefaultText}}">{{$m.Text}}</textarea>
+        <p class="hint">{{T "Plain text. Leave a blank line between paragraphs."}}</p></div>
+    </section>
+    <footer><button class="btn" data-variant="outline" type="submit" name="action" value="save">{{icon "save"}}{{T "Save"}}</button></footer>
+  </section>
+</form>
+</div>
+{{end}}

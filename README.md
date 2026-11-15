@@ -151,6 +151,7 @@ See [docs/THEMES.md](docs/THEMES.md) for writing a theme.
   - **Security headers:** a strict CSP with no inline scripts, styles or style attributes, plus HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and COOP.
   - **Request protection:** cross-origin request protection and CSRF tokens; SSRF protection on every outbound request (private, loopback and metadata ranges are blocked).
   - **Logging:** an audit log of sensitive actions.
+- **Maintenance mode:** **Settings → Maintenance mode** closes the site to visitors with one button. They get a maintenance page (a 503 that tells search engines to come back later) with the site icon and your own text, or a built-in one in the page's language; whoever writes on the site keeps browsing it once signed in.
 - **Privacy:** no third-party requests from public pages and no tracking cookies.
 - **Cookie consent:** built in, and built from what the site really uses. The core lists its own cookies and storage, and plugins declare theirs in their manifest, so **Settings → Privacy and cookies** and the "Cookies" link at the bottom of every page show the same generated list, by category (necessary, preferences, analytics, external media and marketing).
   - A category appears only when something uses it. Every new visitor sees the banner: it asks when something optional needs consent, and on a site with only necessary cookies it is a notice with "Got it" and the list.

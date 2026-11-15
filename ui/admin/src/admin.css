@@ -321,6 +321,12 @@
 .empty-actions { @apply mt-4 flex gap-2; }
 .error-page { @apply py-20; }
 .error-code { @apply font-mono text-5xl font-bold tracking-tight text-muted-foreground/60; }
+.maintenance-page { @apply py-10; }
+.maintenance-page h1 { @apply text-xl; }
+.maintenance-icon { @apply bg-muted text-muted-foreground mb-2 grid size-14 place-items-center rounded-full; }
+.maintenance-icon svg { @apply size-7; }
+.maintenance-logo { @apply mb-2 size-20 rounded-2xl object-contain; }
+.brand-icon { @apply size-8 shrink-0 rounded-lg object-contain; }
 
 /* --------------------------------------------------------------- tables */
 .toolbar { @apply mb-4 flex flex-wrap items-center justify-between gap-3; }
