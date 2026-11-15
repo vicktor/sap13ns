@@ -70,14 +70,24 @@ func (c *Cache) Get(key string) (*Entry, bool) {
 // since the cache was created. Invalidate does not reset them.
 func (c *Cache) Lookups() (hits, misses uint64) { return c.hits.Load(), c.misses.Load() }
 
-func (c *Cache) Set(key string, e *Entry) {
+// Set stores e under key, as of the current generation. A body rendered
+// before an Invalidate must go through SetAt instead.
+func (c *Cache) Set(key string, e *Entry) { c.SetAt(key, e, c.gen.Load()) }
+
+// SetAt stores e under key when nothing invalidated the cache since gen,
+// the Generation read before e was rendered: a page rendered from content
+// that changed meanwhile would otherwise stay cached as current.
+func (c *Cache) SetAt(key string, e *Entry, gen uint64) {
 	if len(e.Body) > c.maxSize/8 {
 		return // do not let one huge page evict everything
 	}
 	e.created = time.Now()
-	e.gen = c.gen.Load()
+	e.gen = gen
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if gen != c.gen.Load() {
+		return // invalidated while it was rendered
+	}
 	if old, ok := c.entries[key]; ok {
 		c.bytes -= len(old.Body)
 	}

@@ -38,3 +38,20 @@ func TestLookups(t *testing.T) {
 		t.Fatalf("lookups: %d hits, %d misses", h, m)
 	}
 }
+
+// TestSetAtAfterInvalidate: a body rendered before an Invalidate is not
+// kept, so a page rendered from old content cannot outlive the change.
+func TestSetAtAfterInvalidate(t *testing.T) {
+	c := New(10, 1<<20, time.Hour)
+	gen := c.Generation()
+	c.Invalidate() // the content changes while the page renders
+	c.SetAt("/p", &Entry{Body: []byte("old")}, gen)
+	if _, ok := c.Get("/p"); ok {
+		t.Fatal("a page rendered before the change was cached")
+	}
+	gen = c.Generation()
+	c.SetAt("/p", &Entry{Body: []byte("new")}, gen)
+	if e, ok := c.Get("/p"); !ok || string(e.Body) != "new" {
+		t.Fatal("a page rendered after the change was not cached")
+	}
+}

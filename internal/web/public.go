@@ -100,6 +100,7 @@ func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
+		gen := s.pages.Generation() // before rendering: a change meanwhile keeps the page out
 		rec := &bufferWriter{header: http.Header{}, status: http.StatusOK}
 		h(rec, r)
 		sum := sha256.Sum256(rec.buf.Bytes())
@@ -109,7 +110,7 @@ func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 			w.Header()[k] = v
 		}
 		if cacheable && (rec.status == http.StatusOK || rec.status == http.StatusNotFound) && rec.header.Get("Cache-Control") != "no-store" {
-			s.pages.Set(key, e)
+			s.pages.SetAt(key, e, gen)
 		}
 		s.recordView(r, e.Status, e.ContentType)
 		writeCached(w, r, s.fillTokens(e), "MISS")

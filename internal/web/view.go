@@ -200,6 +200,7 @@ func (s *Server) renderBody(ctx context.Context, p *store.Post, where string) te
 	if e, ok := s.content.Get(key); ok {
 		return template.HTML(e.Body)
 	}
+	gen := s.content.Generation() // before rendering: a change meanwhile keeps the body out
 	info := s.PostInfo(p)
 	var maxAge time.Duration
 	// Icon placeholders stay as they are until every filter has run: each
@@ -224,7 +225,7 @@ func (s *Server) renderBody(ctx context.Context, p *store.Post, where string) te
 	})
 	filtered = restore(filtered)
 	filtered = content.ExpandIcons(filtered, func(name string) string { return icons.SVG(name, "") })
-	s.content.Set(key, &cache.Entry{Body: []byte(filtered), MaxAge: maxAge})
+	s.content.SetAt(key, &cache.Entry{Body: []byte(filtered), MaxAge: maxAge}, gen)
 	return template.HTML(filtered)
 }
 

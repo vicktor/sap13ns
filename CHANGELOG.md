@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.27.1 — 2026-11-15
+
+- **A page could stay cached without the latest change.** When content changed while a visitor's request was rendering the page, that page was kept in the cache as current, with the content from before, until it expired or something else changed. It showed most with video posters, which arrive in the background: a post could keep its video without a poster. A page or post body rendered before a change is no longer cached.
+
 ## v0.27.0 — 2026-11-15
 
 - **Maintenance mode.** Settings → Maintenance mode closes the site to visitors with one button, and opens it again with another. Visitors get the maintenance page instead of any page, feed or API of the site, with a 503 that tells search engines to come back in an hour; contributors, authors, editors and administrators browse the site as usual once signed in, and sign-in and the administration answer everyone. The page says «We'll be back soon» in the language of the address, or the title and text you write; it shows the site icon when the site has one, and **Preview the page** shows it as visitors see it. While the mode is on, the top bar of the administration says so. Turning it on and off is in the audit log.
