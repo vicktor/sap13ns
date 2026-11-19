@@ -5,6 +5,24 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.27.2 — 2026-11-19
+
+A review of what the last releases added (moving a site, notifications, reading without a connection, a site's own mail server, maintenance mode, the custom-domains helper) and of the path every public request takes. It found no way from one site of a network into another; what it did find is fixed here.
+
+- **A network uses far less memory per site.** Every loaded site parsed all the themes and every page of the administration for itself: about 68 MB each, 3.4 GB with the default 50 sites loaded. A site now parses a theme when it first shows it and an admin page when someone first opens it: about 0.5 MB once loaded, some 7 MB once it shows its theme, and under 1 MB per admin page opened. Loading a site takes about 2 ms of that work instead of 40. Templates are still checked when the server starts, once for the whole process.
+- **Move site: an archive over 4 MB could not be uploaded** from the administration. Each piece of the upload was larger than a request was allowed to be.
+- **Move site, hardened.** Unpacking writes at most a hundred times the archive's size, so an archive made to fill the disk is refused. The plugins that come with an archive are scanned, and the ones the scanner blocks are switched off. On a network, the network's mail server and AI travel only when a network administrator signed in through the portal makes the archive. What an interrupted move leaves on disk is removed after a day.
+- **Links from campaigns and social networks are served from the cache.** An address with `utm_…`, `fbclid`, `gclid` and the like was rendered again for every visitor, exactly when a post was being shared. Statistics still read where the visit came from.
+- **The page cache holds up under load and scans.** Visitors who ask for a page while it is being rendered wait for that one render. Addresses the site does not have and search results no longer push its pages out of the cache, a vulnerability scan (`/wp-login.php`, `/.env`…) gets a bare 404 without rendering anything, and the cache's size limit, which stopped counting right once the cache was full, holds again.
+- **Notifications of new posts.** Subscriptions nobody listens on are forgotten after three failed posts in a row (at once when their address does not exist), so they cannot use up the site's room for subscribers. A post is notified once, however often it is published again, and not while the site is in maintenance mode.
+- **A site's own mail server.** The test e-mail is limited to 5 an hour. On a network, a server of your own must ask for a user name. A failed test no longer tells apart a name that does not exist from one inside the server's network.
+- **Maintenance mode** also closes `/favicon.ico` and, with the administration hidden from visitors, `/admin`: both showed the theme's page for an unknown address, with the site's menus. On a network's portal, Stripe's notices are no longer turned away during maintenance.
+- **Sessions:** an editor left open on a text too long to autosave no longer keeps its session alive.
+- **HTML blocks** cannot carry the attributes the cookie consent and the price switch act on.
+- **Custom domains (`sap13ns-domains`).** Renewals run even when the helper gives up on the list. The day's certificates go to the domains that have waited longest, so someone who keeps adding and removing domains cannot keep another customer's waiting. Names of other nginx sites written with Windows line endings, or as an expression with capital letters, are recognised. Reinstall it: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
+- **Fewer database queries** for the recent-posts widget, public lists of posts and every page of the administration.
+- **Dependencies** updated: pgx 5.13, the Go `x/crypto`, `x/net`, `x/image` and `x/text` modules, goldmark and the country database reader.
+
 ## v0.27.1 — 2026-11-15
 
 - **A page could stay cached without the latest change.** When content changed while a visitor's request was rendering the page, that page was kept in the cache as current, with the content from before, until it expired or something else changed. It showed most with video posters, which arrive in the background: a post could keep its video without a poster. A page or post body rendered before a change is no longer cached.
