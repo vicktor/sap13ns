@@ -393,7 +393,7 @@ func TestUploadedSetsClosed(t *testing.T) {
 	}
 	th, _ := m.Get("closed")
 	for _, name := range []string{"printf", "upper"} {
-		set, err := th.pages["home"].Clone()
+		set, err := th.pristine("home")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -18,11 +18,14 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -183,9 +186,15 @@ type Theme struct {
 	Upload   *UploadInfo // what the upload recorded, for Uploaded themes
 
 	fsys   fs.FS
+	shared fs.FS                         // the server's shared templates
 	static map[string]string             // static file -> short content hash
 	stamp  string                        // content hash of every file (Stamp)
-	pages  map[string]*template.Template // pristine sets, never executed
+	pages  map[string]*template.Template // pristine sets, never executed; read through templates()
+	// The templates are parsed when the theme first renders, not when it
+	// is loaded: a site keeps in memory only the themes it shows, and a
+	// network loads every theme for every site.
+	parseOnce sync.Once
+	parseErr  error
 
 	funcs     template.FuncMap // the server's functions, for uploaded themes' slots
 	langFuncs func(lang string) template.FuncMap
@@ -287,6 +296,7 @@ func sourceFS(src Source) fs.FS {
 // Load (re)discovers all themes. Later sources override earlier ones,
 // except that an uploaded theme never shadows a built-in or network theme.
 func (m *Manager) Load() error {
+	key := m.parseKey()
 	themes := map[string]*Theme{}
 	var failed []Failure
 	for _, src := range m.sources {
@@ -316,6 +326,9 @@ func (m *Manager) Load() error {
 				continue
 			}
 			t, err := m.loadTheme(e.Name(), sub, src.Builtin, src.Dir != "" && info != nil)
+			if err == nil {
+				err = m.checkParses(t, key)
+			}
 			if err != nil {
 				m.log.Error("theme failed to load", "theme", e.Name(), "err", err)
 				if src.Dir != "" {
@@ -344,7 +357,56 @@ func (m *Manager) Failures() []Failure {
 	return append([]Failure(nil), m.failed...)
 }
 
-// loadTheme parses a theme. The template sets of an uploaded theme have
+// parsed remembers, for the whole process, whether a theme's templates
+// parse: the key names the theme's files (its stamp), the shared templates
+// and the functions they are parsed with (parseKey). A network loads the
+// same themes for every site, and checks each once.
+var parsed sync.Map // string -> error text, "" when they parse
+
+// parseKey identifies what every theme of the manager is parsed with: the
+// shared templates and the names of the functions.
+func (m *Manager) parseKey() string {
+	h := sha256.New()
+	_ = fs.WalkDir(m.shared, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if b, err := fs.ReadFile(m.shared, p); err == nil {
+			fmt.Fprintf(h, "%s\x00%d\x00", p, len(b))
+			h.Write(b)
+		}
+		return nil
+	})
+	for _, name := range slices.Sorted(maps.Keys(m.funcs)) {
+		fmt.Fprintf(h, "\x00%s", name)
+	}
+	return hex.EncodeToString(h.Sum(nil)[:16])
+}
+
+// checkParses reports why the templates of t do not parse, as Load must
+// know for every theme, without keeping them: a copy is parsed and let
+// go, once per process for the same files.
+func (m *Manager) checkParses(t *Theme, key string) error {
+	key += "\x00" + t.stamp + "\x00" + strconv.FormatBool(t.Uploaded)
+	if msg, ok := parsed.Load(key); ok {
+		if msg := msg.(string); msg != "" {
+			return errors.New(msg)
+		}
+		return nil
+	}
+	probe := &Theme{Manifest: t.Manifest, Slug: t.Slug, Uploaded: t.Uploaded, fsys: t.fsys, shared: t.shared, own: t.own, funcs: t.funcs, langFuncs: t.langFuncs, i18n: t.i18n}
+	_, err := probe.templates()
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	}
+	parsed.Store(key, msg)
+	return err
+}
+
+// loadTheme reads a theme: its manifest, which pages it has, its own
+// translations and the hashes of its files. Its templates are parsed on
+// first use (templates). The template sets of an uploaded theme have
 // their functions bound to closedGuard, which fails every call: they run
 // only through the slots of RenderContext and of the checks' probe, whose
 // functions are bounded (bounds.go).
@@ -353,7 +415,7 @@ func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin, uploaded bool) (*T
 	if err != nil {
 		return nil, fmt.Errorf("theme.json: %w", err)
 	}
-	t := &Theme{Slug: slug, Builtin: builtin, Uploaded: uploaded, fsys: fsys, static: map[string]string{}, pages: map[string]*template.Template{},
+	t := &Theme{Slug: slug, Builtin: builtin, Uploaded: uploaded, fsys: fsys, shared: m.shared, static: map[string]string{},
 		funcs: m.funcs, langFuncs: m.langFuncs, byLang: map[string]map[string]*template.Template{}}
 	if err := json.Unmarshal(raw, &t.Manifest); err != nil {
 		return nil, fmt.Errorf("theme.json: %w", err)
@@ -361,8 +423,17 @@ func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin, uploaded bool) (*T
 	if t.Name == "" {
 		t.Name = slug
 	}
-	if err := m.parse(t); err != nil {
-		return nil, err
+	if _, err := fs.Stat(fsys, "templates/layout.html"); err != nil {
+		return nil, errors.New("templates/layout.html is required")
+	}
+	t.own = map[string]bool{}
+	for _, name := range pageNames {
+		if _, err := fs.Stat(fsys, "templates/"+name+".html"); err == nil {
+			t.own[name] = true
+		}
+	}
+	if !t.own["front"] && !t.own["home"] {
+		return nil, errors.New("templates/front.html or templates/home.html is required")
 	}
 	// Optional translations of the theme's own strings, i18n/<lang>.json.
 	if files, _ := fs.Glob(fsys, "i18n/*.json"); len(files) > 0 {
@@ -377,12 +448,6 @@ func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin, uploaded bool) (*T
 				return nil, fmt.Errorf("%s: %w", f, err)
 			}
 			t.i18n[strings.TrimSuffix(path.Base(f), ".json")] = cat
-		}
-	}
-	if uploaded {
-		closed := t.funcsFor("en", closedGuard)
-		for _, set := range t.pages {
-			set.Funcs(closed)
 		}
 	}
 	_ = fs.WalkDir(fsys, "static", func(p string, d fs.DirEntry, err error) error {
@@ -417,70 +482,83 @@ func (m *Manager) loadTheme(slug string, fsys fs.FS, builtin, uploaded bool) (*T
 // the theme does, and only then.
 func (t *Theme) Stamp() string { return t.stamp }
 
-func (m *Manager) parse(t *Theme) error {
-	base := template.New("theme").Funcs(m.funcs)
+// templates returns the pristine template set of every page, parsed on
+// first use.
+func (t *Theme) templates() (map[string]*template.Template, error) {
+	t.parseOnce.Do(func() {
+		pages, err := t.parse()
+		if err != nil {
+			t.parseErr = err
+			return
+		}
+		if t.Uploaded {
+			closed := t.funcsFor("en", closedGuard)
+			for _, set := range pages {
+				set.Funcs(closed)
+			}
+		}
+		t.pages = pages
+	})
+	return t.pages, t.parseErr
+}
+
+func (t *Theme) parse() (map[string]*template.Template, error) {
+	base := template.New("theme").Funcs(t.funcs)
 	// Shared partials first so that a theme can redefine any of them.
-	if _, err := base.ParseFS(m.shared, "*.html"); err != nil {
-		return fmt.Errorf("shared templates: %w", err)
+	if _, err := base.ParseFS(t.shared, "*.html"); err != nil {
+		return nil, fmt.Errorf("shared templates: %w", err)
 	}
 	// The block builder's blocks (internal/builder), which themes may
 	// redefine too.
-	if matches, _ := fs.Glob(m.shared, "blocks/*.html"); len(matches) > 0 {
-		if _, err := base.ParseFS(m.shared, "blocks/*.html"); err != nil {
-			return fmt.Errorf("shared block templates: %w", err)
+	if matches, _ := fs.Glob(t.shared, "blocks/*.html"); len(matches) > 0 {
+		if _, err := base.ParseFS(t.shared, "blocks/*.html"); err != nil {
+			return nil, fmt.Errorf("shared block templates: %w", err)
 		}
 	}
-	if _, err := fs.Stat(t.fsys, "templates/layout.html"); err != nil {
-		return errors.New("templates/layout.html is required")
-	}
 	if _, err := base.ParseFS(t.fsys, "templates/layout.html"); err != nil {
-		return err
+		return nil, err
 	}
 	if matches, _ := fs.Glob(t.fsys, "templates/partials/*.html"); len(matches) > 0 {
 		if _, err := base.ParseFS(t.fsys, "templates/partials/*.html"); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := parseSections(base, t); err != nil {
-		return err
+		return nil, err
 	}
-	t.own = map[string]bool{}
+	pages := map[string]*template.Template{}
 	for _, name := range pageNames {
-		file := "templates/" + name + ".html"
-		if _, err := fs.Stat(t.fsys, file); err != nil {
+		if !t.own[name] {
 			continue
 		}
+		file := "templates/" + name + ".html"
 		set, err := base.Clone()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if _, err := set.ParseFS(t.fsys, file); err != nil {
-			return fmt.Errorf("%s: %w", file, err)
+			return nil, fmt.Errorf("%s: %w", file, err)
 		}
-		t.pages[name] = set
-		t.own[name] = true
-	}
-	if !t.own["front"] && !t.own["home"] {
-		return errors.New("templates/front.html or templates/home.html is required")
+		pages[name] = set
 	}
 	// The shared fallbacks of the pages the theme lacks (unless another of
 	// its pages stands in, see fallback), the not-found and assistant pages
 	// of a theme without its own, and the pages laid out with the block
 	// builder. The front page has none of its own (see fallback).
 	for _, name := range []string{"home", "single", "page", "archive", "search", "404", "ask", "blocks"} {
-		if t.pages[name] != nil || t.own[fallback[name]] {
+		if pages[name] != nil || t.own[fallback[name]] {
 			continue
 		}
 		set, err := base.Clone()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if _, err := set.Parse(serverPages[name]); err != nil {
-			return err
+			return nil, err
 		}
-		t.pages[name] = set
+		pages[name] = set
 	}
-	return nil
+	return pages, nil
 }
 
 // parseSections parses templates/sections/*.html and defines
@@ -595,14 +673,18 @@ func (t *Theme) Render(w io.Writer, page, lang string, data any) error {
 // RenderContext is Render for a request: an uploaded theme stops when ctx
 // ends, and within the bounds above.
 func (t *Theme) RenderContext(ctx context.Context, w io.Writer, page, lang string, data any) error {
-	if _, ok := t.pages[page]; !ok {
+	pages, err := t.templates()
+	if err != nil {
+		return fmt.Errorf("theme %s: %w", t.Slug, err)
+	}
+	if _, ok := pages[page]; !ok {
 		for {
 			fb, has := fallback[page]
 			if !has {
 				return fmt.Errorf("theme %s: no template for %q", t.Slug, page)
 			}
 			page = fb
-			if _, ok := t.pages[page]; ok {
+			if _, ok := pages[page]; ok {
 				break
 			}
 		}
@@ -704,7 +786,7 @@ type pool struct {
 // newSlot copies the pristine set of page and binds its functions to a
 // new guard, closed until an execution starts it.
 func (t *Theme) newSlot(page, lang string) (*slot, error) {
-	set, err := t.pages[page].Clone()
+	set, err := t.pristine(page)
 	if err != nil {
 		return nil, err
 	}
@@ -768,20 +850,35 @@ func (t *Theme) release(s *slot) {
 	s.pool.free <- s // never blocks: a pool holds at most maxSlots
 }
 
+// pristine returns a copy of the page's template set, to bind functions
+// to and execute.
+func (t *Theme) pristine(page string) (*template.Template, error) {
+	pages, err := t.templates()
+	if err != nil {
+		return nil, err
+	}
+	set, ok := pages[page]
+	if !ok {
+		return nil, fmt.Errorf("theme %s: no template for %q", t.Slug, page)
+	}
+	return set.Clone()
+}
+
 // forLang returns the page's template set with the language functions bound
 // to lang, for a theme that is not an upload. Clones are made from the
 // pristine set (html/template cannot clone a set after it has been
 // executed) and kept for later requests.
 func (t *Theme) forLang(page, lang string) (*template.Template, error) {
 	if t.langFuncs == nil {
-		return t.pages[page], nil
+		pages, err := t.templates()
+		return pages[page], err
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if set, ok := t.byLang[lang][page]; ok {
 		return set, nil
 	}
-	set, err := t.pages[page].Clone()
+	set, err := t.pristine(page)
 	if err != nil {
 		return nil, err
 	}
@@ -828,7 +925,7 @@ func (t *Theme) builtinFuncs(lang string, g *guard) template.FuncMap {
 // newTextSlot copies the pristine set of page, a theme that is not an
 // upload, with T reading the texts of the slot's execution.
 func (t *Theme) newTextSlot(page, lang string) (*slot, error) {
-	set, err := t.pages[page].Clone()
+	set, err := t.pristine(page)
 	if err != nil {
 		return nil, err
 	}

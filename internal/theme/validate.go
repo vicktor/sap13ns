@@ -306,6 +306,9 @@ func (m *Manager) validate(r io.ReaderAt, size int64, root string) (*validation,
 	// The templates: they must parse with the server's functions and the
 	// shared templates, then pass the checks of check.go.
 	t, err := m.loadTheme(v.slug, fsys, false, true)
+	if err == nil {
+		_, err = t.templates()
+	}
 	if err != nil {
 		v.add(parseProblem(fsys, err))
 		return v, nil

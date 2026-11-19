@@ -2,7 +2,9 @@ package web
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -11,6 +13,7 @@ import (
 	"maps"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -277,81 +280,145 @@ type adminTemplates struct {
 	funcs  func(lang string) template.FuncMap
 	reload bool
 	mu     sync.RWMutex
-	// sets holds the pages of each admin language in use, parsed with that
-	// language's functions on first use; "" is the site's main language.
-	sets map[string]map[string]*template.Template
+	// sets holds, for each admin language in use ("" is the site's main
+	// language), the pages rendered so far. A page is parsed with that
+	// language's functions when it is first shown: a site whose
+	// administration nobody opens keeps none of them in memory, and a
+	// network has many such sites loaded.
+	sets map[string]*adminSet
+}
+
+// adminSet is one language's templates: the shared ones every page is
+// built on, and the pages parsed so far.
+type adminSet struct {
+	base  *template.Template // never executed: pages are clones of it
+	pages map[string]*template.Template
 }
 
 var adminBase = []string{"layout.html", "auth.html", "partials.html", "ai_panel.html", "site_switcher.html", "avatar.html"}
 
-// newAdminTemplates parses the admin templates in the site's main language;
-// funcs gives the template functions of a language (Server.adminFuncs).
+// adminChecked remembers, for the whole process, that the admin templates
+// of a file system parse (the key names their contents): every page is
+// parsed once at start to find a broken one, and then let go.
+var adminChecked sync.Map
+
+// newAdminTemplates prepares the admin templates; funcs gives the template
+// functions of a language (Server.adminFuncs). It fails when one of them
+// does not parse.
 func newAdminTemplates(ui fs.FS, funcs func(lang string) template.FuncMap, reload bool) (*adminTemplates, error) {
 	sub, err := fs.Sub(ui, "admin/templates")
 	if err != nil {
 		return nil, err
 	}
-	a := &adminTemplates{fsys: sub, funcs: funcs, reload: reload, sets: map[string]map[string]*template.Template{}}
-	_, err = a.pages("")
-	return a, err
+	a := &adminTemplates{fsys: sub, funcs: funcs, reload: reload, sets: map[string]*adminSet{}}
+	return a, a.check()
 }
 
-// pages returns the pages in lang, parsed on first use (on every use in
-// development, so that template edits show up).
-func (a *adminTemplates) pages(lang string) (map[string]*template.Template, error) {
-	if !a.reload {
-		a.mu.RLock()
-		pages := a.sets[lang]
-		a.mu.RUnlock()
-		if pages != nil {
-			return pages, nil
-		}
-	}
-	pages, err := a.parse(lang)
-	if err != nil {
-		return nil, err
-	}
-	a.mu.Lock()
-	a.sets[lang] = pages
-	a.mu.Unlock()
-	return pages, nil
-}
-
-func (a *adminTemplates) parse(lang string) (map[string]*template.Template, error) {
-	base, err := template.New("admin").Funcs(a.funcs(lang)).ParseFS(a.fsys, adminBase...)
-	if err != nil {
-		return nil, err
-	}
+// check parses every page in the site's main language, without keeping
+// them, once per process for the same templates and functions.
+func (a *adminTemplates) check() error {
 	files, err := fs.Glob(a.fsys, "*.html")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pages := map[string]*template.Template{}
+	h := sha256.New()
+	for _, f := range files {
+		b, err := fs.ReadFile(a.fsys, f)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(h, "%s\x00%d\x00", f, len(b))
+		h.Write(b)
+	}
+	funcs := a.funcs("")
+	for _, name := range slices.Sorted(maps.Keys(funcs)) {
+		fmt.Fprintf(h, "\x00%s", name)
+	}
+	key := hex.EncodeToString(h.Sum(nil)[:16])
+	if _, ok := adminChecked.Load(key); ok {
+		return nil
+	}
+	base, err := template.New("admin").Funcs(funcs).ParseFS(a.fsys, adminBase...)
+	if err != nil {
+		return err
+	}
 	for _, f := range files {
 		if contains(adminBase, f) {
 			continue
 		}
-		set, err := base.Clone()
+		if _, err := parseAdminPage(base, a.fsys, f); err != nil {
+			return err
+		}
+	}
+	adminChecked.Store(key, true)
+	return nil
+}
+
+func parseAdminPage(base *template.Template, fsys fs.FS, file string) (*template.Template, error) {
+	set, err := base.Clone()
+	if err != nil {
+		return nil, err
+	}
+	return set.ParseFS(fsys, file)
+}
+
+// page returns the page name in lang, parsed on first use (on every use
+// in development, so that template edits show up).
+func (a *adminTemplates) page(lang, name string) (*template.Template, error) {
+	file := name + ".html"
+	if contains(adminBase, file) {
+		return nil, fmt.Errorf("admin template %q not found", name)
+	}
+	if a.reload {
+		base, err := template.New("admin").Funcs(a.funcs(lang)).ParseFS(a.fsys, adminBase...)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := set.ParseFS(a.fsys, f); err != nil {
+		return a.parsePage(base, name)
+	}
+	a.mu.RLock()
+	var set *template.Template
+	if s := a.sets[lang]; s != nil {
+		set = s.pages[name]
+	}
+	a.mu.RUnlock()
+	if set != nil {
+		return set, nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	s := a.sets[lang]
+	if s == nil {
+		base, err := template.New("admin").Funcs(a.funcs(lang)).ParseFS(a.fsys, adminBase...)
+		if err != nil {
 			return nil, err
 		}
-		pages[strings.TrimSuffix(f, ".html")] = set
+		s = &adminSet{base: base, pages: map[string]*template.Template{}}
+		a.sets[lang] = s
 	}
-	return pages, nil
+	if set := s.pages[name]; set != nil {
+		return set, nil // parsed while this request waited
+	}
+	set, err := a.parsePage(s.base, name)
+	if err != nil {
+		return nil, err
+	}
+	s.pages[name] = set
+	return set, nil
+}
+
+func (a *adminTemplates) parsePage(base *template.Template, name string) (*template.Template, error) {
+	if _, err := fs.Stat(a.fsys, name+".html"); err != nil {
+		return nil, fmt.Errorf("admin template %q not found", name)
+	}
+	return parseAdminPage(base, a.fsys, name+".html")
 }
 
 // render executes the page name in lang ("" is the site's main language).
 func (a *adminTemplates) render(w io.Writer, lang, name string, data any) error {
-	pages, err := a.pages(lang)
+	set, err := a.page(lang, name)
 	if err != nil {
 		return err
-	}
-	set, ok := pages[name]
-	if !ok {
-		return fmt.Errorf("admin template %q not found", name)
 	}
 	var buf bytes.Buffer
 	if err := set.ExecuteTemplate(&buf, name+".html", data); err != nil {
