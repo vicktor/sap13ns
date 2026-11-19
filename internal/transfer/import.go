@@ -40,6 +40,12 @@ type Staged struct {
 	dir      string
 }
 
+// StagePrefix starts the name of the directory an archive is unpacked in.
+const StagePrefix = ".sap13ns-transfer-"
+
+// Dir is where the archive is unpacked.
+func (s *Staged) Dir() string { return s.dir }
+
 // Close removes the unpacked archive.
 func (s *Staged) Close() error { return os.RemoveAll(s.dir) }
 
@@ -63,22 +69,29 @@ func Open(ctx context.Context, file, passphrase, stageParent string) (*Staged, e
 	if err != nil {
 		return nil, err
 	}
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	budget := max(info.Size()*maxExpansion, minUnpackBytes)
 	if err := os.MkdirAll(stageParent, 0o750); err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp(stageParent, ".sap13ns-transfer-")
+	dir, err := os.MkdirTemp(stageParent, StagePrefix)
 	if err != nil {
 		return nil, err
 	}
 	s := &Staged{dir: dir}
-	if err := s.unpack(ctx, plain); err != nil {
+	if err := s.unpack(ctx, plain, budget); err != nil {
 		s.Close()
 		return nil, err
 	}
 	return s, nil
 }
 
-func (s *Staged) unpack(ctx context.Context, plain io.Reader) error {
+// unpack writes the members of the archive under s.dir, budget bytes of
+// them at most, and checks them against the manifest.
+func (s *Staged) unpack(ctx context.Context, plain io.Reader, budget int64) error {
 	root, err := os.OpenRoot(s.dir)
 	if err != nil {
 		return err
@@ -111,7 +124,12 @@ func (s *Staged) unpack(ctx context.Context, plain io.Reader) error {
 			return fmt.Errorf("%w: more than %d members", ErrCorrupt, maxMembers)
 		case got[h.Name].Name != "":
 			return fmt.Errorf("%w: %q appears twice", ErrCorrupt, h.Name)
+		case h.Size > budget:
+			// Before a byte of it is written: a member may declare far
+			// more than the archive holds (a sparse file, or zeros).
+			return fmt.Errorf("%w: it unpacks to more than an archive of its size can hold", ErrCorrupt)
 		}
+		budget -= h.Size
 		if h.Name == NameManifest {
 			if h.Size > maxManifestBytes {
 				return fmt.Errorf("%w: the manifest is too large", ErrCorrupt)
@@ -147,8 +165,10 @@ func (s *Staged) unpack(ctx context.Context, plain io.Reader) error {
 		got[h.Name] = backup.Member{Name: h.Name, Size: n, SHA256: hex.EncodeToString(sum.Sum(nil))}
 	}
 	// The encrypted stream is authenticated only once read to its end.
-	if _, err := io.Copy(io.Discard, gz); err != nil {
+	if n, err := io.Copy(io.Discard, io.LimitReader(gz, maxTrailingBytes+1)); err != nil {
 		return fmt.Errorf("%w: %v", ErrCorrupt, err)
+	} else if n > maxTrailingBytes {
+		return fmt.Errorf("%w: data after the end of the archive", ErrCorrupt)
 	}
 	if _, err := io.Copy(io.Discard, plain); err != nil {
 		return err
@@ -195,7 +215,9 @@ func (m *Manifest) check(got map[string]backup.Member) error {
 	}
 	want := map[string]backup.Member{}
 	for _, t := range m.Tables {
-		if t.Data.Name != dirDB+t.Name+copySuffix || len(t.Columns) == 0 {
+		// The record of the migrations is rebuilt from m.Migrations: rows
+		// of its own could claim migrations the schema never had.
+		if t.Data.Name != dirDB+t.Name+copySuffix || len(t.Columns) == 0 || t.Name == schemaMigrations {
 			return fmt.Errorf("%w: table %q", ErrCorrupt, t.Name)
 		}
 		want[t.Data.Name] = t.Data

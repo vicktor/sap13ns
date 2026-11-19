@@ -15,11 +15,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"sap13ns/internal/analytics"
 	"sap13ns/internal/auth"
 	"sap13ns/internal/cache"
 	"sap13ns/internal/content"
@@ -74,46 +76,121 @@ func (s *Server) fillTokens(e *cache.Entry) *cache.Entry {
 	return &cache.Entry{Body: body, Status: e.Status, ContentType: e.ContentType, CSP: e.CSP}
 }
 
+// trackingParams are what links from campaigns, social networks and
+// newsletters add to an address: they change nothing on the page, so the
+// page cache leaves them out. Statistics still read them from the request.
+var trackingParams = map[string]bool{
+	"fbclid": true, "gclid": true, "gbraid": true, "wbraid": true, "dclid": true, "msclkid": true,
+	"yclid": true, "twclid": true, "ttclid": true, "igshid": true, "li_fat_id": true, "srsltid": true,
+	"mc_cid": true, "mc_eid": true, "mkt_tok": true, "_hsenc": true, "_hsmi": true, "_ga": true, "_gl": true,
+	"ref": true, "ref_src": true,
+}
+
+func trackingParam(k string) bool { return strings.HasPrefix(k, "utm_") || trackingParams[k] }
+
+// rendered is a response the page cache was asked for and did not have.
+type rendered struct {
+	entry    *cache.Entry
+	header   http.Header
+	storable bool // the same for every visitor: kept, and shared with those waiting for it
+}
+
+// cachedPage looks key up among the pages, then among the strays.
+func (s *Server) cachedPage(key string) (*cache.Entry, bool) {
+	if e, ok := s.pages.Get(key); ok {
+		return e, true
+	}
+	return s.strays.Get(key)
+}
+
+// dropPages forgets every rendered public response.
+func (s *Server) dropPages() {
+	s.pages.Invalidate()
+	s.strays.Invalidate()
+}
+
 // cached serves anonymous GET requests from the in-memory page cache.
+// Tracking parameters do not make a page another one. Requests for the
+// same page that arrive while it is rendered wait for that one render
+// instead of each making its own. Addresses the site does not have and
+// search results are kept apart (s.strays), so that a run of them cannot
+// push the site's pages out.
 func (s *Server) cached(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || rctx(r).Session != nil {
 			h(w, r)
 			return
 		}
-		cacheable := true
-		for k := range r.URL.Query() {
-			cacheable = cacheable && cacheableParams[k]
+		q := r.URL.Query()
+		cacheable, tracked := true, false
+		for k := range q {
+			if trackingParam(k) {
+				tracked = true
+				delete(q, k)
+			} else {
+				cacheable = cacheable && cacheableParams[k]
+			}
+		}
+		page := r // what the page is rendered from: the request without its tracking parameters
+		if tracked && cacheable {
+			u := *r.URL
+			u.RawQuery = q.Encode()
+			page = new(http.Request)
+			*page = *r
+			page.URL = &u
 		}
 		key := s.langPath(rctx(r).Lang, r.URL.Path)
-		if r.URL.RawQuery != "" {
-			key += "?" + r.URL.RawQuery
+		if page.URL.RawQuery != "" {
+			key += "?" + page.URL.RawQuery
 		}
 		// A site whose plan changes keeps no page of the other kind.
 		if s.hideCredit(r) {
 			key = "\x00nocredit " + key
 		}
+		render := func() *rendered {
+			// Before rendering: a change meanwhile keeps the page out.
+			gen, strayGen := s.pages.Generation(), s.strays.Generation()
+			rec := &bufferWriter{header: http.Header{}, status: http.StatusOK}
+			h(rec, page)
+			sum := sha256.Sum256(rec.buf.Bytes())
+			out := &rendered{header: rec.header, entry: &cache.Entry{Body: rec.buf.Bytes(), Status: rec.status, ContentType: rec.header.Get("Content-Type"),
+				ETag: `"` + hex.EncodeToString(sum[:8]) + `"`, CSP: rec.header.Get("Content-Security-Policy")}}
+			out.storable = cacheable && (rec.status == http.StatusOK || rec.status == http.StatusNotFound) && rec.header.Get("Cache-Control") != "no-store"
+			switch {
+			case !out.storable:
+			case rec.status == http.StatusNotFound || q.Has("q"):
+				s.strays.SetAt(key, out.entry, strayGen)
+			default:
+				s.pages.SetAt(key, out.entry, gen)
+			}
+			return out
+		}
+		var out *rendered
 		if cacheable {
-			if e, ok := s.pages.Get(key); ok {
+			if e, ok := s.cachedPage(key); ok {
 				s.recordView(r, e.Status, e.ContentType)
 				writeCached(w, r, s.fillTokens(e), "HIT")
 				return
 			}
+			mine := false
+			v, _, _ := s.rendering.Do(key, func() (any, error) {
+				mine = true
+				return render(), nil
+			})
+			// A response made for one visitor only is not another's, and
+			// neither is a cookie.
+			if out = v.(*rendered); !mine && (!out.storable || len(out.header["Set-Cookie"]) > 0) {
+				out = nil
+			}
 		}
-		gen := s.pages.Generation() // before rendering: a change meanwhile keeps the page out
-		rec := &bufferWriter{header: http.Header{}, status: http.StatusOK}
-		h(rec, r)
-		sum := sha256.Sum256(rec.buf.Bytes())
-		e := &cache.Entry{Body: rec.buf.Bytes(), Status: rec.status, ContentType: rec.header.Get("Content-Type"),
-			ETag: `"` + hex.EncodeToString(sum[:8]) + `"`, CSP: rec.header.Get("Content-Security-Policy")}
-		for k, v := range rec.header {
-			w.Header()[k] = v
+		if out == nil {
+			out = render()
 		}
-		if cacheable && (rec.status == http.StatusOK || rec.status == http.StatusNotFound) && rec.header.Get("Cache-Control") != "no-store" {
-			s.pages.SetAt(key, e, gen)
+		for k, v := range out.header {
+			w.Header()[k] = slices.Clone(v)
 		}
-		s.recordView(r, e.Status, e.ContentType)
-		writeCached(w, r, s.fillTokens(e), "MISS")
+		s.recordView(r, out.entry.Status, out.entry.ContentType)
+		writeCached(w, r, s.fillTokens(out.entry), "MISS")
 	}
 }
 
@@ -258,6 +335,13 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, th *theme.Th
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
+	// A vulnerability scan reads no page: it gets the bare answer, which
+	// costs no query and no render, and is not worth keeping.
+	if rctx(r).Session == nil && analytics.ScannerPath(r.URL.Path) {
+		w.Header().Set("Cache-Control", "no-store")
+		http.NotFound(w, r)
+		return
+	}
 	th, pd, err := s.basePage(r, "404")
 	if err != nil {
 		http.NotFound(w, r)
@@ -850,7 +934,7 @@ func (s *Server) buildWidgets(ctx context.Context, th *theme.Theme, d *siteData,
 				if n < 1 || n > 20 {
 					n = 5
 				}
-				posts, _, err := s.store.ListPosts(ctx, store.PostQuery{Type: store.TypePost, Lang: d.lang, PublicOnly: true, Limit: n, WithMedia: true})
+				posts, _, err := s.store.ListPosts(ctx, store.PostQuery{Type: store.TypePost, Lang: d.lang, PublicOnly: true, Limit: n, WithMedia: true, NoCount: true})
 				if err != nil {
 					continue
 				}

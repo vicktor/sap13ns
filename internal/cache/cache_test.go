@@ -55,3 +55,36 @@ func TestSetAtAfterInvalidate(t *testing.T) {
 		t.Fatal("a page rendered after the change was not cached")
 	}
 }
+
+// Replacing a page in a full cache keeps the count of bytes right, and
+// makes no room at the expense of another page.
+func TestReplaceKeepsBytes(t *testing.T) {
+	c := New(4, 1<<20, time.Minute)
+	body := make([]byte, 1000)
+	for round := 0; round < 5; round++ {
+		for _, k := range []string{"a", "b", "c", "d"} {
+			c.Set(k, &Entry{Body: body})
+		}
+	}
+	if n, bytes := c.Stats(); n != 4 || bytes != 4000 {
+		t.Fatalf("%d entries, %d bytes", n, bytes)
+	}
+}
+
+// When the cache is full, the page served longest ago goes, not the one
+// rendered first.
+func TestEvictsLeastUsed(t *testing.T) {
+	c := New(2, 1<<20, time.Minute)
+	c.Set("home", &Entry{Body: []byte("home")})
+	time.Sleep(time.Millisecond)
+	c.Set("probe-1", &Entry{Body: []byte("x")})
+	time.Sleep(time.Millisecond)
+	c.Get("home")
+	c.Set("probe-2", &Entry{Body: []byte("x")})
+	if _, ok := c.Get("home"); !ok {
+		t.Error("the page people read was evicted")
+	}
+	if _, ok := c.Get("probe-1"); ok {
+		t.Error("the page nobody asked for again was kept")
+	}
+}

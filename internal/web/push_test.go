@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -114,7 +115,7 @@ func TestPush(t *testing.T) {
 
 	// Subscribing: JSON only, a known push service only.
 	for name, code := range map[string]int{
-		subscribeCase(subscribe(good, "application/x-www-form-urlencoded")): http.StatusUnsupportedMediaType,
+		subscribeCase(subscribe(good, "application/x-www-form-urlencoded")):    http.StatusUnsupportedMediaType,
 		subscribeCase(subscribe("https://evil.test/push", "application/json")): http.StatusBadRequest,
 		subscribeCase(subscribe("https://127.0.0.1/push", "application/json")): http.StatusBadRequest,
 	} {
@@ -189,3 +190,110 @@ func TestPush(t *testing.T) {
 }
 
 func subscribeCase(code int) string { return http.StatusText(code) }
+
+// A post is notified once and not during maintenance; a subscription
+// whose service keeps failing is forgotten after a few posts, one whose
+// host does not exist at once.
+func TestPushFailuresAndRepeats(t *testing.T) {
+	e := newCustomEnv(t)
+	ctx := context.Background()
+	set := e.s.settings()
+	set.Push = true
+	if err := e.st.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	e.s.ReloadSettings(ctx)
+	u, _ := e.st.UserByUsername(ctx, "admin")
+	post := func(slug string) *store.Post {
+		at := time.Now().Add(-time.Hour)
+		id, err := e.st.CreatePost(ctx, store.PostInput{Type: store.TypePost, Status: store.StatusPublished, Title: slug, Slug: slug,
+			Content: "Texto.", Lang: e.s.lang(), AuthorID: u.ID, CommentStatus: "open", PublishedAt: &at})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := e.st.PostByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	first := post("uno")
+
+	key, _ := ecdh.P256().GenerateKey(rand.Reader)
+	auth := make([]byte, 16)
+	rand.Read(auth)
+	const (
+		ok      = "https://fcm.googleapis.com/fcm/send/ok"
+		flaky   = "https://updates.push.services.mozilla.com/wpush/v2/flaky"
+		refused = "https://web.push.apple.com/refused"
+		nohost  = "https://nobody.notify.windows.com/w/?token=x"
+	)
+	for _, endpoint := range []string{ok, flaky, refused, nohost} {
+		if saved, err := e.st.SavePushSubscription(ctx, store.PushSubscription{Endpoint: endpoint, P256dh: key.PublicKey().Bytes(), Auth: auth, Lang: e.s.lang()}); err != nil || !saved {
+			t.Fatalf("subscription: %v %v", saved, err)
+		}
+	}
+	var mu sync.Mutex
+	hits := map[string]int{}
+	e.s.push.client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+		mu.Lock()
+		hits[r.URL.String()]++
+		mu.Unlock()
+		status := http.StatusCreated
+		switch r.URL.String() {
+		case flaky:
+			status = http.StatusInternalServerError
+		case refused:
+			status = http.StatusForbidden
+		case nohost:
+			return nil, &net.DNSError{Err: "no such host", Name: r.URL.Hostname(), IsNotFound: true}
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader("")), Header: http.Header{}}, nil
+	})}
+	notify := func(p *store.Post) {
+		t.Helper()
+		e.s.pushPublished(p)
+		for i := 0; e.s.jobs.Load() > 0 && i < 500; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	count := func() int {
+		n, _ := e.st.CountPushSubscriptions(ctx)
+		return n
+	}
+	sent := func(endpoint string) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return hits[endpoint]
+	}
+
+	notify(first)
+	if count() != 3 || sent(nohost) != 1 {
+		t.Fatalf("after one post: %d subscriptions, %d sends to a host that does not exist", count(), sent(nohost))
+	}
+	notify(first) // published again
+	if sent(ok) != 1 {
+		t.Errorf("a post was notified %d times", sent(ok))
+	}
+
+	set = e.s.settings()
+	set.Maintenance.On = true
+	e.st.SaveSettings(ctx, set)
+	e.s.ReloadSettings(ctx)
+	notify(post("cerrado"))
+	if sent(ok) != 1 {
+		t.Error("a post was notified during maintenance")
+	}
+	set.Maintenance.On = false
+	e.st.SaveSettings(ctx, set)
+	e.s.ReloadSettings(ctx)
+
+	notify(post("dos"))
+	if count() != 3 {
+		t.Errorf("two failures already forget a subscription: %d left", count())
+	}
+	notify(post("tres"))
+	if count() != 1 || sent(ok) != 3 || sent(flaky) != store.MaxPushFailures || sent(refused) != store.MaxPushFailures {
+		t.Errorf("after three posts: %d subscriptions, sends ok %d, failing %d, refused %d", count(), sent(ok), sent(flaky), sent(refused))
+	}
+}

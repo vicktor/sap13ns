@@ -454,8 +454,8 @@ func (s *Server) newAdminPage(w http.ResponseWriter, r *http.Request, title, sec
 		p.Update = s.updateNotice()
 	}
 	if p.User != nil && auth.Can(p.User.Role, auth.CapModerate) {
-		if counts, err := s.store.CountCommentsByStatus(r.Context()); err == nil {
-			p.Pending = counts["pending"]
+		if n, err := s.store.CountPendingComments(r.Context()); err == nil {
+			p.Pending = n
 		}
 	}
 	p.Switcher = s.siteSwitcher(r)

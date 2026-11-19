@@ -21,6 +21,8 @@ import (
 	"time"
 	_ "time/tzdata" // self-contained timezone database
 
+	"golang.org/x/sync/singleflight"
+
 	"sap13ns/internal/analytics"
 	"sap13ns/internal/auth"
 	"sap13ns/internal/cache"
@@ -72,8 +74,13 @@ type Server struct {
 	coreStampV    string
 	admin         *adminTemplates
 
-	pages   *cache.Cache // rendered public responses
-	content *cache.Cache // rendered post bodies
+	pages *cache.Cache // rendered public responses
+	// strays are the rendered responses nobody links to: addresses the
+	// site does not have and search results. Kept apart from pages, so
+	// that a scan or a run of searches cannot push the site's pages out.
+	strays    *cache.Cache
+	rendering singleflight.Group // one render per page at a time (cached)
+	content   *cache.Cache       // rendered post bodies
 
 	state atomic.Pointer[siteState]
 	site  siteCache
@@ -85,6 +92,7 @@ type Server struct {
 	commentIP  *auth.Limiter
 	registerIP *auth.Limiter
 	resetIP    *auth.Limiter
+	mailTest   *auth.Limiter // test e-mails from Settings → E-mail, per site
 	uploadUser *auth.Limiter
 	tokenIP    *auth.Limiter // failed personal access tokens, per IP (design_mcp.go)
 	agentUser  *auth.Limiter // design MCP calls, per user
@@ -194,6 +202,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		hosts:         d.Hosts,
 		media:         &media.Processor{Dir: d.Config.UploadsDir, MaxBytes: d.Config.MaxUploadBytes},
 		pages:         cache.New(cmp.Or(cs.Pages, 2000), cmp.Or(cs.PagesBytes, 64<<20), 2*time.Minute),
+		strays:        cache.New(max(cmp.Or(cs.Pages, 2000)/10, 50), max(cmp.Or(cs.PagesBytes, 64<<20)/16, 1<<20), 2*time.Minute),
 		content:       cache.New(cmp.Or(cs.Content, 1000), cmp.Or(cs.ContentBytes, 32<<20), 24*time.Hour),
 		loginIP:       auth.NewLimiter(20, 15*time.Minute),
 		loginUser:     auth.NewLimiter(8, 15*time.Minute),
@@ -201,6 +210,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		commentIP:     auth.NewLimiter(6, 10*time.Minute),
 		registerIP:    auth.NewLimiter(5, time.Hour),
 		resetIP:       auth.NewLimiter(5, time.Hour),
+		mailTest:      auth.NewLimiter(5, time.Hour),
 		uploadUser:    auth.NewLimiter(120, time.Hour),
 		tokenIP:       auth.NewLimiter(20, 10*time.Minute),
 		agentUser:     auth.NewLimiter(120, time.Minute),
@@ -219,7 +229,7 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 	}
 	if s.videos != nil {
 		// A new poster or title changes the pages that show the video.
-		s.videos.OnChange(func(string) { s.pages.Invalidate(); s.content.Invalidate() })
+		s.videos.OnChange(func(string) { s.dropPages(); s.content.Invalidate() })
 	}
 	s.sso, _ = d.Network.(SSOClient)
 	s.portal, _ = d.Network.(Portal)
@@ -369,7 +379,7 @@ func (s *Server) followSettings(ctx context.Context) {
 
 // contentChanged invalidates caches after any write that affects public pages.
 func (s *Server) contentChanged() {
-	s.pages.Invalidate()
+	s.dropPages()
 	s.content.Invalidate() // bodies can show other posts (shortcodes, filters)
 	s.site.invalidate()
 	s.custom.invalidate()
@@ -468,6 +478,7 @@ func (s *Server) Background(ctx context.Context, opt BackgroundOptions) {
 func (s *Server) Maintain(ctx context.Context) {
 	Maintain(ctx, s.store, s.settings(), s.log)
 	s.SweepExports(time.Now())
+	s.sweepTransfers(time.Now())
 }
 
 // Maintain is the periodic cleanup of one site's store, with its settings.

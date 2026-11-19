@@ -13,11 +13,16 @@ type PushSubscription struct {
 	P256dh   []byte
 	Auth     []byte
 	Lang     string
+	Failures int // sends in a row its push service did not take
 }
 
 // MaxPushSubscriptions is how many browsers a site keeps: a new one past
 // it is refused.
 const MaxPushSubscriptions = 20000
+
+// MaxPushFailures is how many sends in a row a push service may fail to
+// take before the subscription is forgotten.
+const MaxPushFailures = 3
 
 // SavePushSubscription keeps a subscription, or refreshes the keys and the
 // language of one the site already has. It reports false when the site is
@@ -40,16 +45,40 @@ func (s *Store) DeletePushSubscription(ctx context.Context, endpoint string) err
 // PushSubscriptions lists the subscriptions after id, at most limit, in
 // the order they were made. With langs, only those of these languages.
 func (s *Store) PushSubscriptions(ctx context.Context, after int64, limit int, langs []string) ([]PushSubscription, error) {
-	rows, err := s.DB.Query(ctx, `SELECT id, endpoint, p256dh, auth, lang FROM push_subscriptions
+	rows, err := s.DB.Query(ctx, `SELECT id, endpoint, p256dh, auth, lang, failures FROM push_subscriptions
 		WHERE id > $1 AND ($3::text[] IS NULL OR lang = ANY($3)) ORDER BY id LIMIT $2`, after, limit, langs)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (PushSubscription, error) {
 		var p PushSubscription
-		err := row.Scan(&p.ID, &p.Endpoint, &p.P256dh, &p.Auth, &p.Lang)
+		err := row.Scan(&p.ID, &p.Endpoint, &p.P256dh, &p.Auth, &p.Lang, &p.Failures)
 		return p, err
 	})
+}
+
+// PushFailed counts a send the push service did not take, and forgets the
+// subscription at MaxPushFailures in a row.
+func (s *Store) PushFailed(ctx context.Context, endpoint string) error {
+	tag, err := s.DB.Exec(ctx, `DELETE FROM push_subscriptions WHERE endpoint = $1 AND failures >= $2 - 1`, endpoint, MaxPushFailures)
+	if err != nil || tag.RowsAffected() > 0 {
+		return err
+	}
+	_, err = s.DB.Exec(ctx, `UPDATE push_subscriptions SET failures = failures + 1 WHERE endpoint = $1`, endpoint)
+	return err
+}
+
+// PushDelivered starts the count of failed sends again.
+func (s *Store) PushDelivered(ctx context.Context, endpoint string) error {
+	_, err := s.DB.Exec(ctx, `UPDATE push_subscriptions SET failures = 0 WHERE endpoint = $1 AND failures > 0`, endpoint)
+	return err
+}
+
+// ClaimPush marks a post as notified and reports whether it was not yet:
+// a post is notified once, however often it is published again.
+func (s *Store) ClaimPush(ctx context.Context, id int64) (bool, error) {
+	tag, err := s.DB.Exec(ctx, `UPDATE posts SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL`, id)
+	return err == nil && tag.RowsAffected() > 0, err
 }
 
 // CountPushSubscriptions is how many browsers are subscribed.

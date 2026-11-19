@@ -638,7 +638,7 @@ func (s *Server) queueCommenters(hashes []string) {
 			found = found || ok
 		}
 		if found {
-			s.pages.Invalidate() // the cached pages show the initials
+			s.dropPages() // the cached pages show the initials
 		}
 	})
 }

@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +22,7 @@ import (
 
 	"sap13ns/internal/backup"
 	"sap13ns/internal/export"
+	"sap13ns/internal/plugin"
 	"sap13ns/internal/sitebackup"
 	"sap13ns/internal/store"
 	"sap13ns/internal/transfer"
@@ -129,17 +133,23 @@ func (s *Server) transferDir() string { return filepath.Join(s.cfg.DataDir, "tra
 // created by the network.
 func (s *Server) canImport() bool { return !s.cfg.Multisite && len(s.cfg.ServerKey) == 32 }
 
-// isNetworkAdmin reports whether the user is an admin of the network the
-// site is on.
-func (s *Server) isNetworkAdmin(r *http.Request, u *store.User) bool {
-	if s.limits == nil || u.NetworkAccountID == nil {
+// isNetworkAdmin reports whether the request is from an admin of the
+// network the site is on, signed in through the portal: a local sign-in
+// of a user linked to such an account is not one (portalAccount), since
+// the site's own administrators can set that user's password.
+func (s *Server) isNetworkAdmin(r *http.Request) bool {
+	if s.limits == nil {
 		return false
 	}
-	ok, err := s.limits.NetworkAdmin(r.Context(), *u.NetworkAccountID)
+	account, ok := portalAccount(r)
+	if !ok {
+		return false
+	}
+	admin, err := s.limits.NetworkAdmin(r.Context(), account)
 	if err != nil {
 		s.log.Warn("network admin", "err", err)
 	}
-	return ok
+	return admin
 }
 
 func (s *Server) adminTransfer(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +164,7 @@ func (s *Server) renderTransfer(w http.ResponseWriter, r *http.Request, status i
 	if s.backupHooks != nil {
 		d.Portal = s.backupHooks.BackupIdentity().Portal
 	}
-	d.NetworkAdmin = s.isNetworkAdmin(r, u)
+	d.NetworkAdmin = s.isNetworkAdmin(r)
 	if s.cfg.SMTP.Enabled() && (!d.Network || d.NetworkAdmin) {
 		d.ServerSMTP = s.cfg.SMTP.Host
 	}
@@ -212,14 +222,14 @@ func (s *Server) renderTransfer(w http.ResponseWriter, r *http.Request, status i
 	s.renderAdminStatus(w, r, status, "transfer", s.tu(r, "Move site"), "transfer", d)
 }
 
-// expireTransferLocked drops an upload left half done for a day and a
-// checked archive not imported in time. j.mu is held.
+// expireTransferLocked drops an upload nobody touched for a day, whole or
+// not, and a checked archive not imported in time. j.mu is held.
 func (s *Server) expireTransferLocked(now time.Time) {
 	j := &s.transfers
 	if j.running != "" {
 		return
 	}
-	if j.up != nil && j.up.got < j.up.size && now.Sub(j.up.touched) > 24*time.Hour {
+	if j.up != nil && now.Sub(j.up.touched) > 24*time.Hour {
 		os.Remove(j.up.path)
 		j.up = nil
 	}
@@ -227,6 +237,43 @@ func (s *Server) expireTransferLocked(now time.Time) {
 		j.staged.Close()
 		j.staged = nil
 	}
+}
+
+// sweepTransfers removes what an interrupted move left on disk: uploads
+// and unpacked archives nobody holds any more (a restart forgets them; the
+// unpacked tables are in clear), and the spool of an export cut short. A
+// day old at least, so that a move running from the command line is left
+// alone.
+func (s *Server) sweepTransfers(now time.Time) {
+	j := &s.transfers
+	j.mu.Lock()
+	s.expireTransferLocked(now)
+	held := map[string]bool{}
+	if j.up != nil {
+		held[j.up.path] = true
+	}
+	if j.staged != nil {
+		held[j.staged.Dir()] = true
+	}
+	j.mu.Unlock()
+	sweep := func(dir string, stale func(os.DirEntry) bool) {
+		des, _ := os.ReadDir(dir)
+		for _, d := range des {
+			p := filepath.Join(dir, d.Name())
+			info, err := d.Info()
+			if err != nil || held[p] || !stale(d) || now.Sub(info.ModTime()) < 24*time.Hour {
+				continue
+			}
+			if err := os.RemoveAll(p); err != nil {
+				s.log.Warn("sweep transfers", "err", err)
+			}
+		}
+	}
+	sweep(s.transferDir(), func(d os.DirEntry) bool { return !d.IsDir() && strings.HasSuffix(d.Name(), ".part") })
+	sweep(s.cfg.DataDir, func(d os.DirEntry) bool { return d.IsDir() && strings.HasPrefix(d.Name(), transfer.StagePrefix) })
+	sweep(s.exportDir(), func(d os.DirEntry) bool {
+		return !d.IsDir() && strings.HasPrefix(d.Name(), transfer.StagePrefix) && strings.HasSuffix(d.Name(), ".spool")
+	})
 }
 
 // dropTransferLocked removes the upload and the checked archive. j.mu is held.
@@ -316,7 +363,7 @@ func (s *Server) adminTransferExport(w http.ResponseWriter, r *http.Request) {
 		s.renderTransfer(w, r, http.StatusConflict, s.tu(r, "Large exports need an export directory outside the uploads directory. Ask the server administrator."))
 		return
 	}
-	netAdmin := s.isNetworkAdmin(r, u)
+	netAdmin := s.isNetworkAdmin(r)
 	o := transfer.ExportOptions{
 		Source: transfer.Source{URL: s.cfg.BaseURL.String(), Title: s.settings().SiteTitle, Label: s.cfg.BaseURL.Hostname(),
 			RPID: cmp.Or(s.cfg.PasskeyRPID, s.cfg.BaseURL.Hostname())},
@@ -678,6 +725,16 @@ func (s *Server) adminTransferImport(w http.ResponseWriter, r *http.Request) {
 		s.transferBusy(w, r)
 		return
 	}
+	// The archive checked above may have been replaced or have expired
+	// before the job was claimed: nothing can touch it from here on.
+	j.mu.Lock()
+	same := j.staged == st
+	j.mu.Unlock()
+	if !same {
+		s.finishTransferJob(u.ID, "")
+		s.renderTransfer(w, r, http.StatusUnprocessableEntity, s.tu(r, "Upload the archive first."))
+		return
+	}
 	s.audit(r, u.ID, "transfer.import_started", m.Source.Label, map[string]string{"from": m.Source.URL})
 	ip := clientIP(r)
 	s.goJob(func() {
@@ -703,7 +760,7 @@ func (s *Server) adminTransferImport(w http.ResponseWriter, r *http.Request) {
 			s.log.Error("audit", "err", err)
 		}
 		j.mu.Lock()
-		j.staged.Close()
+		st.Close()
 		j.staged, j.running, j.imported = nil, "", rep
 		j.mu.Unlock()
 		s.log.Info("site imported", "from", m.Source.URL, "rows", rep.Rows, "files", rep.Files)
@@ -724,6 +781,45 @@ func (s *Server) importTransfer(ctx context.Context, st *transfer.Staged, keep *
 	if _, _, err := sitebackup.Create(ctx, s.store, o); err != nil {
 		return nil, err
 	}
-	return st.Apply(ctx, s.store.DB, transfer.ApplyOptions{UploadsDir: s.cfg.UploadsDir, PluginsDir: s.cfg.PluginsDir, ThemesDir: s.cfg.ThemesDir,
+	rep, err := st.Apply(ctx, s.store.DB, transfer.ApplyOptions{UploadsDir: s.cfg.UploadsDir, PluginsDir: s.cfg.PluginsDir, ThemesDir: s.cfg.ThemesDir,
 		ServerKey: s.cfg.ServerKey, Replace: true, Keep: keep, Log: s.log})
+	if err == nil {
+		s.scanImportedPlugins(ctx)
+	}
+	return rep, err
+}
+
+// scanImportedPlugins scans the plugins an archive brought and switches
+// off those the scanner blocks. Their approvals came with the archive's
+// rows, so without this a plugin no install would accept (a critical
+// finding, a build on the blocklist) would run at the next start.
+func (s *Server) scanImportedPlugins(ctx context.Context) {
+	if s.plugins == nil {
+		return
+	}
+	des, err := os.ReadDir(s.cfg.PluginsDir)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			s.log.Error("scan imported plugins", "err", err)
+		}
+		return
+	}
+	for _, d := range des {
+		if !d.IsDir() {
+			continue
+		}
+		rep := s.plugins.ScanDir(ctx, filepath.Join(s.cfg.PluginsDir, d.Name()), plugin.ScanOptions{})
+		if !rep.Blocked() {
+			continue
+		}
+		for _, id := range slices.Compact([]string{d.Name(), cmp.Or(rep.PluginID, d.Name())}) {
+			if err := s.store.DisablePlugin(ctx, id); err != nil {
+				s.log.Error("disable imported plugin", "plugin", id, "err", err)
+			}
+		}
+		s.log.Warn("imported plugin switched off: the scanner blocks it", "plugin", d.Name())
+		if err := s.store.Audit(ctx, 0, "transfer.plugin_blocked", d.Name(), netip.Addr{}, map[string]string{"sha256": rep.WasmSHA256}); err != nil {
+			s.log.Error("audit", "err", err)
+		}
+	}
 }

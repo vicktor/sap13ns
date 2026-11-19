@@ -19,6 +19,7 @@ type Entry struct {
 	// entry sooner.
 	MaxAge  time.Duration
 	created time.Time
+	used    atomic.Int64 // when it was last served, to evict what nobody asks for
 	gen     uint64
 }
 
@@ -63,6 +64,7 @@ func (c *Cache) Get(key string) (*Entry, bool) {
 		return nil, false
 	}
 	c.hits.Add(1)
+	e.used.Store(time.Now().UnixNano())
 	return e, true
 }
 
@@ -89,15 +91,20 @@ func (c *Cache) SetAt(key string, e *Entry, gen uint64) {
 		return // invalidated while it was rendered
 	}
 	if old, ok := c.entries[key]; ok {
+		// Out before making room: counted again below, it would be taken
+		// off the total twice and the size limit would stop holding.
 		c.bytes -= len(old.Body)
+		delete(c.entries, key)
 	}
+	e.used.Store(e.created.UnixNano())
 	for (len(c.entries) >= c.max || c.bytes+len(e.Body) > c.maxSize) && len(c.entries) > 0 {
-		// Evict the oldest entry. The cache is small, so a scan is fine.
+		// Evict the entry served longest ago. The cache is small, so a
+		// scan is fine.
 		var oldestKey string
-		var oldest time.Time
+		var oldest int64
 		for k, v := range c.entries {
-			if oldestKey == "" || v.created.Before(oldest) {
-				oldestKey, oldest = k, v.created
+			if u := v.used.Load(); oldestKey == "" || u < oldest {
+				oldestKey, oldest = k, u
 			}
 		}
 		c.bytes -= len(c.entries[oldestKey].Body)

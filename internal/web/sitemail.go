@@ -181,6 +181,13 @@ func (s *Server) adminMailSettingsSave(w http.ResponseWriter, r *http.Request) {
 		fail(s.tu(r, "Write the server and the sender to use a server of your own."))
 		return
 	}
+	if s.cfg.Multisite && st.Host != "" && st.Username == "" {
+		// A server that asks for no account is another domain's own mail
+		// server: the network's address would deliver to it under any
+		// sender's name.
+		fail(s.tu(r, "Write the user name of your account on the server: on this network, a server of your own must ask for one."))
+		return
+	}
 	pass := r.FormValue("password")
 	switch {
 	case pass != "":
@@ -225,6 +232,10 @@ func (s *Server) adminMailSettingsSave(w http.ResponseWriter, r *http.Request) {
 		s.renderMailSettings(w, r, http.StatusOK, st, s.tu(r, "There is no SMTP server to test: set one up here, or ask the server's administrator."), "")
 		return
 	}
+	if !s.mailTest.Allow("test") {
+		s.renderMailSettings(w, r, http.StatusTooManyRequests, st, s.tu(r, "Saved. Too many test e-mails were sent in the last hour: try the test again later."), "")
+		return
+	}
 	title := s.settings().SiteTitle
 	err = s.mail.Send(u.Email, s.tu(r, "Test e-mail from %s", title),
 		s.tu(r, "This message shows that %s can send e-mail through %s.", title, s.mail.Server()))
@@ -239,8 +250,11 @@ func (s *Server) adminMailSettingsSave(w http.ResponseWriter, r *http.Request) {
 // mailError is what the administrator is told of a failed send: the SMTP
 // server's reply, or why it could not be reached.
 func (s *Server) mailError(r *http.Request, err error) string {
-	if errors.Is(err, netguard.ErrForbidden) {
-		return s.tu(r, "the server's address is not public")
+	// One answer for a name that does not exist and for one of the
+	// server's own network: told apart, they would map that network.
+	var dns *net.DNSError
+	if errors.Is(err, netguard.ErrForbidden) || errors.As(err, &dns) {
+		return s.tu(r, "no server was found under that name at a public address")
 	}
 	msg := err.Error()
 	if len(msg) > 300 {

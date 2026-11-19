@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"mime"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -34,6 +35,7 @@ import (
 // pushState is the site's key pair and whether it has posts, cached.
 type pushState struct {
 	mu        sync.Mutex
+	sending   sync.Mutex // one post is sent at a time
 	priv, pub []byte
 	posts     atomic.Int32 // 0 not known, 1 the site has published posts, 2 none
 	limiter   *auth.Limiter
@@ -50,6 +52,7 @@ var pushClient = &http.Client{
 		TLSHandshakeTimeout:   5 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
 		MaxIdleConnsPerHost:   8,
+		MaxConnsPerHost:       8,
 		IdleConnTimeout:       30 * time.Second,
 	},
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -226,10 +229,19 @@ func (s *Server) apiPushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 // pushPublished tells the subscribed browsers that p went live: those of
-// its language on a site with several, all of them otherwise. It runs in
-// the background; a subscription its service no longer knows is forgotten.
+// its language on a site with several, all of them otherwise. Once per
+// post, and not while the site is closed for maintenance. It runs in the
+// background, one post at a time; a subscription its service no longer
+// knows is forgotten, and so is one that fails store.MaxPushFailures
+// posts in a row.
 func (s *Server) pushPublished(p *store.Post) {
-	if p.Type != store.TypePost || !s.pushOn() {
+	if p.Type != store.TypePost || !s.pushOn() || s.settings().Maintenance.On {
+		return
+	}
+	if first, err := s.store.ClaimPush(context.Background(), p.ID); err != nil || !first {
+		if err != nil {
+			s.log.Error("push claim", "post", p.ID, "err", err)
+		}
 		return
 	}
 	st := s.settings()
@@ -247,6 +259,8 @@ func (s *Server) pushPublished(p *store.Post) {
 	}
 	subject := s.cfg.AbsURL("/")
 	s.goJob(func() {
+		s.push.sending.Lock()
+		defer s.push.sending.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
 		priv, _, err := s.pushKeys(ctx)
@@ -267,14 +281,22 @@ func (s *Server) pushPublished(p *store.Post) {
 				defer wg.Done()
 				for sub := range work {
 					err := webpush.Send(ctx, client, webpush.Subscription{Endpoint: sub.Endpoint, P256dh: sub.P256dh, Auth: sub.Auth}, payload, subject, priv, 24*time.Hour)
+					var dns *net.DNSError
 					switch {
 					case err == nil:
 						sent.Add(1)
-					case errors.Is(err, webpush.Gone):
+						if sub.Failures > 0 {
+							_ = s.store.PushDelivered(ctx, sub.Endpoint)
+						}
+					case errors.Is(err, webpush.Gone), errors.As(err, &dns) && dns.IsNotFound:
+						// A name that does not exist was never a browser's.
 						gone.Add(1)
 						_ = s.store.DeletePushSubscription(ctx, sub.Endpoint)
+					case ctx.Err() != nil:
+						// Out of time: says nothing about the subscription.
 					default:
 						failed.Add(1)
+						_ = s.store.PushFailed(ctx, sub.Endpoint)
 					}
 				}
 			}()

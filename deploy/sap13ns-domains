@@ -82,7 +82,35 @@ HOOK="touch $STATE/reload"
 
 log() { echo "sap13ns-domains: $*"; }
 
-install -d -m 0700 "$STATE" "$STATE/failed" "$STATE/removed"
+# cb SECONDS ARGS: certbot on this helper's own directory, never on the
+# server's /etc/letsencrypt, and never for longer than SECONDS.
+cb() {
+    t=$1
+    shift
+    timeout "$t" certbot --config-dir "$LE" --work-dir "$STATE/work" --logs-dir "$STATE/logs" "$@"
+}
+
+# renew: the renewals. Twice a day at most; certbot renews what has less
+# than 30 days left, and asks for a reload of nginx (HOOK) for each one it
+# renewed. Also run before a run gives up on the list (too long, or the
+# names of the other sites unknown): the certificates already issued must
+# not expire because of it.
+renew() {
+    renew_now=$(date +%s)
+    renewed=0
+    if [ -f "$STATE/renewed" ]; then renewed=$(stat -c %Y "$STATE/renewed"); fi
+    if [ $((renew_now - renewed)) -ge 43200 ] || [ "$renewed" -gt "$renew_now" ]; then
+        touch "$STATE/renewed"
+        if ls "$LE"/renewal/*.conf >/dev/null 2>&1; then
+            if ! cb 900 renew --quiet --deploy-hook "$HOOK" >"$STATE/certbot-renew.log" 2>&1; then
+                log "certbot renew reported failures (a domain that left the list cannot renew):"
+                tail -n 15 "$STATE/certbot-renew.log" >&2
+            fi
+        fi
+    fi
+}
+
+install -d -m 0700 "$STATE" "$STATE/failed" "$STATE/removed" "$STATE/seen"
 install -d -m 0755 "$CONF_DIR" "$WEBROOT" "$LE"
 # nginx must be able to read the challenges, also where an earlier certbot
 # or a strict umask left these directories closed (a 403 for Let's Encrypt).
@@ -128,7 +156,8 @@ if ! readlist >"$list" 2>/dev/null; then
     exit 0
 fi
 if [ "$(wc -c <"$list")" -gt 262144 ] || [ "$(wc -l <"$list")" -gt "$MAX_DOMAINS" ]; then
-    log "$LIST is larger than expected (more than $MAX_DOMAINS domains or 256 KiB): nothing done"
+    log "$LIST is larger than expected (more than $MAX_DOMAINS domains or 256 KiB): only renewals done"
+    renew
     exit 1
 fi
 
@@ -140,13 +169,6 @@ valid() {
         printf '%s\n' "$1" | grep -Eqx '([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?'
 }
 
-# cb SECONDS ARGS: certbot on this helper's own directory, never on the
-# server's /etc/letsencrypt, and never for longer than SECONDS.
-cb() {
-    t=$1
-    shift
-    timeout "$t" certbot --config-dir "$LE" --work-dir "$STATE/work" --logs-dir "$STATE/logs" "$@"
-}
 cert_files() { [ -s "$LIVE/$1/fullchain.pem" ] && [ -s "$LIVE/$1/privkey.pem" ]; }
 # has_cert: the certificate of the host is in place, whole.
 has_cert() { cert_files "$1" && [ -s "$LE/renewal/$1.conf" ]; }
@@ -330,7 +352,8 @@ done
 # foreign is what nginx would run (nginx -T: includes expanded), without
 # the blocks this helper wrote and without comments.
 if ! all=$(nginx -T 2>/dev/null); then
-    log "nginx -T failed: the names of the other sites are unknown, nothing done"
+    log "nginx -T failed: the names of the other sites are unknown, only renewals done"
+    renew
     exit 1
 fi
 foreign=$(printf '%s\n' "$all" | awk -v own="$CONF_DIR/" '
@@ -347,7 +370,7 @@ do_reload # also what an earlier run left to reload
 others() {
     {
         printf '%s\n' "$foreign" | tr '\n' ' ' | grep -o 'server_name[[:space:]][^;]*' |
-            sed 's/^server_name//' | tr -d "\"'" | tr -s ' \t' '\n' || true
+            sed 's/^server_name//' | tr -d "\"'" | tr -s ' \t\r' '\n' || true
         for d in "$OTHER_LIVE"/*/; do
             [ -d "$d" ] || continue
             name=$(basename "$d")
@@ -384,12 +407,15 @@ is_taken() {
     fi
     printf '%s\n' "$taken" | grep '^~' | {
         while IFS= read -r re; do
+            # Without regard to case, always: nginx matches a server
+            # name that way when its expression has a capital letter, and
+            # the host here is in lower case.
             case "$re" in
-            '~*'*) re=${re#"~*"} opt=-qiP ;;
-            *) re=${re#"~"} opt=-qP ;;
+            '~*'*) re=${re#"~*"} ;;
+            *) re=${re#"~"} ;;
             esac
             rc=0
-            printf '%s\n' "$1" | grep "$opt" -e "$re" 2>/dev/null || rc=$?
+            printf '%s\n' "$1" | grep -qiP -e "$re" 2>/dev/null || rc=$?
             if [ "$rc" = 0 ]; then exit 0; fi
             if [ "$rc" != 1 ]; then exit 2; fi
         done
@@ -421,7 +447,8 @@ while IFS= read -r h || [ -n "$h" ]; do
         continue
     fi
     if [ "$rc" != 1 ]; then
-        log "a regular expression in a server_name of another nginx site cannot be checked here (grep -P): nothing done"
+        log "a regular expression in a server_name of another nginx site cannot be checked here (grep -P): only renewals done"
+        renew
         exit 1
     fi
     case " $wanted " in *" $h "*) continue ;; esac # listed twice
@@ -506,8 +533,25 @@ retries=$(grep -c ' again$' "$STATE/attempts" || true)
 # New blocks only for the domains that can get a certificate today: a list
 # of a thousand names does not make a thousand blocks.
 room=$((MAX_ISSUE_DAY - attempts))
+# They go to the domains that have waited longest (seen/HOST is when one
+# was first found waiting), not to the first names of the list: someone
+# who keeps adding and removing domains to use up the day's certificates
+# cannot keep a domain that came before theirs waiting for ever.
+queue=
 for h in $wanted; do
-    if has_cert "$h" || [ -f "$CONF_DIR/$h.conf" ]; then continue; fi
+    if has_cert "$h" || [ -f "$CONF_DIR/$h.conf" ]; then
+        rm -f "$STATE/seen/$h"
+        continue
+    fi
+    [ -f "$STATE/seen/$h" ] || touch "$STATE/seen/$h"
+    queue="$queue $h"
+done
+for f in "$STATE"/seen/*; do
+    [ -f "$f" ] || continue
+    case " $wanted " in *" $(basename "$f") "*) ;; *) rm -f "$f" ;; esac
+done
+queue=$(for h in $queue; do echo "$(stat -c %Y "$STATE/seen/$h") $h"; done | sort -k1,1n -k2,2 | awk '{ print $2 }')
+for h in $queue; do
     if waiting "$h"; then continue; fi
     if [ "$room" -le 0 ]; then break; fi
     room=$((room - 1))
@@ -603,19 +647,7 @@ for h in $fresh $again; do
 done
 
 # --- Renewals ----------------------------------------------------------------
-# Twice a day at most; certbot renews what has less than 30 days left, and
-# asks for a reload of nginx (HOOK) for each one it renewed.
-renewed=0
-if [ -f "$STATE/renewed" ]; then renewed=$(stat -c %Y "$STATE/renewed"); fi
-if [ $((now - renewed)) -ge 43200 ] || [ "$renewed" -gt "$now" ]; then
-    touch "$STATE/renewed"
-    if ls "$LE"/renewal/*.conf >/dev/null 2>&1; then
-        if ! cb 900 renew --quiet --deploy-hook "$HOOK" >"$STATE/certbot-renew.log" 2>&1; then
-            log "certbot renew reported failures (a domain that left the list cannot renew):"
-            tail -n 15 "$STATE/certbot-renew.log" >&2
-        fi
-    fi
-fi
+renew
 
 # --- Step 3: the 443 block of every domain with a certificate ---------------
 for h in $wanted; do

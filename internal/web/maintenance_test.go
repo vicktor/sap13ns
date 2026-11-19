@@ -143,3 +143,35 @@ func TestMaintenance(t *testing.T) {
 		t.Fatalf("home after: %d", rec.Code)
 	}
 }
+
+// During maintenance, an administration hidden from visitors and the
+// address of an icon the site does not have are closed like the rest:
+// neither shows the theme's page for an unknown address, with the site's
+// menus and widgets on it.
+func TestMaintenanceClosesUnknownAddresses(t *testing.T) {
+	e := newCustomEnv(t)
+	ctx := t.Context()
+	set := e.s.settings()
+	set.Maintenance.On, set.HideAdmin = true, true
+	if err := e.st.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	e.s.ReloadSettings(ctx)
+	for _, path := range []string{"/admin", "/admin/", "/admin/posts", "/favicon.ico"} {
+		if rec := e.get(path, nil); rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s: %d", path, rec.Code)
+		}
+	}
+	// Whoever writes on the site still gets in.
+	if rec := e.get("/admin/", e.admin); rec.Code != http.StatusOK {
+		t.Errorf("the administrator's admin: %d", rec.Code)
+	}
+	// The billing webhook of a network's portal is not turned away.
+	if !e.s.maintenanceServes(httptest.NewRequest("POST", "http://example.test/billing/webhook", nil)) {
+		t.Error("the billing webhook is closed")
+	}
+	// One piece of an archive fits in a request (transfer.go).
+	if n := e.s.maxBody(httptest.NewRequest("POST", "http://example.test/admin/tools/transfer/upload?offset=0", nil)); n < transferChunk {
+		t.Errorf("an upload chunk of %d does not fit in a body of %d", transferChunk, n)
+	}
+}

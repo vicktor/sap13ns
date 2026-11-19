@@ -448,6 +448,9 @@ func (s *Server) maxBody(r *http.Request) int64 {
 	if isAvatarUpload(r) {
 		return avatarBodyLimit
 	}
+	if r.URL.Path == "/admin/tools/transfer/upload" {
+		return transferChunk // one piece of an archive (transfer.go)
+	}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return s.cfg.MaxUploadBytes + 1<<20
 	}

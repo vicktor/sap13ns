@@ -103,6 +103,9 @@ type PostQuery struct {
 	WithTerms  bool
 	WithMedia  bool
 	ExcludeIDs []int64
+	// NoCount skips counting every match: the total comes back as 0. For
+	// a list that shows its first posts and no pager.
+	NoCount bool
 }
 
 func (q *PostQuery) where() *whereBuilder {
@@ -148,13 +151,20 @@ func searchFold(expr string) string {
 func (s *Store) ListPosts(ctx context.Context, q PostQuery) ([]Post, int, error) {
 	w := q.where()
 	var total int
-	if err := s.DB.QueryRow(ctx, `SELECT count(*) FROM posts p`+w.sql(), w.args...).Scan(&total); err != nil {
-		return nil, 0, err
+	if !q.NoCount {
+		if err := s.DB.QueryRow(ctx, `SELECT count(*) FROM posts p`+w.sql(), w.args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
 	}
 	if q.Limit <= 0 {
 		q.Limit = 10
 	}
 	order := ` ORDER BY coalesce(p.published_at, p.created_at) DESC, p.id DESC`
+	if q.PublicOnly {
+		// The same order, since a public post has its date; written so
+		// that posts_public_idx gives it without sorting them all.
+		order = ` ORDER BY p.published_at DESC, p.id DESC`
+	}
 	switch q.Order {
 	case "updated":
 		order = ` ORDER BY p.updated_at DESC, p.id DESC`

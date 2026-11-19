@@ -149,6 +149,14 @@ func (s *Store) DeleteComment(ctx context.Context, id int64) error {
 	return err
 }
 
+// CountPendingComments is how many comments wait for moderation: the
+// number the administration shows on every page.
+func (s *Store) CountPendingComments(ctx context.Context) (int, error) {
+	var n int
+	err := s.DB.QueryRow(ctx, `SELECT count(*)::int FROM comments WHERE status = 'pending'`).Scan(&n)
+	return n, err
+}
+
 func (s *Store) CountCommentsByStatus(ctx context.Context) (map[string]int, error) {
 	rows, err := s.DB.Query(ctx, `SELECT status, count(*)::int FROM comments GROUP BY status`)
 	if err != nil {

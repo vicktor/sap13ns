@@ -110,7 +110,9 @@ func (s *Server) drawSiteIcon(ctx context.Context, id int64) (map[int][]byte, er
 	if v, ok := m.Variants["medium"]; ok && v.Path != "" {
 		rel = v.Path
 	}
-	f, err := os.Open(filepath.Join(s.cfg.UploadsDir, filepath.FromSlash(rel)))
+	// Inside the uploads only: the path is a row of the site, and rows
+	// come from another server when a site is moved in (internal/transfer).
+	f, err := os.OpenInRoot(s.cfg.UploadsDir, filepath.FromSlash(rel))
 	if err != nil {
 		return nil, err
 	}

@@ -174,3 +174,20 @@ func TestHTMLBlockLang(t *testing.T) {
 		}
 	}
 }
+
+// A block cannot carry what the cookie consent and the price switch act
+// on: a link that accepts every cookie when clicked, an address copied
+// into href.
+func TestHTMLBlockConsentAndPlans(t *testing.T) {
+	for in, want := range map[string]string{
+		`<a href="#x" data-consent-accept>Go on</a>`:                         `<a href="#x">Go on</a>`,
+		`<button data-consent-toggle="analytics">x</button>`:                 `x`,
+		`<a href="/a" data-href-year="/b" data-interval="year">Plan</a>`:     `<a href="/a">Plan</a>`,
+		`<div data-plans data-plan-switch><p data-plan="pro">Pro</p></div>`:  `<div><p>Pro</p></div>`,
+		`<p data-planet="mars" data-consented="x" data-hreflang-x="1">A</p>`: `<p data-planet="mars" data-consented="x" data-hreflang-x="1">A</p>`,
+	} {
+		if got := SanitizeHTMLBlock(in); got != want {
+			t.Errorf("%s\n got %s\nwant %s", in, got, want)
+		}
+	}
+}

@@ -36,7 +36,7 @@ type maintenancePage struct {
 // mode is on.
 func (s *Server) maintenanceGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !s.settings().Maintenance.On || maintenanceBypass(r) || s.maintenanceServes(r.URL.Path) {
+		if !s.settings().Maintenance.On || maintenanceBypass(r) || s.maintenanceServes(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -51,20 +51,26 @@ func maintenanceBypass(r *http.Request) bool {
 	return u != nil && auth.Can(u.Role, auth.CapEditOwnPosts)
 }
 
-// maintenanceServes reports whether path answers everyone during
-// maintenance: sign-in and the administration, the assets their pages
-// and the maintenance page use, and what keeps the server and the
-// installed app working.
-func (s *Server) maintenanceServes(path string) bool {
-	if notOpenFixed(path) || s.isSignIn(path) {
+// maintenanceServes reports whether the request is answered as usual
+// during maintenance: sign-in and the administration, the assets their
+// pages and the maintenance page use, and what keeps the server, the
+// installed app and the billing of a network working. An administration
+// hidden from visitors is not among them: it would answer with the
+// theme's page for an address the site does not have, menus and all.
+func (s *Server) maintenanceServes(r *http.Request) bool {
+	path := r.URL.Path
+	if s.isSignIn(path) {
 		return true
+	}
+	if notOpenFixed(path) {
+		return !(path == "/admin" || strings.HasPrefix(path, "/admin/")) || !s.hideAdmin(r)
 	}
 	for _, p := range []string{"/themes/", "/plugin-assets/", "/site-icon/", "/uploads/", "/.well-known/"} {
 		if strings.HasPrefix(path, p) {
 			return true
 		}
 	}
-	return slices.Contains([]string{"/healthz", "/sw.js", "/manifest.webmanifest", "/favicon.ico"}, path)
+	return slices.Contains([]string{"/healthz", "/sw.js", "/manifest.webmanifest", "/billing/webhook"}, path)
 }
 
 // serveMaintenance writes the maintenance page, in the language of the

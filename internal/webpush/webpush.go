@@ -223,7 +223,9 @@ func Send(ctx context.Context, client *http.Client, sub Subscription, payload []
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return nil
-	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone || resp.StatusCode == http.StatusForbidden:
+	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
+		// 403 is not here: a service that refuses the site's own token (a
+		// wrong clock, say) answers it for every subscription at once.
 		return Gone
 	}
 	return fmt.Errorf("webpush: the push service answered %d", resp.StatusCode)

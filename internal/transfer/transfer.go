@@ -63,6 +63,13 @@ var (
 	maxMembers       = 1_000_000
 	maxManifestBytes = int64(256 << 20)
 	maxMemberBytes   = int64(1 << 40)
+	// What an archive unpacks to is bounded by its own size: a site's
+	// tables and files do not compress a hundred times, an archive made
+	// to fill the disk does.
+	maxExpansion   = int64(100)
+	minUnpackBytes = int64(64 << 20)
+	// maxTrailingBytes is the zero padding after the end of the tar.
+	maxTrailingBytes = int64(64 << 10)
 )
 
 var (

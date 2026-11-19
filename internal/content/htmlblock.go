@@ -57,6 +57,10 @@ var reservedData = []string{
 	"data-copy-", "data-sticky", "data-editor", "data-endpoint", "data-lang", "data-confirm",
 	"data-dialog", "data-overlay", "data-popover", "data-builder", "data-plugin", "data-sap",
 	"data-csrf", "data-state", "data-side", "data-align", "data-tooltip", "data-keep-mobile-sidebar-open",
+	// The cookie consent (consent.js: a link that accepts every category
+	// when clicked) and the price switch (plans.js, which copies
+	// data-href-* into href).
+	"data-consent", "data-plan", "data-plans", "data-href-", "data-interval",
 }
 
 // motionData are the motion library's attributes (ui/static/motion.js),

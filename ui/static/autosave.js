@@ -36,6 +36,7 @@
   const base = form.dataset.heartbeat;
   if (base) {
     let last = snapshot();
+    let sent = last; // what the last beat carried, saved or not
     let busy = false;
     const lockNotice = $("[data-lock-notice]");
     const lockText = $("[data-lock-text]");
@@ -48,8 +49,10 @@
       try {
         const headers = { "Content-Type": "application/json", "X-CSRF-Token": csrf() };
         // Without changes it only renews the lock: not activity, so an
-        // editor left open does not keep the session alive.
-        if (body.title === undefined) headers["X-Background"] = "1";
+        // editor left open does not keep the session alive. Nor does a
+        // text the server would not save (too long, say), sent again.
+        if (body.title === undefined || (!force && same(now, sent))) headers["X-Background"] = "1";
+        sent = now;
         const res = await fetch(base + "/heartbeat", {
           method: "POST", credentials: "same-origin",
           headers,
