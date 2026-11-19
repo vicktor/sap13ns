@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual de sap13ns</title>
+<style>
+  :root {
+    --ink: #1b1530;
+    --ink-soft: #4b4563;
+    --rule: #dcd8e6;
+    --paper: #ffffff;
+    --desk: #efedf4;
+    --brand: #3f068b;
+    --brand-soft: #f1eafb;
+    --cyan: #0ab8b1;
+    --cyan-soft: #e3f8f7;
+    --warn: #8a4b00;
+    --warn-soft: #fdf3e1;
+    --body: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--ink);
+    font: 11.5pt/1.55 var(--body);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet {
+    max-width: 210mm;
+    margin: 24px auto;
+    padding: 22mm 20mm;
+    background: var(--paper);
+    box-shadow: 0 1px 3px rgb(27 21 48 / .12), 0 12px 40px rgb(27 21 48 / .08);
+  }
+  h1, h2, h3, h4, .ui, th, .toc, .toolbar, .cover-meta, .steps > li::before { font-family: var(--ui); }
+  h1, h2, h3, h4 { line-height: 1.2; text-wrap: balance; }
+  h2 {
+    margin: 0 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--brand);
+    font-size: 21pt;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+  h2 .n {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--cyan);
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  h3 { margin: 26px 0 8px; font-size: 13.5pt; font-weight: 700; color: var(--brand); }
+  h4 { margin: 18px 0 6px; font-size: 11pt; font-weight: 700; }
+  p { margin: 0 0 10px; text-wrap: pretty; }
+  ul, ol { margin: 0 0 10px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  a { color: var(--brand); }
+  section.chapter { margin-top: 56px; }
+  .lead { font-size: 12.5pt; color: var(--ink-soft); }
+
+  /* Where something is in the panel, and what a button says */
+  .path, .btn {
+    font-family: var(--ui);
+    font-size: .88em;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .path { color: var(--brand); }
+  .btn {
+    padding: 1px 6px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: #faf9fc;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: .86em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: #f4f2f8;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--brand);
+    background: #f7f5fb;
+    font: 9pt/1.5 var(--mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  pre code { padding: 0; background: none; font-size: inherit; }
+
+  table { width: 100%; margin: 6px 0 14px; border-collapse: collapse; font-size: 10pt; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  th { font-size: 8.5pt; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1.5px solid var(--ink); }
+  td.c, th.c { text-align: center; }
+  td .yes { color: var(--brand); font-weight: 700; font-family: var(--ui); }
+  td .no { color: #b3aec4; }
+  td:first-child { font-family: var(--ui); font-weight: 600; font-size: 9.5pt; }
+
+  figure.shot { margin: 16px 0 18px; }
+  figure.shot img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 8px; background: #f8f9fb; }
+  h3 + figure.shot { margin-top: 8px; }
+  figure.shot.narrow img { width: 46%; margin: 0 auto; }
+  figure.shot figcaption { margin-top: 7px; font: 9pt/1.4 var(--ui); color: var(--ink-soft); }
+  figure.shot.narrow figcaption { text-align: center; }
+  .note { margin: 12px 0 14px; padding: 10px 14px; border-radius: 6px; background: var(--brand-soft); font-size: 10.5pt; }
+  .note > :last-child { margin-bottom: 0; }
+  .note strong:first-child { font-family: var(--ui); }
+  .note.tip { background: var(--cyan-soft); }
+  .note.warn { background: var(--warn-soft); }
+  .note.warn strong:first-child { color: var(--warn); }
+
+  ol.steps { list-style: none; padding-left: 0; counter-reset: step; }
+  ol.steps > li { position: relative; margin-bottom: 8px; padding-left: 34px; counter-increment: step; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 1px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--brand); color: #fff;
+    font-size: 9pt; font-weight: 700; line-height: 22px; text-align: center;
+  }
+
+  /* Cover */
+  .cover { min-height: 250mm; display: flex; flex-direction: column; }
+  .cover svg { width: 34mm; height: 34mm; }
+  .cover h1 { margin: 26mm 0 0; font-size: 44pt; font-weight: 800; letter-spacing: -.03em; }
+  .cover .sub { margin-top: 6px; font: 400 17pt/1.3 var(--ui); color: var(--ink-soft); }
+  .cover .band { margin-top: 18mm; height: 6px; width: 60mm; background: linear-gradient(90deg, var(--brand) 0 70%, var(--cyan) 70% 100%); }
+  .cover .about { margin-top: 12mm; max-width: 120mm; font-size: 12pt; color: var(--ink-soft); }
+  .cover-meta { margin-top: auto; padding-top: 10mm; font-size: 9.5pt; color: var(--ink-soft); border-top: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  /* Contents */
+  .toc ol { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 12mm; }
+  .toc li { break-inside: avoid; margin: 0 0 7px; font-size: 10.5pt; }
+  .toc a { display: flex; gap: 8px; color: var(--ink); text-decoration: none; }
+  .toc a:hover span:last-child { text-decoration: underline; }
+  .toc .n { min-width: 20px; color: var(--cyan); font-weight: 700; }
+
+  /* Screen-only bar */
+  .toolbar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px;
+    background: var(--ink); color: #fff; font-size: 13px;
+  }
+  .toolbar button {
+    padding: 7px 14px; border: 0; border-radius: 6px;
+    background: var(--cyan); color: #06201f; font: 700 13px var(--ui); cursor: pointer;
+  }
+  .toolbar button:hover { background: #0ad0c8; }
+
+  @media screen and (max-width: 800px) {
+    .sheet { margin: 0; padding: 28px 16px; box-shadow: none; }
+    .cover { min-height: 0; }
+    .cover h1 { margin-top: 32px; font-size: 34pt; }
+    .toc ol { columns: 1; }
+    table { display: block; overflow-x: auto; }
+  }
+
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm;
+    @bottom-left { content: "sap13ns · Manual de uso"; font: 8pt system-ui, sans-serif; color: #8a85a0; }
+    @bottom-right { content: counter(page); font: 8pt system-ui, sans-serif; color: #8a85a0; }
+  }
+  @page :first { @bottom-left { content: ""; } @bottom-right { content: ""; } }
+  @media print {
+    body { background: none; font-size: 10.5pt; }
+    .toolbar { display: none; }
+    .sheet { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+    .cover { min-height: 245mm; break-after: page; }
+    .toc { break-after: page; }
+    section.chapter { break-before: page; margin-top: 0; }
+    thead { display: table-header-group; }
+    h3 + table, h3 + p, h4 + p, h2 + .lead, p + table, p + ol, p + ul { break-before: avoid; }
+    h2, h3, h4 { break-after: avoid; break-inside: avoid; }
+    tr, .note, pre, ol.steps > li, table.keep, .lead, figure.shot { break-inside: avoid; }
+    .lead { break-after: avoid; }
+    p, li { orphans: 2; widows: 2; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span>Manual de sap13ns · para guardarlo como PDF, pulsa el botón y elige «Guardar como PDF» como destino</span>
+  <button type="button" id="print">Guardar como PDF</button>
+</div>
+
+<main class="sheet">
+
+<!-- ================================================================ cover -->
+<header class="cover">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="sap13ns"><title>sap13ns</title><path fill="#0AE3DA" d="M170 218.1c1.5-.1 3.1-1.2 4.4-1.8 3.5-1.5 6.9-3.3 10.2-5.3 7.4-4.4 14.1-10.1 18.8-17.3 5.2-8 7.7-17.3 7.4-26.8-.1-7.3-1.9-14.4-6.3-20.4-2.2-3.1-4.9-5.6-7.8-7.9-7.5-5.8-16.4-9.5-25.3-12.6-18.1-6.1-37.1-9.1-55.1-15.2-4.7-1.6-9.2-3.4-13.6-5.6-4.2-2-8.2-4.3-11.5-7.7-2.9-3-5-7-5.6-11.2-.2-1.1-.1-2.3-.1-3.4v-6.4l-.1-17.8-.1-6.1v-2c0-.3 0-.8-.1-1.1-.5 0-1.2.5-1.7.8l-3.2 1.7c-3.8 2.2-7.3 4.5-10.9 6.9-3.5 2.3-7 4.8-10.4 7.2-2.7 2.1-5.5 4-7.7 6.7-1.8 2.1-3.3 4.7-4.2 7.3-.9 2.7-1.1 5.6-1.2 8.4 0 1.6-.2 3.4.2 5 .2 1 .7 1.9 1.1 2.9 1.5 3.5 3.8 6.6 6.7 9.2 3.7 3.5 8.4 5.9 12.8 8.3 5.7 3 11.4 5.8 17.2 8.5 16.7 8 33.6 15.4 50.6 22.8 5.3 2.4 10.7 4.7 16 7.1 5 2.2 10.1 4.2 13.7 8.5 2.9 3.4 4.7 7.7 5.3 12.2.5 3.8.3 7.7.3 11.6v21.4 8.1l.1 2.5c0 .4-.1 1 .1 1.5zM162.5 179.2c-.7.1-1.4 1.2-1.9 1.7-.9.9-2 1.8-3.1 2.5-4.6 2.8-10.5 3-15.5 1.3-3.7-1.2-7.2-3.1-10.7-4.9l-13.1-6.5c-13.9-7-27.8-13.9-41.8-20.6l-14.1-6.9c-4.3-2-9.7-5.3-14.5-3.3-1 .4-1.8 1-2.2 1.9-.4.9-.3 2-.3 3l-.1 3.8v10.2 16.7c0 3.2-.2 6.6.3 9.8.5 3.4 2 6.6 4.3 9.2 3.2 3.4 7.5 5.2 11.7 7l9.4 3.9c10.9 4.5 21.7 9 32.4 13.7 8.7 3.7 17.3 7.6 25.8 11.7l7.6 3.7c2.7 1.3 5.3 2.7 8.2 3.3 1.6.3 3.4.3 5.1.1 6.4-.7 11.8-6 13.1-12.2.3-1.7.2-3.5.2-5.3l.1-8.2v-24.1c0-2.5 0-5-.1-7.5-.1-.9-.2-1.9-.4-2.8-.1-.4-.1-1-.4-1.2z"/><path fill="#3F068B" d="M91.9 90.3c.4-.4.3-1.9.4-2.5.2-1.2.6-2.3 1.1-3.4 2.5-5.5 8-8.9 14-8.8 1.5 0 2.9.1 4.3.5 1.4.5 2.6 1.1 3.9 1.8l4.6 2.3c5 2.6 10 5.3 15.1 7.9 8.1 4.2 16.2 8.3 24.4 12.3 9.3 4.7 18.7 9.2 28.5 12.7 2.8 1 5.7 1.8 8.7 2.4 3 .6 6.6 1.2 9.6 0 1.5-.6 3-1.7 3.3-3.4.2-.9.1-1.9.1-2.8l.1-5.3v-16-11c-.1-2.3.1-4.7-.3-6.9-.4-2-1.4-4-2.7-5.6-2.6-3.5-6.5-4.9-10.4-6.6-3.8-1.6-7.6-3.3-11.3-5-13.2-6.2-26.3-12.6-39.4-19.1l-23.4-11.7-6.9-3.4c-1.7-.9-3.4-1.8-5.3-2.4-3-1-6.4-1.2-9.4-.2-4.9 1.5-8.9 5.3-10.2 10.3-.6 2.2-.5 4.5-.5 6.7v8.5 23.1 15.1c0 1.8-.2 3.8 0 5.6.1.9.5 1.9.7 2.8.2.6.5 1.7 1 2.1zM168 219c1-.2 1.8-.7 2.8-1l-.1-30.6c0-8.4.8-17.4-4.1-24.9-1.3-2-3-4-5-5.4-3.5-2.6-7.7-4.2-11.6-6-5.7-2.5-11.4-5-17.1-7.5-20.7-9.1-41.4-18.1-61.6-28.3-7.6-3.8-15.8-7.8-20.9-14.9-1.5-2.1-2.7-4.4-3.4-6.9-.3-.9-.5-1.8-.7-2.7 0-.4 0-1.5-.4-1.7-.2.6-.1 1.5-.1 2.1l-.1 4.5c-.1 4.5-.2 9.1-.2 13.7 0 4.4-.4 9.1 1.1 13.4 2.7 7.2 8.8 12.1 15.3 15.7 3.4 1.9 6.8 3.5 10.4 4.9 12.8 5 26.2 7.8 39.6 10.6 4.2.9 8.3 1.9 12.5 2.7 7.1 1.5 14.3 3.3 21.3 5.4 5.9 1.8 12.1 4 16.7 8.1 2.1 1.9 4.1 4.4 4.9 7.2.8 2.4.7 4.7.7 7.2v8.7z"/></svg>
+  <h1>sap13ns</h1>
+  <div class="sub">Manual de uso</div>
+  <div class="band"></div>
+  <p class="about">Cómo funciona el gestor de contenidos sap13ns: entrar al panel, escribir y publicar, dar forma al sitio, administrar usuarios, plugins y ajustes, y mantenerlo todo a salvo.</p>
+  <div class="cover-meta">
+    <span>Corresponde a la versión 0.27.2</span>
+    <span>Noviembre de 2026</span>
+  </div>
+</header>
+
+<!-- ============================================================= contents -->
+<nav class="toc" aria-label="Contenido">
+  <h2><span class="n">Índice</span>Contenido</h2>
+  <ol>
+    <li><a href="#c1"><span class="n">1</span><span>Qué es sap13ns</span></a></li>
+    <li><a href="#c2"><span class="n">2</span><span>Entrar al panel</span></a></li>
+    <li><a href="#c3"><span class="n">3</span><span>El panel de un vistazo</span></a></li>
+    <li><a href="#c4"><span class="n">4</span><span>Entradas y páginas</span></a></li>
+    <li><a href="#c5"><span class="n">5</span><span>Medios</span></a></li>
+    <li><a href="#c6"><span class="n">6</span><span>Categorías, etiquetas y comentarios</span></a></li>
+    <li><a href="#c7"><span class="n">7</span><span>Idiomas y traducciones</span></a></li>
+    <li><a href="#c8"><span class="n">8</span><span>Apariencia: temas, diseño, menús y widgets</span></a></li>
+    <li><a href="#c9"><span class="n">9</span><span>Plugins</span></a></li>
+    <li><a href="#c10"><span class="n">10</span><span>Inteligencia artificial</span></a></li>
+    <li><a href="#c11"><span class="n">11</span><span>Analítica</span></a></li>
+    <li><a href="#c12"><span class="n">12</span><span>Usuarios y roles</span></a></li>
+    <li><a href="#c13"><span class="n">13</span><span>Ajustes</span></a></li>
+    <li><a href="#c14"><span class="n">14</span><span>Herramientas: importar, exportar, copias y traslados</span></a></li>
+    <li><a href="#c15"><span class="n">15</span><span>Sistema y actualizaciones</span></a></li>
+    <li><a href="#c16"><span class="n">16</span><span>Redes de sitios</span></a></li>
+    <li><a href="#c17"><span class="n">17</span><span>Para quien administra el servidor</span></a></li>
+    <li><a href="#c18"><span class="n">18</span><span>Problemas frecuentes</span></a></li>
+  </ol>
+</nav>
+
+<!-- =================================================================== 1 -->
+<section class="chapter" id="c1">
+  <h2><span class="n">Capítulo 1</span>Qué es sap13ns</h2>
+  <p class="lead">sap13ns es un gestor de contenidos para blogs y webs de empresa. Hace lo que se usa a diario en WordPress —entradas, páginas, comentarios, medios, menús, temas, plugins y varios idiomas— con un único programa y una base de datos.</p>
+
+  <figure class="shot">
+    <img src="img/sitio.jpg" width="2240" height="1330" alt="Portada de un sitio de ejemplo con el aviso de cookies">
+    <figcaption>Un sitio hecho con sap13ns, con el tema Apple. Abajo, el aviso de cookies que ve cada visitante nuevo.</figcaption>
+  </figure>
+
+  <h3>Las piezas</h3>
+  <table>
+    <thead><tr><th style="width:26%">Pieza</th><th>Qué es</th></tr></thead>
+    <tbody>
+    <tr><td>El sitio público</td><td>Lo que ven los visitantes: la portada, las entradas, las páginas, el blog, los archivos por categoría y la búsqueda.</td></tr>
+    <tr><td>El panel</td><td>La administración, en <code>/admin</code>. Desde aquí se escribe, se diseña y se configura. Está en español y en inglés.</td></tr>
+    <tr><td>Entradas</td><td>Los artículos del blog. Tienen fecha, autor, categorías y etiquetas, y aparecen en los listados y en los feeds.</td></tr>
+    <tr><td>Páginas</td><td>Contenido estable: «Quiénes somos», «Contacto», el aviso legal. Pueden colgar unas de otras y no llevan categorías.</td></tr>
+    <tr><td>Tema</td><td>El aspecto del sitio. Se elige, se personaliza y se puede sustituir sin tocar el contenido.</td></tr>
+    <tr><td>Plugins</td><td>Funciones añadidas: formulario de contacto, tabla de contenidos, publicación en redes sociales…</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Un sitio o una red</h3>
+  <p>sap13ns funciona de dos maneras. Lo habitual es <strong>un sitio</strong> en su servidor. La otra es una <strong>red</strong>: un solo programa sirve un portal y muchos sitios independientes, cada uno con sus usuarios, su contenido y su dominio. Casi todo este manual vale para las dos; lo propio de una red está en el <a href="#c16">capítulo 16</a>.</p>
+
+  <h3>Cómo leer este manual</h3>
+  <p>Los lugares del panel se escriben así: <span class="path">Ajustes → Lectura</span>. Los botones, así: <span class="btn">Publicar</span>. Los nombres son los que muestra el panel en español.</p>
+  <div class="note"><strong>Según tu rol verás más o menos.</strong> El menú solo enseña lo que tu cuenta puede hacer. Un autor no ve <span class="path">Ajustes</span> ni <span class="path">Plugins</span>; un administrador lo ve todo. La tabla de roles está en el <a href="#c12">capítulo 12</a>.</div>
+</section>
+
+<!-- =================================================================== 2 -->
+<section class="chapter" id="c2">
+  <h2><span class="n">Capítulo 2</span>Entrar al panel</h2>
+
+  <h3>Iniciar sesión</h3>
+  <ol class="steps">
+    <li>Abre la dirección de acceso de tu sitio. Por defecto es <code>https://tu-sitio/login</code>; el administrador puede haber elegido otra, como <code>/entrar</code>.</li>
+    <li>Escribe tu <strong>usuario o correo electrónico</strong> y tu <strong>contraseña</strong>, y pulsa <span class="btn">Iniciar sesión</span>.</li>
+    <li>Si tu cuenta tiene verificación en dos pasos, introduce el código de 6 dígitos de tu aplicación, o usa tu passkey.</li>
+  </ol>
+  <figure class="shot narrow">
+    <img src="img/login.jpg" width="1575" height="1085" alt="Página de inicio de sesión">
+    <figcaption>La página de acceso al panel.</figcaption>
+  </figure>
+  <div class="note warn"><strong>El panel necesita https.</strong> Si el sitio se sirve por http sin cifrar, la sesión no se mantiene: el panel acepta la contraseña y vuelve a mostrar el inicio de sesión. Es una protección, no un fallo de tu cuenta.</div>
+
+  <h3>La primera vez: verificación en dos pasos</h3>
+  <p>Quien escribe o administra tiene que proteger su cuenta con un segundo factor. La primera vez que entras, el panel te lleva a <span class="path">Verificación en dos pasos</span>:</p>
+  <ol class="steps">
+    <li>Escanea el código QR con una aplicación de códigos, como Google Authenticator o 1Password.</li>
+    <li>Escribe el <strong>código de 6 dígitos</strong> que te muestra y pulsa <span class="btn">Activar</span>.</li>
+    <li>Guarda los <strong>códigos de recuperación</strong> con <span class="btn">Copiar</span> o <span class="btn">Descargar</span>, y confirma con <span class="btn">Ya los he guardado</span>. Cada uno sirve una vez, para entrar si pierdes el móvil.</li>
+  </ol>
+  <p>En lugar de la aplicación puedes registrar una <strong>passkey</strong> (la huella o el rostro de tu dispositivo, o una llave de seguridad). Sirve como segundo factor o para entrar sin contraseña.</p>
+
+  <figure class="shot">
+    <img src="img/2fa.jpg" width="1806" height="928" alt="Pantalla de verificación en dos pasos con un código QR">
+    <figcaption>Escanea el código con tu aplicación de autenticación y escribe los seis dígitos que te muestra.</figcaption>
+  </figure>
+
+  <h3>Si olvidas la contraseña</h3>
+  <p>En la pantalla de acceso, el enlace de contraseña olvidada abre <span class="path">Restablece tu contraseña</span>: escribe tu correo y pulsa <span class="btn">Enviar enlace</span>. Para que el mensaje llegue, el sitio tiene que tener configurado el correo (<span class="path">Ajustes → Correo electrónico</span>). Si no llega, un administrador puede ponerte una contraseña nueva desde <span class="path">Usuarios</span>.</p>
+
+  <h3>Tu perfil</h3>
+  <p>Arriba, junto a tu nombre, está <span class="path">Tu perfil</span>. Desde ahí cambias:</p>
+  <ul>
+    <li><strong>Perfil:</strong> nombre público, correo, sitio web, biografía y foto.</li>
+    <li><strong>Idioma del panel</strong> y modo claro u oscuro: solo para ti, sin afectar al sitio público.</li>
+    <li><strong>Contraseña, passkeys y verificación en dos pasos,</strong> con códigos de recuperación nuevos.</li>
+    <li><strong>Sesiones:</strong> <span class="btn">Cerrar sesión en otros dispositivos</span>, por si dejaste una abierta.</li>
+  </ul>
+</section>
+
+<!-- =================================================================== 3 -->
+<section class="chapter" id="c3">
+  <h2><span class="n">Capítulo 3</span>El panel de un vistazo</h2>
+  <p class="lead">El menú lateral agrupa todo en tres bloques. Esta es la lista completa, tal como la ve un administrador.</p>
+
+  <figure class="shot">
+    <img src="img/escritorio.jpg" width="2240" height="1400" alt="Escritorio del panel de administración">
+    <figcaption>El escritorio. A la izquierda, el menú con sus tres grupos: Contenido, Apariencia y Administración.</figcaption>
+  </figure>
+
+  <h3>Contenido</h3>
+  <table>
+    <thead><tr><th style="width:28%">Sección</th><th>Para qué sirve</th></tr></thead>
+    <tbody>
+    <tr><td>Escritorio</td><td>Resumen: tus borradores, lo publicado hace poco y los comentarios por moderar.</td></tr>
+    <tr><td>Entradas</td><td>Los artículos del blog.</td></tr>
+    <tr><td>Páginas</td><td>Las páginas fijas del sitio.</td></tr>
+    <tr><td>Medios</td><td>Imágenes y archivos subidos.</td></tr>
+    <tr><td>Categorías</td><td>La clasificación principal de las entradas.</td></tr>
+    <tr><td>Etiquetas</td><td>Palabras clave libres.</td></tr>
+    <tr><td>Comentarios</td><td>Moderación de lo que escriben los visitantes.</td></tr>
+    <tr><td>Analítica</td><td>Visitas, páginas más vistas, orígenes y bots.</td></tr>
+    </tbody>
+  </table>
+  <h3>Apariencia</h3>
+  <table>
+    <thead><tr><th style="width:28%">Sección</th><th>Para qué sirve</th></tr></thead>
+    <tbody>
+    <tr><td>Temas</td><td>Elegir, previsualizar y subir temas.</td></tr>
+    <tr><td>Diseño</td><td>Colores, tipografías, textos y estructura de las páginas.</td></tr>
+    <tr><td>Menús</td><td>Los menús de navegación, por ubicación e idioma.</td></tr>
+    <tr><td>Widgets</td><td>Los bloques de las zonas laterales y del pie.</td></tr>
+    </tbody>
+  </table>
+  <h3>Administración</h3>
+  <table>
+    <thead><tr><th style="width:28%">Sección</th><th>Para qué sirve</th></tr></thead>
+    <tbody>
+    <tr><td>Plugins</td><td>Instalar, activar y configurar funciones añadidas.</td></tr>
+    <tr><td>IA</td><td>El proveedor de inteligencia artificial y el asistente del sitio.</td></tr>
+    <tr><td>Usuarios</td><td>Cuentas y roles.</td></tr>
+    <tr><td>Ajustes</td><td>La configuración general del sitio.</td></tr>
+    <tr><td>Redirecciones</td><td>Reglas para direcciones antiguas.</td></tr>
+    <tr><td>Importar</td><td>Traer contenido de WordPress o de otro sap13ns.</td></tr>
+    <tr><td>Exportar</td><td>Sacar el contenido del sitio.</td></tr>
+    <tr><td>Copias de seguridad</td><td>Hacer, descargar y restaurar copias.</td></tr>
+    <tr><td>Trasladar sitio</td><td>Llevar el sitio entero a otro servidor.</td></tr>
+    <tr><td>Registro de auditoría</td><td>Quién hizo qué y cuándo.</td></tr>
+    <tr><td>Sistema</td><td>Versión instalada y actualizaciones. No aparece en los sitios de una red.</td></tr>
+    </tbody>
+  </table>
+
+  <p>Abajo del menú están <span class="path">Tu perfil</span>, <span class="path">Ver el sitio</span>, que abre la web pública, y <span class="path">Cerrar sesión</span>.</p>
+</section>
+
+<!-- =================================================================== 4 -->
+<section class="chapter" id="c4">
+  <h2><span class="n">Capítulo 4</span>Entradas y páginas</h2>
+  <p class="lead">Entradas y páginas se escriben con el mismo editor. Lo que cambia es dónde aparecen y qué opciones tienen.</p>
+
+  <h3>La lista</h3>
+  <p><span class="path">Entradas</span> muestra todos los artículos con su título, autor, categorías, estado y fecha. Puedes filtrar por idioma, buscar, y aplicar una <strong>acción en lote</strong> a varias a la vez. <span class="btn">Nueva entrada</span> abre el editor en blanco.</p>
+  <figure class="shot">
+    <img src="img/entradas.jpg" width="1806" height="875" alt="Lista de entradas">
+    <figcaption>La lista de entradas, con los filtros por estado, el buscador y las acciones en lote.</figcaption>
+  </figure>
+
+  <h3>El editor</h3>
+  <p>Arriba van el <strong>título</strong> y la <strong>dirección</strong> (la parte final de la URL, que se propone sola a partir del título). Debajo, el contenido, con tres modos que trabajan sobre el mismo texto:</p>
+  <table>
+    <thead><tr><th style="width:22%">Modo</th><th>Qué hace</th></tr></thead>
+    <tbody>
+    <tr><td>Visual</td><td>Escribes con formato, como en un procesador de textos.</td></tr>
+    <tr><td>Markdown</td><td>Ves y editas el código Markdown.</td></tr>
+    <tr><td>Vista previa</td><td>Muestra el texto como quedará publicado.</td></tr>
+    </tbody>
+  </table>
+  <p>La barra de herramientas ofrece estilos de texto y títulos, negrita, cursiva, tachado, enlaces, código, listas con viñetas y numeradas, citas, bloques de código, tablas, separadores, imágenes y vídeos, además de deshacer y rehacer.</p>
+  <figure class="shot">
+    <img src="img/editor.jpg" width="1806" height="1138" alt="Editor de una entrada">
+    <figcaption>El editor: los tres modos y la barra de herramientas sobre el texto y, a la derecha, el panel lateral, que empieza por Publicar.</figcaption>
+  </figure>
+
+  <h4>Imágenes</h4>
+  <p>Inserta una imagen desde la biblioteca de medios o súbela en el momento. Una vez en el texto, arrastra una esquina para cambiar su tamaño y elige su disposición: a la izquierda o a la derecha con el texto alrededor, centrada o a ancho completo.</p>
+
+  <h4>Vídeos</h4>
+  <p>Pega un enlace de YouTube o Vimeo solo en una línea, o usa el botón <span class="btn">Vídeo</span>. Se convierte en un reproductor con su carátula y su título. No se carga nada de YouTube ni de Vimeo hasta que el visitante pulsa reproducir.</p>
+
+  <h4>Pegar desde Word o Google Docs</h4>
+  <p>Al pegar se conservan títulos, listas, tablas, enlaces, imágenes y énfasis, y se descartan las fuentes, los colores y el resto del formato que no hace falta.</p>
+
+  <h3>El panel lateral</h3>
+  <table>
+    <thead><tr><th style="width:26%">Apartado</th><th>Qué controla</th></tr></thead>
+    <tbody>
+    <tr><td>Publicar</td><td>La <strong>visibilidad</strong> (pública, privada o protegida con contraseña), la <strong>fecha de publicación</strong> y los botones para guardar y publicar.</td></tr>
+    <tr><td>Idioma</td><td>El idioma del texto y sus traducciones enlazadas.</td></tr>
+    <tr><td>Extracto</td><td>El resumen que aparece en los listados. Si lo dejas vacío, se toma del principio del texto.</td></tr>
+    <tr><td>Buscadores</td><td>La metadescripción que muestran Google y las redes sociales.</td></tr>
+    <tr><td>Imagen destacada</td><td>La imagen de cabecera y de los listados. Sin ella, el sitio genera una tarjeta con el título para compartir en redes.</td></tr>
+    <tr><td>Categorías y etiquetas</td><td>Solo en las entradas.</td></tr>
+    <tr><td>Atributos de página</td><td>Solo en las páginas: la página superior de la que cuelga y su orden.</td></tr>
+    <tr><td>Comentarios</td><td>Permitirlos o no en este texto, y el autor que firma.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Guardar, publicar y programar</h3>
+  <ul>
+    <li><span class="btn">Guardar borrador</span> guarda sin publicar. El texto queda en estado <strong>Borrador</strong>.</li>
+    <li><span class="btn">Publicar</span> lo hace visible. Después, el botón pasa a ser <span class="btn">Actualizar</span>.</li>
+    <li>Una <strong>fecha de publicación</strong> futura deja el texto <strong>Programado</strong>: se publica solo al llegar la hora.</li>
+    <li>Los colaboradores no publican: su botón es <span class="btn">Enviar a revisión</span>, y el texto queda <strong>Pendiente de revisión</strong> hasta que un editor lo publica.</li>
+    <li><span class="btn">Mover a la papelera</span> lo retira. Desde la papelera se puede restaurar o eliminar permanentemente.</li>
+  </ul>
+
+  <h3>Lo que el editor hace por ti</h3>
+  <ul>
+    <li><strong>Autoguardado.</strong> Cada pocos segundos se guarda una copia de lo que escribes. Si vuelves a un texto y hay un guardado automático más reciente que la versión guardada, el editor te ofrece <span class="btn">Restaurarlo</span> o <span class="btn">Descartar</span>.</li>
+    <li><strong>Bloqueo de edición.</strong> Si otra persona tiene abierto el mismo texto, lo verás bloqueado. <span class="btn">Tomar el control</span> te lo pasa a ti; así dos personas nunca se pisan el trabajo.</li>
+    <li><strong>Revisiones.</strong> Cada guardado deja una versión. Desde <span class="path">Revisiones</span> puedes verlas y recuperar una con <span class="btn">Restaurar esta revisión</span>.</li>
+    <li><strong>Redirección automática.</strong> Si cambias la dirección de un texto publicado, la antigua lleva a la nueva.</li>
+  </ul>
+  <div class="note tip"><strong>Ocultar al asistente del sitio.</strong> Si el sitio tiene chat para visitantes, esta casilla del apartado <span class="path">Publicar</span> deja un texto fuera de sus respuestas sin despublicarlo.</div>
+</section>
+
+<!-- =================================================================== 5 -->
+<section class="chapter" id="c5">
+  <h2><span class="n">Capítulo 5</span>Medios</h2>
+  <p class="lead"><span class="path">Medios</span> es la biblioteca de imágenes y archivos del sitio.</p>
+  <figure class="shot">
+    <img src="img/medios.jpg" width="1806" height="1006" alt="Biblioteca de medios">
+    <figcaption>La biblioteca de medios: arriba, la zona para soltar archivos; debajo, lo ya subido.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Subir:</strong> arrastra archivos a la página o elígelos y pulsa <span class="btn">Subir</span>. Una barra muestra el progreso.</li>
+    <li><strong>Comprobación:</strong> cada archivo se revisa por su contenido real, no por su extensión. Lo que no es lo que dice ser se rechaza.</li>
+    <li><strong>Variantes:</strong> de cada imagen se generan tamaños menores, que el sitio usa donde conviene para cargar más rápido.</li>
+    <li><strong>Duplicados:</strong> si subes dos veces el mismo archivo, se detecta y no se guarda otra copia.</li>
+    <li><strong>Editar:</strong> al abrir un archivo puedes cambiar su texto alternativo, el que leen los lectores de pantalla y los buscadores, y su leyenda. También verás su dirección y el código Markdown para insertarlo.</li>
+  </ul>
+  <div class="note"><strong>Tamaño máximo.</strong> Por defecto, 16 MB por archivo. Lo fija quien administra el servidor; en una red, el plan del sitio limita además el espacio total.</div>
+</section>
+
+<!-- =================================================================== 6 -->
+<section class="chapter" id="c6">
+  <h2><span class="n">Capítulo 6</span>Categorías, etiquetas y comentarios</h2>
+
+  <h3>Categorías y etiquetas</h3>
+  <p>Las <strong>categorías</strong> son las secciones del blog: pocas y estables. Las <strong>etiquetas</strong> son palabras clave libres. Cada una tiene su propia página de archivo en el sitio público. Se crean en <span class="path">Categorías</span> y <span class="path">Etiquetas</span>, o sobre la marcha desde el editor. En un sitio con varios idiomas, el nombre de cada categoría se puede traducir.</p>
+
+  <h3>Comentarios</h3>
+  <figure class="shot">
+    <img src="img/comentarios.jpg" width="1806" height="928" alt="Lista de comentarios">
+    <figcaption>Un comentario pendiente de revisión, resaltado y con sus acciones, y otro ya aprobado.</figcaption>
+  </figure>
+  <p><span class="path">Comentarios</span> reúne lo que escriben los visitantes. Los comentarios van en hilos, de modo que una respuesta queda bajo el comentario al que contesta. Sobre cada uno, o sobre varios seleccionados a la vez, puedes:</p>
+  <table>
+    <thead><tr><th style="width:30%">Acción</th><th>Efecto</th></tr></thead>
+    <tbody>
+    <tr><td>Aprobar</td><td>Lo publica en el sitio.</td></tr>
+    <tr><td>Rechazar</td><td>Lo devuelve a pendiente.</td></tr>
+    <tr><td>Spam</td><td>Lo marca como correo basura.</td></tr>
+    <tr><td>Papelera</td><td>Lo retira. Desde ahí, <span class="btn">Restaurar</span> o <span class="btn">Eliminar permanentemente</span>.</td></tr>
+    </tbody>
+  </table>
+  <p>El número de comentarios pendientes aparece junto a <span class="path">Comentarios</span> en el menú y en el escritorio. Las reglas generales —si se permiten, quién puede comentar, si pasan por moderación, cuándo se cierran— están en <span class="path">Ajustes → Comentarios</span>.</p>
+</section>
+
+<!-- =================================================================== 7 -->
+<section class="chapter" id="c7">
+  <h2><span class="n">Capítulo 7</span>Idiomas y traducciones</h2>
+  <p class="lead">Un sitio tiene un idioma principal y los adicionales que quieras. Cada idioma adicional vive bajo su prefijo: <code>/en/</code>, <code>/ca/</code>…</p>
+
+  <h3>Activar idiomas</h3>
+  <p>En <span class="path">Ajustes → General</span> eliges el <strong>idioma principal</strong>. En <span class="path">Ajustes → Idiomas</span> añades los <strong>idiomas adicionales</strong> y traduces el título del sitio, la descripción corta y el texto del pie.</p>
+
+  <h3>Traducir un texto</h3>
+  <ol class="steps">
+    <li>Abre la entrada o la página y ve al apartado <span class="path">Idioma</span> del panel lateral.</li>
+    <li>Crea su traducción al idioma que quieras. Se abre un texto nuevo, enlazado con el original.</li>
+    <li>Tradúcelo y publícalo. Si la IA está activada, puede preparar un primer borrador.</li>
+  </ol>
+  <p>Los textos enlazados se reconocen entre sí: el selector de idioma del sitio lleva de una versión a la otra, y los buscadores reciben la relación entre ellas. <span class="btn">Desvincular traducciones</span> rompe el enlace sin borrar ningún texto.</p>
+
+  <h3>Lo demás, por idioma</h3>
+  <ul>
+    <li><strong>Menús y widgets</strong> se definen por separado para cada idioma.</li>
+    <li><strong>Feeds</strong> (RSS, Atom y JSON): uno por idioma.</li>
+    <li><strong>El visitante primero:</strong> la portada se abre en el idioma del navegador si el sitio lo tiene; después, en el último que el visitante eligió.</li>
+  </ul>
+  <div class="note"><strong>El idioma del panel es otra cosa.</strong> Cada usuario elige el suyo en su perfil. No cambia nada en el sitio público.</div>
+</section>
+
+<!-- =================================================================== 8 -->
+<section class="chapter" id="c8">
+  <h2><span class="n">Capítulo 8</span>Apariencia: temas, diseño, menús y widgets</h2>
+
+  <h3>Temas</h3>
+  <figure class="shot">
+    <img src="img/temas.jpg" width="1806" height="1050" alt="Página de temas">
+    <figcaption>Los temas instalados. Cada tarjeta enseña sus colores y sus acciones; el activo va marcado.</figcaption>
+  </figure>
+  <p><span class="path">Apariencia → Temas</span> muestra los temas disponibles. sap13ns trae seis, todos con modo claro y oscuro:</p>
+  <table>
+    <thead><tr><th style="width:26%">Tema</th><th>Estilo</th></tr></thead>
+    <tbody>
+    <tr><td>Apple</td><td>Limpio y tipográfico, con mucho espacio en blanco.</td></tr>
+    <tr><td>Neumorphism</td><td>Superficies suaves, en relieve.</td></tr>
+    <tr><td>Glassmorphism</td><td>Capas translúcidas, esmeriladas.</td></tr>
+    <tr><td>Bento Grid</td><td>Composición modular de tarjetas.</td></tr>
+    <tr><td>Dashboard</td><td>Estilo de aplicación, con navegación lateral.</td></tr>
+    <tr><td>Onepage</td><td>Sitio de una sola página, con el blog en <code>/blog</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>En cada tema: <span class="btn">Vista previa</span> lo enseña con tu contenido sin cambiar nada, <span class="btn">Activar</span> lo pone en marcha, <span class="btn">Opciones</span> y <span class="btn">Diseño</span> lo ajustan, y <span class="btn">Editar código</span> abre sus archivos.</p>
+  <p><strong>Subir un tema:</strong> elige el <code>.zip</code> y pulsa <span class="btn">Subir y comprobar</span>. El tema se revisa antes de instalarse y llega inactivo, para que lo previsualices. También se puede subir un tema de bloques de WordPress: se convierte, con un informe de lo que se conservó y lo que no.</p>
+
+  <h3>Diseño</h3>
+  <figure class="shot">
+    <img src="img/diseno.jpg" width="1806" height="1120" alt="Editor de diseño con la vista previa">
+    <figcaption>Diseño: a la izquierda, lo que editas; a la derecha, la vista previa en ordenador o móvil, en claro u oscuro.</figcaption>
+  </figure>
+  <p><span class="path">Apariencia → Diseño</span> es una sola pantalla con vista previa en vivo y dos partes:</p>
+  <table>
+    <thead><tr><th style="width:26%">Parte</th><th>Qué se cambia</th></tr></thead>
+    <tbody>
+    <tr><td>Estilo y textos</td><td>Colores, tipografías, radio de las esquinas, densidad, cabecera y pie, animaciones, y los textos e imágenes que el tema deja editar.</td></tr>
+    <tr><td>Estructura</td><td>Los bloques de cada tipo de página: cabecera, menú, portada, lista de entradas, contenido, comentarios, zonas de widgets, texto, imagen, botón, HTML propio… Se ordenan arrastrando.</td></tr>
+    </tbody>
+  </table>
+  <div class="note warn"><strong>Los cambios son un borrador hasta que publicas.</strong> Lo que tocas en Diseño no se ve en el sitio hasta pulsar <span class="btn">Publicar</span>. <span class="btn">Descartar el borrador</span> vuelve a lo publicado.</div>
+  <ul>
+    <li><strong>Versiones publicadas:</strong> se guardan las diez últimas, y cualquiera se puede restaurar.</li>
+    <li><strong>Exportar e importar:</strong> <span class="btn">Exportar JSON</span> guarda el diseño en un archivo; <span class="btn">Importar al borrador</span> lo carga, también en otro sitio.</li>
+    <li><strong>CSS personalizado:</strong> reglas propias, comprobadas para que no puedan ejecutar código.</li>
+    <li><strong>Editar como HTML:</strong> el botón <code>&lt;/&gt;</code> de una sección deja editar su HTML directamente.</li>
+    <li><strong>Diseñar con IA:</strong> con la IA activada, describes lo que quieres («una página sobre mediación», «otros colores», «cambia este texto») y los cambios llegan al borrador para que tú los revises y publiques.</li>
+    <li><strong>Páginas de aterrizaje:</strong> hay bloques de características, cifras, testimonios, precios, preguntas y respuestas, logotipos y llamada a la acción, y plantillas de partida para una landing o un sitio de una página.</li>
+  </ul>
+
+  <h3>Menús</h3>
+  <p>En <span class="path">Apariencia → Menús</span> eliges la <strong>ubicación</strong> (las que ofrece el tema, como el menú principal o el del pie) y el idioma, y añades elementos: páginas, categorías o enlaces con el texto y la dirección que quieras. Se ordenan arrastrando y se guardan solos.</p>
+  <figure class="shot">
+    <img src="img/menus.jpg" width="1806" height="1024" alt="Página de menús">
+    <figcaption>Menús: a la izquierda añades elementos; a la derecha los ordenas arrastrándolos.</figcaption>
+  </figure>
+  <div class="note tip"><strong>Enlaces a secciones.</strong> En un sitio de una página, un enlace como <code>#precios</code> desplaza hasta la sección con ese nombre, y vuelve a ella desde cualquier otra página.</div>
+
+  <h3>Widgets</h3>
+  <p><span class="path">Apariencia → Widgets</span> llena las zonas que el tema reserva, como la barra lateral o el pie. Eliges el tipo de widget (entradas recientes, categorías, etiquetas, texto, entre otros), su título y su idioma, y lo arrastras a su sitio.</p>
+</section>
+
+<!-- =================================================================== 9 -->
+<section class="chapter" id="c9">
+  <h2><span class="n">Capítulo 9</span>Plugins</h2>
+  <p class="lead">Un plugin añade una función al sitio. Cada uno se ejecuta aislado: no puede leer archivos ni abrir conexiones por su cuenta, y solo hace lo que sus permisos declaran.</p>
+
+  <h3>Instalar y activar</h3>
+  <ol class="steps">
+    <li>En <span class="path">Plugins → Plugins oficiales</span>, pulsa <span class="btn">Instalar</span> en el que quieras. Para uno de terceros, usa <span class="path">Subir un plugin</span>, elige el <code>.zip</code> y pulsa <span class="btn">Subir y analizar</span>.</li>
+    <li>El paquete se analiza. Si tiene algo crítico, no se instala; si pide permisos delicados, te lo avisa y tienes que confirmarlo.</li>
+    <li>Se instala <strong>desactivado</strong>. Abre <span class="btn">Detalles</span>, revisa los permisos que pide y pulsa <span class="btn">Activar</span>.</li>
+  </ol>
+  <div class="note warn"><strong>Si ves el código en lugar del resultado.</strong> Un texto como <code>[contact]</code> en una página significa que el plugin que debía sustituirlo no está activado. Actívalo en <span class="path">Plugins</span>.</div>
+  <p>Al activarlo quedan fijados el plugin y sus permisos. Si alguno cambia, el plugin se detiene hasta que lo revises. Cuando hay una versión más nueva, aparece <span class="btn">Actualizar</span>.</p>
+
+  <h3>Plugins oficiales</h3>
+  <figure class="shot">
+    <img src="img/plugins.jpg" width="1806" height="1050" alt="Lista de plugins oficiales">
+    <figcaption>Los plugins oficiales. Antes de instalar, cada uno declara los permisos que pide.</figcaption>
+  </figure>
+  <table>
+    <thead><tr><th style="width:24%">Plugin</th><th>Qué hace</th></tr></thead>
+    <tbody>
+    <tr><td>contact</td><td>Formulario de contacto que llega por correo al sitio.</td></tr>
+    <tr><td>toc</td><td>Tabla de contenidos.</td></tr>
+    <tr><td>callouts</td><td>Avisos y recuadros destacados.</td></tr>
+    <tr><td>announcement</td><td>Barra de anuncios.</td></tr>
+    <tr><td>related</td><td>Entradas relacionadas, por categorías y etiquetas comunes.</td></tr>
+    <tr><td>external-links</td><td>Enlaces externos y de afiliación.</td></tr>
+    <tr><td>embeds</td><td>Reproductores de YouTube, Vimeo y TikTok que cargan al pulsar.</td></tr>
+    <tr><td>youtube</td><td>Los últimos vídeos de un canal o una lista, en cuadrícula o carrusel.</td></tr>
+    <tr><td>schema</td><td>Datos estructurados Schema.org para los buscadores.</td></tr>
+    <tr><td>antispam</td><td>Retiene o rechaza comentarios de spam.</td></tr>
+    <tr><td>social</td><td>Publica las entradas nuevas en Bluesky y Mastodon.</td></tr>
+    <tr><td>x-autopost</td><td>Publica las entradas nuevas en X.</td></tr>
+    <tr><td>linkedin</td><td>Comparte las entradas nuevas en tu perfil de LinkedIn.</td></tr>
+    <tr><td>instagram</td><td>Publica las imágenes destacadas en Instagram y muestra tus últimas publicaciones.</td></tr>
+    </tbody>
+  </table>
+  <p>Los plugins que usan códigos cortos se insertan escribiendo su código en el texto, como <code>[contact]</code>.</p>
+</section>
+
+<!-- ================================================================== 10 -->
+<section class="chapter" id="c10">
+  <h2><span class="n">Capítulo 10</span>Inteligencia artificial</h2>
+  <p class="lead">La IA es opcional y tiene dos usos distintos: ayudar a quien escribe, y atender a quien visita.</p>
+
+  <h3>Conectar un proveedor</h3>
+  <p>En <span class="path">IA</span>, marca <strong>Activar la IA en este sitio</strong>, elige el <strong>proveedor</strong> (Claude, OpenAI o un servidor compatible, Gemini, o un modelo local), pega su <strong>clave de API</strong>, indica el <strong>modelo de texto</strong> y pulsa <span class="btn">Guardar y probar</span>. La clave se guarda cifrada. El apartado <strong>Imágenes</strong> permite usar otro proveedor para generar imágenes.</p>
+  <figure class="shot">
+    <img src="img/ia.jpg" width="1806" height="1085" alt="Ajustes de inteligencia artificial">
+    <figcaption>La página de IA: el interruptor general, el proveedor y su clave.</figcaption>
+  </figure>
+  <p><strong>Quién y cuánto</strong> fija desde qué rol se puede usar y los topes mensuales por persona, de peticiones y de imágenes. La misma página muestra el consumo del mes.</p>
+
+  <h3>Asistente de escritura</h3>
+  <p>Dentro del editor, el panel de IA puede:</p>
+  <ul>
+    <li>resumir el texto en un extracto;</li>
+    <li>proponer título, descripción, dirección y palabras clave para buscadores;</li>
+    <li>traducir a un borrador enlazado en otro idioma;</li>
+    <li>redactar, mejorar, acortar, esquematizar o continuar un texto;</li>
+    <li>generar la imagen de cabecera o imágenes para el texto, si el proveedor lo admite.</li>
+  </ul>
+  <p>Un revisor de estilo, que funciona sin IA, señala muletillas y frases de relleno tanto en lo que escribes como en lo que propone el modelo.</p>
+
+  <h3>Asistente del sitio</h3>
+  <p>Es un chat para los visitantes que responde con el contenido de tus entradas y páginas, y cita de dónde sale cada respuesta. Se activa en <span class="path">IA → Asistente del sitio</span>:</p>
+  <table>
+    <thead><tr><th style="width:26%">Apartado</th><th>Qué se ajusta</th></tr></thead>
+    <tbody>
+    <tr><td>Chat en tu sitio</td><td><strong>Mostrar el asistente en el sitio.</strong> Aparece cuando el proveedor de IA también está activado.</td></tr>
+    <tr><td>Botón del chat</td><td>La esquina (abajo a la derecha o a la izquierda), la altura y un texto opcional junto al botón.</td></tr>
+    <tr><td>Ventana del chat</td><td>Nombre, saludo y preguntas sugeridas, por idioma.</td></tr>
+    <tr><td>Límites</td><td>Preguntas por visitante y hora, y al día y al mes en todo el sitio.</td></tr>
+    <tr><td>Índice</td><td>El estado de lo que el asistente ha leído. Se actualiza al publicar.</td></tr>
+    </tbody>
+  </table>
+  <p>Los borradores, los textos programados y los privados nunca llegan al asistente.</p>
+
+  <h3>Política ante las IA externas</h3>
+  <p>En <span class="path">Ajustes → Compartir, IA y estadísticas</span> decides cómo trata el sitio a los rastreadores de IA: <strong>abierto</strong>, <strong>respuestas sí, entrenamiento no</strong>, o <strong>cerrado</strong>.</p>
+</section>
+
+<!-- ================================================================== 11 -->
+<section class="chapter" id="c11">
+  <h2><span class="n">Capítulo 11</span>Analítica</h2>
+  <p class="lead"><span class="path">Analítica</span> cuenta las visitas sin cookies y sin guardar ningún dato que identifique a nadie. Por eso no necesita aviso de consentimiento.</p>
+  <figure class="shot">
+    <img src="img/analitica.jpg" width="1806" height="1383" alt="Analítica con el gráfico de vistas por día">
+    <figcaption>Visitantes y páginas vistas del periodo elegido, con las vistas de cada día.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Vistas por día</strong> y visitantes únicos, con un gráfico del periodo.</li>
+    <li><strong>Páginas más vistas</strong> y de dónde llegan las visitas.</li>
+    <li><strong>Navegadores, sistemas, dispositivos e idiomas.</strong></li>
+    <li><strong>Visitantes por país</strong>, en un mapa, si el servidor tiene instalada la base de datos de países. Solo se guarda el país.</li>
+    <li><strong>Bots</strong>, en una tarjeta aparte: buscadores, bots de IA, vistas previas de redes sociales, herramientas de monitorización y escáneres de vulnerabilidades, con los más activos por su nombre.</li>
+  </ul>
+  <p>No cuentan como visitas los bots, las precargas del navegador ni quien navega con la sesión del panel abierta.</p>
+</section>
+
+<!-- ================================================================== 12 -->
+<section class="chapter" id="c12">
+  <h2><span class="n">Capítulo 12</span>Usuarios y roles</h2>
+  <p class="lead">Cada cuenta tiene un rol, y el rol decide qué puede hacer. Da a cada persona el menor rol con el que pueda trabajar.</p>
+
+  <table class="keep">
+    <thead><tr><th>Puede…</th><th class="c">Suscriptor</th><th class="c">Colaborador</th><th class="c">Autor</th><th class="c">Editor</th><th class="c">Administrador</th></tr></thead>
+    <tbody>
+    <tr><td>Entrar al panel y editar su perfil</td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Escribir sus propias entradas</td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Publicar sus entradas</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Subir medios</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Editar las entradas de otros</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Páginas, categorías y etiquetas</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Moderar comentarios y ver la analítica</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Apariencia y plugins</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Usuarios, ajustes y herramientas</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    <tr><td>Registro de auditoría</td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="no">—</span></td><td class="c"><span class="yes">Sí</span></td></tr>
+    </tbody>
+  </table>
+
+  <figure class="shot">
+    <img src="img/usuarios.jpg" width="1806" height="910" alt="Lista de usuarios">
+    <figcaption>La lista de usuarios, con el rol de cada cuenta y los filtros por rol.</figcaption>
+  </figure>
+
+  <h3>Gestionar cuentas</h3>
+  <p>En <span class="path">Usuarios</span>, <span class="btn">Nuevo usuario</span> crea una cuenta con su nombre de usuario, correo, rol y contraseña. Al abrir una cuenta existente puedes cambiar sus datos y su rol, y en <strong>Seguridad</strong>:</p>
+  <table>
+    <thead><tr><th style="width:32%">Acción</th><th>Cuándo usarla</th></tr></thead>
+    <tbody>
+    <tr><td>Contraseña</td><td>Para ponerle una nueva si la ha olvidado y el correo no funciona.</td></tr>
+    <tr><td>Cerrar todas las sesiones</td><td>Si ha perdido un dispositivo o sospechas de un acceso ajeno.</td></tr>
+    <tr><td>Restablecer la 2FA</td><td>Si ha perdido el móvil y los códigos de recuperación. Tendrá que configurarla otra vez al entrar.</td></tr>
+    <tr><td>Desbloquear la cuenta</td><td>Tras demasiados intentos fallidos de acceso.</td></tr>
+    <tr><td>Eliminar usuario</td><td>Antes de borrar, puedes pasar sus entradas a otra persona.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================================================================== 13 -->
+<section class="chapter" id="c13">
+  <h2><span class="n">Capítulo 13</span>Ajustes</h2>
+  <p class="lead"><span class="path">Ajustes</span> reúne la configuración del sitio. La página principal tiene ocho apartados; el correo, la privacidad y el modo mantenimiento tienen página propia.</p>
+  <figure class="shot">
+    <img src="img/ajustes.jpg" width="1806" height="1050" alt="Página de ajustes">
+    <figcaption>Ajustes: los apartados a la izquierda y, a la derecha, el formulario del que estás viendo.</figcaption>
+  </figure>
+
+  <table>
+    <thead><tr><th style="width:26%">Apartado</th><th>Qué contiene</th></tr></thead>
+    <tbody>
+    <tr><td>General</td><td>Título del sitio, descripción corta, idioma principal, zona horaria, texto del pie e icono del sitio.</td></tr>
+    <tr><td>Idiomas</td><td>Los idiomas adicionales y la traducción del título, la descripción y el pie.</td></tr>
+    <tr><td>Lectura</td><td>Qué muestra la página de inicio: tus últimas entradas, la portada del tema o una página estática. También las entradas por página y la opción de pedir a los buscadores que no indexen el sitio.</td></tr>
+    <tr><td>Comentarios</td><td>Permitirlos, limitarlos a usuarios registrados, la moderación previa, el cierre automático en entradas antiguas y el uso de Gravatar.</td></tr>
+    <tr><td>Feeds</td><td>Cuántos elementos lleva cada feed y si incluye el texto completo o un resumen.</td></tr>
+    <tr><td>Vídeos</td><td>Cómo se incrustan: con vista previa, sin ella, o dejando los enlaces como enlaces.</td></tr>
+    <tr><td>Compartir, IA y estadísticas</td><td>Las imágenes para redes sociales, la política ante los rastreadores de IA, la lectura sin conexión, los avisos de entradas nuevas y qué pasa cuando el sitio cambia mientras alguien tiene una página abierta.</td></tr>
+    <tr><td>Cuentas y seguridad</td><td>El registro de cuentas y su rol, la dirección de acceso, ocultar la administración a los visitantes, para quién es obligatoria la verificación en dos pasos y la duración de la sesión.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Correo electrónico</h3>
+  <p>El sitio necesita un servidor de correo para enviar los enlaces de «contraseña olvidada», los avisos y los mensajes de los formularios. En <span class="path">Ajustes → Correo electrónico</span>, marca <strong>Enviar a través de este servidor</strong> y rellena servidor, puerto, nombre de usuario, contraseña y remitente. <span class="btn">Guardar y enviar una prueba</span> te manda un mensaje para comprobarlo; se pueden enviar hasta cinco pruebas por hora.</p>
+
+  <h3>Privacidad y cookies</h3>
+  <p>El aviso de cookies se construye solo, a partir de lo que el sitio usa de verdad: el propio sap13ns declara lo suyo y cada plugin lo que añade. En <span class="path">Ajustes → Privacidad y cookies</span> ajustas el título y el texto del aviso, el enlace a tu política de cookies, y puedes volver a preguntar a todos los visitantes. La tabla <strong>Qué guarda y carga este sitio</strong> es la misma que ven ellos.</p>
+  <ul>
+    <li>Aceptar y rechazar tienen el mismo peso, y hay un interruptor por categoría.</li>
+    <li>Nada opcional se carga antes del consentimiento.</li>
+    <li>Un sitio que solo usa cookies necesarias muestra un simple aviso informativo.</li>
+  </ul>
+
+  <h3>Modo mantenimiento</h3>
+  <p><span class="path">Ajustes → Modo mantenimiento</span> cierra el sitio a los visitantes con un botón. Ven una página de mantenimiento, con el icono del sitio y el texto que escribas, y los buscadores reciben la indicación de volver más tarde. Quien escribe en el sitio (colaboradores en adelante) sigue navegándolo con normalidad una vez iniciada la sesión.</p>
+
+  <h3>Dirección de acceso</h3>
+  <p>En <span class="path">Cuentas y seguridad</span> puedes cambiar <code>/login</code> por otra dirección. La antigua responde entonces como una página inexistente, lo que aleja a los bots que la prueban. <strong>Ocultar la administración a los visitantes</strong> hace lo mismo con <code>/admin</code> para quien no ha iniciado sesión.</p>
+  <div class="note warn"><strong>Apunta la dirección nueva.</strong> No es un secreto ni sustituye a la contraseña y al segundo factor, pero sin ella no encontrarás la puerta. Si la pierdes, quien administra el servidor puede consultarla o restablecerla (<a href="#c17">capítulo 17</a>).</div>
+</section>
+
+<!-- ================================================================== 14 -->
+<section class="chapter" id="c14">
+  <h2><span class="n">Capítulo 14</span>Herramientas: importar, exportar, copias y traslados</h2>
+
+  <h3>Redirecciones</h3>
+  <p>En <span class="path">Redirecciones</span> añades reglas con su <strong>origen</strong>, su <strong>destino</strong> y su <strong>tipo</strong>: permanente (301), temporal (302) o «ya no existe» (410). La lista muestra cuántas veces se ha usado cada una. Las que nacen al cambiar la dirección de un texto se crean solas.</p>
+
+  <h3>Importar desde WordPress</h3>
+  <ol class="steps">
+    <li>En WordPress, exporta el contenido a un archivo <code>.xml</code>.</li>
+    <li>En <span class="path">Importar</span>, sube ese archivo y elige a quién atribuir el contenido sin autor equivalente y en qué idioma entra.</li>
+    <li>Decide si se descargan las imágenes y los adjuntos, y si se omiten las entradas cuya dirección ya existe.</li>
+    <li>Haz primero una <strong>prueba</strong>: muestra qué se importaría sin cambiar nada. Después pulsa <span class="btn">Empezar</span>.</li>
+  </ol>
+  <p>Entran autores, categorías, etiquetas, entradas, páginas, comentarios y medios, y se crean redirecciones desde las direcciones antiguas. El trabajo corre en segundo plano y termina con un informe.</p>
+
+  <h3>Exportar</h3>
+  <p><span class="path">Exportar</span> saca el contenido en un formato que leen tanto WordPress como sap13ns. Eliges qué entra (entradas, páginas, biblioteca de medios), en qué estados, entre qué fechas y de qué autor, y el formato:</p>
+  <ul>
+    <li><strong>Archivo de exportación de WordPress</strong> (<code>.xml</code>).</li>
+    <li><strong>Todo en un <code>.zip</code>:</strong> ese archivo, los medios y una copia en Markdown de cada texto.</li>
+  </ul>
+  <p>Los datos personales de quienes comentan solo salen si marcas la casilla. Las contraseñas, los segundos factores y las claves nunca se exportan. Un <code>.zip</code> grande se prepara en segundo plano y se descarga desde <strong>Listas para descargar</strong> durante 24 horas.</p>
+
+  <h3>Copias de seguridad</h3>
+  <p><span class="path">Copias de seguridad</span> guarda el sitio entero en un <code>.zip</code>: contenido, medios, ajustes, usuarios y roles, menús, widgets, diseños, redirecciones y la configuración de los plugins. No guarda contraseñas, segundos factores, passkeys ni claves de API: tras restaurar una copia en un sitio nuevo, cada persona entra restableciendo su contraseña.</p>
+  <figure class="shot">
+    <img src="img/copias.jpg" width="1806" height="945" alt="Página de copias de seguridad">
+    <figcaption>Copias de seguridad: el botón para hacer una y, al lado, lo que conviene saber de ellas.</figcaption>
+  </figure>
+  <ul>
+    <li><span class="btn">Hacer una copia ahora</span> crea una en el momento.</li>
+    <li><strong>Copias guardadas</strong> lista las que hay, con su fecha y su tamaño, para descargarlas.</li>
+    <li><strong>Restaurar una copia de seguridad</strong> devuelve el sitio a ese punto. Pide una confirmación escrita y tu contraseña actual, y antes hace una copia de seguridad del estado presente.</li>
+  </ul>
+  <div class="note tip"><strong>Libre para irte.</strong> Una copia de seguridad es también una importación de WordPress, archivos incluidos: su importador la lee tal cual.</div>
+  <div class="note warn"><strong>Guarda copias fuera del servidor.</strong> Una copia que solo existe en la misma máquina no protege de un fallo de esa máquina. Descárgalas de vez en cuando.</div>
+
+  <h3>Trasladar sitio</h3>
+  <p><span class="path">Trasladar sitio</span> lleva el sitio completo —contenido, usuarios con sus contraseñas, ajustes, medios, plugins, temas y claves— a otro servidor, en un único paquete cifrado.</p>
+  <ol class="steps">
+    <li><strong>En el sitio de origen</strong>, abre <span class="path">Llevar este sitio a otro servidor</span>, elige una frase de paso de al menos 12 caracteres, confirma con tu contraseña y pulsa <span class="btn">Crear el paquete</span>. Descárgalo cuando esté listo; espera 24 horas.</li>
+    <li><strong>En el servidor de destino</strong>, con sap13ns ya instalado en la misma versión o una posterior, abre <span class="path">Traer un sitio aquí</span>, sube el paquete y escribe su frase de paso.</li>
+    <li>Revisa el resumen de lo que contiene, escribe el nombre del sitio y tu contraseña, y pulsa <span class="btn">Reemplazar este sitio</span>. Antes se hace una copia de seguridad; el servidor se reinicia solo.</li>
+    <li>Vuelve a iniciar sesión.</li>
+  </ol>
+  <div class="note warn"><strong>El paquete contiene secretos.</strong> Lleva las claves del sitio y las contraseñas cifradas de sus usuarios. Guárdalo, junto con su frase de paso, en privado, y bórralo cuando el traslado haya terminado.</div>
+  <p>Si el sitio cambia de dominio, los enlaces escritos con la dirección antigua dentro de los textos siguen apuntando a ella, y las passkeys creadas para el dominio anterior dejan de servir: sus dueños entran con la contraseña y registran una nueva.</p>
+
+  <h3>Registro de auditoría</h3>
+  <p><span class="path">Registro de auditoría</span> anota las acciones delicadas: quién, cuándo, qué acción y sobre qué elemento. Sirve para saber qué pasó tras un cambio inesperado.</p>
+</section>
+
+<!-- ================================================================== 15 -->
+<section class="chapter" id="c15">
+  <h2><span class="n">Capítulo 15</span>Sistema y actualizaciones</h2>
+  <p class="lead"><span class="path">Sistema</span> muestra la versión instalada y avisa cuando hay una nueva. Solo aparece en los sitios que no forman parte de una red.</p>
+  <ul>
+    <li>El sitio comprueba por sí mismo si hay versiones nuevas; <span class="btn">Comprobar ahora</span> lo hace al momento.</li>
+    <li><strong>Qué cambia</strong> y <span class="btn">Notas de la versión</span> explican lo que trae la actualización antes de instalarla.</li>
+    <li><span class="btn">Actualizar ahora</span> descarga la versión, comprueba su firma y sustituye el programa. El sitio se reinicia en unos segundos y conserva el programa anterior por si hubiera que volver atrás.</li>
+  </ul>
+  <div class="note"><strong>Los plugins oficiales viajan con el programa.</strong> Tras actualizar sap13ns, revisa <span class="path">Plugins</span>: si alguno tiene versión nueva, mostrará <span class="btn">Actualizar</span>.</div>
+  <p>Las actualizaciones del contenido —la base de datos— se aplican solas al arrancar. No hay que hacer nada más.</p>
+</section>
+
+<!-- ================================================================== 16 -->
+<section class="chapter" id="c16">
+  <h2><span class="n">Capítulo 16</span>Redes de sitios</h2>
+  <p class="lead">En una red, un solo sap13ns sirve un portal y muchos sitios. Cada sitio está aislado: tiene sus usuarios, su contenido, sus archivos, sus plugins y sus temas.</p>
+
+  <h3>El portal y «Mis sitios»</h3>
+  <p>Las personas se registran en el portal y gestionan lo suyo en <span class="path">Red → Mis sitios</span>: solicitar un sitio, entrar en los que ya tienen, mejorar su plan y ver su facturación. Con una sola cuenta del portal se entra en todos los sitios a los que se pertenece. El portal exige segundo factor a todas las cuentas.</p>
+
+  <h3>Planes</h3>
+  <p>Cada sitio tiene un plan —Personal, Pro o Business— que fija su espacio de almacenamiento, sus dominios propios y si puede subir plugins y temas. Una suscripción paga un sitio. Si un pago falla, el sitio queda retenido, nunca borrado.</p>
+
+  <h3>Dominios propios</h3>
+  <p>Un sitio se sirve en su dirección de la red y puede añadir dominios propios: en <span class="path">Red → Mis sitios</span>, el botón <span class="btn">Dominios</span> del sitio. Para demostrar que el dominio es tuyo, añades un registro TXT en su DNS; después lo apuntas a la red. El certificado https se obtiene solo.</p>
+
+  <h3>Acceso de soporte</h3>
+  <p>Los administradores de la red no entran en tu sitio por defecto. Desde <span class="path">Usuarios → Acceso de soporte</span> tú decides si se lo permites: durante 24 horas, 7 días o hasta que lo revoques. Cada acceso queda en el registro de auditoría.</p>
+
+  <h3>Lo que cambia respecto a un sitio único</h3>
+  <ul>
+    <li><strong>Copias:</strong> la red hace una copia de cada sitio cada noche. Están en <span class="path">Copias de seguridad</span>.</li>
+    <li><strong>Plugins:</strong> se instalan los que la red ofrece; los que subas tú esperan una revisión.</li>
+    <li><strong>Sistema:</strong> no aparece; las actualizaciones las hace quien opera la red.</li>
+    <li><strong>Salir de la red:</strong> <span class="path">Trasladar sitio</span> lleva tu sitio a un servidor propio.</li>
+  </ul>
+</section>
+
+<!-- ================================================================== 17 -->
+<section class="chapter" id="c17">
+  <h2><span class="n">Capítulo 17</span>Para quien administra el servidor</h2>
+  <p class="lead">Este capítulo es para la persona con acceso al servidor. Quien solo usa el panel puede saltárselo.</p>
+
+  <h3>Qué hay instalado</h3>
+  <p>sap13ns es un único programa, sin dependencias, que se ejecuta detrás de nginx y guarda sus datos en PostgreSQL.</p>
+  <table>
+    <thead><tr><th style="width:42%">Ruta</th><th>Contenido</th></tr></thead>
+    <tbody>
+    <tr><td><code>/usr/local/bin/sap13ns</code></td><td>El programa.</td></tr>
+    <tr><td><code>/etc/sap13ns/sap13ns.env</code></td><td>La configuración: base de datos, dirección pública y clave secreta.</td></tr>
+    <tr><td><code>/var/lib/sap13ns</code></td><td>Los datos en disco: medios subidos, plugins, temas y copias.</td></tr>
+    </tbody>
+  </table>
+  <div class="note warn"><strong>Guarda una copia de la clave secreta.</strong> <code>SAP13NS_SECRET_KEY</code> cifra las claves guardadas y firma las sesiones. Si se cambia o se pierde, lo que el sitio guarda cifrado deja de poder abrirse. Tenla también fuera del servidor.</div>
+  <p><code>SAP13NS_BASE_URL</code> debe ser la dirección pública con <code>https://</code>. Con una dirección <code>http://</code>, las sesiones del panel viajan sin cifrar.</p>
+
+  <h3>Órdenes habituales</h3>
+  <p>Se ejecutan en el servidor. Las que empiezan por <code>sap13ns</code> van como el usuario <code>sap13ns</code> y con el archivo de configuración, salvo la de actualizar.</p>
+  <table>
+    <thead><tr><th style="width:36%">Para…</th><th>Orden</th></tr></thead>
+    <tbody>
+    <tr><td>Arrancar, parar o reiniciar</td><td><code>sudo systemctl start|stop|restart sap13ns</code></td></tr>
+    <tr><td>Ver el registro en vivo</td><td><code>sudo journalctl -u sap13ns -f</code></td></tr>
+    <tr><td>Saber la versión</td><td><code>sap13ns version</code></td></tr>
+    <tr><td>Crear un usuario</td><td><code>sap13ns user create -username U -email E -role admin</code></td></tr>
+    <tr><td>Cambiar una contraseña</td><td><code>sap13ns user reset-password -username U</code></td></tr>
+    <tr><td>Ver la dirección de acceso</td><td><code>sap13ns settings login-path</code> (con <code>-reset</code> vuelve a <code>/login</code>)</td></tr>
+    <tr><td>Hacer una copia</td><td><code>sap13ns backup create</code></td></tr>
+    <tr><td>Listar y restaurar copias</td><td><code>sap13ns backup list</code> y <code>sap13ns backup restore ARCHIVO</code></td></tr>
+    <tr><td>Actualizar</td><td><code>sudo sap13ns update</code>, y después reiniciar. Haz antes una copia.</td></tr>
+    <tr><td>Instalar un plugin oficial</td><td><code>sap13ns plugin install -official ID</code></td></tr>
+    <tr><td>Trasladar un sitio</td><td><code>sap13ns transfer export|inspect|import</code></td></tr>
+    </tbody>
+  </table>
+  <p>La forma completa de una orden es esta:</p>
+  <pre><code>sudo -u sap13ns sap13ns user create -env /etc/sap13ns/sap13ns.env \
+  -username ana -email ana@ejemplo.com -role editor</code></pre>
+  <p>Al crear un usuario o cambiar una contraseña, el programa genera una contraseña segura y la muestra una sola vez. Para fijar una propia, pásala por la entrada estándar en lugar de escribirla en la orden.</p>
+
+  <h3>Copias y cifrado</h3>
+  <p>Un temporizador hace una copia cada noche en <code>/var/lib/sap13ns/backups</code>. Para que se guarden cifradas, define <code>SAP13NS_BACKUP_PASSPHRASE_FILE</code> con la ruta de un archivo que contenga la frase de paso. Sin ella, las copias se guardan sin cifrar.</p>
+
+  <h3>Después de actualizar en una red con nginx</h3>
+  <p>La actualización sustituye solo el programa. El script que gestiona los certificados de los dominios propios, <code>sap13ns-domains</code>, es un archivo aparte: cuando las notas de una versión lo pidan, reinstálalo desde el paquete de esa versión.</p>
+</section>
+
+<!-- ================================================================== 18 -->
+<section class="chapter" id="c18">
+  <h2><span class="n">Capítulo 18</span>Problemas frecuentes</h2>
+
+  <table>
+    <thead><tr><th style="width:34%">Qué pasa</th><th>Por qué y qué hacer</th></tr></thead>
+    <tbody>
+    <tr><td>Pongo bien la contraseña y vuelvo al inicio de sesión</td><td>El sitio se está sirviendo por http. El panel necesita https para mantener la sesión. Hay que instalar el certificado del dominio.</td></tr>
+    <tr><td>No me llega el correo para restablecer la contraseña</td><td>El sitio no tiene configurado el envío. Revísalo en <span class="path">Ajustes → Correo electrónico</span>. Mientras, un administrador puede poner una contraseña nueva en <span class="path">Usuarios</span>.</td></tr>
+    <tr><td>He perdido el móvil con los códigos</td><td>Entra con un código de recuperación. Si tampoco los tienes, un administrador puede <span class="btn">Restablecer la 2FA</span> de tu cuenta.</td></tr>
+    <tr><td>Mi cuenta está bloqueada</td><td>Demasiados intentos fallidos. Espera, o pide a un administrador que la desbloquee.</td></tr>
+    <tr><td>No encuentro la página de acceso</td><td>El administrador cambió la dirección. Quien administra el servidor puede consultarla con <code>sap13ns settings login-path</code>.</td></tr>
+    <tr><td>Cambié el diseño y el sitio sigue igual</td><td>Los cambios de <span class="path">Diseño</span> son un borrador. Pulsa <span class="btn">Publicar</span>.</td></tr>
+    <tr><td>Aparece un código como <code>[contact]</code> en una página</td><td>El plugin que lo sustituye no está activado. Actívalo en <span class="path">Plugins</span>.</td></tr>
+    <tr><td>Un texto aparece bloqueado</td><td>Otra persona lo tiene abierto. Avísale, o usa <span class="btn">Tomar el control</span>.</td></tr>
+    <tr><td>No se ven imágenes ni estilos en el sitio</td><td>Suele ser un sitio configurado como https al que se entra por http: el navegador pide los archivos por https y no los encuentra. Se resuelve con el certificado.</td></tr>
+    <tr><td>El chat del sitio no aparece</td><td>Necesita dos cosas: <strong>Mostrar el asistente en el sitio</strong> y un proveedor de IA activado en <span class="path">IA</span>.</td></tr>
+    <tr><td>Los visitantes ven «en mantenimiento»</td><td>El modo mantenimiento está activado. Se quita en <span class="path">Ajustes → Modo mantenimiento</span>.</td></tr>
+    <tr><td>Publiqué algo y no lo veo</td><td>Comprueba la fecha (una futura lo deja programado), la visibilidad y el idioma en el que estás mirando el sitio.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Dónde seguir</h3>
+  <p>La documentación técnica acompaña al programa, en inglés: instalación y operación (<code>DEPLOY.md</code>), redes de sitios (<code>MULTISITE.md</code>), creación de temas (<code>THEMES.md</code>) y de plugins (<code>PLUGINS.md</code>), y el modelo de seguridad (<code>SECURITY.md</code>).</p>
+</section>
+
+</main>
+
+<script>
+  document.getElementById('print').addEventListener('click', function () { window.print(); });
+</script>
+</body>
+</html>
