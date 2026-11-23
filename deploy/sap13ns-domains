@@ -17,7 +17,10 @@
 #
 # Every block lives in /etc/nginx/sap13ns-domains/, included by one file in
 # sites-enabled, so the rest of nginx (other sites on a shared server) is
-# never touched. No block is a default_server.
+# never touched. No block is a default_server. The https block of a domain
+# also includes /etc/nginx/sap13ns-overrides/<domain>/*.inc when there are
+# any (root's own locations for that domain, e.g. another app under a path),
+# before the shared proxy.inc.
 #
 # nginx's configuration on disk is valid after every step: each file is
 # changed alone and kept only if `nginx -t` accepts it, otherwise the file
@@ -75,6 +78,7 @@ DEFAULTS=${SAP13NS_DOMAINS_DEFAULTS:-/etc/default/sap13ns-domains}
 # shellcheck disable=SC1090
 if [ -r "$DEFAULTS" ]; then . "$DEFAULTS"; fi
 CONF_DIR=${CONF_DIR:-$NGINX/sap13ns-domains}
+OVERRIDES=${OVERRIDES:-$NGINX/sap13ns-overrides}
 INCLUDE=$NGINX/sites-enabled/sap13ns_domains.conf
 LIVE=$LE/live
 # After a renewal certbot runs this, and the next do_reload reloads nginx.
@@ -263,6 +267,13 @@ server {
 
     ssl_certificate     $LIVE/$1/fullchain.pem;
     ssl_certificate_key $LIVE/$1/privkey.pem;
+EOF
+    # Locations the server's admin adds by hand for this domain (another
+    # application under a path of it) survive every rewrite of the block.
+    if ls "$OVERRIDES/$1"/*.inc >/dev/null 2>&1; then
+        printf '\n    include %s/%s/*.inc;\n' "$OVERRIDES" "$1"
+    fi
+    cat <<EOF
 
     include $CONF_DIR/proxy.inc;
 }
