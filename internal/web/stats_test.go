@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -117,5 +118,47 @@ func TestStatsBots(t *testing.T) {
 		if !strings.Contains(body, s) {
 			t.Errorf("missing %q", s)
 		}
+	}
+}
+
+// An administrator sets the statistics back to zero; the page then says
+// since when it counts.
+func TestStatsReset(t *testing.T) {
+	e := newCustomEnv(t)
+	ctx := context.Background()
+	today := time.Now().In(e.s.loc()).Format(time.DateOnly)
+	for _, q := range []string{`INSERT INTO analytics_days VALUES ($1, 40, 7)`,
+		`INSERT INTO analytics_pages VALUES ($1, '/test', 40)`, `INSERT INTO analytics_bots VALUES ($1, 'ai', 'GPTBot', 3)`} {
+		if _, err := e.st.DB.Exec(ctx, q, today); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func() (n int) {
+		t.Helper()
+		if err := e.st.DB.QueryRow(ctx, `SELECT (SELECT count(*) FROM analytics_days) + (SELECT count(*) FROM analytics_pages)
+			+ (SELECT count(*) FROM analytics_dims) + (SELECT count(*) FROM analytics_bots)`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	body := e.get("/admin/analytics", e.admin).Body.String()
+	if !strings.Contains(body, `action="/admin/analytics/reset"`) || strings.Contains(body, "Contando desde") {
+		t.Fatal("before a reset: no reset button, or a date to count from")
+	}
+	if rec := e.postAs("/admin/analytics/reset", e.author, url.Values{"csrf": {e.acsrf}}); rec.Code == http.StatusSeeOther || count() != 3 {
+		t.Fatalf("an author reset the statistics: %d", rec.Code)
+	}
+	if rec := e.postForm("/admin/analytics/reset", url.Values{}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("reset: %d", rec.Code)
+	}
+	if n := count(); n != 0 {
+		t.Errorf("%d rows left after the reset", n)
+	}
+	if len(e.audited("analytics.reset")) != 1 {
+		t.Error("the reset is not in the audit log")
+	}
+	body = e.get("/admin/analytics", e.admin).Body.String()
+	if !strings.Contains(body, "Contando desde el "+today) {
+		t.Error("the page does not say since when it counts")
 	}
 }

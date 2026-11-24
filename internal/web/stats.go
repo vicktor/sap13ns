@@ -3,6 +3,7 @@ package web
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -102,10 +103,13 @@ type statsData struct {
 	Range  string
 	Ranges []string
 	Off    bool
-	S      *analytics.Summary
-	Chart  statsChart
-	Map    statsMap
-	Bots   statsBots
+	// Since is when an administrator last set the statistics back to
+	// zero, in the site's time zone; empty when nobody did.
+	Since string
+	S     *analytics.Summary
+	Chart statsChart
+	Map   statsMap
+	Bots  statsBots
 }
 
 // statsBots is the automated traffic of the period, with the categories
@@ -164,6 +168,9 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := statsData{Today: key == "today", Range: key, Off: s.settings().AnalyticsOff}
+	if t := s.statsSince(r.Context()); !t.IsZero() {
+		d.Since = t.In(s.loc()).Format("2006-01-02 15:04")
+	}
 	for _, rg := range statsRanges {
 		d.Ranges = append(d.Ranges, rg.Key)
 	}
@@ -178,6 +185,33 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 	}
 	d.S, d.Chart, d.Map, d.Bots = sum, s.statsChart(r, sum), s.statsMap(r, sum), s.statsBots(r, sum)
 	s.renderAdmin(w, r, "analytics", s.tu(r, "Analytics"), "analytics", d)
+}
+
+// statsSinceKey is the settings row that holds when the statistics were
+// last set back to zero.
+const statsSinceKey = "analytics_since"
+
+func (s *Server) statsSince(ctx context.Context) time.Time {
+	var t time.Time
+	if err := s.store.GetJSON(ctx, statsSinceKey, &t); err != nil && !errors.Is(err, store.ErrNotFound) {
+		s.log.Warn("analytics since", "err", err)
+	}
+	return t
+}
+
+// adminStatsReset sets the statistics back to zero, so that the visits of
+// tests before a site is published do not count: every day, page, source
+// and bot recorded so far is deleted, and counting goes on from now.
+func (s *Server) adminStatsReset(w http.ResponseWriter, r *http.Request) {
+	if err := s.stats.Reset(r.Context()); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if err := s.store.SetJSON(r.Context(), statsSinceKey, time.Now().UTC()); err != nil {
+		s.log.Warn("analytics since", "err", err)
+	}
+	s.audit(r, uid(r), "analytics.reset", "", nil)
+	s.redirect(w, r, "/admin/analytics", "success", s.tu(r, "The statistics are back to zero; counting starts now."))
 }
 
 // botCategoryLabel names a category of automated traffic.

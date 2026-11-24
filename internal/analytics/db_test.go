@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"fmt"
 	"os"
+	"net/http/httptest"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -214,5 +215,44 @@ func TestReportCountries(t *testing.T) {
 	}
 	if first := s.Countries[0]; first.Value != "ES" || first.Views != 12 || first.Share != 15.4 {
 		t.Errorf("first country %+v", first)
+	}
+}
+
+// Reset forgets what was written and what was still in memory, and today's
+// visitors count again from the first view after it.
+func TestReset(t *testing.T) {
+	conn := testDB(t)
+	ctx := context.Background()
+	clk := &clock{t: time.Date(2026, 10, 10, 9, 0, 0, 0, madrid)}
+	c := newTestCollector(conn, clk, Options{})
+	bot := httptest.NewRequest("GET", "https://example.com/", nil)
+	bot.Header.Set("User-Agent", uaOf(t, "GPTBot"))
+	c.Record(pageReq("203.0.113.1", chromeUA), "/", "es")
+	c.RecordRequest(bot)
+	if err := c.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	c.Record(pageReq("203.0.113.2", chromeUA), "/test", "es") // not flushed yet
+	if err := c.Reset(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"analytics_days", "analytics_pages", "analytics_dims", "analytics_bots"} {
+		var n int
+		if err := conn.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("%s: %d rows after the reset", table, n)
+		}
+	}
+	c.Record(pageReq("203.0.113.1", chromeUA), "/", "es")
+	if err := c.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := dbDay(t, conn, "2026-10-10"); got != [2]int64{1, 1} {
+		t.Errorf("after the reset = %v, want [1 1]", got)
 	}
 }

@@ -581,6 +581,41 @@ func (c *Collector) Flush(ctx context.Context) error {
 	return fmt.Errorf("analytics: flush: %w", err)
 }
 
+// Reset deletes every statistic recorded so far, in memory and in the
+// database, so that counting starts again from now: the visits of tests
+// before a site is published, for instance. Today's visitors start again
+// too. Views recorded while it runs count after it.
+func (c *Collector) Reset(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	if c.db == nil {
+		return errors.New("analytics: no database")
+	}
+	// No flush may write what was recorded before the reset after it.
+	c.flushMu.Lock()
+	defer c.flushMu.Unlock()
+	c.mu.Lock()
+	c.pending = make(map[dayNum]*bucket)
+	c.resetDayLocked()
+	c.mu.Unlock()
+	return Clear(ctx, c.db)
+}
+
+// Clear deletes every row of the analytics tables, in one statement.
+func Clear(ctx context.Context, db DB) error {
+	_, err := db.Exec(ctx, `WITH
+		a AS (DELETE FROM analytics_days),
+		b AS (DELETE FROM analytics_pages),
+		c AS (DELETE FROM analytics_dims),
+		d AS (DELETE FROM analytics_bots)
+		SELECT 1`)
+	if err != nil {
+		return fmt.Errorf("analytics: clear: %w", err)
+	}
+	return nil
+}
+
 // flushArgs flattens the buckets into the parameter arrays of flushSQL, in
 // key order so that concurrent writers lock rows in the same order.
 func flushArgs(snap map[dayNum]*bucket) []any {
