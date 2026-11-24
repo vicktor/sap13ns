@@ -116,12 +116,26 @@ func TestCreditFollowsTheLicence(t *testing.T) {
 			Domains: []string{domain}, Issued: now.Add(-time.Hour), Expires: expires}
 	}
 	home := func() string { t.Helper(); return e.do("GET", "/", nil, "").Body.String() }
+	system := func() string { t.Helper(); return e.do("GET", "/admin/system", nil, "", e.cookie).Body.String() }
+
+	// The System page (in Spanish here) tells whether there is a licence
+	// and what it says.
+	if body := system(); strings.Contains(body, "Archivo de licencia") {
+		t.Error("the System page shows a licence card without a licence file to watch")
+	}
+	e.s.license = license.NewFile(filepath.Join(t.TempDir(), "absent.license"))
+	if body := system(); !strings.Contains(body, "absent.license (no hay)") {
+		t.Error("the System page does not say there is no licence file")
+	}
 
 	use("valid", lic("example.test", now.AddDate(1, 0, 0)), pub)
 	for i := range 2 { // rendered, then from the page cache
 		if body := home(); strings.Contains(body, credit) || !strings.Contains(body, `class="footer-meta"`) {
 			t.Errorf("valid licence, request %d: credit shown or footer lost", i)
 		}
+	}
+	if body := system(); !strings.Contains(body, "Oculto por la licencia") || !strings.Contains(body, ">Test<") {
+		t.Error("the System page does not show the licence in force")
 	}
 	for name, l := range map[string]*license.License{
 		"expired":        lic("example.test", now.Add(-time.Minute)),
@@ -130,6 +144,10 @@ func TestCreditFollowsTheLicence(t *testing.T) {
 		use(name, l, pub)
 		if !strings.Contains(home(), credit) {
 			t.Errorf("%s licence: the credit is left out", name)
+		}
+		if body := system(); strings.Contains(body, "Oculto por la licencia") ||
+			!strings.Contains(body, "(no está en vigor)") && !strings.Contains(body, "No es para el dominio de este sitio (example.test)") {
+			t.Errorf("%s licence: the System page does not say why it does not count", name)
 		}
 	}
 	other, _, _ := ed25519.GenerateKey(nil)

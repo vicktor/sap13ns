@@ -176,7 +176,7 @@ sudo install -m 0640 -o root -g sap13ns socratex.org.license /etc/sap13ns/sap13n
 sudo -u sap13ns sap13ns license -env /etc/sap13ns/sap13ns.env
 ```
 
-`sap13ns license` prints the licence and whether it leaves out the credit on this install. A running server picks up a new, renewed or removed file within a minute, without a restart, and logs what it found (`white-label licence: the credit is left out`, or why the credit is shown).
+`sap13ns license` prints the licence and whether it leaves out the credit on this install; so does the **Licence** card of the System page in the admin, which also warns in the last 30 days. A running server picks up a new, renewed or removed file within a minute, without a restart, and logs what it found (`white-label licence: the credit is left out`, or why the credit is shown).
 
 The credit is left out only while the licence is in force and the host of `SAP13NS_BASE_URL` is one of its domains or their `www.` name. When it expires, the credit is back on the next request, cached pages included; nothing else changes. On a network, plans decide instead (Network → Plans) and the file is not read.
 

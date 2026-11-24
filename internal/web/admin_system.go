@@ -2,7 +2,9 @@ package web
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"runtime"
 	"slices"
@@ -14,6 +16,7 @@ import (
 
 	"sap13ns/internal/auth"
 	"sap13ns/internal/cache"
+	"sap13ns/internal/license"
 	"sap13ns/internal/plugin"
 	"sap13ns/internal/sitecheck"
 	"sap13ns/internal/store"
@@ -402,6 +405,9 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 			{Label: s.tu(r, "Maximum upload"), Value: filesize(s.cfg.MaxUploadBytes)},
 		}},
 	}}
+	if s.license != nil {
+		d.Groups = append(d.Groups, sysGroup{s.tu(r, "Licence"), s.licenseRows(r)})
+	}
 	d.Updates, d.Checks = s.updateRows(r), s.updates != nil && !s.updates.Disabled
 	if d.Checks {
 		d.Updater = s.updater()
@@ -411,6 +417,51 @@ func (s *Server) adminSystem(w http.ResponseWriter, r *http.Request) {
 	}
 	d.SingleSite, d.Guide = s.network == nil, multisiteGuide
 	s.renderAdmin(w, r, "system", s.tu(r, "System"), "system", d)
+}
+
+// licenseRows describe the licence file of a single-site install
+// (internal/license) and whether it leaves out the credit.
+func (s *Server) licenseRows(r *http.Request) []sysRow {
+	yes, no := true, false
+	now := time.Now()
+	host := s.cfg.BaseURL.Host
+	l, err := s.license.State(now)
+	hidden := l.HidesCredit(host, now)
+	credit := sysRow{Label: s.tu(r, "“Powered by sap13ns” credit"), Value: s.tu(r, "Shown")}
+	if hidden {
+		credit.Value, credit.OK = s.tu(r, "Left out by the licence"), &yes
+	}
+	file := sysRow{Label: s.tu(r, "Licence file"), Value: s.license.Path()}
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		file.Value = s.tu(r, "%s (none)", s.license.Path())
+		return []sysRow{credit, file}
+	case err != nil:
+		return []sysRow{credit, file, {Label: s.tu(r, "Status"), Value: s.tu(r, "Not valid: %s", err.Error()), OK: &no}}
+	}
+	typ := l.Type
+	if typ == license.TypeWhiteLabel {
+		typ = s.tu(r, "White label")
+	}
+	rows := []sysRow{credit,
+		{Label: s.tu(r, "Licensee"), Value: l.Licensee},
+		{Label: s.tu(r, "Licence type"), Value: typ},
+		{Label: s.tu(r, "Domains"), Value: strings.Join(l.Domains, ", ")},
+	}
+	exp := sysRow{Label: s.tu(r, "Expires"), Value: l.Expires.Format(time.DateOnly)}
+	switch left := l.Expires.Sub(now); {
+	case !l.InForce(now):
+		exp.Value, exp.OK = s.tu(r, "%s (not in force)", exp.Value), &no
+	case left < 30*24*time.Hour:
+		exp.Value, exp.OK = s.tu(r, "%s (%d days left)", exp.Value, int(left.Hours()/24)), &no
+	default:
+		exp.OK = &yes
+	}
+	rows = append(rows, exp)
+	if !l.Covers(host) {
+		rows = append(rows, sysRow{Label: s.tu(r, "Status"), Value: s.tu(r, "Not for this site's domain (%s)", s.cfg.BaseURL.Hostname()), OK: &no})
+	}
+	return append(rows, file)
 }
 
 func (s *Server) twoFactorDescription(r *http.Request) string {

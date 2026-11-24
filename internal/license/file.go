@@ -48,6 +48,7 @@ type File struct {
 	mod     time.Time
 	size    int64
 	lic     *License
+	err     error // why lic is nil: fs.ErrNotExist when there is no file
 }
 
 // recheck is how often the file is looked at again.
@@ -68,17 +69,25 @@ func (f *File) Path() string { return f.path }
 // Current returns the licence the file holds now, or nil: absent, not
 // valid, or not signed by the licensor. A nil File holds none.
 func (f *File) Current(now time.Time) *License {
+	l, _ := f.State(now)
+	return l
+}
+
+// State is Current, and why there is no licence: an error that matches
+// fs.ErrNotExist when there is no file, or what is wrong with it.
+func (f *File) State(now time.Time) (*License, error) {
 	if f == nil {
-		return nil
+		return nil, fs.ErrNotExist
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.checked.IsZero() && now.Sub(f.checked) < recheck && now.After(f.checked) {
-		return f.lic
+		return f.lic, f.err
 	}
 	f.checked = now
 	st, err := os.Stat(f.path)
 	if err != nil {
+		f.err = err
 		if f.lic != nil || f.size != -1 {
 			f.lic, f.mod, f.size = nil, time.Time{}, -1
 			if !errors.Is(err, fs.ErrNotExist) {
@@ -87,15 +96,15 @@ func (f *File) Current(now time.Time) *License {
 				f.notify(nil, nil)
 			}
 		}
-		return nil
+		return nil, f.err
 	}
 	if st.ModTime().Equal(f.mod) && st.Size() == f.size {
-		return f.lic
+		return f.lic, f.err
 	}
 	f.mod, f.size = st.ModTime(), st.Size()
-	f.lic, err = readFile(f.path, f.Key)
-	f.notify(f.lic, err)
-	return f.lic
+	f.lic, f.err = readFile(f.path, f.Key)
+	f.notify(f.lic, f.err)
+	return f.lic, f.err
 }
 
 func (f *File) notify(l *License, err error) {
