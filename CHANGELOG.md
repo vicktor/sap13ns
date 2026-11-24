@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.28.1 — 2026-11-24
+
+- **The System page shows the licence** of a single-site install that watches a licence file: whether the "Powered by sap13ns" credit is left out, who the licence is for, its domains and when it expires, with a warning in its last 30 days, or why it does not count (expired, another domain, not valid).
+
 ## v0.28.0 — 2026-11-24
 
 - **A licence file can leave out the "Powered by sap13ns" credit** on a single-site install. The licensor, BAUBER.XYZ SL, issues it: a signed file that names who it is for, the domains it covers and when it ends. Put it in `/etc/sap13ns/sap13ns.license` (or where `SAP13NS_LICENSE_FILE` says), readable by the service, and the credit is left out while the licence is in force and the site's address is one of its domains. When it expires, the credit is back. The server picks up a new, renewed or removed file within a minute, without a restart. `sap13ns license -env /etc/sap13ns/sap13ns.env` shows what the file holds and whether it applies. A network does not read it: its plans still decide ([docs/DEPLOY.md](docs/DEPLOY.md#a-licence-file)).
