@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.28.0 — 2026-11-24
+
+- **A licence file can leave out the "Powered by sap13ns" credit** on a single-site install. The licensor, BAUBER.XYZ SL, issues it: a signed file that names who it is for, the domains it covers and when it ends. Put it in `/etc/sap13ns/sap13ns.license` (or where `SAP13NS_LICENSE_FILE` says), readable by the service, and the credit is left out while the licence is in force and the site's address is one of its domains. When it expires, the credit is back. The server picks up a new, renewed or removed file within a minute, without a restart. `sap13ns license -env /etc/sap13ns/sap13ns.env` shows what the file holds and whether it applies. A network does not read it: its plans still decide ([docs/DEPLOY.md](docs/DEPLOY.md#a-licence-file)).
+- **Custom domains (`sap13ns-domains`)** keep a domain's own nginx locations across rewrites: files `/etc/nginx/sap13ns-overrides/<domain>/*.inc` are included in its https block, so a path another application serves on that domain survives. Reinstall the helper: `install -m 0755 deploy/sap13ns-domains /usr/local/sbin/`.
+
 ## v0.27.2 — 2026-11-19
 
 A review of what the last releases added (moving a site, notifications, reading without a connection, a site's own mail server, maintenance mode, the custom-domains helper) and of the path every public request takes. It found no way from one site of a network into another; what it did find is fixed here.
