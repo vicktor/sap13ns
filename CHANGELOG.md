@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.29.0 — 2026-11-24
+
+- **Analytics can start again from zero.** At the bottom of **Analytics**, an administrator can delete every visit, page, source and bot counted so far, such as the tests made before the site was published, and counting starts again at once. The page then says since when it counts. Each reset goes to the audit log.
+
 ## v0.28.2 — 2026-11-24
 
 - **Notices from the administration's scripts show again**: "Copied", "Nothing selected", uploads, the editor, the page builder, the customizer, menus and passkeys. Since Basecoat 1.x they were sent to an event nothing listened to.
