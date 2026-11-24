@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"sap13ns/internal/license"
 )
 
 type SMTP struct {
@@ -68,6 +70,10 @@ type Config struct {
 	// GeoIPDB (SAP13NS_GEOIP_DB) is the country database the analytics
 	// locate visitors with (internal/geoip); "" counts no countries.
 	GeoIPDB string
+	// LicenseFile (SAP13NS_LICENSE_FILE) is the licence the licensor issued
+	// to this single-site install (internal/license); "" holds none. A
+	// network never reads one: its plans decide (Network → Plans).
+	LicenseFile string
 
 	// DevGravatarURL, in development mode only (SAP13NS_DEV_GRAVATAR_URL),
 	// replaces https://gravatar.com/avatar/ with a stand-in server, which
@@ -475,6 +481,10 @@ func Load(requireSecret bool) (*Config, error) {
 	}
 	if c.Multisite {
 		if err := c.loadMultisite(); err != nil {
+			return nil, err
+		}
+	} else if lf := env("LICENSE_FILE", license.DefaultPath); lf != "off" {
+		if c.LicenseFile, err = filepath.Abs(lf); err != nil {
 			return nil, err
 		}
 	}

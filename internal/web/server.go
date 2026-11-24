@@ -29,6 +29,7 @@ import (
 	"sap13ns/internal/config"
 	"sap13ns/internal/geoip"
 	"sap13ns/internal/i18n"
+	"sap13ns/internal/license"
 	"sap13ns/internal/mail"
 	"sap13ns/internal/media"
 	"sap13ns/internal/plugin"
@@ -54,7 +55,8 @@ type Server struct {
 	restart   func()          // SetRestart
 	converted convertedThemes // themes converted from another CMS, awaiting confirmation (admin_theme_import.go)
 	ai        aiState
-	credit    creditCache // whether the plan leaves out the credit (credit.go)
+	credit    creditCache   // whether the plan leaves out the credit (credit.go)
+	license   *license.File // a single-site install's licence, or nil (credit.go)
 	cfg       *config.Config
 	log       *slog.Logger
 	store     *store.Store
@@ -243,6 +245,9 @@ func New(ctx context.Context, d Deps) (*Server, error) {
 		s.netBackups, _ = d.Network.(NetworkBackups)
 	} else {
 		s.limits, _ = d.Network.(SiteLimits)
+	}
+	if d.Network == nil {
+		s.license = s.openLicense(d.Config.LicenseFile)
 	}
 	s.media.Quota = storageQuota(s.limits)
 	if err := s.cop.AddTrustedOrigin(d.Config.BaseURL.String()); err != nil {

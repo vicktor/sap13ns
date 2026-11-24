@@ -50,6 +50,7 @@ func singleSiteEnv(t *testing.T, dir string) {
 		"SECRET_KEY":      strings.Repeat("ab", 32),
 		"DATA_DIR":        dir,
 		"UPLOADS_DIR":     "/srv/uploads",
+		"LICENSE_FILE":    "/etc/sap13ns/site.license",
 		"TRUSTED_PROXIES": "10.0.0.0/8, ::1/128",
 		"MAX_UPLOAD_MB":   "32",
 		"DB_MAX_CONNS":    "8",
@@ -93,6 +94,7 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 			LogFormat:      "json",
 			SMTP:           SMTP{Port: 587},
 			DBMaxConns:     16,
+			LicenseFile:    "/etc/sap13ns/sap13ns.license",
 			SiteBackups: SiteBackups{Root: filepath.Join(dir, "backups"), Dir: filepath.Join(dir, "backups", "site"),
 				KeepDaily: 7, KeepWeekly: 4},
 		}
@@ -122,6 +124,7 @@ func TestLoadSingleSiteGolden(t *testing.T) {
 			LogFormat:      "text",
 			SMTP:           SMTP{Host: "smtp.example.com", Port: 465, Username: "mailer", Password: "secret", From: "site@example.com"},
 			DBMaxConns:     8,
+			LicenseFile:    "/etc/sap13ns/site.license",
 			SiteBackups: SiteBackups{Root: filepath.Join(dir, "backups"), Dir: filepath.Join(dir, "backups", "site"),
 				KeepDaily: 7, KeepWeekly: 4},
 		}

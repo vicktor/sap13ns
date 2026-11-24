@@ -265,6 +265,7 @@ All settings are environment variables, which can be given in an env file with `
 | `SAP13NS_SMTP_HOST`, `_PORT`, `_USERNAME`, `_PASSWORD`, `_FROM` | Outgoing e-mail. A site can use a server of its own instead, in Settings → E-mail |
 | `SAP13NS_TRUSTED_PROXIES` | Proxies whose `X-Forwarded-For` is trusted |
 | `SAP13NS_MAX_UPLOAD_MB`, `SAP13NS_DB_MAX_CONNS`, `SAP13NS_LOG_LEVEL`, `SAP13NS_LOG_FORMAT` | Limits and logging |
+| `SAP13NS_LICENSE_FILE` | A licence file from the licensor (default `/etc/sap13ns/sap13ns.license`, `off` for none); see [docs/DEPLOY.md](docs/DEPLOY.md#a-licence-file) |
 
 A network of sites adds these. [docs/MULTISITE.md](docs/MULTISITE.md#configuration) gives their defaults and rules.
 
@@ -350,7 +351,7 @@ Still missing on a network of sites:
 
 ## License
 
-sap13ns is released under the [Common Public Attribution License 1.0](LICENSE) (CPAL-1.0), an OSI-approved licence. You may use, modify and redistribute it, including over a network. Keep the **"Powered by sap13ns"** attribution linking to [sap13ns.site](https://sap13ns.site), which appears by default in the site footer and on the sign-in pages.
+sap13ns is released under the [Common Public Attribution License 1.0](LICENSE) (CPAL-1.0), an OSI-approved licence. You may use, modify and redistribute it, including over a network. Keep the **"Powered by sap13ns"** attribution linking to [sap13ns.site](https://sap13ns.site), which appears by default in the site footer and on the sign-in pages. A site that may leave it out holds a licence from the licensor, BAUBER.XYZ SL: a signed licence file on a single-site install, or a plan of the licensor's network ([docs/DEPLOY.md](docs/DEPLOY.md#a-licence-file)).
 
 The plugin SDK (`pluginsdk/`), the plugin skeleton (`plugins/skeleton/`, which `sap13ns plugin new` copies) and the official plugins in `plugins/` are released under the **MIT licence** instead; each folder carries its own `LICENSE`. A plugin built on them can use any licence, including a proprietary one.
 

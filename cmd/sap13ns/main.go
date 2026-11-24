@@ -13,6 +13,7 @@
 //	sap13ns export -o FILE        export the content as WXR or a .zip (export.go)
 //	sap13ns transfer ...          move a whole site to another install (transfer.go)
 //	sap13ns geoip update          download the analytics' country database (geoip.go)
+//	sap13ns license               show the install's licence file (license.go)
 //	sap13ns network init          set up a network (SAP13NS_MULTISITE=true)
 //	sap13ns site ...              create, list and manage the sites of a network
 //	sap13ns version               print the version
@@ -99,6 +100,8 @@ func main() {
 		err = updateCmd(args)
 	case "geoip":
 		err = geoipCmd(args)
+	case "license", "licence":
+		err = licenseCmd(args)
 	case "network":
 		err = networkCmd(args)
 	case "site":
@@ -184,6 +187,8 @@ Commands:
                                  Download DB-IP's country database to
                                  SAP13NS_GEOIP_DB, for the visitors' countries
                                  in Analytics (see docs/DEPLOY.md)
+  license [show] [-file F]       Show the licence file (SAP13NS_LICENSE_FILE)
+                                 and whether it leaves out the credit here
   version                        Print the version
 
 Networks (SAP13NS_MULTISITE=true):

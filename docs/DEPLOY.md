@@ -98,6 +98,7 @@ All settings live in `/etc/sap13ns/sap13ns.env`; the variables are listed in the
 - **`SAP13NS_BASE_URL`** must be the public `https://` address. Cookies are marked `Secure`, and HSTS is sent, when it is https.
 - **`SAP13NS_SOCKET_GROUP=sap13ns-web`** gives that group, and only that group, access to the socket. The service joins it through `SupplementaryGroups` in the unit.
 - **`SAP13NS_TRUSTED_PROXIES`** applies only to TCP listeners. Connections over the Unix socket always come from nginx, which overwrites `X-Forwarded-For`.
+- **`SAP13NS_LICENSE_FILE`** is where a single-site install looks for a [licence file](#a-licence-file), by default `/etc/sap13ns/sap13ns.license`; `off` looks for none. A network ignores it.
 
 Everything else (site title, languages, themes, comments, two-factor policy, AI, analytics) is set in the admin.
 
@@ -163,6 +164,30 @@ curl -fsSLO https://github.com/vicktor/sap13ns/releases/download/vX.Y.Z/sap13ns_
 tar xzf sap13ns_X.Y.Z_linux_amd64.tar.gz
 sudo install -m 0755 deploy/sap13ns-domains /usr/local/sbin/
 ```
+
+### A licence file
+
+CPAL-1.0 asks every site to show the "Powered by sap13ns" credit. The licensor, BAUBER.XYZ SL, can release a single-site install from it with a **white-label licence file**: who it is for, the domains it covers, and when it ends. The file is binary and signed with the licensor's Ed25519 key; the binary holds only the public key (`internal/license.PublicKey`), so a changed or home-made file is refused. It is not encrypted, because nothing in it is secret.
+
+Install it next to the environment file, readable by the service, and check it:
+
+```sh
+sudo install -m 0640 -o root -g sap13ns socratex.org.license /etc/sap13ns/sap13ns.license
+sudo -u sap13ns sap13ns license -env /etc/sap13ns/sap13ns.env
+```
+
+`sap13ns license` prints the licence and whether it leaves out the credit on this install. A running server picks up a new, renewed or removed file within a minute, without a restart, and logs what it found (`white-label licence: the credit is left out`, or why the credit is shown).
+
+The credit is left out only while the licence is in force and the host of `SAP13NS_BASE_URL` is one of its domains or their `www.` name. When it expires, the credit is back on the next request, cached pages included; nothing else changes. On a network, plans decide instead (Network → Plans) and the file is not read.
+
+**Issuing a licence (the licensor only).** The private key is in `~/.config/sap13ns/license-signing.key` on the licensor's workstation, with an offline copy; it is not the release-signing key. From the repository:
+
+```sh
+go run ./scripts/licensesign issue -key ~/.config/sap13ns/license-signing.key \
+    -licensee "Socratex" -domain socratex.org -expires 2027-11-24 -out socratex.org.license
+```
+
+`-domain` repeats for more hosts. The licence ends as its expiry day starts (UTC); to renew, issue a new file and replace the old one. If the private key is lost or leaked, make a new pair with `licensesign keygen`, put its public key in `internal/license.PublicKey`, release, and issue the licences again: the files signed with the old key stop counting once a site runs the new release.
 
 ## Networks of sites
 
