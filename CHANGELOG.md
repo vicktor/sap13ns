@@ -5,6 +5,11 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.28.2 — 2026-11-24
+
+- **Notices from the administration's scripts show again**: "Copied", "Nothing selected", uploads, the editor, the page builder, the customizer, menus and passkeys. Since Basecoat 1.x they were sent to an event nothing listened to.
+- **Basecoat UI 1.3.0** (from 1.0.2), for the administration and every theme. Notices use its new markup and are read out by screen readers as they appear.
+
 ## v0.28.1 — 2026-11-24
 
 - **The System page shows the licence** of a single-site install that watches a licence file: whether the "Powered by sap13ns" credit is left out, who the licence is for, its domains and when it expires, with a warning in its last 30 days, or why it does not count (expired, another domain, not valid).
