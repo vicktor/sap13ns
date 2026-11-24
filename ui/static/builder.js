@@ -845,8 +845,7 @@ function init(root) {
   // The first control of a settings panel, to focus it.
   const FOCUSABLE = "input:not([type=hidden]), textarea, .select > button";
   const say = (text) => { live.textContent = ""; setTimeout(() => { live.textContent = text; }, 30); };
-  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-  const toast = (category, title) => document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
+  const toast = (category, title) => document.getElementById("toaster")?.toast?.({ category, title });
 
   // The region to open: ?region=front (a link from a theme's sample front
   // page), else the last one edited.

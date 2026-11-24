@@ -10,9 +10,8 @@
   const lists = document.querySelectorAll("ol[data-menu-order]");
   if (!lists.length) return;
   const csrf = () => document.querySelector('input[name="csrf"]')?.value || "";
-  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const toast = (category, title) =>
-    document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
+    document.getElementById("toaster")?.toast?.({ category, title });
 
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   // flip runs change, which moves items of list, and slides every item

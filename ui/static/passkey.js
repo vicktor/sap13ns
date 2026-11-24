@@ -14,11 +14,10 @@
   window.sapPasskeysLoaded = true;
 
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const supported = typeof window.PublicKeyCredential === "function" && !!navigator.credentials && window.isSecureContext;
 
   function toast(category, title) {
-    document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
+    document.getElementById("toaster")?.toast?.({ category, title });
   }
 
   // ------------------------------------------------------------ base64url --

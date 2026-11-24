@@ -2385,7 +2385,7 @@ function setupEditor() {
     playUntitled: say("VideoPlayUntitled", VIDEO_TEXT.playUntitled), off: say("VideoOff", ""),
   });
   const csrf = () => (document.querySelector('input[name="csrf"]') || {}).value || "";
-  const toast = (category, title) => document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: escHTML(title) } } }));
+  const toast = (category, title) => document.getElementById("toaster")?.toast?.({ category, title });
   const storeKey = "sap13ns:editor-mode:" + (root.dataset.editorUser || "0");
   const isEl = (n) => !!n && n.nodeType === 1;
   const inSurface = (n) => !!n && (n === surface || surface.contains(n));

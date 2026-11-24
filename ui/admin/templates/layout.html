@@ -173,16 +173,16 @@ the same choice as a plain form. */}}
 {{end}}
 
 {{define "toaster"}}
-<div id="toaster" class="toaster" aria-live="polite">
+<ol id="toaster" class="toaster" role="list" aria-label="{{T "Notifications"}}">
   {{range .Flashes}}
-  <div class="toast" role="{{if eq .Kind "error"}}alert{{else}}status{{end}}" aria-atomic="true" aria-hidden="false" data-category="{{.Kind}}"{{if eq .Kind "error"}} data-duration="8000"{{end}}>
-    <div class="toast-content">
+  <li class="toast" data-category="{{.Kind}}"{{if eq .Kind "error"}} data-duration="8000"{{end}}>
+    <div class="toast-content" role="{{if eq .Kind "error"}}alert{{else}}status{{end}}" aria-atomic="true">
       {{if eq .Kind "success"}}{{icon "circle-check"}}{{else if eq .Kind "error"}}{{icon "circle-alert"}}{{else if eq .Kind "warning"}}{{icon "triangle-alert"}}{{else}}{{icon "info"}}{{end}}
       <section><h2>{{.Text}}</h2></section>
     </div>
-  </div>
+  </li>
   {{end}}
-</div>
+</ol>
 {{end}}
 
 {{define "confirm-dialog"}}

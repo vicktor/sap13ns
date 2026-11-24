@@ -16,7 +16,7 @@
 
   // ------------------------------------------------------------ toasts --
   function toast(category, title) {
-    document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
+    document.getElementById("toaster")?.toast?.({ category, title });
   }
 
   // ------------------------------------------------------------- theme --

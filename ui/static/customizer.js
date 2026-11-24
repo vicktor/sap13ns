@@ -637,9 +637,8 @@ function init(root) {
   let failed = false;          // the last save was refused
   let okStatus = status.textContent;
 
-  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   function toast(category, title) {
-    document.dispatchEvent(new CustomEvent("basecoat:toast", { detail: { config: { category, title: esc(title) } } }));
+    document.getElementById("toaster")?.toast?.({ category, title });
   }
 
   async function post(path, body) {
