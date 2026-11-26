@@ -5,6 +5,10 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.31.0 — 2026-11-26
+
+- **An appointment calendar beside the contact form** (contact plugin 1.2.0). Paste a Google Calendar appointment schedule in the plugin's **Appointment calendar** setting (its address or the "Website embed" code) and the form takes half the width, with the calendar in the other half. Nothing is requested from Google until the visitor presses **Show the calendar**; it is declared to the cookie consent as click to load. The new version asks for two permissions: its script on public pages and frames from calendar.google.com, so approve it again in **Plugins** after updating.
+
 ## v0.30.0 — 2026-11-26
 
 - **Changing a theme section's photo in Edit the page.** A click on one of the theme's own sections in the preview opens its texts, photos and settings; each photo has a **Change the photo** button that opens Media to choose or upload one, and the photo clicked gets the focus.
