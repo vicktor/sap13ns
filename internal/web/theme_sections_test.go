@@ -37,12 +37,13 @@ func TestThemeSections(t *testing.T) {
     {"id": "intro", "label": "Opening", "anchor": "intro", "icon": "panel-top", "fields": [
       {"key": "title", "label": "Title", "type": "text", "content": "hello"},
       {"key": "steps", "label": "Steps", "type": "lines", "default": "One\nTwo"},
-      {"key": "more", "label": "Link", "type": "url", "default": "/about"}]},
+      {"key": "more", "label": "Link", "type": "url", "default": "/about"},
+      {"key": "width", "label": "Width", "type": "select", "default": "half", "choices": [{"value": "half", "label": "Half"}, {"value": "wide", "label": "Wide"}]}]},
     {"id": "plain", "label": "Plain", "where": ["front", "page"], "fields": [{"key": "text", "label": "Text", "type": "textarea", "default": "Plain text"}]}],
   "front_sections": ["intro", "plain"]}`
 	files["i18n/es.json"] = `{"Hello world": "Hola mundo", "One": "Uno", "Two": "Dos", "Plain text": "Texto llano", "Opening": "Apertura"}`
 	files["templates/front.html"] = `{{define "content"}}{{range .Site.FrontSections $}}{{template "shared/theme-section" .}}{{end}}{{end}}`
-	files["templates/sections/intro.html"] = `{{define "section/intro"}}<section class="intro"><h1>{{.Text "title"}}</h1><ol>{{range .Lines "steps"}}<li>{{.}}</li>{{end}}</ol><a class="more" href="{{.URL "more"}}">more</a></section>{{end}}`
+	files["templates/sections/intro.html"] = `{{define "section/intro"}}<section class="intro"><h1>{{.Text "title"}}</h1><ol>{{range .Lines "steps"}}<li>{{.}}</li>{{end}}</ol><a class="more" href="{{.URL "more"}}">more</a><i data-w="{{.Choice "width"}}"></i></section>{{end}}`
 	files["templates/sections/plain.html"] = `{{define "section/plain"}}<section class="plain"><p>{{.Text "text"}}</p></section>{{end}}`
 	if rec := e.uploadTheme("secty.zip", zipOf(t, "secty", files, nil)); rec.Code != http.StatusSeeOther {
 		t.Fatalf("upload: %d %s", rec.Code, rec.Body)
@@ -90,6 +91,9 @@ func TestThemeSections(t *testing.T) {
 	if code := send(`{"layout": {"pages": {"front": {"sections": [{"id": "a", "layout": "1", "columns": [[{"id": "x", "type": "theme-nope"}]]}]}}}}`); code == http.StatusOK {
 		t.Error("an unknown section was saved")
 	}
+	if code := send(`{"layout": {"pages": {"front": {"sections": [{"id": "a", "layout": "1", "columns": [[{"id": "x", "type": "theme-intro", "settings": {"width": "huge"}}]]}]}}}}`); code == http.StatusOK {
+		t.Error("a choice the section does not offer was saved")
+	}
 	if code := send(`{"layout": {"pages": {"single": {"sections": [{"id": "a", "layout": "1", "columns": [[{"id": "x", "type": "theme-intro"}]]}]}}}}`); code == http.StatusOK {
 		t.Error("a section was placed where the theme does not allow it")
 	}
@@ -98,8 +102,9 @@ func TestThemeSections(t *testing.T) {
 	layout := `{"layout": {"pages": {"front": {"sections": [
 	  {"id": "s1", "layout": "1", "columns": [[{"id": "b1", "type": "theme-plain", "settings": {"animation": "fade-up"}}]]},
 	  {"id": "s2", "layout": "1", "anchor": "intro", "columns": [[{"id": "b2", "type": "theme-intro"}]]},
-	  {"id": "s3", "layout": "1", "anchor": "again", "columns": [[{"id": "b3", "type": "theme-intro", "settings": {"title": "Otra vez", "steps": "Solo"}, "i18n": {"en": {"title": "Again"}}}]]},
-	  {"id": "s4", "layout": "1-1", "columns": [[{"id": "b4", "type": "theme-plain", "settings": {"text": "Al lado"}}], [{"id": "b5", "type": "rich-text", "settings": {"text": "Rich"}}]]}]}}}}`
+	  {"id": "s3", "layout": "1", "anchor": "again", "columns": [[{"id": "b3", "type": "theme-intro", "settings": {"title": "Otra vez", "steps": "Solo", "width": "wide"}, "i18n": {"en": {"title": "Again"}}}]]},
+	  {"id": "s4", "layout": "1-1", "columns": [[{"id": "b4", "type": "theme-plain", "settings": {"text": "Al lado"}}], [{"id": "b5", "type": "rich-text", "settings": {"text": "Rich"}}]]},
+	  {"id": "s5", "layout": "1", "columns": [[{"id": "b6", "type": "theme-plain", "settings": {"text": ""}}]]}]}}}}`
 	if code := send(layout); code != http.StatusOK {
 		t.Fatalf("draft: %d", code)
 	}
@@ -109,9 +114,12 @@ func TestThemeSections(t *testing.T) {
 	body := page("/")
 	has("/ laid out", body, `<div class="sap-theme-section" id="sap-s1" data-sap-animate="fade-up"><section class="plain"><p>Texto llano</p>`,
 		`id="intro"><section class="intro"><h1>Hola mundo</h1>`, `id="again"><section class="intro"><h1>Otra vez</h1><ol><li>Solo</li></ol>`,
-		`<section class="plain"><p>Al lado</p></section>`, "Rich", "/static/motion.css")
+		`<section class="plain"><p>Al lado</p></section>`, "Rich", "/static/motion.css",
+		`more</a><i data-w="half"></i>`, `more</a><i data-w="wide"></i>`,
+		// A text emptied on purpose stays empty, in every language.
+		`id="sap-s5"><section class="plain"><p></p></section>`)
 	if strings.Index(body, "Texto llano") > strings.Index(body, "Hola mundo") {
 		t.Error("the sections are not in the layout's order")
 	}
-	has("/en/ laid out", page("/en/"), "<h1>Hello world</h1>", "<h1>Again</h1>", "<p>Plain text</p>")
+	has("/en/ laid out", page("/en/"), "<h1>Hello world</h1>", "<h1>Again</h1>", "<p>Plain text</p>", `id="sap-s5"><section class="plain"><p></p></section>`)
 }

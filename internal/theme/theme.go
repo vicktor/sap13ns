@@ -110,14 +110,21 @@ type Section struct {
 type SectionField struct {
 	Key     string `json:"key"`
 	Label   string `json:"label"`
-	Type    string `json:"type"` // text | textarea | lines | image | url
+	Type    string `json:"type"` // text | textarea | lines | image | url | select
 	Default string `json:"default"`
 	Content string `json:"content"`
 	Help    string `json:"help"`
+	// Choices are a select's values, Default one of them: a setting of the
+	// section's look (how wide its photo is), the same in every language.
+	Choices []Choice `json:"choices"`
 }
 
-// SectionURL is the section field type for a link.
-const SectionURL = "url"
+// SectionURL is the section field type for a link; SectionSelect, for one
+// of a list of choices.
+const (
+	SectionURL    = "url"
+	SectionSelect = "select"
+)
 
 // Section returns the theme's section id.
 func (t *Theme) Section(id string) *Section {

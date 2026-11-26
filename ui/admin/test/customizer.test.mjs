@@ -101,7 +101,8 @@ test("designFrom keeps the theme texts that differ from their default", () => {
     { name: "content_i18n.en.lead", value: "", def: "Text" },
   ]);
   assert.deepEqual(d.content, { lead: "Otro texto", hero: "12" });
-  assert.deepEqual(d.content_i18n, { en: { title: "Welcome" } });
+  // Emptied (the field showed the theme's text): sent as "".
+  assert.deepEqual(d.content_i18n, { en: { title: "Welcome", lead: "" } });
 });
 
 test("live theme texts do not reload the preview; images and lists do", () => {
@@ -124,4 +125,15 @@ test("designFrom keeps the animations chosen, and they need no reload", () => {
   assert.equal(needsReload(before, d), false, "the stylesheet shows animations");
   assert.equal(motionChanged(before, d), true);
   assert.equal(motionChanged(d, designFrom([{ name: "motion.level", value: "subtle" }, { name: "motion.content.title", value: "fade-up" }])), false);
+});
+
+test("designFrom sends an emptied theme text, not an untouched one", () => {
+  const d = designFrom([
+    { name: "content.credit", value: "  ", def: "Image by Freepik" },
+    { name: "content.title", value: "Welcome", def: "Welcome" },
+    { name: "content.note", value: "", def: "" },
+    { name: "content_i18n.ca.credit", value: "", def: "Imatge de Freepik" },
+  ]);
+  assert.deepEqual(d.content, { credit: "" });
+  assert.deepEqual(d.content_i18n, { ca: { credit: "" } });
 });

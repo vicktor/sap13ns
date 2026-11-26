@@ -655,7 +655,7 @@ func cleanValues(path string, settings map[string]string, i18n map[string]map[st
 			add("settings."+k, "%s", msg)
 			continue
 		}
-		if v != "" && v != f.Default {
+		if v != "" && v != f.Default || v == "" && f.Keep {
 			out[k] = v
 		}
 	}
@@ -834,6 +834,17 @@ func (b *Block) Value(key, lang string) string {
 		}
 	}
 	return ""
+}
+
+// Lookup returns a block setting as edited in lang: its translation, else
+// its main value, even an emptied one (a Keep field), and whether it was
+// edited at all. Unlike Value it never gives the field's default.
+func (b *Block) Lookup(key, lang string) (string, bool) {
+	if v := b.I18n[lang][key]; v != "" {
+		return v, true
+	}
+	v, ok := b.Settings[key]
+	return v, ok
 }
 
 // Value returns an item's setting in lang, as Block.Value does a block's.

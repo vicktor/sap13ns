@@ -57,8 +57,11 @@ export function designFrom(fields, storedOptions = {}) {
       v = v.trim();
       if (!v) continue;
     } else if (head === "content" || head === "content_i18n") {
+      // The theme's own text is left out (it follows the theme); an empty
+      // one is sent only when the theme fills it in: it was emptied.
       v = v.trim();
-      if (!v || v === String(f.def ?? "").trim()) continue;
+      const def = String(f.def ?? "").trim();
+      if (v === def) continue;
     } else if (head === "motion") {
       if (!v || v === "none") continue;
     }
@@ -361,12 +364,36 @@ function init(root) {
     setTimeout(() => el.classList.remove("is-target"), 1600);
   }
 
+  // openOption opens the theme option key (Theme options) and takes the
+  // focus there: what a click on it in the preview does.
+  function optionField(key) {
+    const input = document.getElementById(`cz-opt-${key}`) || $(`[name="options.${CSS.escape(key)}"]`);
+    return input?.closest(".field") || input?.closest("label") || input;
+  }
+  function optionLabel(key) {
+    const box = optionField(key);
+    return box?.querySelector("label, .label")?.textContent.trim() || box?.textContent.trim() || key;
+  }
+  function openOption(key) {
+    const box = optionField(key);
+    if (!box) return;
+    const section = box.closest("details.cz-section");
+    if (section) section.open = true;
+    box.scrollIntoView({ block: "center", behavior: "smooth" });
+    (box.matches("input, textarea, select") ? box : box.querySelector("input, textarea, select, button"))?.focus({ preventScroll: true });
+    box.classList.add("is-target");
+    setTimeout(() => box.classList.remove("is-target"), 1600);
+  }
+
   // showText writes a text in the preview as it is typed.
   function showText(input) {
     const doc = frameDoc();
     if (!doc || doc.documentElement.lang !== input.lang) return;
     for (const el of doc.querySelectorAll(`[data-sap-edit="${input.dataset.live}"]`)) {
-      if (el !== typing) el.textContent = input.value.trim() || input.dataset.default || "";
+      if (el === typing) continue;
+      el.textContent = input.value.trim();
+      // Emptied: the element goes, as on the page (a credit taken off).
+      el.hidden = !el.textContent;
     }
   }
 
@@ -390,14 +417,14 @@ function init(root) {
     const sync = () => {
       let v = el.innerText.replace(/\u00a0/g, " ");
       if (!multi) v = v.replace(/\s*\n\s*/g, " ");
-      input.value = v.trim() === (input.dataset.default || "").trim() && !before ? "" : v.trim();
+      input.value = v.trim();
       input.dispatchEvent(new Event("input", { bubbles: true }));
     };
     const keydown = (e) => {
       if (e.key === "Escape") {
         input.value = before;
         input.dispatchEvent(new Event("input", { bubbles: true }));
-        el.textContent = before.trim() || input.dataset.default || "";
+        el.textContent = before.trim();
         el.blur();
       } else if (e.key === "Enter" && !multi) {
         e.preventDefault();
@@ -498,6 +525,14 @@ function init(root) {
         return;
       }
       const el = editMode && e.target.closest?.("[data-sap-edit]");
+      // A theme option the page shows (an address, a phone): its field.
+      const opt = !el && editMode && e.target.closest?.("[data-sap-option]");
+      if (opt) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        openOption(opt.dataset.sapOption);
+        return;
+      }
       if (!el) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -523,14 +558,15 @@ function init(root) {
         }, { once: true });
         return;
       }
-      const el = editMode && e.target.closest?.("[data-sap-edit]");
+      const edit = editMode && e.target.closest?.("[data-sap-edit]");
+      const el = edit || (editMode && e.target.closest?.("[data-sap-option]"));
       if (!el || el.dataset.sapHover || el.isContentEditable) return;
       el.dataset.sapHover = "";
       // CSSOM, not a style attribute: the site's CSP allows it.
       el.style.outline = "2px dashed #3b82f6";
       el.style.outlineOffset = "4px";
-      el.style.cursor = typeable(el) ? "text" : "pointer";
-      el.title = fmt(typeable(el) ? msg.msgType : msg.msgEdit, label(el.dataset.sapEdit));
+      el.style.cursor = edit && typeable(el) ? "text" : "pointer";
+      el.title = edit ? fmt(typeable(el) ? msg.msgType : msg.msgEdit, label(el.dataset.sapEdit)) : fmt(msg.msgEdit, optionLabel(el.dataset.sapOption));
       el.addEventListener("mouseleave", () => {
         delete el.dataset.sapHover;
         if (el.isContentEditable) return el.removeAttribute("title");

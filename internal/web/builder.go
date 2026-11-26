@@ -691,6 +691,9 @@ func (s *Server) adminBuilder(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			f.Label, f.Help = s.themeText(ui, th, f.Label), s.themeText(ui, th, f.Help)
+			for j := range f.Choices {
+				f.Choices[j].Label = s.themeText(ui, th, f.Choices[j].Label)
+			}
 			if def := sectionOf(th, t.Type); def != nil && def.Field(f.Key).Type == theme.ContentLines {
 				f.Help = strings.TrimSpace(f.Help + " " + s.tu(r, "One per line."))
 			}

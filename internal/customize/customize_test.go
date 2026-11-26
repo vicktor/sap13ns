@@ -424,3 +424,28 @@ func TestMotion(t *testing.T) {
 		t.Error("no animation still animates")
 	}
 }
+
+// A theme text emptied on purpose is kept as "": the page shows nothing
+// there, not the theme's text. Emptied in the main language, it is empty
+// in the others unless they have their own.
+func TestEmptiedContent(t *testing.T) {
+	c := testCtx
+	c.Content = []ContentSpec{{Key: "credit", Type: "text"}, {Key: "title", Type: "text"}}
+	c.Langs = []string{"en"}
+	d, err := Parse([]byte(`{"content": {"credit": "  "}, "content_i18n": {"en": {"title": "Hi"}}}`), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := d.ContentAt("es", "es", "credit"); v != "" || !ok {
+		t.Fatalf("credit in es = %q, %v; want emptied", v, ok)
+	}
+	if v, ok := d.ContentAt("en", "es", "credit"); v != "" || !ok {
+		t.Fatalf("credit in en = %q, %v; want emptied like the main language", v, ok)
+	}
+	if _, ok := d.ContentAt("es", "es", "title"); ok {
+		t.Fatal("title was not edited in es")
+	}
+	if v, ok := d.ContentAt("en", "es", "title"); v != "Hi" || !ok {
+		t.Fatalf("title in en = %q, %v", v, ok)
+	}
+}

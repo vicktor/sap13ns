@@ -484,12 +484,29 @@ func checkSections(v *validation, m *Manifest, text func(field, s string, limit 
 			text("sections[].fields[].default", f.Default, maxDefault, false)
 			switch f.Type {
 			case ContentText, ContentTextarea, ContentLines, ContentImage, SectionURL:
+			case SectionSelect:
+				if len(f.Choices) == 0 || len(f.Choices) > 50 {
+					v.add(Problem{Code: "manifest.option-choices", File: "theme.json", Args: []any{f.Key, 50}})
+					break
+				}
+				values := map[string]bool{}
+				for _, c := range f.Choices {
+					text("sections[].fields[].choices[].value", c.Value, maxShortText, true)
+					text("sections[].fields[].choices[].label", c.Label, maxLabel, true)
+					if values[c.Value] {
+						v.add(Problem{Code: "manifest.duplicate", File: "theme.json", Args: []any{"sections[].fields[].choices[].value", c.Value}})
+					}
+					values[c.Value] = true
+				}
+				if !values[f.Default] {
+					v.add(Problem{Code: "manifest.option-default", File: "theme.json", Args: []any{f.Key}})
+				}
 			default:
 				v.add(Problem{Code: "manifest.section-type", File: "theme.json", Args: []any{sec.ID, f.Key, f.Type}})
 			}
 			if f.Content != "" {
 				ct, ok := content[f.Content]
-				if !ok || (ct == ContentImage) != (f.Type == ContentImage) || f.Type == SectionURL {
+				if !ok || (ct == ContentImage) != (f.Type == ContentImage) || f.Type == SectionURL || f.Type == SectionSelect {
 					v.add(Problem{Code: "manifest.section-content", File: "theme.json", Args: []any{sec.ID, f.Key, f.Content}})
 				}
 			}

@@ -7,7 +7,7 @@ import {
   required, starter, summary, parseErrorPath, History, PAGE_REGIONS, validAnchor, anchorsTaken, setAnchor,
   addItem, removeItem, moveItem, setItemValue, newBlock, reid, chooseOption,
   validClasses, setSectionClass, hasBlock, emptyRegion, sectionToHTML, sectionHTML, themeHTML,
-  markdownOf, regionOfClasses, partRoots, partsRegion, textHost, pathTo, follow, syncText,
+  markdownOf, regionOfClasses, partRoots, partsRegion, textHost, pathTo, follow, syncText, themePhotos, themeBlock,
 } from "../../static/builder.js";
 import { parseHTML } from "./dom.mjs";
 
@@ -506,4 +506,36 @@ test("html sections: each language has its own markup", () => {
   const es = sectionToHTML(en, "front", 0, "<p>Buenas</p>");
   assert.equal(sec(es).columns[0][0].settings.html, "<p>Buenas</p>");
   assert.deepEqual(sec(es).columns[0][0].i18n, { en: { html: "<p>Hello</p>" } });
+});
+
+test("themePhotos offers the image fields of a theme section", () => {
+  const types = {
+    "theme-about": { fields: [{ key: "about-title", type: "text" }, { key: "about-image", type: "image", label: "Photograph" }] },
+    "theme-way": { fields: [{ key: "way-title", type: "text" }] },
+  };
+  const sec = (...blocks) => ({ columns: [blocks] });
+  const ph = themePhotos(sec({ id: "b1", type: "theme-about" }), types);
+  assert.equal(ph.block.id, "b1");
+  assert.deepEqual(ph.fields.map((f) => f.key), ["about-image"]);
+  assert.equal(themePhotos(sec({ id: "b2", type: "theme-way" }), types), null, "no images");
+  assert.equal(themePhotos(sec({ id: "b3", type: "text" }), types), null, "not a theme section");
+  assert.equal(themePhotos(sec({ id: "b4", type: "theme-about" }, { id: "b5", type: "text" }), types), null, "more than one block");
+});
+
+test("themeBlock is the only block of a theme section", () => {
+  assert.equal(themeBlock({ columns: [[{ id: "a", type: "theme-intro" }]] })?.id, "a");
+  assert.equal(themeBlock({ columns: [[{ id: "a", type: "text" }]] }), null);
+  assert.equal(themeBlock({ columns: [[{ id: "a", type: "theme-intro" }], [{ id: "b", type: "theme-way" }]] }), null);
+  assert.equal(themeBlock(undefined), null);
+});
+
+test("setValue keeps a theme text emptied on purpose", () => {
+  const p = { s: 0, c: 0, b: 0 };
+  const blk = (l) => getRegion(l, "home").sections[0].columns[0][0];
+  let l = setValue(base(), "home", p, "credit", "", "", "Image by Freepik", true);
+  assert.deepEqual(blk(l).settings, { credit: "" });
+  l = setValue(l, "home", p, "credit", "Image by Freepik", "", "Image by Freepik", true);
+  assert.equal(blk(l).settings, undefined);
+  l = setValue(l, "home", p, "credit", "", "", "", false);
+  assert.equal(blk(l).settings, undefined);
 });

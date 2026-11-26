@@ -94,7 +94,7 @@
 .bl-form { @apply flex flex-col gap-4; }
 .bl-form .field { @apply flex flex-col; }
 .bl-hint { @apply px-6 text-sm text-muted-foreground; }
-.bl-image { @apply flex items-center gap-2; }
+.bl-image { @apply flex flex-wrap items-center gap-2; }
 .bl-thumb { @apply size-10 shrink-0 rounded-md border object-cover; }
 .bl-thumb-empty { @apply inline-grid place-items-center bg-muted text-muted-foreground; }
 .bl-thumb-empty svg { @apply size-4; }

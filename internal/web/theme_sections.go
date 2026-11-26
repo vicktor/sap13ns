@@ -62,16 +62,21 @@ func themeSectionTypes(th *theme.Theme) []builder.Type {
 		}
 		t := builder.Type{Type: sectionTypePrefix + sec.ID, Label: sec.Label, Icon: icon, Help: sec.Help, Where: where}
 		for _, f := range sec.Fields {
-			bf := builder.Field{Key: f.Key, Label: f.Label, Help: f.Help, I18n: true}
+			bf := builder.Field{Key: f.Key, Label: f.Label, Help: f.Help, I18n: true, Keep: true}
 			switch f.Type {
 			case theme.ContentText:
 				bf.Type, bf.Max = "text", 500
 			case theme.ContentTextarea, theme.ContentLines:
 				bf.Type, bf.Max = "textarea", 5000
 			case theme.ContentImage:
-				bf.Type, bf.I18n = "image", false
+				bf.Type, bf.I18n, bf.Keep = "image", false, false
 			case theme.SectionURL:
-				bf.Type = "url"
+				bf.Type, bf.Keep = "url", false
+			case theme.SectionSelect:
+				bf.Type, bf.I18n, bf.Keep, bf.Default = "select", false, false, f.Default
+				for _, c := range f.Choices {
+					bf.Choices = append(bf.Choices, builder.Choice{Value: c.Value, Label: c.Label})
+				}
 			}
 			t.Fields = append(t.Fields, bf)
 		}
@@ -90,13 +95,19 @@ func sectionOf(th *theme.Theme, typ string) *theme.Section {
 }
 
 // value is the field key as edited in this section for the page's
-// language ("" when it was not): its translation, else its main text, as
-// the page builder's blocks have them.
-func (v *ThemeSectionView) value(key string) string {
+// language: its translation, else its main text, which may have been
+// emptied on purpose; ok is false when it was not edited.
+func (v *ThemeSectionView) value(key string) (string, bool) {
 	if v.block == nil {
-		return ""
+		return "", false
 	}
-	return v.block.Value(key, v.Site.Lang)
+	return v.block.Lookup(key, v.Site.Lang)
+}
+
+// edited is value without whether it was edited.
+func (v *ThemeSectionView) edited(key string) string {
+	s, _ := v.value(key)
+	return s
 }
 
 // Text returns the section's text key in the page's language: as edited in
@@ -107,7 +118,10 @@ func (v *ThemeSectionView) Text(key string) string {
 	if f == nil || f.Type == theme.ContentImage {
 		return ""
 	}
-	if s := v.value(key); s != "" {
+	if f.Type == theme.SectionSelect {
+		return v.Choice(key)
+	}
+	if s, ok := v.value(key); ok {
 		return s
 	}
 	if f.Content != "" {
@@ -132,9 +146,10 @@ func (v *ThemeSectionView) Lines(key string) []string {
 	if f == nil || f.Type == theme.ContentImage {
 		return nil
 	}
-	src, translate := v.value(key), false
+	src, edited := v.value(key)
+	translate := false
 	switch {
-	case src != "":
+	case edited:
 	case f.Content != "":
 		return v.Site.Lines(f.Content)
 	default:
@@ -160,7 +175,7 @@ func (v *ThemeSectionView) Image(key string) *ImageView {
 	if f == nil || f.Type != theme.ContentImage {
 		return nil
 	}
-	if id, err := strconv.ParseInt(v.value(key), 10, 64); err == nil && id > 0 && v.media != nil {
+	if id, err := strconv.ParseInt(v.edited(key), 10, 64); err == nil && id > 0 && v.media != nil {
 		if m := v.media(id); m != nil && m.IsImage() {
 			return imageView(m)
 		}
@@ -171,6 +186,21 @@ func (v *ThemeSectionView) Image(key string) *ImageView {
 	return nil
 }
 
+// Choice returns the value chosen for the select key in this section,
+// else its default: always one of its choices.
+func (v *ThemeSectionView) Choice(key string) string {
+	f := v.def.Field(key)
+	if f == nil || f.Type != theme.SectionSelect {
+		return ""
+	}
+	if v.block != nil {
+		if s := v.block.Value(key, ""); slices.ContainsFunc(f.Choices, func(c theme.Choice) bool { return c.Value == s }) {
+			return s
+		}
+	}
+	return f.Default
+}
+
 // URL returns the link key, with the page's language prefix for a path of
 // the site (as menus have them).
 func (v *ThemeSectionView) URL(key string) string {
@@ -178,7 +208,7 @@ func (v *ThemeSectionView) URL(key string) string {
 	if f == nil || f.Type != theme.SectionURL {
 		return ""
 	}
-	u := v.value(key)
+	u := v.edited(key)
 	if u == "" {
 		u = f.Default
 	}

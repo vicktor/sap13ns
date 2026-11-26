@@ -18,6 +18,9 @@ type Field struct {
 	// One (a bool of an item): at most one item of the block has it on,
 	// such as the highlighted plan of a pricing table.
 	One bool `json:"one,omitempty"`
+	// Keep (a theme section's text): an emptied value is kept, as emptied
+	// on purpose, instead of meaning "the theme's text".
+	Keep bool `json:"keep,omitempty"`
 	// Hints are the editor's placeholders for the translations (lang ->
 	// text): what a theme's section shows until it is edited.
 	Hints map[string]string `json:"hints,omitempty"`

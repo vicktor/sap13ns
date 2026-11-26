@@ -57,18 +57,20 @@ func prefetchContent(ms *mediaSet, th *theme.Theme, raw []byte) {
 	ms.prefetch(ids)
 }
 
-// edited returns the text key as edited for the page's language.
-func (s *SiteView) edited(key string) string {
+// edited returns the text key as edited for the page's language, and
+// whether it was edited at all: an edited "" was emptied on purpose and
+// shows nothing, not the theme's text.
+func (s *SiteView) edited(key string) (string, bool) {
 	if s.content == nil || s.content.design == nil {
-		return ""
+		return "", false
 	}
-	return s.content.design.ContentIn(s.Lang, s.content.main, key)
+	return s.content.design.ContentAt(s.Lang, s.content.main, key)
 }
 
 // Text returns the theme's text key in the page's language: the edited
 // one, or the theme's default in its translation.
 func (s *SiteView) Text(key string) string {
-	if v := s.edited(key); v != "" {
+	if v, ok := s.edited(key); ok {
 		return v
 	}
 	if s.theme == nil {
@@ -87,8 +89,8 @@ func (s *SiteView) Text(key string) string {
 // Lines returns the lines of the text key (a list of the theme's: values,
 // steps…), each default line translated on its own.
 func (s *SiteView) Lines(key string) []string {
-	v := s.edited(key)
-	if v == "" && s.theme != nil {
+	v, ok := s.edited(key)
+	if !ok && s.theme != nil {
 		f := s.theme.ContentField(key)
 		if f == nil || f.Type == theme.ContentImage {
 			return nil

@@ -377,6 +377,22 @@ export function setSectionClass(l, name, s, cls) {
 }
 
 /** hasBlock reports whether a section has a block of type. */
+/** themePhotos is the theme section sec is made of (its only block, of a
+ * "theme-" type) and that type's image fields, or null: what its "Change
+ * the photo" buttons offer. */
+export function themePhotos(sec, types) {
+  const block = themeBlock(sec);
+  const fields = (block && types[block.type]?.fields || []).filter((f) => f.type === "image");
+  return fields.length ? { block, fields } : null;
+}
+
+/** themeBlock is the block of a section made of one of the theme's own
+ * sections (its only block, of a "theme-" type), or null. */
+export function themeBlock(sec) {
+  const sole = (sec?.columns || []).flat();
+  return sole.length === 1 && sole[0].type?.startsWith("theme-") ? sole[0] : null;
+}
+
 export const hasBlock = (sec, type) => (sec?.columns || []).some((c) => c.some((b) => b.type === type));
 
 /** setStyle sets a section appearance option; the default is not stored. */
@@ -430,12 +446,13 @@ export function duplicateBlock(l, name, p, rand) {
 
 /** setValue sets a block setting (lang "" ) or its translation into lang.
  * Empty values and the field's default are removed. */
-export function setValue(l, name, p, key, value, lang = "", def = "") {
+export function setValue(l, name, p, key, value, lang = "", def = "", keep = false) {
   return edit(l, name, (r) => {
     const b = col(r, p)[p.b];
     if (!lang) {
       const s = { ...(b.settings || {}) };
-      if (value === "" || value == null || value === def) delete s[key]; else s[key] = String(value);
+      // keep: a theme's text emptied on purpose stays, as "".
+      if (value == null || value === def || (value === "" && !keep)) delete s[key]; else s[key] = String(value);
       if (Object.keys(s).length) b.settings = s; else delete b.settings;
       return;
     }
@@ -857,6 +874,7 @@ function init(root) {
   const recommended = new URLSearchParams(location.search).get("preset") || state.recommended || "";
   if (regions.some((x) => x.name === asked)) region = asked;
   let selected = null;            // id of the selected section or block
+  let clickedPhoto = null; // the theme photo clicked in the preview (its key)
   let errors = [];                // the last refusal's field errors
   const history = new History(clone(state.layout || {}));
   const layout = () => history.current;
@@ -1245,7 +1263,7 @@ function init(root) {
     const down = () => { commit(moveSection(layout(), region, pos.s, pos.s + 1)); say(fmt(msg.msgMoved, label)); };
     const errs = errors.filter((e) => e.region === region && e.s === pos.s && e.c == null && !e.anchor && !e.sectionClass).map((e) => h("p", { class: "cz-field-error", role: "alert", text: e.message }));
     settings.replaceChildren(header("columns-2", `${label} · ${msg.msgSectionSettings}`),
-      h("section", { class: "bl-form" }, ...errs, htmlButton(sec, pos, msg.msgEditHtml), presets, anchorField(sec, pos), ...fields,
+      h("section", { class: "bl-form" }, ...errs, photoButtons(sec), htmlButton(sec, pos, msg.msgEditHtml), presets, anchorField(sec, pos), ...fields,
         // The credits' section takes no class (the server refuses one).
         hasBlock(sec, META) ? null : sectionClassField(sec, pos),
         moveButtons(up, down, pos.s > 0, pos.s < r.sections.length - 1)));
@@ -1259,6 +1277,22 @@ function init(root) {
   const htmlBox = document.getElementById("bl-html-input");
   let htmlAt = null;
   const htmlLocked = (sec) => sec.columns.flat().some((b) => b.type === META || b.type === CONTENT);
+  // A theme section's photos are its block's fields: one button each, to
+  // the media library. The one clicked in the preview takes the focus.
+  function photoButtons(sec) {
+    const ph = themePhotos(sec, types);
+    if (!ph) return null;
+    const many = ph.fields.length > 1;
+    const buttons = ph.fields.map((f) => h("button", {
+      type: "button", class: "btn w-full", "data-variant": "secondary", "data-photo": f.key,
+      onclick: () => visual.chooseImage(ph.block.id, null, f),
+    }, icon("image"), many ? fmt(msg.msgChangePhotoOf, f.label) : msg.msgChangePhoto));
+    const wanted = clickedPhoto && buttons.find((b) => b.dataset.photo === clickedPhoto);
+    clickedPhoto = null;
+    if (wanted) requestAnimationFrame(() => wanted.focus({ preventScroll: true }));
+    return h("div", { class: "field bl-photo-field" }, ...buttons, h("p", { class: "hint", text: msg.msgChangePhotoHint }));
+  }
+
   function htmlButton(sec, pos, text) {
     if (!htmlDialog) return null;
     const locked = htmlLocked(sec);
@@ -1392,11 +1426,12 @@ function init(root) {
     // start with them, and a text typed back to one is not stored.
     const themed = item == null && String(b.type).startsWith("theme-") && f.type !== "image";
     const theirs = themed ? (lang ? f.hints?.[lang] : f.default) || "" : "";
-    const shown = stored || theirs;
+    const emptied = themed && !lang && f.keep && obj.settings?.[f.key] === "";
+    const shown = emptied ? "" : stored || theirs;
     const set = (v) => {
       const p = find(layout(), region, b.id);
       const def = lang ? theirs : f.default || "";
-      const next = item == null ? setValue(layout(), region, p, f.key, v, lang, def)
+      const next = item == null ? setValue(layout(), region, p, f.key, v, lang, def, Boolean(f.keep))
         : setItemValue(layout(), region, p, item, f.key, v, lang, def, Boolean(f.one));
       // Turning on a one-only setting turns it off elsewhere: redraw.
       commit(next, `${b.id}.${item ?? ""}.${f.key}.${lang}`, { keepSettings: !(f.one && v === "true") });
@@ -1442,6 +1477,14 @@ function init(root) {
         input = h("div", { class: "bl-image" },
           img ? h("img", { src: img.thumb, alt: "", class: "bl-thumb" }) : h("span", { class: "bl-thumb bl-thumb-empty" }, icon("image")),
           selectBox(id, [{ value: "", label: msg.msgNoImage }, ...state.images.map((m) => ({ value: String(m.id), label: m.name || `#${m.id}` }))], cur, set, common));
+        // The media library, to choose or upload one.
+        const pick = h("button", { type: "button", class: "btn", "data-variant": "secondary", "data-size": "sm", "data-photo": f.key,
+          onclick: () => visual.chooseImage(b.id, item, f) }, icon("image"), msg.msgChangePhoto);
+        input.append(pick);
+        if (item == null && clickedPhoto === f.key) {
+          clickedPhoto = null;
+          requestAnimationFrame(() => pick.focus({ preventScroll: true }));
+        }
         if (!state.images.length) help.push(msg.msgNoImages);
         break;
       }
@@ -1880,7 +1923,14 @@ function init(root) {
     const typeLabel = (el) => types[el.dataset.sapType]?.label || el.dataset.sapType || "";
 
     // The marked element of the selected section or block.
-    const selectedEl = () => (selected && doc ? doc.querySelector(`[data-sap-blk="${CSS.escape(selected)}"], [data-sap-sec="${CSS.escape(selected)}"]`) : null);
+    const selectedEl = () => {
+      if (!selected || !doc) return null;
+      const el = doc.querySelector(`[data-sap-blk="${CSS.escape(selected)}"], [data-sap-sec="${CSS.escape(selected)}"]`);
+      if (el) return el;
+      // The block of one of the theme's sections is drawn as its section.
+      const sec = getRegion(layout(), region)?.sections.find((x) => themeBlock(x)?.id === selected);
+      return sec ? doc.querySelector(`[data-sap-sec="${CSS.escape(sec.id)}"]`) : null;
+    };
 
     function redraw() {
       if (!ui || !doc?.body.contains(ui.bar)) return;
@@ -1972,7 +2022,7 @@ function init(root) {
         const at = blockOf(id);
         if (!at) return;
         const def = lang ? "" : f.default || "";
-        const next = item == null ? setValue(layout(), region, at.p, f.key, v, lang, def)
+        const next = item == null ? setValue(layout(), region, at.p, f.key, v, lang, def, Boolean(f.keep))
           : setItemValue(layout(), region, at.p, item, f.key, v, lang, def, Boolean(f.one));
         commit(next, `${id}.${item ?? ""}.${f.key}.${lang}`, { keepSettings: true, quietly });
         // The panel's field follows.
@@ -2121,6 +2171,13 @@ function init(root) {
         toast("info", msg.msgHtmlTextElsewhere);
         return;
       }
+      // One of the theme's sections: its block, with its texts and photos
+      // (the photo clicked takes the focus) and how wide it is.
+      if (!blk) {
+        clickedPhoto = t.closest("img[data-sap-edit]")?.dataset.sapEdit || null;
+        const own = themeBlock(getRegion(layout(), region)?.sections.find((x) => x.id === sec.dataset.sapSec));
+        if (own) { select(own.id, { fromPreview: true }); return; }
+      }
       select(blk ? blk.dataset.sapBlk : sec.dataset.sapSec, { fromPreview: true });
     }
 
@@ -2205,7 +2262,7 @@ function init(root) {
       redraw();
     }
 
-    return { attach, mark, banner: () => doc && banner() };
+    return { attach, mark, chooseImage, banner: () => doc && banner() };
   })();
 
   // ------------------------------------------------------------ preview --

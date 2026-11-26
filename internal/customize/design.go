@@ -105,12 +105,28 @@ type Motion struct {
 func (m Motion) Used() bool { return m.Level != "" || len(m.Content) > 0 }
 
 // ContentIn returns the edited text key for lang, "" when it was not
-// edited in that language.
+// edited in that language or was emptied.
 func (d *Design) ContentIn(lang, main, key string) string {
+	v, _ := d.ContentAt(lang, main, key)
+	return v
+}
+
+// ContentAt returns the edited text key for lang and whether it was
+// edited. An edited "" was emptied on purpose: the page shows nothing
+// there, not the theme's text (a photo credit taken off). Emptied in the
+// main language, it is empty in the others too unless they have their own.
+func (d *Design) ContentAt(lang, main, key string) (string, bool) {
+	main1, ok := d.Content[key]
 	if lang == "" || lang == main {
-		return d.Content[key]
+		return main1, ok
 	}
-	return d.ContentI18n[lang][key]
+	if v, ok := d.ContentI18n[lang][key]; ok {
+		return v, true
+	}
+	if ok && main1 == "" {
+		return "", true
+	}
+	return "", false
 }
 
 // Font picks a curated stack or a WOFF2 file from the media library.
@@ -515,7 +531,9 @@ func (d *Design) Normalize(c Context) (Errors, error) {
 				v = clip(v, MaxContentText)
 			}
 		}
-		return v, v != ""
+		// A text left empty is kept: it was emptied on purpose (the
+		// editor sends it only for a text the theme fills in).
+		return v, true
 	}
 	content := map[string]string{}
 	for k, v := range d.Content {
