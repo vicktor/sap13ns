@@ -5,6 +5,14 @@ release's section, and the ones before it, as its notes, and the admin's
 System page shows the sections newer than the running version. Every release
 needs a section here, headed `## vX.Y.Z — YYYY-MM-DD`.
 
+## v0.30.0 — 2026-11-26
+
+- **Changing a theme section's photo in Edit the page.** A click on one of the theme's own sections in the preview opens its texts, photos and settings; each photo has a **Change the photo** button that opens Media to choose or upload one, and the photo clicked gets the focus.
+- **A theme text emptied on purpose stays empty**, such as a photo credit taken off, in Style and texts and in Edit the page alike. It used to come back as the theme's text. Emptied in the main language, it is empty in the others unless they have their own.
+- **Theme options on the page are clickable** in Style and texts: a theme can mark an address, a phone or an e-mail (`data-sap-option`) so that a click on it opens its field under **Theme options**.
+- **Theme sections can have settings of their look**: a `select` field, such as how wide a photograph is, chosen per section in Edit the page ([docs/THEMES.md](docs/THEMES.md)).
+- **The contact form speaks Catalan** (plugin 1.1.0): labels, button, errors, the message after sending and the e-mail, with `intro_ca`, `success_ca` and `privacy_url_ca` settings. Update it in **Plugins** and approve the new version.
+
 ## v0.29.0 — 2026-11-24
 
 - **Analytics can start again from zero.** At the bottom of **Analytics**, an administrator can delete every visit, page, source and bot counted so far, such as the tests made before the site was published, and counting starts again at once. The page then says since when it counts. Each reset goes to the audit log.
