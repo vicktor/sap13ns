@@ -2,8 +2,8 @@
   "abi": 1,
   "id": "contact",
   "name": "Contact form",
-  "version": "1.1.0",
-  "description": "A contact form with name, e-mail, subject, message and privacy consent, in English, Spanish and Catalan, placed with the [contact] shortcode or a widget. Messages are e-mailed to the site administrator or a configured address, with Reply-To set to the visitor.",
+  "version": "1.2.0",
+  "description": "A contact form with name, e-mail, subject, message and privacy consent, in English, Spanish and Catalan, placed with the [contact] shortcode or a widget. Messages are e-mailed to the site administrator or a configured address, with Reply-To set to the visitor. Optionally, a Google Calendar appointment schedule beside the form, loaded when the visitor asks for it.",
   "author": "sap13ns",
   "license": "MIT",
   "hooks": ["shortcode", "widget", "form.submit"],
@@ -11,7 +11,17 @@
   "widgets": [
     {"id": "contact", "title": "Contact form", "description": "The contact form, with the intro text and the privacy link from the plugin settings."}
   ],
-  "permissions": ["mail"],
+  "permissions": ["mail", "assets:js"],
+  "assets": {"css": ["assets/contact.css"], "js": ["assets/contact.js"]},
+  "csp": {"frame-src": ["https://calendar.google.com"]},
+  "privacy": [
+    {"type": "service", "name": "Google Calendar", "service": "google-calendar", "category": "media", "provider": "Google Ireland Limited",
+      "purpose": {"en": "Shows the appointment calendar beside the contact form, to book a time. Nothing loads until you press the button; then Google receives your IP address and may store data on your device.",
+        "es": "Muestra el calendario de citas junto al formulario de contacto, para reservar una hora. No se carga nada hasta que pulsas el botón; entonces Google recibe tu dirección IP y puede guardar datos en tu dispositivo.",
+        "ca": "Mostra el calendari de cites al costat del formulari de contacte, per reservar una hora. No es carrega res fins que prems el botó; aleshores Google rep la teva adreça IP i pot desar dades al teu dispositiu."},
+      "lifetime": {"en": "Set by the provider", "es": "La fija el proveedor", "ca": "La fixa el proveïdor"},
+      "policy": "https://policies.google.com/privacy", "click_to_load": true}
+  ],
   "settings": [
     {"key": "recipient", "label": "Send messages to", "type": "email", "help": "Empty sends them to the site administrator."},
     {"key": "subject_prefix", "label": "Subject prefix", "type": "text", "default": "[Contact]", "help": "Starts the subject of every e-mail, so you can filter them."},
@@ -27,6 +37,11 @@
     {"key": "success_es", "label": "Message after sending (Spanish)", "type": "text", "default": ""},
     {"key": "success_en", "label": "Message after sending (English)", "type": "text", "default": ""},
     {"key": "success_ca", "label": "Message after sending (Catalan)", "type": "text", "default": ""},
+    {"key": "booking_url", "label": "Appointment calendar", "type": "text", "default": "", "help": "A Google Calendar appointment schedule, shown beside the form: its address (https://calendar.google.com/calendar/appointments/schedules/…) or the whole \"Website embed\" code Google gives. Empty shows the form alone."},
+    {"key": "booking_text", "label": "Text above the calendar", "type": "text", "default": "", "help": "Empty uses \"Choose a free time in our calendar.\" (in Spanish or Catalan on those pages)."},
+    {"key": "booking_text_es", "label": "Text above the calendar (Spanish)", "type": "text", "default": ""},
+    {"key": "booking_text_en", "label": "Text above the calendar (English)", "type": "text", "default": ""},
+    {"key": "booking_text_ca", "label": "Text above the calendar (Catalan)", "type": "text", "default": ""},
     {"key": "min_length", "label": "Shortest message (characters)", "type": "number", "default": "20"},
     {"key": "max_links", "label": "Most links in a message", "type": "number", "default": "3", "help": "Messages with more links are refused. 0 allows none."}
   ],

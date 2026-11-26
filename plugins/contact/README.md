@@ -49,6 +49,19 @@ escaped, and blank lines separate paragraphs. The privacy link must be an
 `https://` or `http://` address or a site path such as `/privacy`. Anything
 else (`javascript:`, `//host`) is not shown, and a warning is logged once.
 
+## An appointment calendar beside the form
+
+Paste a Google Calendar appointment schedule in `booking_url` (its address,
+`https://calendar.google.com/calendar/appointments/schedules/…`, or the
+whole "Website embed" code from Google Calendar → the booking page → Share)
+and the form takes half the width, with the calendar in the other half (one
+under the other on narrow screens). The calendar has a title ("Book an
+appointment" / "Reserva una cita"), the `booking_text` line and a button
+that loads it. **Nothing is requested from Google until the visitor presses
+the button**; without JavaScript there is a link that opens the calendar at
+Google instead. A short `calendar.app.google/…` link cannot be embedded: use
+the long address or the embed code. Anything else is left out and logged.
+
 ## What the host already does
 
 The form is declared in `plugin.json` and rendered by the host, which
@@ -127,6 +140,8 @@ instead of sending it.
 | Permission | Why |
 | --- | --- |
 | `mail` | To e-mail each message to the administrator or the saved `recipient`. The host only delivers to `admin` or to an address an administrator saved in an `email` setting. |
+| `assets:js` | `assets/contact.js` turns the calendar link into a button that loads the calendar. It does nothing on pages without one. |
+| `csp:frame-src:https://calendar.google.com` | To show the appointment calendar in a frame once the visitor asks for it. |
 
 ## Settings
 
@@ -141,6 +156,8 @@ instead of sending it.
 | `success` | text | empty | Shown after sending. `{name}` and `{email}` are replaced. Empty uses "Thanks, {name}! Your message was sent. We will reply to {email}." or its Spanish or Catalan version. At most 500 bytes are shown. |
 | `success_es`, `success_en`, `success_ca` | text | empty | Per-language confirmation. |
 | `min_length` | number | `20` | Shortest accepted message, in characters (1–5000). |
+| `booking_url` | text | empty | A Google Calendar appointment schedule shown beside the form (see above). |
+| `booking_text`, `booking_text_es`, `booking_text_en`, `booking_text_ca` | text | empty | The line above the calendar. Empty uses "Choose a free time in our calendar." in the page's language. |
 | `max_links` | number | `3` | Most `http(s)://` or `www.` links in a message. `0` allows none. |
 
 For the per-language settings, the plugin uses `key_es`, `key_ca` or `key_en` (by the
@@ -157,6 +174,10 @@ page's language), then `key`, then the built-in text.
 - **Consent:** ticking the box is required to send. The only record of it is
   the "Privacy consent: yes" line in the e-mail. Keep the e-mails if you need
   to show consent later.
+- **Calendar:** with `booking_url` set, Google receives the visitor's IP
+  address and may store data on their device, but only after they press the
+  button that loads the calendar. The plugin declares it to the site's cookie
+  consent as Google Calendar (click to load).
 - The privacy policy itself is up to the site: link it with `privacy_url`.
 
 ## Host gaps

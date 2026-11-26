@@ -26,6 +26,8 @@ type text struct {
 	mailIntro, mailName, mailEmail, mailSubject          string
 	mailPage, mailLang, mailConsent, mailYes             string
 	mailMessage, mailReply, mailNoSubject                string
+	bookingTitle, bookingText, bookingShow               string
+	bookingOpen, bookingNotice                           string
 }
 
 var english = text{
@@ -55,6 +57,11 @@ var english = text{
 	mailMessage:   "Message",
 	mailReply:     "Reply to this e-mail to answer %s.",
 	mailNoSubject: "Message from %s",
+	bookingTitle:  "Book an appointment",
+	bookingText:   "Choose a free time in our calendar.",
+	bookingShow:   "Show the calendar",
+	bookingOpen:   "Open the calendar at Google",
+	bookingNotice: "The calendar is Google's: it loads when you press the button.",
 }
 
 var spanishText = text{
@@ -84,6 +91,11 @@ var spanishText = text{
 	mailMessage:   "Mensaje",
 	mailReply:     "Responde a este correo para contestar a %s.",
 	mailNoSubject: "Mensaje de %s",
+	bookingTitle:  "Reserva una cita",
+	bookingText:   "Elige un hueco libre en nuestro calendario.",
+	bookingShow:   "Ver el calendario",
+	bookingOpen:   "Abrir el calendario en Google",
+	bookingNotice: "El calendario es de Google: se carga al pulsar el botón.",
 }
 
 var catalanText = text{
@@ -113,6 +125,11 @@ var catalanText = text{
 	mailMessage:   "Missatge",
 	mailReply:     "Respon aquest correu per contestar a %s.",
 	mailNoSubject: "Missatge de %s",
+	bookingTitle:  "Reserva una cita",
+	bookingText:   "Tria una franja lliure del nostre calendari.",
+	bookingShow:   "Mostra el calendari",
+	bookingOpen:   "Obre el calendari a Google",
+	bookingNotice: "El calendari és de Google: es carrega quan prems el botó.",
 }
 
 func texts(lang string) *text {

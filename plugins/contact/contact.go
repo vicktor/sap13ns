@@ -110,8 +110,17 @@ func safeLink(u string) bool {
 // warn is set when the privacy link setting could not be used.
 func FormHTML(c Config, lang string) (out, warn string) {
 	t := texts(lang)
+	page, embed, ok := c.Booking()
+	if !ok {
+		warn = "booking_url is not a Google Calendar appointment schedule (https://calendar.google.com/calendar/appointments/schedules/…); the calendar is not shown"
+	}
 	var b strings.Builder
-	b.WriteString(`<div class="contact-form">`)
+	if page != "" {
+		// The form and the calendar side by side (contact.css).
+		b.WriteString(`<div class="contact-form contact-has-booking"><div class="contact-main">`)
+	} else {
+		b.WriteString(`<div class="contact-form">`)
+	}
 	for _, p := range paragraphs(c.local("intro", lang)) {
 		b.WriteString(`<p class="contact-intro">` + html.EscapeString(p) + `</p>`)
 	}
@@ -121,6 +130,9 @@ func FormHTML(c Config, lang string) (out, warn string) {
 		warn = fmt.Sprintf("privacy_url %q is not an http(s) address or a site path; the privacy link is not shown", truncate(u, 80))
 	}
 	b.WriteString(pluginsdk.FormPlaceholder(FormID))
+	if page != "" {
+		b.WriteString(`</div>` + bookingHTML(c, t, lang, page, embed))
+	}
 	b.WriteString(`</div>`)
 	return b.String(), warn
 }
