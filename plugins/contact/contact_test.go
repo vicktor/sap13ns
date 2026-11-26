@@ -174,6 +174,8 @@ func TestSuccess(t *testing.T) {
 		{map[string]string{"success": "Got it, {name}."}, "es", "Got it, Ada."},
 		{map[string]string{"success": "Got it.", "success_es": "Recibido, {name}."}, "es", "Recibido, Ada."},
 		{map[string]string{"success_es": "Recibido."}, "en", "Thanks, Ada! Your message was sent. We will reply to ada@example.org."},
+		{nil, "ca", "Gràcies, Ada! El teu missatge s'ha enviat. Et respondrem a ada@example.org."},
+		{map[string]string{"success_es": "Recibido.", "success_ca": "Rebut, {name}."}, "ca-ES", "Rebut, Ada."},
 		{map[string]string{"success": strings.Repeat("é", 400)}, "en", strings.Repeat("é", 248) + "…"},
 	} {
 		m.Lang = tc.lang
@@ -194,6 +196,7 @@ func TestSendError(t *testing.T) {
 		{pluginsdk.ErrLimit, "en", "Too many messages right now. Try again later."},
 		{pluginsdk.ErrDenied, "en", "The message could not be sent. Try again later."},
 		{errors.New("boom"), "es", "No se pudo enviar el mensaje. Inténtalo más tarde."},
+		{errors.New("boom"), "ca", "No s'ha pogut enviar el missatge. Torna-ho a provar més tard."},
 	} {
 		if got := SendError(tc.err, tc.lang); got != tc.want {
 			t.Errorf("SendError(%v, %s) = %q", tc.err, tc.lang, got)
@@ -216,6 +219,9 @@ func TestFormHTML(t *testing.T) {
 		{"spanish settings", map[string]string{"intro": "Hi", "intro_es": "Escríbenos.", "privacy_url": "/privacy", "privacy_url_es": "https://example.test/es/privacidad?x=1&y=2"}, "es",
 			`<div class="contact-form"><p class="contact-intro">Escríbenos.</p>` +
 				`<p class="contact-privacy"><small>Cómo tratamos tus datos: <a href="https://example.test/es/privacidad?x=1&amp;y=2">Política de privacidad</a>.</small></p><div data-form="contact"></div></div>`, false},
+		{"catalan settings", map[string]string{"intro": "Hi", "intro_ca": "Escriu-nos.", "privacy_url_ca": "/ca/privacitat"}, "ca",
+			`<div class="contact-form"><p class="contact-intro">Escriu-nos.</p>` +
+				`<p class="contact-privacy"><small>Com tractem les teves dades: <a href="/ca/privacitat">Política de privacitat</a>.</small></p><div data-form="contact"></div></div>`, false},
 		{"unsafe privacy link", map[string]string{"privacy_url": "javascript:alert(1)"}, "en",
 			`<div class="contact-form"><div data-form="contact"></div></div>`, true},
 		{"protocol-relative link", map[string]string{"privacy_url": "//evil.test/x"}, "en",

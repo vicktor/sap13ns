@@ -18,9 +18,10 @@ The plugin sends nothing to the visitor and stores nothing.
 | Message / Mensaje | textarea, required | `min_length` (20) to 5000 characters, at most `max_links` (3) links. |
 | I have read and accept the privacy policy | checkbox, required | Must be ticked. |
 
-Labels, the submit button ("Send message" / "Enviar mensaje"), the error
-messages and the confirmation follow the page's language: `es`, `es-*` and
-`es_*` are Spanish, anything else English. When the page has no language, the
+Labels, the submit button ("Send message" / "Enviar mensaje" / "Envia el
+missatge"), the error messages and the confirmation follow the page's
+language: `es`, `es-*` and `es_*` are Spanish, `ca` and `ca-*` Catalan,
+anything else English. When the page has no language, the
 site language is used.
 
 ## Placing the form
@@ -134,15 +135,15 @@ instead of sending it.
 | `recipient` | email | empty | Where messages go. Empty sends them to the site administrator. The address must be saved in this setting by an administrator. Until it is, the host refuses it and the visitor gets the "could not be sent" message. |
 | `subject_prefix` | text | `[Contact]` | Starts the subject of every e-mail, for filtering. |
 | `privacy_url` | text | empty | Privacy policy link shown above the form and quoted in the e-mail. |
-| `privacy_url_es`, `privacy_url_en` | text | empty | Per-language links, e.g. `/es/privacidad`. |
+| `privacy_url_es`, `privacy_url_en`, `privacy_url_ca` | text | empty | Per-language links, e.g. `/es/privacidad`. |
 | `intro` | textarea | empty | Plain text above the form. |
-| `intro_es`, `intro_en` | textarea | empty | Per-language intro. |
-| `success` | text | empty | Shown after sending. `{name}` and `{email}` are replaced. Empty uses "Thanks, {name}! Your message was sent. We will reply to {email}." or its Spanish version. At most 500 bytes are shown. |
-| `success_es`, `success_en` | text | empty | Per-language confirmation. |
+| `intro_es`, `intro_en`, `intro_ca` | textarea | empty | Per-language intro. |
+| `success` | text | empty | Shown after sending. `{name}` and `{email}` are replaced. Empty uses "Thanks, {name}! Your message was sent. We will reply to {email}." or its Spanish or Catalan version. At most 500 bytes are shown. |
+| `success_es`, `success_en`, `success_ca` | text | empty | Per-language confirmation. |
 | `min_length` | number | `20` | Shortest accepted message, in characters (1–5000). |
 | `max_links` | number | `3` | Most `http(s)://` or `www.` links in a message. `0` allows none. |
 
-For the per-language settings, the plugin uses `key_es` or `key_en` (by the
+For the per-language settings, the plugin uses `key_es`, `key_ca` or `key_en` (by the
 page's language), then `key`, then the built-in text.
 
 ## Privacy

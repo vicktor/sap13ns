@@ -2,16 +2,17 @@ package main
 
 import "strings"
 
-// spanish reports whether a language code is Spanish ("es", "es-MX", "es_AR").
-func spanish(lang string) bool {
-	l := strings.ToLower(strings.TrimSpace(lang))
-	return l == "es" || strings.HasPrefix(l, "es-") || strings.HasPrefix(l, "es_")
-}
-
-// langKey is the suffix of per-language settings: "es" or "en".
+// langKey is the language the plugin has texts in for a language code,
+// and the suffix of its per-language settings: "es" ("es", "es-MX",
+// "es_AR"), "ca" or "en".
 func langKey(lang string) string {
-	if spanish(lang) {
-		return "es"
+	l := strings.ToLower(strings.TrimSpace(lang))
+	if i := strings.IndexAny(l, "-_"); i >= 0 {
+		l = l[:i]
+	}
+	switch l {
+	case "es", "ca":
+		return l
 	}
 	return "en"
 }
@@ -85,9 +86,41 @@ var spanishText = text{
 	mailNoSubject: "Mensaje de %s",
 }
 
+var catalanText = text{
+	privacyLead:   "Com tractem les teves dades:",
+	privacyLink:   "Política de privacitat",
+	nameShort:     "Escriu el teu nom (com a mínim 2 caràcters).",
+	nameLong:      "El nom és massa llarg (100 caràcters com a màxim).",
+	emailInvalid:  "Escriu una adreça de correu vàlida.",
+	subjectLong:   "L'assumpte és massa llarg (150 caràcters com a màxim).",
+	messageShort:  "Escriu com a mínim %d caràcters.",
+	messageLong:   "El missatge és massa llarg (5000 caràcters com a màxim).",
+	noLinks:       "El missatge no pot contenir enllaços.",
+	tooManyLinks:  "Massa enllaços (%d com a màxim).",
+	consent:       "Accepta la política de privacitat per enviar el missatge.",
+	checkForm:     "Revisa els camps marcats.",
+	success:       "Gràcies, {name}! El teu missatge s'ha enviat. Et respondrem a {email}.",
+	rateLimited:   "Ara mateix hi ha massa missatges. Torna-ho a provar més tard.",
+	sendFailed:    "No s'ha pogut enviar el missatge. Torna-ho a provar més tard.",
+	mailIntro:     "Missatge nou del formulari de contacte.",
+	mailName:      "Nom",
+	mailEmail:     "Correu",
+	mailSubject:   "Assumpte",
+	mailPage:      "Pàgina",
+	mailLang:      "Idioma",
+	mailConsent:   "Consentiment de privacitat",
+	mailYes:       "sí",
+	mailMessage:   "Missatge",
+	mailReply:     "Respon aquest correu per contestar a %s.",
+	mailNoSubject: "Missatge de %s",
+}
+
 func texts(lang string) *text {
-	if spanish(lang) {
+	switch langKey(lang) {
+	case "es":
 		return &spanishText
+	case "ca":
+		return &catalanText
 	}
 	return &english
 }
